@@ -37,7 +37,9 @@ COPY . .
 RUN cp simple-server-from-container.js simple-server.js 2>/dev/null || echo "Using existing simple-server.js"
 
 # Build the application
-RUN npm run build || echo "Build completed with warnings"
+RUN npm run build && \
+    ls -la dist/ && \
+    echo "Build successful - dist directory created"
 
 # Clean up dev dependencies
 RUN npm prune --production 2>/dev/null || true
