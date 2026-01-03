@@ -147,8 +147,7 @@ app.use((req, res, next) => {
 // Main route
 app.get('/', (req, res) => {
   const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
-  const htmlFile = process.env.NODE_ENV === 'production' ? 'index.html' : 'login.html';
-  res.sendFile(path.join(__dirname, staticDir, htmlFile));
+  res.sendFile(path.join(__dirname, staticDir, 'index.html'));
 });
 
 // Simple local login

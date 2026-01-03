@@ -364,8 +364,7 @@ app.get('/', (req, res) => {
   if (req.session.authenticated) {
     console.log('User already authenticated, serving app');
     const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
-    const htmlFile = process.env.NODE_ENV === 'production' ? 'index.html' : 'login.html';
-    return res.sendFile(path.join(__dirname, staticDir, htmlFile));
+    return res.sendFile(path.join(__dirname, staticDir, 'index.html'));
   }
   
   // Check if OIDC is configured
@@ -386,15 +385,13 @@ app.get('/', (req, res) => {
   // Default: serve login page
   console.log('Serving login page');
   const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
-  const htmlFile = process.env.NODE_ENV === 'production' ? 'index.html' : 'login.html';
-  res.sendFile(path.join(__dirname, staticDir, htmlFile));
+  res.sendFile(path.join(__dirname, staticDir, 'index.html'));
 });
 
 // Admin route (prevents OAuth auto-redirect)
 app.get('/admin', (req, res) => {
   const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
-  const htmlFile = process.env.NODE_ENV === 'production' ? 'index.html' : 'login.html';
-  res.sendFile(path.join(__dirname, staticDir, htmlFile));
+  res.sendFile(path.join(__dirname, staticDir, 'index.html'));
 });
 
 // Serve logo and other data assets
