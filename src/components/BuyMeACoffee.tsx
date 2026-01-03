@@ -14,7 +14,7 @@ function BuyMeACoffee({
 
   return (
     <button className="bmc-button" onClick={handleClick}>
-      <img src="/data/bmc-brand-logo.png" alt="Buy Me a Coffee" className="bmc-logo" />
+      <img src="/data/bmc-brand-logo.svg" alt="Buy Me a Coffee" className="bmc-logo" />
     </button>
   );
 }

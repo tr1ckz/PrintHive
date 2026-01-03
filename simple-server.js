@@ -404,6 +404,11 @@ app.get('/admin', (req, res) => {
 app.use('/favicon.svg', express.static(path.join(__dirname, 'data', 'logo.png')));
 app.use('/logo.png', express.static(path.join(__dirname, 'data', 'logo.png')));
 
+// Buy Me a Coffee brand assets
+app.get('/data/bmc-brand-logo.svg', (req, res) => {
+  res.sendFile(path.join(__dirname, 'data', 'bmc-brand-logo.svg'));
+});
+
 // Serve cover images from data directory with on-demand download fallback
 app.get('/images/covers/:modelId.:ext', async (req, res) => {
   const { modelId, ext } = req.params;
