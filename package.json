@@ -9,6 +9,7 @@
     "dev:frontend": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "reset-admin": "node reset-admin.js",
     "docker:build": "docker build -t bambu-lab-integration:latest .",
     "docker:run": "docker run -d --name bambu-lab -p 3000:3000 -v bambu_data:/app/data -v bambu_library:/app/library -v bambu_sessions:/app/sessions bambu-lab-integration:latest"
   },
