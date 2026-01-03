@@ -146,7 +146,9 @@ app.use((req, res, next) => {
 
 // Main route
 app.get('/', (req, res) => {
-  const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
+  const fs = require('fs');
+  const distExists = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
+  const staticDir = distExists ? 'dist' : 'public';
   res.sendFile(path.join(__dirname, staticDir, 'index.html'));
 });
 

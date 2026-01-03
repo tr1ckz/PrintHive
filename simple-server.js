@@ -363,7 +363,11 @@ app.get('/', (req, res) => {
   // If already authenticated, serve the app
   if (req.session.authenticated) {
     console.log('User already authenticated, serving app');
-    const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
+    // Check if dist exists, otherwise fall back to public
+    const fs = require('fs');
+    const distExists = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
+    const staticDir = distExists ? 'dist' : 'public';
+    console.log('Serving from:', staticDir);
     return res.sendFile(path.join(__dirname, staticDir, 'index.html'));
   }
   
@@ -384,13 +388,18 @@ app.get('/', (req, res) => {
   
   // Default: serve login page
   console.log('Serving login page');
-  const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
+  const fs = require('fs');
+  const distExists = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
+  const staticDir = distExists ? 'dist' : 'public';
+  console.log('Serving from:', staticDir);
   res.sendFile(path.join(__dirname, staticDir, 'index.html'));
 });
 
 // Admin route (prevents OAuth auto-redirect)
 app.get('/admin', (req, res) => {
-  const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
+  const fs = require('fs');
+  const distExists = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
+  const staticDir = distExists ? 'dist' : 'public';
   res.sendFile(path.join(__dirname, staticDir, 'index.html'));
 });
 
