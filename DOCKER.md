@@ -33,20 +33,56 @@ PORT=3000
 
 ## Unraid Installation
 
-1. **Add Container Template:**
-   - Container Registry: `ghcr.io/tr1ckz/bambu-lab-integration:latest`
-   - Network Type: `Bridge`
-   - Port: `3000` → `3000`
+### Step 1: Add Container
+1. Go to **Docker** tab in Unraid
+2. Click **Add Container**
+3. Set **Template**: `Custom`
 
-2. **Add Volumes:**
-   - `/mnt/user/appdata/bambu-lab/data` → `/app/data`
-   - `/mnt/user/appdata/bambu-lab/library` → `/app/library`
-   - `/mnt/user/appdata/bambu-lab/sessions` → `/app/sessions`
+### Step 2: Basic Configuration
+- **Name**: `bambu-lab-integration`
+- **Repository**: `ghcr.io/tr1ckz/bambu-lab-integration:latest`
+- **Network Type**: `Bridge`
+- **WebUI**: `http://[IP]:[PORT:3000]`
 
-3. **Environment Variables:**
-   - `BAMBU_HOST`: Your printer IP
-   - `BAMBU_ACCESS_CODE`: From printer settings
-   - `BAMBU_SERIAL`: Printer serial number
+### Step 3: Port Mapping
+| Container Port | Host Port | Type |
+|----------------|-----------|------|
+| 3000           | 3000      | TCP  |
+
+### Step 4: Path Mappings
+Add these volume mappings:
+
+| Container Path | Host Path | Mode |
+|----------------|-----------|------|
+| `/app/data` | `/mnt/user/appdata/bambu-lab/data` | RW |
+| `/app/library` | `/mnt/user/appdata/bambu-lab/library` | RW |
+| `/app/sessions` | `/mnt/user/appdata/bambu-lab/sessions` | RW |
+
+### Step 5: Environment Variables
+Add these variables (optional but recommended):
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `BAMBU_HOST` | `192.168.1.100` | Your Bambu printer IP |
+| `BAMBU_ACCESS_CODE` | `12345678` | Access code from printer LCD |
+| `BAMBU_SERIAL` | `01234567` | Printer serial number |
+| `PORT` | `3000` | Web interface port |
+
+### Step 6: Getting Printer Info
+1. **IP Address**: Check your router's DHCP leases or printer LCD > Network
+2. **Access Code**: LCD Menu > Settings > LAN Only Mode (8-digit code)
+3. **Serial Number**: LCD Menu > Settings > Device Info
+
+### Step 7: Apply & Start
+1. Click **Apply**
+2. Container will download and start
+3. Access web interface: `http://your-unraid-ip:3000`
+
+### Optional: Custom Template
+Save this configuration as a custom template for easy reinstallation:
+1. After setup, click container icon > **Edit**
+2. Click **Save as Template** at bottom
+3. Name it "Bambu Lab Integration"
 
 ## Troubleshooting
 
