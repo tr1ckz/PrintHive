@@ -12,8 +12,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 #root {
   min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Mobile viewport fixes */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
 }
