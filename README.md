@@ -28,7 +28,7 @@ A comprehensive web application for managing Bambu Lab 3D printers, including pr
 
 1. Pull the latest image:
 ```bash
-docker pull ghcr.io/YOUR_USERNAME/bambu:latest
+docker pull ghcr.io/tr1ckz/bambu-lab-integration:latest
 ```
 
 2. Create a docker-compose.yml:
@@ -36,7 +36,7 @@ docker pull ghcr.io/YOUR_USERNAME/bambu:latest
 version: '3.8'
 services:
   bambu:
-    image: ghcr.io/YOUR_USERNAME/bambu:latest
+    image: ghcr.io/tr1ckz/bambu-lab-integration:latest
     ports:
       - "3000:3000"
     volumes:
@@ -53,6 +53,8 @@ services:
 ```bash
 docker-compose up -d
 ```
+
+For detailed Docker and Unraid instructions, see [DOCKER.md](DOCKER.md).
 
 #### Option 2: Local Development
 
@@ -95,13 +97,13 @@ See [README-ENV.md](README-ENV.md) for detailed environment variable documentati
 
 ## Deployment
 
-### Unraid
+### Docker & Unraid
 
-See [UNRAID-INSTALL.md](UNRAID-INSTALL.md) for complete Unraid deployment guide.
-
-### Docker
-
-See [README-DOCKER.md](README-DOCKER.md) for Docker-specific deployment instructions.
+See [DOCKER.md](DOCKER.md) for complete Docker and Unraid deployment instructions including:
+- Docker Hub installation
+- Docker Compose setup
+- Unraid step-by-step guide with volume mappings
+- Troubleshooting common issues
 
 ## Development
 
@@ -140,7 +142,6 @@ npm start
 - Never commit your `.env` file with actual credentials
 - Use strong, random `SESSION_SECRET` in production
 - Configure HTTPS in production deployments
-- Review [CLEANUP.md](CLEANUP.md) for information about personal data handling
 
 ## License
 
@@ -149,7 +150,7 @@ MIT License - feel free to use and modify as needed.
 ## Support
 
 - **Issues**: Report bugs via GitHub Issues
-- **Documentation**: Check [README-ENV.md](README-ENV.md) and [UNRAID-INSTALL.md](UNRAID-INSTALL.md)
+- **Documentation**: Check [README-ENV.md](README-ENV.md) and [DOCKER.md](DOCKER.md)
 - **Community**: Contributions welcome!
 
 ## Acknowledgments
