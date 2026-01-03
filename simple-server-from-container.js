@@ -74,7 +74,10 @@ app.use(session({
 }));
 
 // Serve static files
-const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
+const fs = require('fs');
+const distExists = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
+const staticDir = distExists ? 'dist' : 'public';
+console.log('Serving static files from:', staticDir);
 app.use(express.static(staticDir));
 
 // Logo routes

@@ -437,7 +437,10 @@ app.get('/images/covers/:modelId.:ext', async (req, res) => {
 });
 
 // Serve static files AFTER specific routes
-const staticDir = process.env.NODE_ENV === 'production' ? 'dist' : 'public';
+const fs = require('fs');
+const distExists = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
+const staticDir = distExists ? 'dist' : 'public';
+console.log('Serving static files from:', staticDir);
 app.use(express.static(staticDir));
 
 // Simple local login
