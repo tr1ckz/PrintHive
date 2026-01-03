@@ -19,8 +19,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install ALL dependencies (skip optional deps like canvas that fail to compile)
-RUN npm install --no-optional || npm install --no-optional --force
+# Remove canvas from package.json since it fails to compile and isn't critical
+RUN npm pkg delete dependencies.canvas dependencies.@napi-rs/canvas optionalDependencies.canvas optionalDependencies.@napi-rs/canvas 2>/dev/null || true
+
+# Install dependencies
+RUN npm install --omit=optional
 
 # Copy source files
 COPY . .
