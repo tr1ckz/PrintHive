@@ -22,8 +22,8 @@ COPY package*.json ./
 # Remove canvas from package.json since it fails to compile and isn't critical
 RUN npm pkg delete dependencies.canvas dependencies.@napi-rs/canvas optionalDependencies.canvas optionalDependencies.@napi-rs/canvas 2>/dev/null || true
 
-# Install dependencies
-RUN npm install --omit=optional
+# Clean install to avoid lock file issues with native dependencies
+RUN rm -f package-lock.json && npm install --omit=optional
 
 # Copy source files
 COPY . .
@@ -31,8 +31,8 @@ COPY . .
 # Use the container version of simple-server with all routes
 RUN cp simple-server-from-container.js simple-server.js
 
-# Build Vite frontend
-RUN npm run build
+# Build Vite frontend (clean reinstall if needed for native deps)
+RUN npm run build || (rm -rf node_modules package-lock.json && npm install --omit=optional && npm run build)
 
 # Remove dev dependencies after build
 RUN npm prune --production
