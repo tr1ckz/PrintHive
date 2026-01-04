@@ -195,39 +195,55 @@
 
   .dashboard-sidebar {
     width: 100%;
-    height: auto;
-    position: relative;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
     flex-direction: row;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    padding: 0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   }
 
   .sidebar-header {
-    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
     border-bottom: none;
     border-right: 1px solid #404040;
     min-width: fit-content;
   }
 
   .sidebar-header h2 {
-    font-size: 16px;
+    font-size: 14px;
     white-space: nowrap;
   }
 
   .sidebar-nav {
     flex-direction: row;
-    padding: 12px;
+    padding: 0 8px;
     flex: 1;
     overflow-x: auto;
     overflow-y: hidden;
-    gap: 8px;
+    gap: 6px;
+    display: flex;
+    align-items: center;
   }
 
   .nav-item {
     min-width: fit-content;
-    padding: 12px 16px;
+    padding: 10px 14px;
     white-space: nowrap;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .nav-item svg {
+    width: 18px;
+    height: 18px;
+    margin-right: 6px;
   }
 
   .nav-item span {
@@ -235,30 +251,46 @@
   }
 
   .sidebar-footer {
-    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
     border-left: 1px solid #404040;
     border-top: none;
     min-width: fit-content;
   }
 
+  .user-logout-row {
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+  }
+
   .user-info {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
     gap: 8px;
   }
 
   .user-avatar {
     width: 32px;
     height: 32px;
-    font-size: 14px;
+    font-size: 13px;
+  }
+
+  .user-details {
+    display: none; /* Hide username/role on mobile to save space */
   }
 
   .user-name {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .user-role {
     font-size: 10px;
+  }
+
+  .logout-btn {
+    padding: 8px;
   }
 
   .dashboard-content {
