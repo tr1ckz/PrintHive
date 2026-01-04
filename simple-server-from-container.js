@@ -2094,10 +2094,14 @@ app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
 
 // SPA fallback - MUST be last, after all API routes
 // This handles client-side routing (e.g., /admin, /dashboard, etc.)
-app.get('*', (req, res) => {
-  // Skip if it's an API route
-  if (req.path.startsWith('/api/') || req.path.startsWith('/auth/') || req.path.startsWith('/data/')) {
-    return res.status(404).json({ error: 'Not found' });
+app.get('*', (req, res, next) => {
+  // Skip if it's an API route, auth route, or data asset
+  if (req.path.startsWith('/api/') || 
+      req.path.startsWith('/auth/') || 
+      req.path.startsWith('/data/') ||
+      req.path.startsWith('/images/') ||
+      req.path.includes('.')) { // Skip files with extensions (JS, CSS, images, etc.)
+    return next(); // Let other handlers or static middleware handle it
   }
   
   const distExists = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
