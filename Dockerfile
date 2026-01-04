@@ -34,9 +34,6 @@ RUN rm -f package-lock.json && \
 # Copy application files
 COPY . .
 
-# Use container-specific server file
-RUN cp simple-server-from-container.js simple-server.js 2>/dev/null || echo "Using existing simple-server.js"
-
 # Build the application
 RUN npm run build && \
     ls -la dist/ && \
