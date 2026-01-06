@@ -28,12 +28,25 @@ function Dashboard({ onLogout }: DashboardProps) {
   });
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hideBmc, setHideBmc] = useState(true); // Default hidden until loaded
 
   useEffect(() => {
     fetch('/api/user/me')
       .then(res => res.json())
       .then(data => setUserInfo(data))
       .catch(err => console.error('Failed to fetch user info:', err));
+    
+    // Fetch UI settings
+    fetch('/api/settings/ui')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setHideBmc(data.hideBmc || false);
+        } else {
+          setHideBmc(false); // Show by default if fetch fails
+        }
+      })
+      .catch(() => setHideBmc(false)); // Show by default if fetch fails
   }, []);
 
   useEffect(() => {
@@ -140,7 +153,7 @@ function Dashboard({ onLogout }: DashboardProps) {
 
           {/* Right Section: User + Logout */}
           <div className="navbar-right">
-            <BuyMeACoffee username="tr1ck" />
+            {!hideBmc && <BuyMeACoffee username="tr1ck" />}
             <div className="navbar-user">
               <div className="user-avatar">{userInfo?.username?.[0]?.toUpperCase() || 'U'}</div>
               <span className="user-name">{userInfo?.username || 'User'}</span>

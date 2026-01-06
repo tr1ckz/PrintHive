@@ -776,6 +776,41 @@ app.post('/api/settings/test-printer-ftp', async (req, res) => {
   }
 });
 
+// Get UI settings (hide buy me a coffee, etc.) - PUBLIC endpoint
+app.get('/api/settings/ui', (req, res) => {
+  try {
+    const hideBmc = db.prepare('SELECT value FROM config WHERE key = ?').get('hide_bmc');
+    
+    res.json({ 
+      success: true,
+      hideBmc: hideBmc?.value === 'true'
+    });
+  } catch (error) {
+    console.error('Failed to load UI settings:', error);
+    res.status(500).json({ error: 'Failed to load UI settings' });
+  }
+});
+
+// Save UI settings (admin only)
+app.post('/api/settings/ui', requireAdmin, (req, res) => {
+  try {
+    const { hideBmc } = req.body;
+    
+    const upsert = db.prepare(`
+      INSERT INTO config (key, value, updated_at) 
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
+    `);
+    
+    upsert.run('hide_bmc', hideBmc ? 'true' : 'false', hideBmc ? 'true' : 'false');
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to save UI settings:', error);
+    res.status(500).json({ error: 'Failed to save UI settings' });
+  }
+});
+
 // Match videos to prints based on timestamp
 app.post('/api/match-videos', (req, res) => {
   if (!req.session.authenticated) {

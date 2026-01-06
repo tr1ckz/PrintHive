@@ -43,6 +43,10 @@ function Settings() {
   const [oidcEndSessionUrl, setOidcEndSessionUrl] = useState('');
   const [oauthLoading, setOauthLoading] = useState(false);
   
+  // UI settings state
+  const [hideBmc, setHideBmc] = useState(false);
+  const [uiLoading, setUiLoading] = useState(false);
+  
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -51,6 +55,7 @@ function Settings() {
     loadBambuStatus();
     loadPrinterSettings();
     loadOAuthSettings();
+    loadUiSettings();
   }, []);
 
   useEffect(() => {
@@ -98,6 +103,39 @@ function Settings() {
       setOidcEndSessionUrl(data.oidcEndSessionUrl || '');
     } catch (error) {
       console.error('Failed to load OAuth settings:', error);
+    }
+  };
+
+  const loadUiSettings = async () => {
+    try {
+      const response = await fetch('/api/settings/ui');
+      const data = await response.json();
+      if (data.success) {
+        setHideBmc(data.hideBmc || false);
+      }
+    } catch (error) {
+      console.error('Failed to load UI settings:', error);
+    }
+  };
+
+  const handleSaveUiSettings = async () => {
+    setUiLoading(true);
+    try {
+      const response = await fetch('/api/settings/ui', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hideBmc })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setToast({ message: 'UI settings saved!', type: 'success' });
+      } else {
+        setToast({ message: 'Failed to save UI settings', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Failed to save UI settings', type: 'error' });
+    } finally {
+      setUiLoading(false);
     }
   };
 
@@ -709,6 +747,36 @@ function Settings() {
             {passwordLoading ? 'Changing Password...' : 'Change Password'}
           </button>
         </form>
+      </div>
+
+      {/* UI Settings Section */}
+      <div className="settings-section">
+        <h2>UI Settings</h2>
+        <p className="form-description">
+          Customize the appearance and behavior of the interface
+        </p>
+        
+        <div className="toggle-group">
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={hideBmc}
+              onChange={(e) => setHideBmc(e.target.checked)}
+              disabled={uiLoading}
+            />
+            <span className="toggle-text">Hide "Buy Me a Coffee" button</span>
+          </label>
+          <p className="toggle-hint">Hide the donation button from the navigation bar</p>
+        </div>
+        
+        <button 
+          type="button" 
+          className="btn btn-primary" 
+          onClick={handleSaveUiSettings}
+          disabled={uiLoading}
+        >
+          {uiLoading ? 'Saving...' : 'Save UI Settings'}
+        </button>
       </div>
       
       <ConfirmModal
