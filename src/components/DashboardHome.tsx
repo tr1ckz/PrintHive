@@ -59,7 +59,12 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
       const statsRes = await fetch('/api/statistics');
       if (statsRes.ok) {
         const data = await statsRes.json();
-        setStats(data);
+        // Map API response to expected interface
+        setStats({
+          ...data,
+          filamentUsed: data.totalWeight || 0,
+          totalTime: data.totalTime || 0
+        });
       }
 
       // Load recent prints
@@ -172,7 +177,12 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
             ) : (
               <div className="printers-list">
                 {printers.map(printer => (
-                  <div key={printer.id} className={`printer-item ${printer.online ? 'online' : 'offline'}`}>
+                  <div 
+                    key={printer.id} 
+                    className={`printer-item ${printer.online ? 'online' : 'offline'}`}
+                    onClick={() => onNavigate('printers')}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <div className="printer-status-dot"></div>
                     <div className="printer-info">
                       <span className="printer-name">{printer.name}</span>

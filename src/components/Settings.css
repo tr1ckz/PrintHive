@@ -360,3 +360,41 @@
     gap: 0.25rem;
   }
 }
+
+/* Settings Group Header */
+.settings-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 2.5rem 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.settings-group-header:first-of-type {
+  margin-top: 0;
+}
+
+.settings-group-header .group-icon {
+  font-size: 1.25rem;
+}
+
+.settings-group-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+/* Make settings sections more compact */
+.settings-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-section h2 .section-icon {
+  font-size: 1.1rem;
+}

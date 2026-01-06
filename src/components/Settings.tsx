@@ -510,10 +510,16 @@ function Settings({ userRole }: SettingsProps) {
   return (
     <div className="settings-container">
       <div className="settings-header">
-        <h1>Settings</h1>
+        <h1>⚙️ Settings</h1>
         <p className="settings-description">
-          Manage your printer connection and preferences
+          Configure your printers, account, and preferences
         </p>
+      </div>
+
+      {/* PRINTER CONNECTION */}
+      <div className="settings-group-header">
+        <span className="group-icon">🖨️</span>
+        <h2>Printer Connection</h2>
       </div>
 
       <div className="settings-section">
@@ -698,6 +704,242 @@ function Settings({ userRole }: SettingsProps) {
         </form>
       </div>
 
+      {/* ACCOUNT */}
+      <div className="settings-group-header">
+        <span className="group-icon">👤</span>
+        <h2>Account</h2>
+      </div>
+
+      {/* User Profile Section - moved here */}
+      <div className="settings-section">
+        <h2>User Profile</h2>
+        <p className="form-description">
+          Manage your account information and display preferences
+        </p>
+        
+        <div className="form-group">
+          <label>Username</label>
+          <input
+            type="text"
+            value={userProfile.username}
+            disabled
+            style={{ opacity: 0.6, cursor: 'not-allowed' }}
+          />
+          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+            Username cannot be changed
+          </small>
+        </div>
+        
+        <div className="form-group">
+          <label>Email</label>
+          <input
+            type="email"
+            value={userProfile.email}
+            onChange={(e) => setUserProfile(prev => ({ ...prev, email: e.target.value }))}
+            placeholder="your@email.com"
+            disabled={profileLoading || userProfile.oauthProvider !== 'none'}
+          />
+          {userProfile.oauthProvider !== 'none' && (
+            <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+              Email is managed by {userProfile.oauthProvider === 'oidc' ? 'SSO provider' : userProfile.oauthProvider}
+            </small>
+          )}
+        </div>
+        
+        <div className="form-group">
+          <label>Display Name</label>
+          <input
+            type="text"
+            value={userProfile.displayName}
+            onChange={(e) => setUserProfile(prev => ({ ...prev, displayName: e.target.value }))}
+            placeholder="Your full name"
+            disabled={profileLoading}
+          />
+        </div>
+        
+        <button 
+          type="button" 
+          className="btn btn-primary" 
+          onClick={handleSaveProfile}
+          disabled={profileLoading}
+        >
+          {profileLoading ? 'Saving...' : 'Save Profile'}
+        </button>
+      </div>
+
+      <div className="settings-section">
+        <h2>Account Security</h2>
+        
+        <form onSubmit={handlePasswordChange} className="password-change-form">
+          <p className="form-description">
+            Change your account password
+          </p>
+          
+          <div className="form-group">
+            <label>Current Password</label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Enter current password"
+              required
+              disabled={passwordLoading}
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>New Password</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Enter new password"
+              required
+              disabled={passwordLoading}
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Confirm New Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new password"
+              required
+              disabled={passwordLoading}
+            />
+          </div>
+          
+          <button 
+            type="submit" 
+            className="btn btn-primary" 
+            disabled={passwordLoading}
+          >
+            {passwordLoading ? 'Changing Password...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
+
+      {/* PREFERENCES */}
+      <div className="settings-group-header">
+        <span className="group-icon">🎨</span>
+        <h2>Preferences</h2>
+      </div>
+
+      {/* Cost Calculator */}
+      <div className="settings-section">
+        <h2>Cost Calculator</h2>
+        <p className="form-description">
+          Configure costs to track printing expenses
+        </p>
+        
+        <div className="form-group">
+          <label>Currency</label>
+          <select
+            value={costCurrency}
+            onChange={(e) => setCostCurrency(e.target.value)}
+            disabled={costLoading}
+          >
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="GBP">GBP (£)</option>
+            <option value="CAD">CAD ($)</option>
+            <option value="AUD">AUD ($)</option>
+            <option value="JPY">JPY (¥)</option>
+            <option value="CNY">CNY (¥)</option>
+          </select>
+        </div>
+        
+        <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="form-group">
+            <label>Filament $/kg</label>
+            <input
+              type="number"
+              value={filamentCostPerKg}
+              onChange={(e) => setFilamentCostPerKg(parseFloat(e.target.value) || 0)}
+              placeholder="25"
+              min="0"
+              step="0.01"
+              disabled={costLoading}
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Electricity $/kWh</label>
+            <input
+              type="number"
+              value={electricityCostPerKwh}
+              onChange={(e) => setElectricityCostPerKwh(parseFloat(e.target.value) || 0)}
+              placeholder="0.12"
+              min="0"
+              step="0.001"
+              disabled={costLoading}
+            />
+          </div>
+        </div>
+        
+        <div className="form-group">
+          <label>Printer Wattage</label>
+          <input
+            type="number"
+            value={printerWattage}
+            onChange={(e) => setPrinterWattage(parseInt(e.target.value) || 0)}
+            placeholder="150"
+            min="0"
+            step="1"
+            disabled={costLoading}
+          />
+          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+            Average power consumption (typically 100-200W)
+          </small>
+        </div>
+        
+        <button 
+          type="button" 
+          className="btn btn-primary" 
+          onClick={handleSaveCostSettings}
+          disabled={costLoading}
+        >
+          {costLoading ? 'Saving...' : 'Save Cost Settings'}
+        </button>
+      </div>
+
+      {/* UI Settings */}
+      <div className="settings-section">
+        <h2>UI Settings</h2>
+        <p className="form-description">
+          Customize the interface appearance
+        </p>
+        
+        <div className="toggle-group">
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={hideBmc}
+              onChange={(e) => setHideBmc(e.target.checked)}
+              disabled={uiLoading}
+            />
+            <span className="toggle-text">Hide "Buy Me a Coffee" button</span>
+          </label>
+        </div>
+        
+        <button 
+          type="button" 
+          className="btn btn-primary" 
+          onClick={handleSaveUiSettings}
+          disabled={uiLoading}
+        >
+          {uiLoading ? 'Saving...' : 'Save UI Settings'}
+        </button>
+      </div>
+
+      {/* ADVANCED */}
+      <div className="settings-group-header">
+        <span className="group-icon">⚡</span>
+        <h2>Advanced</h2>
+      </div>
+
       <div className="settings-section">
         <h2>OAuth / SSO Authentication</h2>
         
@@ -856,254 +1098,6 @@ function Settings({ userRole }: SettingsProps) {
           )}
         </form>
       </div>
-      
-      {/* User Profile Section */}
-      <div className="settings-section">
-        <h2>User Profile</h2>
-        <p className="form-description">
-          Manage your account information and display preferences
-        </p>
-        
-        <div className="form-group">
-          <label>Username</label>
-          <input
-            type="text"
-            value={userProfile.username}
-            disabled
-            style={{ opacity: 0.6, cursor: 'not-allowed' }}
-          />
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
-            Username cannot be changed
-          </small>
-        </div>
-        
-        <div className="form-group">
-          <label>Email</label>
-          <input
-            type="email"
-            value={userProfile.email}
-            onChange={(e) => setUserProfile(prev => ({ ...prev, email: e.target.value }))}
-            placeholder="your@email.com"
-            disabled={profileLoading || userProfile.oauthProvider !== 'none'}
-          />
-          {userProfile.oauthProvider !== 'none' && (
-            <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
-              Email is managed by {userProfile.oauthProvider === 'oidc' ? 'SSO provider' : userProfile.oauthProvider}
-            </small>
-          )}
-        </div>
-        
-        <div className="form-group">
-          <label>Display Name</label>
-          <input
-            type="text"
-            value={userProfile.displayName}
-            onChange={(e) => setUserProfile(prev => ({ ...prev, displayName: e.target.value }))}
-            placeholder="Your full name"
-            disabled={profileLoading}
-          />
-        </div>
-        
-        <button 
-          type="button" 
-          className="btn btn-primary" 
-          onClick={handleSaveProfile}
-          disabled={profileLoading}
-        >
-          {profileLoading ? 'Saving...' : 'Save Profile'}
-        </button>
-      </div>
-
-      <div className="settings-section">
-        <h2>Account Security</h2>
-        
-        <form onSubmit={handlePasswordChange} className="password-change-form">
-          <p className="form-description">
-            Change your account password
-          </p>
-          
-          <div className="form-group">
-            <label>Current Password</label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Enter current password"
-              required
-              disabled={passwordLoading}
-            />
-          </div>
-          
-          <div className="form-group">
-            <label>New Password</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Enter new password"
-              required
-              disabled={passwordLoading}
-            />
-          </div>
-          
-          <div className="form-group">
-            <label>Confirm New Password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
-              required
-              disabled={passwordLoading}
-            />
-          </div>
-          
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
-            disabled={passwordLoading}
-          >
-            {passwordLoading ? 'Changing Password...' : 'Change Password'}
-          </button>
-        </form>
-      </div>
-
-      {/* UI Settings Section */}
-      <div className="settings-section">
-        <h2>UI Settings</h2>
-        <p className="form-description">
-          Customize the appearance and behavior of the interface
-        </p>
-        
-        <div className="toggle-group">
-          <label className="toggle-label">
-            <input
-              type="checkbox"
-              checked={hideBmc}
-              onChange={(e) => setHideBmc(e.target.checked)}
-              disabled={uiLoading}
-            />
-            <span className="toggle-text">Hide "Buy Me a Coffee" button</span>
-          </label>
-          <p className="toggle-hint">Hide the donation button from the navigation bar</p>
-        </div>
-        
-        <button 
-          type="button" 
-          className="btn btn-primary" 
-          onClick={handleSaveUiSettings}
-          disabled={uiLoading}
-        >
-          {uiLoading ? 'Saving...' : 'Save UI Settings'}
-        </button>
-      </div>
-
-      {/* System Section */}
-      <div className="settings-section">
-        <h2>System</h2>
-        <p className="form-description">
-          Application management and maintenance
-        </p>
-        
-        <div className="system-actions">
-          <div className="system-action">
-            <div className="action-info">
-              <h3>Restart Application</h3>
-              <p>Restart the server to apply configuration changes or clear cached data</p>
-            </div>
-            <button 
-              type="button" 
-              className="btn btn-warning" 
-              onClick={() => setConfirmRestart(true)}
-              disabled={restarting}
-            >
-              {restarting ? 'Restarting...' : 'Restart App'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Cost Calculator Section */}
-      <div className="settings-section">
-        <h2>Cost Calculator</h2>
-        <p className="form-description">
-          Configure costs to track printing expenses in the Statistics page
-        </p>
-        
-        <div className="form-group">
-          <label>Currency</label>
-          <select
-            value={costCurrency}
-            onChange={(e) => setCostCurrency(e.target.value)}
-            disabled={costLoading}
-          >
-            <option value="USD">USD ($)</option>
-            <option value="EUR">EUR (€)</option>
-            <option value="GBP">GBP (£)</option>
-            <option value="CAD">CAD ($)</option>
-            <option value="AUD">AUD ($)</option>
-            <option value="JPY">JPY (¥)</option>
-            <option value="CNY">CNY (¥)</option>
-          </select>
-        </div>
-        
-        <div className="form-group">
-          <label>Filament Cost per kg</label>
-          <input
-            type="number"
-            value={filamentCostPerKg}
-            onChange={(e) => setFilamentCostPerKg(parseFloat(e.target.value) || 0)}
-            placeholder="25"
-            min="0"
-            step="0.01"
-            disabled={costLoading}
-          />
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
-            Average cost per kilogram of filament
-          </small>
-        </div>
-        
-        <div className="form-group">
-          <label>Electricity Cost per kWh</label>
-          <input
-            type="number"
-            value={electricityCostPerKwh}
-            onChange={(e) => setElectricityCostPerKwh(parseFloat(e.target.value) || 0)}
-            placeholder="0.12"
-            min="0"
-            step="0.001"
-            disabled={costLoading}
-          />
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
-            Your electricity rate per kilowatt-hour
-          </small>
-        </div>
-        
-        <div className="form-group">
-          <label>Printer Power Usage (Watts)</label>
-          <input
-            type="number"
-            value={printerWattage}
-            onChange={(e) => setPrinterWattage(parseInt(e.target.value) || 0)}
-            placeholder="150"
-            min="0"
-            step="1"
-            disabled={costLoading}
-          />
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
-            Average power consumption of your printer (typically 100-200W)
-          </small>
-        </div>
-        
-        <button 
-          type="button" 
-          className="btn btn-primary" 
-          onClick={handleSaveCostSettings}
-          disabled={costLoading}
-        >
-          {costLoading ? 'Saving...' : 'Save Cost Settings'}
-        </button>
-      </div>
 
       {/* Watchdog Section */}
       <div className="settings-section">
@@ -1166,15 +1160,47 @@ function Settings({ userRole }: SettingsProps) {
         </button>
       </div>
 
-      {/* User Management Section - Admin Only */}
-      {isAdmin && (
-        <div className="settings-section">
-          <h2>User Management</h2>
-          <p className="form-description">
-            Manage user accounts and permissions
-          </p>
-          <UserManagement />
+      {/* System Section */}
+      <div className="settings-section">
+        <h2>System</h2>
+        <p className="form-description">
+          Application management and maintenance
+        </p>
+        
+        <div className="system-actions">
+          <div className="system-action">
+            <div className="action-info">
+              <h3>Restart Application</h3>
+              <p>Restart the server to apply configuration changes</p>
+            </div>
+            <button 
+              type="button" 
+              className="btn btn-warning" 
+              onClick={() => setConfirmRestart(true)}
+              disabled={restarting}
+            >
+              {restarting ? 'Restarting...' : 'Restart App'}
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* ADMIN */}
+      {isAdmin && (
+        <>
+          <div className="settings-group-header">
+            <span className="group-icon">🔐</span>
+            <h2>Administration</h2>
+          </div>
+
+          <div className="settings-section">
+            <h2>User Management</h2>
+            <p className="form-description">
+              Manage user accounts and permissions
+            </p>
+            <UserManagement />
+          </div>
+        </>
       )}
       
       <ConfirmModal
