@@ -2501,24 +2501,31 @@ app.get('/api/camera-snapshot', async (req, res) => {
 
   try {
     const ffmpeg = require('fluent-ffmpeg');
-    const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
     const path = require('path');
     const fs = require('fs');
     
-    ffmpeg.setFfmpegPath(ffmpegPath);
+    // Try to use @ffmpeg-installer/ffmpeg, fallback to system ffmpeg
+    try {
+      const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+      ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+      console.log('Using @ffmpeg-installer ffmpeg:', ffmpegInstaller.path);
+    } catch (e) {
+      console.log('Using system ffmpeg (fallback)');
+    }
 
     console.log('Attempting to capture frame from RTSP:', rtspUrl.replace(/:[^:@]*@/, ':***@'));
     
     // Create a temporary file path
     const tempFile = path.join(__dirname, 'data', `camera-temp-${Date.now()}.jpg`);
     
-    // Try UDP first (more compatible), fallback to direct connection
+    // Use TCP transport which is more reliable in Docker/containerized environments
     ffmpeg(rtspUrl)
       .inputOptions([
-        '-rtsp_transport', 'udp',
+        '-rtsp_transport', 'tcp',
         '-timeout', '10000000',
-        '-analyzeduration', '1000000',
-        '-probesize', '1000000'
+        '-analyzeduration', '2000000',
+        '-probesize', '2000000',
+        '-stimeout', '5000000'
       ])
       .outputOptions([
         '-vframes', '1',

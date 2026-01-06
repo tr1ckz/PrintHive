@@ -12,7 +12,8 @@ RUN apk add --no-cache \
     giflib-dev \
     pixman-dev \
     curl \
-    git
+    git \
+    ffmpeg
 
 # Set working directory
 WORKDIR /app
