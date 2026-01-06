@@ -81,7 +81,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
         setLibraryCount(data.length);
       }
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      // Silently fail - dashboard will show 0s
     } finally {
       setLoading(false);
     }

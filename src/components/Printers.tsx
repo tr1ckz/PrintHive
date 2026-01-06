@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Printer } from '../types';
 import './Printers.css';
 import LoadingScreen from './LoadingScreen';
@@ -7,18 +7,31 @@ function Printers() {
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [cameraRefresh, setCameraRefresh] = useState(0);
+  const cameraRefreshRef = useRef(0);
+  const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
+
+  const refreshCameras = useCallback(() => {
+    cameraRefreshRef.current += 1;
+    imageRefs.current.forEach((img, deviceId) => {
+      const printer = printers.find(p => p.dev_id === deviceId);
+      if (printer?.camera_rtsp_url && img) {
+        img.src = `/api/camera-snapshot?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=${cameraRefreshRef.current}`;
+      }
+    });
+  }, [printers]);
 
   useEffect(() => {
     fetchPrinters();
+  }, []);
+
+  useEffect(() => {
+    if (printers.length === 0) return;
     
-    // Refresh camera feeds every 2 seconds
-    const interval = setInterval(() => {
-      setCameraRefresh(prev => prev + 1);
-    }, 2000);
+    // Refresh camera feeds every 2 seconds - without causing re-renders
+    const interval = setInterval(refreshCameras, 2000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [printers, refreshCameras]);
 
   const fetchPrinters = async () => {
     try {
@@ -33,6 +46,14 @@ function Printers() {
       setLoading(false);
     }
   };
+
+  const setImageRef = useCallback((deviceId: string) => (el: HTMLImageElement | null) => {
+    if (el) {
+      imageRefs.current.set(deviceId, el);
+    } else {
+      imageRefs.current.delete(deviceId);
+    }
+  }, []);
 
   if (loading) {
     return <LoadingScreen message="Loading printers..." />;
@@ -84,10 +105,13 @@ function Printers() {
               {printer.camera_rtsp_url && (
                 <div className="printer-camera">
                   <img
-                    src={`/api/camera-snapshot?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=${cameraRefresh}`}
+                    ref={setImageRef(printer.dev_id)}
+                    src={`/api/camera-snapshot?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=0`}
                     alt="Camera feed"
                     className="camera-feed"
                     style={{ transition: 'none' }}
+                    loading="lazy"
+                    decoding="async"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';

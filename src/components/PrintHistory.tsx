@@ -409,7 +409,12 @@ const PrintHistory: React.FC = () => {
               <div key={print.id} className="print-card">
                 <div className="print-image">
                   {print.coverUrl ? (
-                    <img src={print.coverUrl} alt={print.title} />
+                    <img 
+                      src={print.coverUrl} 
+                      alt={print.title} 
+                      loading="lazy"
+                      decoding="async"
+                    />
                   ) : (
                     <div className="no-image">No Image</div>
                   )}

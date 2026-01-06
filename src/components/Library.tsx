@@ -975,10 +975,9 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                   alt={file.originalName}
                   className="file-thumbnail"
                   loading="lazy"
-                  onLoad={() => console.log('Thumbnail loaded for:', file.id)}
+                  decoding="async"
                   onError={(e) => {
-                    console.error('Thumbnail failed for:', file.id, e);
-                    console.log('Attempted URL:', `/api/library/thumbnail/${file.id}`);
+                    (e.target as HTMLImageElement).style.display = 'none';
                   }}
                 />
                 {(file.fileType === 'stl' || file.fileType === '3mf') && (

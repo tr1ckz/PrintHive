@@ -13,16 +13,12 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      console.log('Checking authentication...');
       const response = await fetch('/api/check-auth', {
         credentials: 'include'
       });
-      console.log('Auth response:', response.status);
       const data = await response.json();
-      console.log('Auth data:', data);
       setIsAuthenticated(data.authenticated);
     } catch (error) {
-      console.error('Auth check failed:', error);
       setIsAuthenticated(false);
     }
   };
@@ -39,20 +35,15 @@ function App() {
       });
       
       const data = await response.json();
-      console.log('Logout response:', data);
       
       setIsAuthenticated(false);
       
       // If OIDC logout, redirect to provider's end-session endpoint
       if (data.oidcLogout && data.endSessionUrl) {
-        console.log('OIDC logout - redirecting to:', data.endSessionUrl);
         window.location.href = data.endSessionUrl;
         return; // Don't continue after redirect
       }
-      
-      console.log('Local logout only');
     } catch (error) {
-      console.error('Logout failed:', error);
       setIsAuthenticated(false);
     }
   };

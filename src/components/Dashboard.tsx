@@ -208,17 +208,17 @@ function Dashboard({ onLogout }: DashboardProps) {
         </div>
       </nav>
 
-      {/* Main Content */}
+      {/* Main Content - Components are conditionally rendered to save memory */}
       <main className="dashboard-content">
         <div className="content-wrapper">
-          {activeTab === 'home' && <DashboardHome onNavigate={(tab) => handleTabChange(tab as Tab)} />}
-          {activeTab === 'history' && <PrintHistory />}
-          {activeTab === 'library' && <Library userRole={userInfo?.role} />}
-          {activeTab === 'duplicates' && <Duplicates />}
-          {activeTab === 'maintenance' && <Maintenance />}
-          {activeTab === 'settings' && <Settings userRole={userInfo?.role} />}
-          {activeTab === 'printers' && <Printers />}
-          {activeTab === 'statistics' && <Statistics />}
+          {activeTab === 'home' ? <DashboardHome onNavigate={(tab) => handleTabChange(tab as Tab)} /> : null}
+          {activeTab === 'history' ? <PrintHistory /> : null}
+          {activeTab === 'library' ? <Library userRole={userInfo?.role} /> : null}
+          {activeTab === 'duplicates' ? <Duplicates /> : null}
+          {activeTab === 'maintenance' ? <Maintenance /> : null}
+          {activeTab === 'settings' ? <Settings userRole={userInfo?.role} /> : null}
+          {activeTab === 'printers' ? <Printers /> : null}
+          {activeTab === 'statistics' ? <Statistics /> : null}
         </div>
       </main>
     </div>
