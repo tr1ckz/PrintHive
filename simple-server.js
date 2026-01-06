@@ -2788,6 +2788,84 @@ app.post('/api/library/clean-descriptions', async (req, res) => {
   }
 });
 
+// Remove library entries where the file no longer exists
+app.post('/api/library/cleanup-missing', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  // Check if user is admin
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  try {
+    const items = db.prepare('SELECT * FROM library').all();
+    console.log(`=== LIBRARY CLEANUP: Checking ${items.length} files ===`);
+    
+    let removed = 0;
+    let checked = 0;
+    const removedFiles = [];
+    
+    for (const item of items) {
+      checked++;
+      
+      // Try to find the file
+      let fileExists = false;
+      const possiblePaths = [
+        item.filePath,
+        path.join(libraryDir, item.fileName),
+        `/app/library/${item.fileName}`
+      ];
+      
+      for (const testPath of possiblePaths) {
+        if (fs.existsSync(testPath)) {
+          fileExists = true;
+          break;
+        }
+      }
+      
+      // Also try prefix search for Unicode issues
+      if (!fileExists) {
+        const fileIdPrefix = item.fileName.split('-')[0];
+        const searchDirs = [libraryDir, '/app/library'];
+        for (const dir of searchDirs) {
+          if (fs.existsSync(dir)) {
+            try {
+              const files = fs.readdirSync(dir);
+              if (files.some(f => f.startsWith(fileIdPrefix))) {
+                fileExists = true;
+                break;
+              }
+            } catch (err) {}
+          }
+        }
+      }
+      
+      if (!fileExists) {
+        console.log(`  Removing missing file: ${item.originalName} (${item.fileName})`);
+        db.prepare('DELETE FROM library WHERE id = ?').run(item.id);
+        removedFiles.push(item.originalName);
+        removed++;
+      }
+    }
+    
+    console.log(`=== LIBRARY CLEANUP COMPLETE: Removed ${removed} missing files ===`);
+    
+    res.json({ 
+      success: true, 
+      message: `Removed ${removed} entries for missing files`,
+      totalChecked: checked,
+      removed,
+      removedFiles
+    });
+  } catch (error) {
+    console.error('Library cleanup error:', error);
+    res.status(500).json({ error: 'Failed to cleanup library' });
+  }
+});
+
 // Auto-tag all library files
 app.post('/api/library/auto-tag-all', async (req, res) => {
   if (!req.session.authenticated) {
@@ -3517,7 +3595,7 @@ app.get('/api/maintenance', async (req, res) => {
         ...task,
         isOverdue,
         isDueSoon,
-        hoursUntilDue: task.hours_until_due ? Math.max(0, task.hours_until_due - currentPrintHours) : null
+        hours_until_due: task.hours_until_due ? task.hours_until_due - currentPrintHours : null
       };
     });
     
@@ -4977,6 +5055,49 @@ app.listen(PORT, async () => {
     }
     
     console.log(`Library scan complete: ${added} new files added, ${updated} existing files`);
+    
+    // Clean up library entries for files that no longer exist
+    console.log('Cleaning up missing library entries...');
+    const allLibraryItems = db.prepare('SELECT * FROM library').all();
+    let removed = 0;
+    
+    for (const item of allLibraryItems) {
+      let fileExists = false;
+      const possiblePaths = [
+        item.filePath,
+        path.join(libraryDir, item.fileName),
+        `/app/library/${item.fileName}`
+      ];
+      
+      for (const testPath of possiblePaths) {
+        if (fs.existsSync(testPath)) {
+          fileExists = true;
+          break;
+        }
+      }
+      
+      // Try prefix search for Unicode issues
+      if (!fileExists) {
+        const fileIdPrefix = item.fileName.split('-')[0];
+        if (fs.existsSync(libraryDir)) {
+          try {
+            const files = fs.readdirSync(libraryDir);
+            if (files.some(f => f.startsWith(fileIdPrefix))) {
+              fileExists = true;
+            }
+          } catch (err) {}
+        }
+      }
+      
+      if (!fileExists) {
+        db.prepare('DELETE FROM library WHERE id = ?').run(item.id);
+        removed++;
+      }
+    }
+    
+    if (removed > 0) {
+      console.log(`Removed ${removed} library entries for missing files`);
+    }
   } catch (err) {
     console.error('Error scanning library:', err.message);
   }
