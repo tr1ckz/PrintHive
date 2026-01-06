@@ -3691,10 +3691,18 @@ app.post('/api/settings/restart', async (req, res) => {
   
   // Give time for response to be sent
   setTimeout(() => {
-    console.log('Restarting application...');
-    // Use exit code 1 to ensure Docker restarts the container
-    // exit code 0 might be treated as intentional stop with "unless-stopped" policy
-    process.exit(1);
+    console.log('Restarting application via graceful process restart...');
+    // Close database and clean up
+    if (db) db.close();
+    // Spawn a new process and exit gracefully
+    const { spawn } = require('child_process');
+    const child = spawn(process.argv[0], process.argv.slice(1), {
+      detached: true,
+      stdio: 'inherit'
+    });
+    child.unref();
+    // Exit gracefully - Docker will see this and container stays running
+    process.exit(0);
   }, 2000);
 });
 

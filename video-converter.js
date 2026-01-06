@@ -216,5 +216,80 @@ module.exports = {
   getMp4Path,
   convertAllInDirectory,
   isFileStable,
-  waitForFileReady
+  waitForFileReady,
+  matchVideoToModel
 };
+
+/**
+ * Match a video file to a model in the database
+ * @param {string} videoPath - Path to the video file
+ * @param {object} db - Database connection
+ */
+function matchVideoToModel(videoPath, db) {
+  const baseFilename = path.basename(videoPath, path.extname(videoPath));
+  
+  // Try timestamp matching first
+  const timestampMatch = baseFilename.match(/(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+  
+  let print = null;
+  
+  if (timestampMatch) {
+    const [, date, hours, minutes, seconds] = timestampMatch;
+    const videoTimestamp = `${date} ${hours}:${minutes}:${seconds}`;
+    
+    print = db.prepare(`
+      SELECT modelId, title
+      FROM prints
+      WHERE datetime(startTime) <= datetime(?, '+10 minutes')
+        AND datetime(startTime) >= datetime(?, '-24 hours')
+      ORDER BY abs(julianday(startTime) - julianday(?))
+      LIMIT 1
+    `).get(videoTimestamp, videoTimestamp, videoTimestamp);
+    
+    if (print) {
+      console.log(`✓ Matched ${baseFilename} to "${print.title}" by timestamp`);
+    }
+  }
+  
+  // If no timestamp match, try title matching
+  if (!print) {
+    print = db.prepare(`
+      SELECT modelId, title
+      FROM prints
+      WHERE title = ?
+      ORDER BY startTime DESC
+      LIMIT 1
+    `).get(baseFilename);
+    
+    if (print) {
+      console.log(`✓ Matched ${baseFilename} to "${print.title}" by exact title`);
+    } else {
+      // Try fuzzy match
+      print = db.prepare(`
+        SELECT modelId, title
+        FROM prints
+        WHERE title LIKE ? OR ? LIKE '%' || title || '%'
+        ORDER BY startTime DESC
+        LIMIT 1
+      `).get(`%${baseFilename}%`, baseFilename);
+      
+      if (print) {
+        console.log(`✓ Matched ${baseFilename} to "${print.title}" by fuzzy match`);
+      }
+    }
+  }
+  
+  if (print) {
+    // Update the print with video path
+    const videoFilename = path.basename(videoPath);
+    db.prepare(`
+      UPDATE prints 
+      SET videoPath = ? 
+      WHERE modelId = ? AND (videoPath IS NULL OR videoPath = '')
+    `).run(videoFilename, print.modelId);
+    
+    return print.modelId;
+  }
+  
+  return null;
+}

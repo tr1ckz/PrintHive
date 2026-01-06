@@ -123,6 +123,8 @@ class BackgroundSyncService {
     console.log(`  Converting existing AVI files to MP4...`);
     if (fs.existsSync(videosDir)) {
       const aviFiles = fs.readdirSync(videosDir).filter(f => f.endsWith('.avi'));
+      const mp4Files = fs.readdirSync(videosDir).filter(f => f.endsWith('.mp4'));
+      
       let convertedCount = 0;
       for (const aviFile of aviFiles) {
         const aviPath = path.join(videosDir, aviFile);
@@ -135,14 +137,53 @@ class BackgroundSyncService {
           await videoConverter.getMp4Path(aviPath);
           convertedCount++;
           console.log(`    ✓ Converted ${aviFile}`);
+          
+          // Match the video to a model immediately after conversion
+          try {
+            const modelId = videoConverter.matchVideoToModel(mp4Path, db);
+            if (modelId) {
+              console.log(`    ✓ Matched ${aviFile} to model ${modelId}`);
+            }
+          } catch (matchErr) {
+            console.log(`    Warning: Could not match ${aviFile}: ${matchErr.message}`);
+          }
         } catch (err) {
           console.log(`    Warning: Failed to convert ${aviFile}: ${err.message}`);
         }
       }
+      
+      // Also try to match existing MP4 files that might not be matched
+      console.log(`  Matching existing MP4 files...`);
+      let matchedCount = 0;
+      for (const mp4File of mp4Files) {
+        const mp4Path = path.join(videosDir, mp4File);
+        
+        // Check if this video is already matched
+        const baseName = path.basename(mp4File, '.mp4');
+        const existing = db.prepare(`
+          SELECT modelId FROM prints WHERE videoPath LIKE ?
+        `).get(`%${baseName}%`);
+        
+        if (existing) continue; // Already matched
+        
+        try {
+          const modelId = videoConverter.matchVideoToModel(mp4Path, db);
+          if (modelId) {
+            matchedCount++;
+            console.log(`    ✓ Matched ${mp4File} to model ${modelId}`);
+          }
+        } catch (matchErr) {
+          // Silent - most videos may not have matching prints yet
+        }
+      }
+      
       if (convertedCount > 0) {
         console.log(`  ✓ Converted ${convertedCount} video(s) to MP4`);
       } else {
         console.log(`  ✓ All videos already converted`);
+      }
+      if (matchedCount > 0) {
+        console.log(`  ✓ Matched ${matchedCount} existing MP4 video(s)`);
       }
     }
 
