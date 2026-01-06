@@ -5,8 +5,8 @@ services:
     build: .
     image: bambu-lab-integration:local
     container_name: bambu-lab-integration
-    ports:
-      - "${HOST_PORT:-3000}:${PORT:-3000}"
+    # Use host network to access local network devices (RTSP cameras, printers)
+    network_mode: host
     environment:
       - PORT=${PORT:-3000}
       - SESSION_SECRET=${SESSION_SECRET:-your-random-secret-key-change-this}
