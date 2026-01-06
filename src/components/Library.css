@@ -15,7 +15,7 @@
   position: relative;
   border: 3px dashed rgba(255, 255, 255, 0.3);
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.4);
   padding: 3rem 2rem;
   text-align: center;
   transition: all 0.3s ease;
@@ -138,7 +138,7 @@
   padding: 1rem 1.5rem;
   border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.4);
   color: #fff;
   font-size: 1rem;
   transition: all 0.3s ease;

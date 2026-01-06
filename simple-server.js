@@ -3530,9 +3530,20 @@ app.post('/api/maintenance/:id/complete', async (req, res) => {
     
     db.prepare(`
       UPDATE maintenance_tasks 
-      SET last_performed = ?, next_due = ?, hours_until_due = ?, updated_at = CURRENT_TIMESTAMP
+      SET last_performed = ?, next_due = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(now.toISOString(), nextDue.toISOString(), nextDueHours, id);
+    `).run(now.toISOString(), nextDue.toISOString(), id);
+    
+    // Try to update hours_until_due if column exists
+    try {
+      db.prepare(`
+        UPDATE maintenance_tasks 
+        SET hours_until_due = ?
+        WHERE id = ?
+      `).run(nextDueHours, id);
+    } catch (e) {
+      // Column doesn't exist yet, that's okay
+    }
     
     const updatedTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
     
