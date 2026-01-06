@@ -69,6 +69,10 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   const [filterSizeMax, setFilterSizeMax] = useState<number | ''>('');
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'size'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [descriptionModal, setDescriptionModal] = useState<{
+    description: string;
+    fileName: string;
+  } | null>(null);
   
   const isAdmin = userRole === 'admin';
 
@@ -987,7 +991,12 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                 <h4>{file.originalName}</h4>
                 <p className="file-type">{file.fileType.toUpperCase()}</p>
                 <p className="file-size">{formatFileSize(file.fileSize)}</p>
-                {file.description && <p className="file-desc">{file.description}</p>}
+                {file.description && (
+                  <p className="file-desc" onClick={() => setDescriptionModal({ description: file.description, fileName: file.originalName })}>
+                    {file.description}
+                    {file.description.length > 150 && <span className="read-more"> ...Read more</span>}
+                  </p>
+                )}
                 {file.tags && (
                   <div className="file-tags">
                     {file.tags.split(',').map((tag, i) => (
@@ -1090,6 +1099,21 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
               <button onClick={handleDeleteConfirm} className="btn-delete">
                 Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {descriptionModal && (
+        <div className="modal-overlay" onClick={() => setDescriptionModal(null)}>
+          <div className="modal-content description-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>📖 Full Description</h2>
+              <button className="modal-close" onClick={() => setDescriptionModal(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p className="file-name">{descriptionModal.fileName}</p>
+              <p className="description-text">{descriptionModal.description}</p>
             </div>
           </div>
         </div>

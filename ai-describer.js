@@ -3,6 +3,48 @@ const path = require('path');
 const JSZip = require('jszip');
 
 /**
+ * Detect if text is in non-English language
+ */
+function detectLanguage(text) {
+  if (!text) return 'en';
+  
+  // Chinese characters (CJK)
+  if (/[\u4E00-\u9FFF\u3040-\u309F\uAC00-\uD7AF]/.test(text)) {
+    if (/[\u4E00-\u9FFF]/.test(text)) return 'zh';
+    if (/[\u3040-\u309F]/.test(text)) return 'ja';
+    if (/[\uAC00-\uD7AF]/.test(text)) return 'ko';
+  }
+  
+  // Cyrillic (Russian, etc)
+  if (/[\u0400-\u04FF]/.test(text)) return 'ru';
+  
+  // Arabic
+  if (/[\u0600-\u06FF]/.test(text)) return 'ar';
+  
+  // Hebrew
+  if (/[\u0590-\u05FF]/.test(text)) return 'he';
+  
+  // Thai
+  if (/[\u0E00-\u0E7F]/.test(text)) return 'th';
+  
+  // Vietnamese
+  if (/[\u0102\u0103\u0110\u0111\u0128\u0129\u0168\u0169\u01A0\u01A1]/.test(text)) return 'vi';
+  
+  return 'en';
+}
+
+/**
+ * Simple translation mapping for common terms (without external API)
+ */
+function translateSimple(text, targetLang = 'en') {
+  if (targetLang === 'en' || !text) return text;
+  
+  // Just detect and note that translation would be needed
+  // In production, you'd use Google Translate API or similar
+  return text; // Return original for now
+}
+
+/**
  * Clean and decode HTML-encoded text (handles double/triple encoding)
  */
 function cleanHTMLText(text) {
@@ -36,6 +78,33 @@ function cleanHTMLText(text) {
 }
 
 /**
+ * Truncate description to a reasonable length
+ */
+function truncateDescription(text, maxLength = 300) {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  
+  // Try to truncate at sentence boundary
+  const truncated = text.substring(0, maxLength);
+  const lastPeriod = truncated.lastIndexOf('.');
+  const lastNewline = truncated.lastIndexOf('\n');
+  const lastComma = truncated.lastIndexOf(',');
+  
+  if (lastPeriod > maxLength * 0.8) {
+    return truncated.substring(0, lastPeriod + 1);
+  }
+  if (lastNewline > maxLength * 0.8) {
+    return truncated.substring(0, lastNewline);
+  }
+  if (lastComma > maxLength * 0.8) {
+    return truncated.substring(0, lastComma);
+  }
+  
+  // Otherwise add ellipsis
+  return truncated.substring(0, maxLength - 3) + '...';
+}
+
+/**
  * Extract meaningful text from potentially HTML-encoded descriptions
  */
 function extractDescription(rawDescription) {
@@ -48,6 +117,7 @@ function extractDescription(rawDescription) {
     .split(/[。.!]/) // Split on sentence endings (Chinese and English)
     .filter(sentence => {
       const s = sentence.trim();
+
       // Skip empty, very short, or promotional sentences
       if (!s || s.length < 10) return false;
       if (/为我助力|boostme|点赞|like|订阅|subscribe/i.test(s)) return false;
@@ -67,21 +137,23 @@ function analyzeFilename(fileName) {
   const tags = new Set();
   const features = [];
   
-  // Category detection
+  // More specific category detection with priority
   const categories = {
-    'functional': ['bracket', 'mount', 'holder', 'clip', 'hook', 'stand', 'organizer', 'adapter', 'tool', 'jig', 'fixture'],
-    'decorative': ['vase', 'pot', 'planter', 'ornament', 'decoration', 'statue', 'sculpture'],
-    'toy': ['toy', 'figure', 'miniature', 'figurine', 'character', 'dragon', 'robot'],
-    'mechanical': ['gear', 'bearing', 'hinge', 'wheel', 'axle', 'pulley', 'spring'],
-    'storage': ['box', 'case', 'container', 'tray', 'drawer', 'bin'],
-    'household': ['coaster', 'opener', 'spoon', 'fork', 'cup', 'plate', 'bowl'],
-    'game': ['dice', 'token', 'card', 'board', 'chess', 'puzzle'],
-    'electronics': ['enclosure', 'raspberry', 'arduino', 'pi', 'esp', 'pcb', 'cable'],
-    'automotive': ['car', 'vehicle', 'wheel', 'bumper', 'spoiler'],
-    'medical': ['splint', 'brace', 'prosthetic'],
+    'functional': ['bracket', 'mount', 'holder', 'clip', 'hook', 'stand', 'organizer', 'adapter', 'tool', 'jig', 'fixture', 'rack', 'shelf', 'organizer'],
+    'decorative': ['vase', 'pot', 'planter', 'ornament', 'decoration', 'statue', 'sculpture', 'plant pot'],
+    'toy': ['toy', 'figure', 'miniature', 'figurine', 'character', 'dragon', 'robot', 'doll', 'action figure'],
+    'mechanical': ['gear', 'bearing', 'hinge', 'wheel', 'axle', 'pulley', 'spring', 'cam', 'crank'],
+    'storage': ['box', 'case', 'container', 'tray', 'drawer', 'bin', 'organizer', 'shelf'],
+    'household': ['coaster', 'opener', 'spoon', 'fork', 'cup', 'plate', 'bowl', 'bottle', 'dispenser'],
+    'game': ['dice', 'token', 'card', 'board', 'chess', 'puzzle', 'mini'],
+    'electronics': ['enclosure', 'raspberry', 'arduino', 'pi', 'esp', 'pcb', 'cable', 'case', 'box'],
+    'automotive': ['car', 'vehicle', 'wheel', 'bumper', 'spoiler', 'mount'],
+    'medical': ['splint', 'brace', 'prosthetic', 'organizer', 'holder'],
     'wearable': ['headband', 'glasses', 'earring', 'necklace', 'bracelet', 'ring', 'pendant', 'jewelry', 'costume', 'mask', 'helmet', 'crown', 'tiara', 'badge', 'pin'],
-    'seasonal': ['christmas', 'halloween', 'easter', 'thanksgiving', 'valentine', 'ornament', 'wreath', 'decoration'],
-    'art': ['sculpture', 'statue', 'bust', 'model', 'diorama', 'display']
+    'kitchen': ['holder', 'organizer', 'rack', 'dispenser', 'container', 'utensil'],
+    'office': ['organizer', 'holder', 'stand', 'caddy', 'desk'],
+    'garden': ['planter', 'pot', 'bed', 'fence'],
+    'tool': ['holder', 'organizer', 'stand', 'rack', 'wall mount']
   };
   
   // Check each category
@@ -89,6 +161,26 @@ function analyzeFilename(fileName) {
     if (keywords.some(keyword => lower.includes(keyword))) {
       tags.add(category);
     }
+  }
+  
+  // More specific detections
+  if (lower.includes('spool') || lower.includes('filament')) {
+    tags.add('3d-printing');
+    if (lower.includes('holder')) tags.add('functional');
+  }
+  
+  if (lower.includes('rack')) {
+    tags.add('storage');
+    tags.add('functional');
+  }
+  
+  if (lower.includes('measure') || lower.includes('tape')) {
+    tags.add('tool');
+    tags.add('functional');
+  }
+  
+  if (lower.includes('remix') || lower.includes('mod') || lower.includes('modified')) {
+    tags.add('remix');
   }
   
   // Year/date detection
@@ -99,31 +191,13 @@ function analyzeFilename(fileName) {
   
   // Specific item detection
   if (lower.includes('benchy') || lower.includes('3dbenchy')) {
-    features.push('calibration print (Benchy)');
     tags.add('calibration');
   }
   if (lower.includes('calibration') || lower.includes('test')) {
-    features.push('test/calibration print');
     tags.add('calibration');
   }
-  if (lower.includes('headband') || lower.includes('hair')) {
-    features.push('wearable headwear');
-  }
-  if (lower.includes('glasses') || lower.includes('sunglasses')) {
-    features.push('wearable eyewear');
-  }
-  if (lower.includes('jewelry') || lower.includes('earring') || lower.includes('necklace')) {
-    features.push('wearable jewelry');
-  }
-  if (lower.includes('vase') || lower.includes('pot') || lower.includes('planter')) {
-    features.push('vase or planter');
-  }
-  if (lower.includes('bracket') || lower.includes('mount') || lower.includes('holder')) {
-    features.push('mounting hardware');
-  }
-  if (lower.includes('spool') && lower.includes('holder')) {
-    features.push('filament spool holder');
-    tags.add('3d-printing');
+  if (lower.includes('prototype')) {
+    tags.add('prototype');
   }
   
   // Brand/printer specific
@@ -137,44 +211,25 @@ function analyzeFilename(fileName) {
     tags.add('creality');
   }
   
-  // Size indicators
-  const sizeMatch = lower.match(/(\d+)(mm|cm|inch)/);
-  if (sizeMatch) {
-    features.push(`${sizeMatch[1]}${sizeMatch[2]} size specified`);
+  // Material hints
+  if (lower.includes('flexible') || lower.includes('tpu') || lower.includes('flex')) {
+    tags.add('flexible');
+  }
+  if (lower.includes('strong') || lower.includes('reinforced') || lower.includes('heavy') || lower.includes('structural')) {
+    tags.add('reinforced');
+  }
+  if (lower.includes('light') || lower.includes('lightweight')) {
+    tags.add('lightweight');
   }
   
   // Multi-part indicators
-  if (lower.includes('assembly') || lower.includes('set') || lower.match(/\d+x\d+/) || lower.match(/x\d+/)) {
-    features.push('multi-part assembly');
+  if (lower.includes('assembly') || lower.includes('set') || lower.match(/part\s*\d+/) || lower.match(/\d+.*piece/)) {
     tags.add('assembly');
-  }
-  
-  // Strength/material hints
-  if (lower.includes('strong') || lower.includes('reinforced') || lower.includes('heavy')) {
-    features.push('reinforced design');
-  }
-  if (lower.includes('flexible') || lower.includes('tpu')) {
-    features.push('flexible material');
-    tags.add('tpu');
-  }
-  
-  // Support requirements
-  if (lower.includes('no support') || lower.includes('supportless')) {
-    features.push('no supports needed');
-  }
-  if (lower.includes('support') && !lower.includes('no support')) {
-    features.push('supports required');
-  }
-  
-  // Version/variant
-  const versionMatch = lower.match(/v\d+(\.\d+)?/);
-  if (versionMatch) {
-    features.push(`version ${versionMatch[0]}`);
   }
   
   return {
     tags: Array.from(tags),
-    features: features.length > 0 ? features : ['general model']
+    features: features.length > 0 ? features : []
   };
 }
 
@@ -335,7 +390,8 @@ async function autoDescribeModel(filePath, fileName) {
     const results = {
       description: '',
       tags: [],
-      metadata: null
+      metadata: null,
+      language: 'en'
     };
     
     // 1. Analyze filename
@@ -353,10 +409,15 @@ async function autoDescribeModel(filePath, fileName) {
           results.description = cleanHTMLText(metadata.title);
         }
         if (metadata.description) {
-          results.description = cleanHTMLText(metadata.description);
+          const rawDesc = cleanHTMLText(metadata.description);
+          results.description = rawDesc;
+          
+          // Detect language of description
+          results.language = detectLanguage(rawDesc);
         }
+        // Remove 'credited' tag - use specific designer tag instead if available
         if (metadata.designer) {
-          results.tags.push('credited');
+          results.tags.push('remix');
         }
       }
     }
@@ -392,7 +453,11 @@ async function autoDescribeModel(filePath, fileName) {
       results.description = parts.join(' - ') || fileName.replace(/\.(3mf|stl|gcode)$/i, '');
     }
     
-    // 5. Deduplicate and clean tags
+    // 5. Truncate description to reasonable length for display
+    results.description = truncateDescription(results.description, 300);
+    
+    // 6. Deduplicate and clean tags
+
     results.tags = [...new Set(results.tags)].filter(t => t && t.length > 0);
     
     // 6. Add default tag if none found
@@ -420,5 +485,7 @@ module.exports = {
   extract3MFMetadata,
   analyzeSTLGeometry,
   cleanHTMLText,
-  extractDescription
+  extractDescription,
+  truncateDescription,
+  detectLanguage
 };

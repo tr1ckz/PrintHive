@@ -372,6 +372,23 @@
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.8);
   font-style: italic;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.file-desc:hover {
+  color: rgba(255, 255, 255, 1);
+}
+
+.file-desc .read-more {
+  color: #7f00ff;
+  font-style: normal;
+  font-weight: 500;
 }
 
 .file-tags {
@@ -498,6 +515,35 @@
 .auto-tag-progress .current-file {
   color: rgba(255, 255, 255, 0.5);
   font-style: italic;
+}
+
+/* Description Modal */
+.description-modal {
+  max-width: 600px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.description-modal .modal-body {
+  padding: 1.5rem;
+}
+
+.description-modal .file-name {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 1rem 0;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.75rem;
+}
+
+.description-modal .description-text {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .btn-download {
