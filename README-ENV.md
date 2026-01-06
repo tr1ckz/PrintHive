@@ -23,11 +23,11 @@ Configure OIDC authentication with your identity provider:
 
 ### Using Authentik
 ```bash
-PUBLIC_URL=https://bambu.yourdomain.com
-OAUTH_ISSUER=https://auth.yourdomain.com/application/o/bambu
+PUBLIC_URL=https://printhive.yourdomain.com
+OAUTH_ISSUER=https://auth.yourdomain.com/application/o/printhive
 OAUTH_CLIENT_ID=your_client_id_from_authentik
 OAUTH_CLIENT_SECRET=your_client_secret_from_authentik
-OAUTH_REDIRECT_URI=https://bambu.yourdomain.com/auth/callback
+OAUTH_REDIRECT_URI=https://printhive.yourdomain.com/auth/callback
 ```
 
 ### Using Other OIDC Providers

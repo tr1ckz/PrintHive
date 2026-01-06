@@ -1,6 +1,6 @@
-# Bambu Lab 3D Printing Integration
+# PrintHive - 3D Printer Management
 
-A comprehensive web application for managing Bambu Lab 3D printers, including print history tracking, model library management, real-time printer monitoring via MQTT, and cloud synchronization with Bambu Lab MakerWorld.
+A comprehensive web application for managing 3D printers, including print history tracking, model library management, real-time printer monitoring via MQTT, and cloud synchronization with Bambu MakerWorld.
 
 ## Features
 
@@ -19,7 +19,7 @@ A comprehensive web application for managing Bambu Lab 3D printers, including pr
 ### Prerequisites
 
 - Node.js 18+ or Docker
-- Bambu Lab account
+- Bambu printer account
 - (Optional) OIDC identity provider for SSO
 
 ### Installation
@@ -28,7 +28,7 @@ A comprehensive web application for managing Bambu Lab 3D printers, including pr
 
 1. Pull the latest image:
 ```bash
-docker pull ghcr.io/tr1ckz/bambu-lab-integration:latest
+docker pull ghcr.io/tr1ckz/printhive:latest
 ```
 
 2. Create a docker-compose.yml:
@@ -36,7 +36,7 @@ docker pull ghcr.io/tr1ckz/bambu-lab-integration:latest
 version: '3.8'
 services:
   bambu:
-    image: ghcr.io/tr1ckz/bambu-lab-integration:latest
+    image: ghcr.io/tr1ckz/printhive:latest
     ports:
       - "3000:3000"
     volumes:
@@ -60,8 +60,8 @@ For detailed Docker and Unraid instructions, see [DOCKER.md](DOCKER.md).
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/YOUR_USERNAME/bambu-lab-integration.git
-cd bambu-lab-integration
+git clone https://github.com/YOUR_USERNAME/printhive.git
+cd printhive
 ```
 
 2. Install dependencies:
@@ -155,10 +155,10 @@ MIT License - feel free to use and modify as needed.
 
 ## Acknowledgments
 
-- Bambu Lab for their excellent 3D printers and API
+- Bambu Lab for their 3D printers and API
 - MakerWorld community for model sharing
 - Contributors and testers
 
 ## Disclaimer
 
-This is an unofficial integration with Bambu Lab's cloud services. It is not affiliated with, endorsed by, or supported by Bambu Lab. Use at your own risk.
+This is an unofficial integration with Bambu Lab cloud services. It is not affiliated with, endorsed by, or supported by Bambu Lab. Use at your own risk.
