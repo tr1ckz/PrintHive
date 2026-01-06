@@ -919,35 +919,70 @@ app.post('/api/match-videos', (req, res) => {
       ? fs.readdirSync(videosDir).filter(f => f.endsWith('.avi') || f.endsWith('.mp4'))
       : [];
     
+    // Debug: Log some sample startTime values from prints
+    const samplePrints = db.prepare('SELECT id, title, startTime FROM prints WHERE startTime IS NOT NULL LIMIT 5').all();
+    console.log('Sample print startTime values:');
+    samplePrints.forEach(p => console.log(`  Print ${p.id}: ${p.startTime}`));
+    
     let matched = 0;
     let unmatched = 0;
+    const matchDetails = [];
     
     for (const videoFile of videoFiles) {
-      // Extract timestamp from filename: video_2025-12-01_22-16-41.avi
+      // Extract timestamp from filename: video_2024-12-13_15-18-02.avi
       const match = videoFile.match(/video_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/);
       
       if (match) {
         const [, date, hours, minutes, seconds] = match;
-        const videoTimestamp = `${date} ${hours}:${minutes}:${seconds}`;
+        // Video timestamp in ISO format: 2024-12-13T15:18:02
+        const videoTimestamp = `${date}T${hours}:${minutes}:${seconds}`;
         
-        // Find print with closest timestamp
-        // Video can start up to 10 minutes after print start (bed leveling delay)
-        // Allow up to 24 hours before for local-only prints
-        const result = db.prepare(`
-          UPDATE prints 
-          SET videoLocal = ? 
+        console.log(`Matching video ${videoFile} with timestamp ${videoTimestamp}`);
+        
+        // First try exact-ish match (within 2 hour window)
+        let print = db.prepare(`
+          SELECT id, modelId, title, startTime, endTime
+          FROM prints
           WHERE videoLocal IS NULL
-            AND datetime(startTime) <= datetime(?, '+10 minutes')
-            AND datetime(startTime) >= datetime(?, '-24 hours')
-          ORDER BY abs(julianday(startTime) - julianday(?))
+            AND startTime IS NOT NULL
+            AND (
+              -- Video timestamp is within 2 hours of print start
+              datetime(startTime) >= datetime(?, '-2 hours')
+              AND datetime(startTime) <= datetime(?, '+2 hours')
+            )
+          ORDER BY ABS(julianday(startTime) - julianday(?))
           LIMIT 1
-        `).run(videoFile, videoTimestamp, videoTimestamp, videoTimestamp);
+        `).get(videoTimestamp, videoTimestamp, videoTimestamp);
         
-        if (result.changes > 0) {
+        // If no match with ISO format, try with space instead of T
+        if (!print) {
+          const videoTimestampSpace = `${date} ${hours}:${minutes}:${seconds}`;
+          print = db.prepare(`
+            SELECT id, modelId, title, startTime, endTime
+            FROM prints
+            WHERE videoLocal IS NULL
+              AND startTime IS NOT NULL
+              AND (
+                datetime(startTime) >= datetime(?, '-2 hours')
+                AND datetime(startTime) <= datetime(?, '+2 hours')
+              )
+            ORDER BY ABS(julianday(startTime) - julianday(?))
+            LIMIT 1
+          `).get(videoTimestampSpace, videoTimestampSpace, videoTimestampSpace);
+        }
+        
+        if (print) {
+          db.prepare('UPDATE prints SET videoLocal = ? WHERE id = ?').run(videoFile, print.id);
           matched++;
+          matchDetails.push({ video: videoFile, print: print.title || print.modelId, printStart: print.startTime });
+          console.log(`  Matched to print: ${print.title || print.modelId} (startTime: ${print.startTime})`);
         } else {
           unmatched++;
+          console.log(`  No matching print found`);
         }
+      } else {
+        unmatched++;
+        console.log(`  Could not parse timestamp from: ${videoFile}`);
       }
     }
     
@@ -955,7 +990,8 @@ app.post('/api/match-videos', (req, res) => {
       success: true, 
       matched, 
       unmatched,
-      total: videoFiles.length 
+      total: videoFiles.length,
+      details: matchDetails
     });
   } catch (error) {
     console.error('Match videos error:', error);
@@ -1925,9 +1961,18 @@ app.get('/api/statistics', (req, res) => {
       averagePrintTime: 0
     };
 
+    // Status code to name mapping
+    const statusNames = {
+      1: 'In Progress',
+      2: 'Success',
+      3: 'Failed',
+      4: 'Cancelled'
+    };
+
     prints.forEach(print => {
-      // Status counts
-      stats.printsByStatus[print.status] = (stats.printsByStatus[print.status] || 0) + 1;
+      // Status counts - use human-readable names
+      const statusName = statusNames[print.status] || `Unknown (${print.status})`;
+      stats.printsByStatus[statusName] = (stats.printsByStatus[statusName] || 0) + 1;
       if (print.status === 3) stats.failedPrints++; // status 3 = failed
 
       // Printer counts
@@ -2467,8 +2512,18 @@ app.post('/api/library/:id/auto-tag', async (req, res) => {
     
     console.log(`  Analyzing: ${file.originalName}`);
     
+    // Build correct file path using fileName (stored path may be outdated)
+    const actualFilePath = path.join(libraryDir, file.fileName);
+    console.log(`  File path: ${actualFilePath}`);
+    
+    // Check if file exists
+    if (!fs.existsSync(actualFilePath)) {
+      console.log(`  ERROR: File not found at ${actualFilePath}`);
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+    
     // Run auto-analysis
-    const analysis = await autoDescribeModel(file.filePath, file.originalName);
+    const analysis = await autoDescribeModel(actualFilePath, file.originalName);
     
     console.log(`  Auto-generated description: ${analysis.description}`);
     console.log(`  Auto-generated tags: ${analysis.tags.join(', ')}`);
@@ -2538,8 +2593,18 @@ app.post('/api/library/auto-tag-all', async (req, res) => {
         processed++;
         console.log(`  [${processed}/${items.length}] Analyzing: ${file.originalName}`);
         
+        // Build correct file path using fileName (stored path may be outdated)
+        const actualFilePath = path.join(libraryDir, file.fileName);
+        
+        // Skip if file doesn't exist
+        if (!fs.existsSync(actualFilePath)) {
+          console.log(`    File not found: ${actualFilePath}`);
+          errors++;
+          continue;
+        }
+        
         // Run auto-analysis
-        const analysis = await autoDescribeModel(file.filePath, file.originalName);
+        const analysis = await autoDescribeModel(actualFilePath, file.originalName);
         
         // Update description
         if (analysis.description) {
@@ -2861,14 +2926,15 @@ app.get('/api/user/me', (req, res) => {
   }
   
   try {
-    // Try with email column, fall back without it if column doesn't exist
+    // Try with all columns, fall back if columns don't exist
     let user;
     try {
-      user = db.prepare('SELECT id, username, email, role FROM users WHERE id = ?').get(req.session.userId);
+      user = db.prepare('SELECT id, username, email, role, display_name FROM users WHERE id = ?').get(req.session.userId);
     } catch (e) {
       if (e.message.includes('no such column')) {
         user = db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(req.session.userId);
         user.email = null;
+        user.display_name = null;
       } else {
         throw e;
       }
@@ -3075,7 +3141,9 @@ app.post('/api/settings/restart', async (req, res) => {
   // Give time for response to be sent
   setTimeout(() => {
     console.log('Restarting application...');
-    process.exit(0); // Docker/PM2 will restart the process
+    // Use exit code 1 to ensure Docker restarts the container
+    // exit code 0 might be treated as intentional stop with "unless-stopped" policy
+    process.exit(1);
   }, 2000);
 });
 

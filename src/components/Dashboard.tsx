@@ -19,6 +19,7 @@ interface UserInfo {
   username: string;
   role: string;
   email: string | null;
+  display_name?: string;
 }
 
 function Dashboard({ onLogout }: DashboardProps) {
@@ -155,8 +156,8 @@ function Dashboard({ onLogout }: DashboardProps) {
           <div className="navbar-right">
             {!hideBmc && <BuyMeACoffee username="tr1ck" />}
             <div className="navbar-user">
-              <div className="user-avatar">{userInfo?.username?.[0]?.toUpperCase() || 'U'}</div>
-              <span className="user-name">{userInfo?.username || 'User'}</span>
+              <div className="user-avatar">{(userInfo?.display_name || userInfo?.username)?.[0]?.toUpperCase() || 'U'}</div>
+              <span className="user-name">{userInfo?.display_name || userInfo?.username || 'User'}</span>
             </div>
             <button className="logout-btn" onClick={onLogout} title="Logout">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
