@@ -1,7 +1,7 @@
 {
-  "name": "bambu-lab-integration",
+  "name": "printhive",
   "version": "1.0.0",
-  "description": "Web application for Bambu Lab printer integration - pulls models and timelapses",
+  "description": "Web application for 3D printer management - monitor printers, manage models and timelapses",
   "main": "simple-server.js",
   "scripts": {
     "start": "node simple-server.js",
@@ -10,14 +10,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "reset-admin": "node reset-admin.js",
-    "docker:build": "docker build -t bambu-lab-integration:latest .",
-    "docker:run": "docker run -d --name bambu-lab -p 3000:3000 -v bambu_data:/app/data -v bambu_library:/app/library -v bambu_sessions:/app/sessions bambu-lab-integration:latest"
+    "docker:build": "docker build -t printhive:latest .",
+    "docker:run": "docker run -d --name printhive -p 3000:3000 -v printhive_data:/app/data -v printhive_library:/app/library -v printhive_sessions:/app/sessions printhive:latest"
   },
   "keywords": [
-    "bambu",
+    "printhive",
     "3d-printer",
     "timelapse",
-    "bambu-lab"
+    "printer-management"
   ],
   "author": "",
   "license": "MIT",

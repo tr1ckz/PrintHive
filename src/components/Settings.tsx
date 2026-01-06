@@ -312,7 +312,7 @@ function Settings() {
       <div className="settings-header">
         <h1>Settings</h1>
         <p className="settings-description">
-          Manage your Bambu Lab connection and preferences
+          Manage your printer connection and preferences
         </p>
       </div>
 

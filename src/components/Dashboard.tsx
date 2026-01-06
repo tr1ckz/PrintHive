@@ -47,9 +47,9 @@ function Dashboard({ onLogout }: DashboardProps) {
       <div className="dashboard-sidebar">
         <div className="sidebar-header">
           <div className="logo">
-            <img src="/favicon.svg" alt="Bambu Lab" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
+            <img src="/images/logo.png" alt="PrintHive" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
           </div>
-          <h2>Bambu Lab</h2>
+          <h2>PrintHive</h2>
         </div>
 
         <nav className="sidebar-nav">

@@ -47,7 +47,7 @@ function Printers() {
       <div className="page-header">
         <div>
           <h1>Printers</h1>
-          <p>Monitor your Bambu Lab 3D printers</p>
+          <p>Monitor your 3D printers</p>
         </div>
         <button className="btn-refresh" onClick={fetchPrinters}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -64,7 +64,7 @@ function Printers() {
             <path d="M8 20h8M12 16v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           <h3>No printers found</h3>
-          <p>Connect your Bambu Lab printer to get started</p>
+          <p>Connect your printer to get started</p>
         </div>
       ) : (
         <div className="printers-grid">

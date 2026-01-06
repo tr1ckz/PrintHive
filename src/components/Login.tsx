@@ -95,9 +95,9 @@ function Login({ onLoginSuccess }: LoginProps) {
       <div className="login-box">
         <div className="login-header">
           <div className="logo">
-            <img src="/favicon.svg" alt="Bambu Lab" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+            <img src="/images/logo.png" alt="PrintHive" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
           </div>
-          <h1>Bambu Lab Manager</h1>
+          <h1>PrintHive</h1>
           <p>Sign in to your account</p>
         </div>
 

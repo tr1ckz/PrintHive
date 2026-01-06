@@ -24,11 +24,11 @@ function LoadingScreen({ message = 'Loading...' }: LoadingScreenProps) {
     <div className="loading-screen">
       <div className="loading-content">
         <div className="logo-container">
-          <img src="/logo.png" alt="Logo" className="loading-logo" />
+          <img src="/images/logo.png" alt="Logo" className="loading-logo" />
           <div className="logo-glow"></div>
         </div>
         
-        <h2 className="loading-title">Bambu Lab Integration</h2>
+        <h2 className="loading-title">PrintHive</h2>
         <p className="loading-message">{message}</p>
         
         <div className="loading-bar-container">
