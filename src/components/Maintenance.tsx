@@ -12,6 +12,7 @@ interface MaintenanceTask {
   interval_hours: number;
   last_performed: string | null;
   next_due: string | null;
+  hours_until_due: number | null;
   created_at: string;
   updated_at: string;
   isOverdue?: boolean;
@@ -337,7 +338,11 @@ function Maintenance() {
                     {printer && <span className="meta-item">🖨️ {printer.name}</span>}
                     <span className="meta-item">🔄 Every {formatHours(task.interval_hours)}</span>
                     <span className="meta-item">📅 Last: {formatDate(task.last_performed)}</span>
-                    {task.next_due && <span className="meta-item">⏳ Next: {formatDate(task.next_due)}</span>}
+                    {task.hours_until_due !== null ? (
+                      <span className="meta-item">⏳ {task.hours_until_due > 0 ? `${Math.round(task.hours_until_due)}h left` : 'Due now'}</span>
+                    ) : (
+                      task.next_due && <span className="meta-item">⏳ Next: {formatDate(task.next_due)}</span>
+                    )}
                   </div>
                 </div>
                 <div className="task-actions">

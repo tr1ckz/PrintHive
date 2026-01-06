@@ -352,6 +352,24 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+.modal-overlay .maintenance-modal,
+.modal-overlay .maintenance-modal .modal-content {
+  background: #1e1e2e !important;
+}
+
+.modal-overlay .maintenance-modal .modal-content h3,
+.modal-overlay .maintenance-modal .modal-content p,
+.modal-overlay .maintenance-modal form {
+  color: white !important;
+}
+
+.modal-overlay .maintenance-modal input,
+.modal-overlay .maintenance-modal select,
+.modal-overlay .maintenance-modal textarea {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: white !important;
+}
+
 .maintenance-modal .modal-actions {
   display: flex;
   gap: 1rem;

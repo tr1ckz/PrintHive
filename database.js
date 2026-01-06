@@ -179,6 +179,7 @@ db.exec(`
     interval_hours INTEGER DEFAULT 100,
     last_performed DATETIME,
     next_due DATETIME,
+    hours_until_due REAL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );

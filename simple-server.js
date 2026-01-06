@@ -3377,13 +3377,38 @@ app.get('/api/maintenance', async (req, res) => {
       ORDER BY next_due ASC NULLS LAST, task_name ASC
     `).all();
     
-    // Check for overdue tasks
-    const now = new Date().toISOString();
-    const tasksWithStatus = tasks.map(task => ({
-      ...task,
-      isOverdue: task.next_due && task.next_due < now,
-      isDueSoon: task.next_due && !task.isOverdue && new Date(task.next_due) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-    }));
+    // Get current total print hours
+    const prints = db.prepare('SELECT costTime FROM prints').all();
+    let totalPrintSeconds = 0;
+    for (const print of prints) {
+      if (print.costTime) {
+        totalPrintSeconds += print.costTime;
+      }
+    }
+    const currentPrintHours = totalPrintSeconds / 3600;
+    
+    // Check for overdue tasks based on print hours
+    const tasksWithStatus = tasks.map(task => {
+      let isOverdue = false;
+      let isDueSoon = false;
+      
+      if (task.hours_until_due) {
+        isOverdue = currentPrintHours >= task.hours_until_due;
+        isDueSoon = !isOverdue && (currentPrintHours >= task.hours_until_due - (task.interval_hours * 0.1));
+      } else if (task.next_due) {
+        // Fallback to time-based if hours_until_due not set
+        const now = new Date().toISOString();
+        isOverdue = task.next_due < now;
+        isDueSoon = !isOverdue && new Date(task.next_due) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      }
+      
+      return {
+        ...task,
+        isOverdue,
+        isDueSoon,
+        hoursUntilDue: task.hours_until_due ? Math.max(0, task.hours_until_due - currentPrintHours) : null
+      };
+    });
     
     res.json(tasksWithStatus);
   } catch (error) {
@@ -3486,13 +3511,28 @@ app.post('/api/maintenance/:id/complete', async (req, res) => {
     }
     
     const now = new Date();
+    
+    // Calculate next due based on print hours, not real time
+    // Get total print hours from all prints
+    const prints = db.prepare('SELECT costTime FROM prints').all();
+    let totalPrintSeconds = 0;
+    for (const print of prints) {
+      if (print.costTime) {
+        totalPrintSeconds += print.costTime;
+      }
+    }
+    const totalPrintHours = totalPrintSeconds / 3600;
+    const nextDueHours = totalPrintHours + task.interval_hours;
+    
+    // Store the next due as a marker based on print hours
+    // We'll convert this back in the frontend or in the maintenance calculation
     const nextDue = new Date(now.getTime() + task.interval_hours * 60 * 60 * 1000);
     
     db.prepare(`
       UPDATE maintenance_tasks 
-      SET last_performed = ?, next_due = ?, updated_at = CURRENT_TIMESTAMP
+      SET last_performed = ?, next_due = ?, hours_until_due = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(now.toISOString(), nextDue.toISOString(), id);
+    `).run(now.toISOString(), nextDue.toISOString(), nextDueHours, id);
     
     const updatedTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
     
@@ -3510,13 +3550,33 @@ app.get('/api/maintenance/summary', async (req, res) => {
   }
   
   try {
-    const now = new Date().toISOString();
-    const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    // Get current total print hours
+    const prints = db.prepare('SELECT costTime FROM prints').all();
+    let totalPrintSeconds = 0;
+    for (const print of prints) {
+      if (print.costTime) {
+        totalPrintSeconds += print.costTime;
+      }
+    }
+    const currentPrintHours = totalPrintSeconds / 3600;
     
-    const total = db.prepare('SELECT COUNT(*) as count FROM maintenance_tasks').get().count;
-    const overdue = db.prepare('SELECT COUNT(*) as count FROM maintenance_tasks WHERE next_due < ?').get(now).count;
-    const dueSoon = db.prepare('SELECT COUNT(*) as count FROM maintenance_tasks WHERE next_due >= ? AND next_due <= ?').get(now, weekFromNow).count;
-    const neverDone = db.prepare('SELECT COUNT(*) as count FROM maintenance_tasks WHERE last_performed IS NULL').get().count;
+    const allTasks = db.prepare('SELECT * FROM maintenance_tasks').all();
+    const total = allTasks.length;
+    const neverDone = allTasks.filter(t => !t.last_performed).length;
+    
+    // Count overdue and due-soon based on print hours
+    let overdue = 0;
+    let dueSoon = 0;
+    
+    for (const task of allTasks) {
+      if (task.hours_until_due) {
+        if (currentPrintHours >= task.hours_until_due) {
+          overdue++;
+        } else if (currentPrintHours >= task.hours_until_due - (task.interval_hours * 0.1)) {
+          dueSoon++;
+        }
+      }
+    }
     
     res.json({
       total,
