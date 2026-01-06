@@ -792,7 +792,17 @@ app.get('/api/settings/ui', (req, res) => {
 });
 
 // Save UI settings (admin only)
-app.post('/api/settings/ui', requireAdmin, (req, res) => {
+app.post('/api/settings/ui', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  // Check if user is admin
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
   try {
     const { hideBmc } = req.body;
     
