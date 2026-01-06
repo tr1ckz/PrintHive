@@ -23,7 +23,7 @@ interface Print {
   hasVideo: boolean;
 }
 
-const ITEMS_PER_PAGE = 24;
+const ITEMS_PER_PAGE = 12;
 
 const PrintHistory: React.FC = () => {
   const [allPrints, setAllPrints] = useState<Print[]>([]);

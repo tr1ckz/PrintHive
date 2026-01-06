@@ -4071,17 +4071,18 @@ app.post('/api/settings/restart', async (req, res) => {
     if (httpServer) {
       httpServer.close(() => {
         console.log('HTTP server closed');
-        // Exit with code 0 - Docker's "restart: unless-stopped" will bring us back
-        process.exit(0);
+        // Exit with code 1 to ensure Docker restarts the container
+        // Some Docker configs (like Unraid) may not restart on exit code 0
+        process.exit(1);
       });
       
       // Force exit after 5 seconds if server doesn't close gracefully
       setTimeout(() => {
         console.log('Force exit after timeout');
-        process.exit(0);
+        process.exit(1);
       }, 5000);
     } else {
-      process.exit(0);
+      process.exit(1);
     }
   }, 2000);
 });

@@ -15,6 +15,33 @@ interface SettingsProps {
   userRole?: string;
 }
 
+// Collapsible Section Component
+interface CollapsibleSectionProps {
+  title: string;
+  icon?: string;
+  children: React.ReactNode;
+  defaultExpanded?: boolean;
+}
+
+function CollapsibleSection({ title, icon, children, defaultExpanded = false }: CollapsibleSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  
+  return (
+    <div className={`settings-section collapsible ${isExpanded ? 'expanded' : ''}`}>
+      <div className="section-header" onClick={() => setIsExpanded(!isExpanded)}>
+        <h2>
+          {icon && <span className="section-icon">{icon}</span>}
+          {title}
+        </h2>
+        <span className="expand-icon">{isExpanded ? '−' : '+'}</span>
+      </div>
+      <div className="section-content">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function Settings({ userRole }: SettingsProps) {
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const [bambuStatus, setBambuStatus] = useState<BambuStatus | null>(null);
@@ -596,13 +623,13 @@ function Settings({ userRole }: SettingsProps) {
       </div>
 
       {/* PRINTER CONNECTION */}
-      <div className="settings-group-header">
-        <span className="group-icon">🖨️</span>
-        <h2>Printer Connection</h2>
-      </div>
+      <div className="settings-category">
+        <div className="category-header">
+          <span className="category-icon">🖨️</span>
+          <h2>Printer Connection</h2>
+        </div>
 
-      <div className="settings-section">
-        <h2>Bambu Lab Account</h2>
+        <CollapsibleSection title="Bambu Lab Account" icon="🔗" defaultExpanded={!bambuStatus?.connected}>
         
         {bambuStatus?.connected ? (
           <div className="bambu-connected">
@@ -715,10 +742,9 @@ function Settings({ userRole }: SettingsProps) {
             )}
           </form>
         )}
-      </div>
+        </CollapsibleSection>
       
-      <div className="settings-section">
-        <h2>Printer FTP Settings</h2>
+      <CollapsibleSection title="Printer FTP Settings" icon="📡">
         
         <form onSubmit={handleSavePrinterSettings} className="printer-ftp-form">
           <p className="form-description">
@@ -781,17 +807,18 @@ function Settings({ userRole }: SettingsProps) {
             </button>
           </div>
         </form>
+        </CollapsibleSection>
       </div>
 
       {/* ACCOUNT */}
-      <div className="settings-group-header">
-        <span className="group-icon">👤</span>
-        <h2>Account</h2>
-      </div>
+      <div className="settings-category">
+        <div className="category-header">
+          <span className="category-icon">👤</span>
+          <h2>Account</h2>
+        </div>
 
       {/* User Profile Section - moved here */}
-      <div className="settings-section">
-        <h2>User Profile</h2>
+      <CollapsibleSection title="User Profile" icon="📝">
         <p className="form-description">
           Manage your account information and display preferences
         </p>
@@ -844,10 +871,9 @@ function Settings({ userRole }: SettingsProps) {
         >
           {profileLoading ? 'Saving...' : 'Save Profile'}
         </button>
-      </div>
+        </CollapsibleSection>
 
-      <div className="settings-section">
-        <h2>Account Security</h2>
+      <CollapsibleSection title="Account Security" icon="🔒">
         
         <form onSubmit={handlePasswordChange} className="password-change-form">
           <p className="form-description">
@@ -898,17 +924,18 @@ function Settings({ userRole }: SettingsProps) {
             {passwordLoading ? 'Changing Password...' : 'Change Password'}
           </button>
         </form>
+        </CollapsibleSection>
       </div>
 
       {/* PREFERENCES */}
-      <div className="settings-group-header">
-        <span className="group-icon">🎨</span>
-        <h2>Preferences</h2>
-      </div>
+      <div className="settings-category">
+        <div className="category-header">
+          <span className="category-icon">🎨</span>
+          <h2>Preferences</h2>
+        </div>
 
       {/* Cost Calculator */}
-      <div className="settings-section">
-        <h2>Cost Calculator</h2>
+      <CollapsibleSection title="Cost Calculator" icon="💰">
         <p className="form-description">
           Configure costs to track printing expenses
         </p>
@@ -982,11 +1009,10 @@ function Settings({ userRole }: SettingsProps) {
         >
           {costLoading ? 'Saving...' : 'Save Cost Settings'}
         </button>
-      </div>
+        </CollapsibleSection>
 
       {/* UI Settings */}
-      <div className="settings-section">
-        <h2>UI Settings</h2>
+      <CollapsibleSection title="UI Settings" icon="🖥️">
         <p className="form-description">
           Customize the interface appearance
         </p>
@@ -1011,17 +1037,139 @@ function Settings({ userRole }: SettingsProps) {
         >
           {uiLoading ? 'Saving...' : 'Save UI Settings'}
         </button>
+        </CollapsibleSection>
+      </div>
+
+      {/* INTEGRATIONS */}
+      <div className="settings-category">
+        <div className="category-header">
+          <span className="category-icon">🔌</span>
+          <h2>Integrations</h2>
+        </div>
+
+      {/* Discord Webhooks Section */}
+      <CollapsibleSection title="Discord Webhooks" icon="💬">
+        <p className="form-description">
+          Get instant Discord notifications for print failures and maintenance alerts
+        </p>
+
+        {/* Printer Alerts Webhook */}
+        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <label className="toggle-switch" style={{ marginRight: '1rem' }}>
+              <input
+                type="checkbox"
+                checked={discordPrinterEnabled}
+                onChange={(e) => setDiscordPrinterEnabled(e.target.checked)}
+                disabled={discordLoading}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+            <span style={{ fontWeight: 500, color: '#fff' }}>Printer Alerts</span>
+          </div>
+          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.75rem' }}>
+            Get notified when prints fail, encounter errors, or complete
+          </small>
+          {discordPrinterEnabled && (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="url"
+                value={discordPrinterWebhook}
+                onChange={(e) => setDiscordPrinterWebhook(e.target.value)}
+                placeholder="https://discord.com/api/webhooks/..."
+                disabled={discordLoading}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleTestDiscordWebhook('printer')}
+                disabled={discordTesting === 'printer' || !discordPrinterWebhook}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {discordTesting === 'printer' ? 'Sending...' : 'Test'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Maintenance Alerts Webhook */}
+        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <label className="toggle-switch" style={{ marginRight: '1rem' }}>
+              <input
+                type="checkbox"
+                checked={discordMaintenanceEnabled}
+                onChange={(e) => setDiscordMaintenanceEnabled(e.target.checked)}
+                disabled={discordLoading}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+            <span style={{ fontWeight: 500, color: '#fff' }}>Maintenance Alerts</span>
+          </div>
+          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.75rem' }}>
+            Get notified when scheduled maintenance is due or overdue
+          </small>
+          {discordMaintenanceEnabled && (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="url"
+                value={discordMaintenanceWebhook}
+                onChange={(e) => setDiscordMaintenanceWebhook(e.target.value)}
+                placeholder="https://discord.com/api/webhooks/..."
+                disabled={discordLoading}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleTestDiscordWebhook('maintenance')}
+                disabled={discordTesting === 'maintenance' || !discordMaintenanceWebhook}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {discordTesting === 'maintenance' ? 'Sending...' : 'Test'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Ping User ID */}
+        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+          <label style={{ fontWeight: 500, color: '#fff', marginBottom: '0.5rem', display: 'block' }}>
+            Discord User ID to Ping (optional)
+          </label>
+          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.75rem' }}>
+            Enter your Discord user ID to get pinged in notifications. Right-click your profile → Copy User ID
+          </small>
+          <input
+            type="text"
+            value={discordPingUserId}
+            onChange={(e) => setDiscordPingUserId(e.target.value)}
+            placeholder="e.g. 874822659161092166"
+            disabled={discordLoading}
+            style={{ maxWidth: '300px' }}
+          />
+        </div>
+        
+        <button 
+          type="button" 
+          className="btn btn-primary" 
+          onClick={handleSaveDiscordSettings}
+          disabled={discordLoading}
+        >
+          {discordLoading ? 'Saving...' : 'Save Discord Settings'}
+        </button>
+        </CollapsibleSection>
       </div>
 
       {/* ADVANCED */}
-      <div className="settings-group-header">
-        <span className="group-icon">⚡</span>
-        <h2>Advanced</h2>
-      </div>
+      <div className="settings-category">
+        <div className="category-header">
+          <span className="category-icon">⚡</span>
+          <h2>Advanced</h2>
+        </div>
 
-      <div className="settings-section">
-        <h2>OAuth / SSO Authentication</h2>
-        
+      <CollapsibleSection title="OAuth / SSO Authentication" icon="🔑">
         <form onSubmit={handleSaveOAuthSettings} className="oauth-form">
           <p className="form-description">
             Configure Single Sign-On (SSO) authentication for user logins
@@ -1176,11 +1324,10 @@ function Settings({ userRole }: SettingsProps) {
             </p>
           )}
         </form>
-      </div>
+        </CollapsibleSection>
 
       {/* Watchdog Section */}
-      <div className="settings-section">
-        <h2>Watchdog / Health Check</h2>
+      <CollapsibleSection title="Watchdog / Health Check" icon="🐕">
         <p className="form-description">
           Keep the application alive and monitor health status
         </p>
@@ -1237,131 +1384,10 @@ function Settings({ userRole }: SettingsProps) {
         >
           {watchdogLoading ? 'Saving...' : 'Save Watchdog Settings'}
         </button>
-      </div>
-
-      {/* Discord Webhooks Section */}
-      <div className="settings-section">
-        <h2>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '24px', height: '24px', marginRight: '0.5rem', verticalAlign: 'middle' }}>
-            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" fill="none" stroke="currentColor"/>
-          </svg>
-          Discord Webhooks
-        </h2>
-        <p className="form-description">
-          Get instant Discord notifications for print failures and maintenance alerts
-        </p>
-
-        {/* Printer Alerts Webhook */}
-        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <label className="toggle-switch" style={{ marginRight: '1rem' }}>
-              <input
-                type="checkbox"
-                checked={discordPrinterEnabled}
-                onChange={(e) => setDiscordPrinterEnabled(e.target.checked)}
-                disabled={discordLoading}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-            <span style={{ fontWeight: 500, color: '#fff' }}>Printer Alerts</span>
-          </div>
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.75rem' }}>
-            Get notified when prints fail, encounter errors, or complete
-          </small>
-          {discordPrinterEnabled && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="url"
-                value={discordPrinterWebhook}
-                onChange={(e) => setDiscordPrinterWebhook(e.target.value)}
-                placeholder="https://discord.com/api/webhooks/..."
-                disabled={discordLoading}
-                style={{ flex: 1 }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => handleTestDiscordWebhook('printer')}
-                disabled={discordTesting === 'printer' || !discordPrinterWebhook}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                {discordTesting === 'printer' ? 'Sending...' : 'Test'}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Maintenance Alerts Webhook */}
-        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <label className="toggle-switch" style={{ marginRight: '1rem' }}>
-              <input
-                type="checkbox"
-                checked={discordMaintenanceEnabled}
-                onChange={(e) => setDiscordMaintenanceEnabled(e.target.checked)}
-                disabled={discordLoading}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-            <span style={{ fontWeight: 500, color: '#fff' }}>Maintenance Alerts</span>
-          </div>
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.75rem' }}>
-            Get notified when scheduled maintenance is due or overdue
-          </small>
-          {discordMaintenanceEnabled && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="url"
-                value={discordMaintenanceWebhook}
-                onChange={(e) => setDiscordMaintenanceWebhook(e.target.value)}
-                placeholder="https://discord.com/api/webhooks/..."
-                disabled={discordLoading}
-                style={{ flex: 1 }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => handleTestDiscordWebhook('maintenance')}
-                disabled={discordTesting === 'maintenance' || !discordMaintenanceWebhook}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                {discordTesting === 'maintenance' ? 'Sending...' : 'Test'}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Ping User ID */}
-        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <label style={{ fontWeight: 500, color: '#fff', marginBottom: '0.5rem', display: 'block' }}>
-            Discord User ID to Ping (optional)
-          </label>
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.75rem' }}>
-            Enter your Discord user ID to get pinged in notifications. Right-click your profile → Copy User ID
-          </small>
-          <input
-            type="text"
-            value={discordPingUserId}
-            onChange={(e) => setDiscordPingUserId(e.target.value)}
-            placeholder="e.g. 874822659161092166"
-            disabled={discordLoading}
-            style={{ maxWidth: '300px' }}
-          />
-        </div>
-        
-        <button 
-          type="button" 
-          className="btn btn-primary" 
-          onClick={handleSaveDiscordSettings}
-          disabled={discordLoading}
-        >
-          {discordLoading ? 'Saving...' : 'Save Discord Settings'}
-        </button>
-      </div>
+        </CollapsibleSection>
 
       {/* System Section */}
-      <div className="settings-section">
-        <h2>System</h2>
+      <CollapsibleSection title="System" icon="🖥️">
         <p className="form-description">
           Application management and maintenance
         </p>
@@ -1382,24 +1408,24 @@ function Settings({ userRole }: SettingsProps) {
             </button>
           </div>
         </div>
+        </CollapsibleSection>
       </div>
 
       {/* ADMIN */}
       {isAdmin && (
-        <>
-          <div className="settings-group-header">
-            <span className="group-icon">🔐</span>
+        <div className="settings-category">
+          <div className="category-header">
+            <span className="category-icon">🔐</span>
             <h2>Administration</h2>
           </div>
 
-          <div className="settings-section">
-            <h2>User Management</h2>
+          <CollapsibleSection title="User Management" icon="👥" defaultExpanded={true}>
             <p className="form-description">
               Manage user accounts and permissions
             </p>
             <UserManagement />
-          </div>
-        </>
+            </CollapsibleSection>
+        </div>
       )}
       
       <ConfirmModal

@@ -388,6 +388,95 @@
   margin: 0;
 }
 
+/* Category Styling */
+.settings-category {
+  margin-bottom: 2rem;
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 2rem 0 1rem 0;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 153, 255, 0.1) 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.category-header:first-child {
+  margin-top: 0;
+}
+
+.category-icon {
+  font-size: 1.5rem;
+}
+
+.category-header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+/* Collapsible Section Styling */
+.settings-section.collapsible {
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-section.collapsible .section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  user-select: none;
+}
+
+.settings-section.collapsible .section-header:hover {
+  background: rgba(0, 212, 255, 0.05);
+}
+
+.settings-section.collapsible .section-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.settings-section.collapsible .section-icon {
+  font-size: 1.25rem;
+}
+
+.settings-section.collapsible .expand-icon {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.5);
+  transition: transform 0.3s ease;
+  width: 24px;
+  text-align: center;
+}
+
+.settings-section.collapsible.expanded .expand-icon {
+  color: #00d4ff;
+}
+
+.settings-section.collapsible .section-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  padding: 0 1.5rem;
+}
+
+.settings-section.collapsible.expanded .section-content {
+  max-height: 2000px;
+  padding: 0 1.5rem 1.5rem 1.5rem;
+}
+
 /* Make settings sections more compact */
 .settings-section h2 {
   display: flex;
