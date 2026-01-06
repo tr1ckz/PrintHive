@@ -1389,13 +1389,29 @@ app.get('/api/prints', async (req, res) => {
   
   try {
     const prints = db.prepare(`
-      SELECT id, title, cover, status, startTime, deviceName, weight, costTime, progress
+      SELECT id, title, cover, modelId, status, startTime, deviceName, weight, costTime, progress
       FROM prints 
       ORDER BY startTime DESC 
       LIMIT ?
     `).all(limit);
     
-    res.json(prints);
+    // Resolve local cover paths
+    const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
+    const printsWithCovers = prints.map(print => {
+      let coverUrl = null;
+      if (print.modelId) {
+        const jpgPath = path.join(coverCacheDir, `${print.modelId}.jpg`);
+        const pngPath = path.join(coverCacheDir, `${print.modelId}.png`);
+        if (fs.existsSync(jpgPath)) {
+          coverUrl = `/images/covers/${print.modelId}.jpg`;
+        } else if (fs.existsSync(pngPath)) {
+          coverUrl = `/images/covers/${print.modelId}.png`;
+        }
+      }
+      return { ...print, cover: coverUrl };
+    });
+    
+    res.json(printsWithCovers);
   } catch (error) {
     console.error('Prints error:', error.message);
     res.json([]);
@@ -2833,6 +2849,17 @@ app.post('/api/library/scan', async (req, res) => {
   }
 });
 
+// Check if ffmpeg is available
+let ffmpegAvailable = false;
+try {
+  const { execSync } = require('child_process');
+  execSync('ffmpeg -version', { stdio: 'pipe' });
+  ffmpegAvailable = true;
+  console.log('FFmpeg is available for camera snapshots');
+} catch (e) {
+  console.log('FFmpeg not found - camera snapshots will not work');
+}
+
 // Camera snapshot endpoint - captures a frame from RTSP stream
 app.get('/api/camera-snapshot', async (req, res) => {
   if (!req.session.authenticated) {
@@ -2867,10 +2894,16 @@ app.get('/api/camera-snapshot', async (req, res) => {
     }
   }
 
+  // For RTSP streams, check if ffmpeg is available first
+  if (!ffmpegAvailable) {
+    return res.status(503).json({ 
+      error: 'Camera requires FFmpeg', 
+      details: 'FFmpeg is not installed. Install FFmpeg to enable camera snapshots. For Docker, add "ffmpeg" to your image.'
+    });
+  }
+
   // For RTSP streams, use ffmpeg via child_process for better control
   const { spawn } = require('child_process');
-  const path = require('path');
-  const fs = require('fs');
   
   const tempFile = path.join(__dirname, 'data', `camera-temp-${Date.now()}.jpg`);
   

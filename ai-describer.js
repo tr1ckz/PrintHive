@@ -350,10 +350,10 @@ async function autoDescribeModel(filePath, fileName) {
         
         // Use embedded title/description if available
         if (metadata.title && metadata.title !== fileName) {
-          results.description = metadata.title;
+          results.description = cleanHTMLText(metadata.title);
         }
         if (metadata.description) {
-          results.description = metadata.description;
+          results.description = cleanHTMLText(metadata.description);
         }
         if (metadata.designer) {
           results.tags.push('credited');
