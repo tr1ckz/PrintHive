@@ -14,6 +14,7 @@
 .maintenance-header h1 {
   margin: 0 0 0.5rem 0;
   font-size: 1.75rem;
+  color: white;
 }
 
 .maintenance-subtitle {
@@ -38,28 +39,30 @@
 }
 
 .summary-card {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(30, 41, 59, 0.6);
   border-radius: 12px;
   padding: 1.25rem;
   text-align: center;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid transparent;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .summary-card:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(30, 41, 59, 0.8);
   transform: translateY(-2px);
+  border-color: rgba(0, 212, 255, 0.4);
 }
 
 .summary-card.overdue {
   border-color: #ff4757;
-  background: rgba(255, 71, 87, 0.1);
+  background: rgba(255, 71, 87, 0.15);
 }
 
 .summary-card.due-soon {
   border-color: #ffa502;
-  background: rgba(255, 165, 2, 0.1);
+  background: rgba(255, 165, 2, 0.15);
 }
 
 .summary-icon {
@@ -72,6 +75,7 @@
   font-size: 2rem;
   font-weight: 600;
   display: block;
+  color: white;
 }
 
 .summary-label {
@@ -88,8 +92,8 @@
 }
 
 .filter-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(0, 212, 255, 0.2);
   color: rgba(255, 255, 255, 0.7);
   padding: 0.5rem 1rem;
   border-radius: 8px;
@@ -99,13 +103,14 @@
 }
 
 .filter-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(30, 41, 59, 0.8);
   color: white;
+  border-color: rgba(0, 212, 255, 0.4);
 }
 
 .filter-btn.active {
-  background: var(--accent-color, #00a67d);
-  border-color: var(--accent-color, #00a67d);
+  background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+  border-color: transparent;
   color: white;
 }
 
@@ -113,8 +118,9 @@
 .no-tasks {
   text-align: center;
   padding: 4rem 2rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(30, 41, 59, 0.6);
   border-radius: 12px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
 }
 
 .no-tasks-icon {
@@ -139,25 +145,27 @@
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(30, 41, 59, 0.6);
   border-radius: 12px;
   padding: 1.25rem;
-  border: 1px solid transparent;
+  border: 1px solid rgba(0, 212, 255, 0.2);
   transition: all 0.2s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .task-card:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(0, 212, 255, 0.4);
 }
 
 .task-card.overdue {
   border-color: #ff4757;
-  background: rgba(255, 71, 87, 0.08);
+  background: rgba(255, 71, 87, 0.15);
 }
 
 .task-card.due-soon {
   border-color: #ffa502;
-  background: rgba(255, 165, 2, 0.08);
+  background: rgba(255, 165, 2, 0.15);
 }
 
 .task-icon {
@@ -167,9 +175,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(15, 23, 42, 0.6);
   border-radius: 10px;
   flex-shrink: 0;
+  border: 1px solid rgba(0, 212, 255, 0.1);
 }
 
 .task-content {
