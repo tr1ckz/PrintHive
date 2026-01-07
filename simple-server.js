@@ -5480,7 +5480,9 @@ app.get('/api/settings/database', async (req, res) => {
       // Backup options
       backupIncludeVideos: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_videos')?.value !== '0',
       backupIncludeLibrary: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_library')?.value !== '0',
-      backupIncludeCovers: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_covers')?.value !== '0'
+      backupIncludeCovers: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_covers')?.value !== '0',
+      // Webhook
+      backupWebhookUrl: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_webhook_url')?.value || ''
     };
     res.json(settings);
   } catch (error) {
@@ -5504,7 +5506,8 @@ app.post('/api/settings/database', async (req, res) => {
       backupScheduleEnabled, backupInterval, backupRetention,
       remoteBackupEnabled, remoteBackupType, remoteBackupHost, 
       remoteBackupPort, remoteBackupUsername, remoteBackupPassword, remoteBackupPath,
-      backupIncludeVideos, backupIncludeLibrary, backupIncludeCovers
+      backupIncludeVideos, backupIncludeLibrary, backupIncludeCovers,
+      backupWebhookUrl
     } = req.body;
     
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_schedule_enabled', backupScheduleEnabled ? '1' : '0');
@@ -5527,6 +5530,9 @@ app.post('/api/settings/database', async (req, res) => {
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_videos', backupIncludeVideos ? '1' : '0');
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_library', backupIncludeLibrary ? '1' : '0');
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_covers', backupIncludeCovers ? '1' : '0');
+    
+    // Webhook
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_webhook_url', backupWebhookUrl || '');
     
     res.json({ success: true });
   } catch (error) {
@@ -5894,6 +5900,34 @@ app.post('/api/settings/database/backup', async (req, res) => {
         console.error('Failed to upload backup to remote server:', remoteError.message);
         // Don't fail the whole backup, just log the error
       }
+    }
+    
+    // Send webhook notification if configured
+    try {
+      const webhookUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('backup_webhook_url')?.value;
+      if (webhookUrl) {
+        const webhookPayload = {
+          event: 'backup_completed',
+          timestamp: new Date().toISOString(),
+          backup: {
+            filename: backupFileName,
+            size: backupSize,
+            videos: includeVideos ? videoCount : 0,
+            library: includeLibrary ? libraryCount : 0,
+            covers: includeCovers ? coverCount : 0
+          },
+          remote_uploaded: remoteUploaded
+        };
+        
+        await axios.post(webhookUrl, webhookPayload, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 5000
+        }).catch(err => {
+          console.error('Webhook notification failed:', err.message);
+        });
+      }
+    } catch (webhookError) {
+      console.error('Webhook error:', webhookError.message);
     }
     
     res.json({ 

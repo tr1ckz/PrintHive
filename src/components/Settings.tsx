@@ -157,6 +157,9 @@ function Settings({ userRole }: SettingsProps) {
   const [backupIncludeLibrary, setBackupIncludeLibrary] = useState(true);
   const [backupIncludeCovers, setBackupIncludeCovers] = useState(true);
   
+  // Backup webhook
+  const [backupWebhookUrl, setBackupWebhookUrl] = useState('');
+  
   // Restore state
   const [availableBackups, setAvailableBackups] = useState<any[]>([]);
   const [selectedBackup, setSelectedBackup] = useState('');
@@ -309,6 +312,12 @@ function Settings({ userRole }: SettingsProps) {
       setRemoteBackupUsername(data.remoteBackupUsername ?? '');
       setRemoteBackupPassword(data.remoteBackupPassword ?? '');
       setRemoteBackupPath(data.remoteBackupPath ?? '/backups');
+      // Backup webhook
+      setBackupWebhookUrl(data.backupWebhookUrl ?? '');
+      // Backup options
+      setBackupIncludeVideos(data.backupIncludeVideos !== false);
+      setBackupIncludeLibrary(data.backupIncludeLibrary !== false);
+      setBackupIncludeCovers(data.backupIncludeCovers !== false);
     } catch (error) {
       console.error('Failed to load database settings:', error);
     }
@@ -468,7 +477,8 @@ function Settings({ userRole }: SettingsProps) {
           remoteBackupPath,
           backupIncludeVideos,
           backupIncludeLibrary,
-          backupIncludeCovers
+          backupIncludeCovers,
+          backupWebhookUrl
         })
       });
       const data = await response.json();
@@ -2025,6 +2035,28 @@ function Settings({ userRole }: SettingsProps) {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Webhook Notification */}
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>🔔 Backup Webhook</h4>
+            <p className="form-description" style={{ marginBottom: '1rem' }}>
+              Send a POST notification when backups complete
+            </p>
+            
+            <div className="form-group">
+              <label>Webhook URL (optional)</label>
+              <input
+                type="url"
+                value={backupWebhookUrl}
+                onChange={(e) => setBackupWebhookUrl(e.target.value)}
+                placeholder="https://your-server.com/webhook/backup"
+                disabled={dbMaintenanceLoading}
+              />
+              <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+                Receives JSON: {'{event, timestamp, backup:{filename, size, videos, library, covers}, remote_uploaded}'}
+              </small>
+            </div>
 
             <button 
               type="button" 
