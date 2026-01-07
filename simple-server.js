@@ -5688,6 +5688,15 @@ app.post('/api/settings/database/backup', async (req, res) => {
     // Update last backup date in config
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('last_backup_date', new Date().toISOString());
     
+    // Get backup file size
+    const backupStats = fs_module.statSync(backupFile);
+    const backupSize = formatBytes(backupStats.size);
+    
+    // Get backup options from request
+    const includeVideos = req.body.includeVideos !== false;
+    const includeLibrary = req.body.includeLibrary !== false;
+    const includeCovers = req.body.includeCovers !== false;
+    
     // Clean up old backups based on retention policy
     const retentionDays = parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('backup_retention')?.value || '30');
     const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
@@ -5773,7 +5782,14 @@ app.post('/api/settings/database/backup', async (req, res) => {
     res.json({ 
       success: true, 
       message: remoteUploaded ? 'Backup created and uploaded to remote server' : 'Database backup created successfully',
-      remoteUploaded
+      remoteUploaded,
+      details: {
+        databaseSize: backupSize,
+        Videos: includeVideos ? 'Included' : 'Excluded',
+        'Library Files': includeLibrary ? 'Included' : 'Excluded',
+        'Cover Images': includeCovers ? 'Included' : 'Excluded',
+        Time: new Date().toLocaleString()
+      }
     });
   } catch (error) {
     console.error('Failed to backup database:', error);
