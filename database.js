@@ -283,6 +283,16 @@ try {
   }
 }
 
+// Migration: Add hours_until_due column to maintenance_tasks table
+try {
+  db.exec(`ALTER TABLE maintenance_tasks ADD COLUMN hours_until_due REAL`);
+  console.log('✓ Added hours_until_due column to maintenance_tasks table');
+} catch (e) {
+  if (!e.message.includes('duplicate column')) {
+    console.log('hours_until_due column migration check:', e.message);
+  }
+}
+
 // Migration: Add OAuth columns to users table
 try {
   db.exec(`ALTER TABLE users ADD COLUMN email TEXT UNIQUE`);

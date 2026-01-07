@@ -419,24 +419,20 @@ function Settings({ userRole }: SettingsProps) {
 
   const handleBackupNow = async () => {
     setDbMaintenanceLoading(true);
-    setToast({ message: 'Creating backup... This may take several minutes for large backups.', type: 'success' });
+    setToast({ message: 'Starting backup... This may take several minutes for large backups.', type: 'success' });
+    
     try {
-      // Use AbortController for long timeout (30 minutes for large backups)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000);
-      
+      // Start backup in async mode to avoid gateway timeouts
       const response = await fetch('/api/settings/database/backup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           includeVideos: backupIncludeVideos,
           includeLibrary: backupIncludeLibrary,
-          includeCovers: backupIncludeCovers
-        }),
-        signal: controller.signal
+          includeCovers: backupIncludeCovers,
+          async: true // Use async mode with polling
+        })
       });
-      
-      clearTimeout(timeoutId);
       
       // Check if we got an HTML error page instead of JSON
       const contentType = response.headers.get('content-type');
@@ -447,35 +443,68 @@ function Settings({ userRole }: SettingsProps) {
       }
       
       const data = await response.json();
-      if (data.success) {
+      
+      if (data.async && data.jobId) {
+        // Poll for backup status
+        const pollStatus = async () => {
+          try {
+            const statusResponse = await fetch(`/api/settings/database/backup/status/${data.jobId}`);
+            const statusData = await statusResponse.json();
+            
+            if (statusData.status === 'completed') {
+              setDbMaintenanceLoading(false);
+              setDbResultModal({
+                title: 'Backup Complete',
+                icon: '💾',
+                details: statusData.result?.details || {
+                  'Status': 'Backup created successfully',
+                  'Time': new Date().toLocaleString()
+                }
+              });
+              setLastBackupDate(new Date().toISOString());
+              loadAvailableBackups();
+            } else if (statusData.status === 'failed') {
+              setDbMaintenanceLoading(false);
+              setToast({ message: statusData.error || 'Backup failed', type: 'error' });
+            } else {
+              // Still running, poll again in 3 seconds
+              setTimeout(pollStatus, 3000);
+            }
+          } catch (pollError) {
+            console.error('Failed to poll backup status:', pollError);
+            // Keep polling on error
+            setTimeout(pollStatus, 5000);
+          }
+        };
+        
+        // Start polling
+        setTimeout(pollStatus, 2000);
+      } else if (data.success) {
+        // Synchronous response (for backwards compatibility)
         setDbResultModal({
           title: 'Backup Complete',
           icon: '💾',
           details: data.details || {
             'Status': 'Backup created successfully',
-            'Archive Size': 'N/A',
-            'Videos': backupIncludeVideos ? 'Included' : 'Excluded',
-            'Library Files': backupIncludeLibrary ? 'Included' : 'Excluded',
-            'Cover Images': backupIncludeCovers ? 'Included' : 'Excluded',
             'Time': new Date().toLocaleString()
           }
         });
         setLastBackupDate(new Date().toISOString());
         loadAvailableBackups();
+        setDbMaintenanceLoading(false);
       } else {
         setToast({ message: data.error || 'Failed to create backup', type: 'error' });
-        console.error('Backup failed:', data.error);
+        setDbMaintenanceLoading(false);
       }
     } catch (error: any) {
       let errorMsg = 'Failed to create backup';
       if (error?.name === 'AbortError') {
-        errorMsg = 'Backup timed out after 30 minutes. Try excluding videos for faster backup.';
+        errorMsg = 'Backup timed out. Try excluding videos for faster backup.';
       } else if (error?.message) {
         errorMsg = error.message;
       }
       setToast({ message: errorMsg, type: 'error' });
       console.error('Backup error:', error);
-    } finally {
       setDbMaintenanceLoading(false);
     }
   };

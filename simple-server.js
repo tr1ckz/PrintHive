@@ -3829,19 +3829,24 @@ app.get('/api/maintenance', async (req, res) => {
     const currentPrintHours = totalPrintSeconds / 3600;
     
     // Check for overdue tasks based on print hours
+    console.log(`[Maintenance GET] Current print hours: ${currentPrintHours.toFixed(2)}`);
+    
     const tasksWithStatus = tasks.map(task => {
       let isOverdue = false;
       let isDueSoon = false;
       let hoursUntilDue = null;
       
+      console.log(`[Maintenance GET] Task "${task.task_name}": DB hours_until_due=${task.hours_until_due}, interval=${task.interval_hours}`);\n      
       if (task.hours_until_due) {
         // hours_until_due stores the ABSOLUTE hour marker when maintenance is due
         // e.g., if total print hours is 1000 and task is due at 2222, then 2222 - 1000 = 1222 hrs remaining
         hoursUntilDue = task.hours_until_due - currentPrintHours;
+        console.log(`[Maintenance GET] Task "${task.task_name}": Calculated ${task.hours_until_due} - ${currentPrintHours.toFixed(2)} = ${hoursUntilDue.toFixed(2)} hrs remaining`);
         isOverdue = hoursUntilDue < 0;
         isDueSoon = !isOverdue && hoursUntilDue <= 50;
       } else if (task.next_due) {
         // Fallback to time-based if hours_until_due not set
+        console.log(`[Maintenance GET] Task "${task.task_name}": Using time-based fallback, next_due=${task.next_due}`);
         const now = new Date().toISOString();
         isOverdue = task.next_due < now;
         isDueSoon = !isOverdue && new Date(task.next_due) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -3979,18 +3984,22 @@ app.post('/api/maintenance/:id/complete', async (req, res) => {
       WHERE id = ?
     `).run(now.toISOString(), nextDue.toISOString(), id);
     
-    // Try to update hours_until_due if column exists
+    // Update hours_until_due - this is the ABSOLUTE hour marker when task is due
+    console.log(`[Maintenance Complete] Task ${id}: currentPrintHours=${totalPrintHours.toFixed(2)}, interval=${task.interval_hours}, nextDueHours=${nextDueHours.toFixed(2)}`);
+    
     try {
       db.prepare(`
         UPDATE maintenance_tasks 
         SET hours_until_due = ?
         WHERE id = ?
       `).run(nextDueHours, id);
+      console.log(`[Maintenance Complete] Successfully updated hours_until_due to ${nextDueHours.toFixed(2)}`);
     } catch (e) {
-      // Column doesn't exist yet, that's okay
+      console.error(`[Maintenance Complete] Failed to update hours_until_due: ${e.message}`);
     }
     
     const updatedTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
+    console.log(`[Maintenance Complete] Updated task:`, JSON.stringify(updatedTask, null, 2));
     
     res.json({ success: true, task: updatedTask });
   } catch (error) {
@@ -5660,6 +5669,25 @@ app.post('/api/settings/database/reindex', async (req, res) => {
   }
 });
 
+// In-memory backup job tracking
+const backupJobs = new Map();
+
+// Check backup job status
+app.get('/api/settings/database/backup/status/:jobId', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const { jobId } = req.params;
+  const job = backupJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  
+  res.json(job);
+});
+
 app.post('/api/settings/database/backup', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -5670,26 +5698,55 @@ app.post('/api/settings/database/backup', async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
   
+  const fs = require('fs');
+  const path = require('path');
+  const tar = require('tar');
+  
+  // Create backup directory if it doesn't exist
+  const backupDir = path.join(__dirname, 'data', 'backups');
+  if (!fs.existsSync(backupDir)) {
+    fs.mkdirSync(backupDir, { recursive: true });
+  }
+  
+  // Get backup options from request
+  const includeVideos = req.body.includeVideos !== false;
+  const includeLibrary = req.body.includeLibrary !== false;
+  const includeCovers = req.body.includeCovers !== false;
+  const async = req.body.async === true; // If true, return immediately with job ID
+  
+  // Create backup file with timestamp
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + Date.now();
+  const backupFileName = `printhive_backup_${timestamp}.tar.gz`;
+  const backupFile = path.join(backupDir, backupFileName);
+  
+  // Generate job ID
+  const jobId = `backup_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  
+  // Initialize job
+  backupJobs.set(jobId, {
+    id: jobId,
+    status: 'running',
+    message: 'Starting backup...',
+    progress: 0,
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    result: null,
+    error: null
+  });
+  
+  // If async mode, return job ID immediately
+  if (async) {
+    res.json({ 
+      success: true, 
+      async: true,
+      jobId,
+      message: 'Backup started. Check status with /api/settings/database/backup/status/' + jobId
+    });
+    // Continue processing below
+  }
+  
+  // Perform backup
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const tar = require('tar');
-    
-    // Create backup directory if it doesn't exist
-    const backupDir = path.join(__dirname, 'data', 'backups');
-    if (!fs.existsSync(backupDir)) {
-      fs.mkdirSync(backupDir, { recursive: true });
-    }
-    
-    // Get backup options from request
-    const includeVideos = req.body.includeVideos !== false;
-    const includeLibrary = req.body.includeLibrary !== false;
-    const includeCovers = req.body.includeCovers !== false;
-    
-    // Create backup file with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + Date.now();
-    const backupFileName = `printhive_backup_${timestamp}.tar.gz`;
-    const backupFile = path.join(backupDir, backupFileName);
     
     console.log(`Creating backup archive at ${backupFile}...`);
     console.log(`Options: Videos=${includeVideos}, Library=${includeLibrary}, Covers=${includeCovers}`);
@@ -5934,7 +5991,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
       console.error('Webhook error:', webhookError.message);
     }
     
-    res.json({ 
+    const result = { 
       success: true, 
       message: remoteUploaded ? 'Backup created and uploaded to remote server' : 'Backup archive created successfully',
       remoteUploaded,
@@ -5945,11 +6002,38 @@ app.post('/api/settings/database/backup', async (req, res) => {
         'Cover Images': includeCovers ? `Included (${coverCount} files)` : 'Excluded',
         Time: new Date().toLocaleString()
       }
+    };
+    
+    // Update job status
+    backupJobs.set(jobId, {
+      ...backupJobs.get(jobId),
+      status: 'completed',
+      message: result.message,
+      progress: 100,
+      completedAt: new Date().toISOString(),
+      result
     });
+    
+    // If sync mode, respond now
+    if (!async) {
+      res.json(result);
+    }
   } catch (error) {
     console.error('Failed to backup database:', error);
     console.error('Backup error stack:', error.stack);
-    res.status(500).json({ success: false, error: error.message || 'Unknown backup error' });
+    
+    // Update job status
+    backupJobs.set(jobId, {
+      ...backupJobs.get(jobId),
+      status: 'failed',
+      message: error.message || 'Unknown backup error',
+      completedAt: new Date().toISOString(),
+      error: error.message || 'Unknown backup error'
+    });
+    
+    if (!async) {
+      res.status(500).json({ success: false, error: error.message || 'Unknown backup error' });
+    }
   }
 });
 
