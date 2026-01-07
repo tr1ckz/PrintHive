@@ -807,6 +807,50 @@ function Settings({ userRole }: SettingsProps) {
     }
   };
 
+  const handleTestTelegram = async (type: 'printer' | 'maintenance' | 'backup') => {
+    if (!telegramBotToken || !telegramChatId) {
+      setToast({ message: 'Please set Telegram bot token and chat ID', type: 'error' });
+      return;
+    }
+    try {
+      const response = await fetch('/api/settings/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'telegram', type })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setToast({ message: `Telegram ${type} test sent!`, type: 'success' });
+      } else {
+        setToast({ message: data.error || 'Failed to send Telegram test', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Failed to send Telegram test', type: 'error' });
+    }
+  };
+
+  const handleTestSlack = async (type: 'printer' | 'maintenance' | 'backup') => {
+    if (!slackWebhook) {
+      setToast({ message: 'Please set Slack webhook URL', type: 'error' });
+      return;
+    }
+    try {
+      const response = await fetch('/api/settings/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'slack', type })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setToast({ message: `Slack ${type} test sent!`, type: 'success' });
+      } else {
+        setToast({ message: data.error || 'Failed to send Slack test', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Failed to send Slack test', type: 'error' });
+    }
+  };
+
   const handleSaveDiscordSettings = async () => {
     setDiscordLoading(true);
     try {
@@ -1677,6 +1721,10 @@ function Settings({ userRole }: SettingsProps) {
             <label className="toggle-label"><input type="checkbox" checked={telegramMaintenanceEnabled} onChange={(e) => setTelegramMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Maintenance</span></label>
             <label className="toggle-label"><input type="checkbox" checked={telegramBackupEnabled} onChange={(e) => setTelegramBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Backup</span></label>
           </div>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => handleTestTelegram('printer')} disabled={!telegramBotToken || !telegramChatId}>Test Printer</button>
+            <button type="button" className="btn btn-secondary" onClick={() => handleTestTelegram('maintenance')} disabled={!telegramBotToken || !telegramChatId}>Test Maintenance</button>
+          </div>
         </div>
 
         {/* Slack */}
@@ -1690,6 +1738,10 @@ function Settings({ userRole }: SettingsProps) {
             <label className="toggle-label"><input type="checkbox" checked={slackPrinterEnabled} onChange={(e) => setSlackPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Printer</span></label>
             <label className="toggle-label"><input type="checkbox" checked={slackMaintenanceEnabled} onChange={(e) => setSlackMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Maintenance</span></label>
             <label className="toggle-label"><input type="checkbox" checked={slackBackupEnabled} onChange={(e) => setSlackBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Backup</span></label>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => handleTestSlack('printer')} disabled={!slackWebhook}>Test Printer</button>
+            <button type="button" className="btn btn-secondary" onClick={() => handleTestSlack('maintenance')} disabled={!slackWebhook}>Test Maintenance</button>
           </div>
         </div>
 

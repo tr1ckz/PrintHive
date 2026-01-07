@@ -4588,6 +4588,70 @@ app.post('/api/discord/test', async (req, res) => {
   }
 });
 
+// Unified notifications test endpoint (Discord, Telegram, Slack)
+app.post('/api/settings/notifications/test', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const { provider, type } = req.body;
+    if (!['printer', 'maintenance', 'backup'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid notification type' });
+    }
+    if (!['discord', 'telegram', 'slack'].includes(provider)) {
+      return res.status(400).json({ error: 'Invalid provider' });
+    }
+
+    // Sample payloads
+    let data = { message: 'This is a test notification from PrintHive!' };
+    if (type === 'printer') {
+      data = {
+        status: 'completed',
+        message: 'This is a test notification from PrintHive!',
+        printerName: 'Test Printer',
+        modelName: 'Test Model',
+        progress: 100,
+        timeElapsed: '00:42:00'
+      };
+    } else if (type === 'maintenance') {
+      data = {
+        status: 'due',
+        message: 'This is a test notification from PrintHive!',
+        taskName: 'Test Maintenance Task',
+        printerName: 'Test Printer',
+        currentHours: 100,
+        dueAtHours: 120
+      };
+    } else if (type === 'backup') {
+      data = {
+        message: 'This is a test notification from PrintHive!',
+        size: '123 MB',
+        videos: 5,
+        library: 12,
+        includeLibrary: true,
+        covers: 4,
+        remoteUploaded: true
+      };
+    }
+
+    let ok = false;
+    if (provider === 'discord') {
+      ok = await sendDiscordNotification(type, data);
+    } else if (provider === 'telegram') {
+      ok = await sendTelegramNotification(type, data);
+    } else if (provider === 'slack') {
+      ok = await sendSlackNotification(type, data);
+    }
+
+    if (ok) return res.json({ success: true });
+    return res.status(400).json({ error: 'Provider disabled or not configured' });
+  } catch (e) {
+    console.error('Unified notifications test error:', e);
+    res.status(500).json({ error: 'Failed to send test notification' });
+  }
+});
+
 // Helper function to send Discord notifications
 async function sendDiscordNotification(type, data) {
   try {
