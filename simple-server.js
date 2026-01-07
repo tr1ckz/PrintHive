@@ -1512,7 +1512,7 @@ app.get('/api/prints', async (req, res) => {
   
   try {
     const prints = db.prepare(`
-      SELECT id, title, cover, modelId, status, startTime, deviceName, weight, costTime, progress
+      SELECT id, title, cover, modelId, status, startTime, deviceName, weight, costTime
       FROM prints 
       ORDER BY startTime DESC 
       LIMIT ?
@@ -5734,7 +5734,6 @@ app.post('/api/settings/database/backup', async (req, res) => {
           f.endsWith('.jpg') || f.endsWith('.jpeg') || f.endsWith('.png') || f.endsWith('.webp')
         );
         if (coverFiles.length > 0) {
-          // For covers, we need to handle them specially since they're outside data/
           coverCount = coverFiles.length;
         }
       }
@@ -5757,16 +5756,51 @@ app.post('/api/settings/database/backup', async (req, res) => {
       filesToBackup
     );
     
-    // If covers are included, we need to add them separately since they're in public/
+    // If covers are included, create a separate covers tarball and merge manually
     if (includeCovers && coverCount > 0) {
-      await tar.update(
+      const coversBackupPath = path.join(backupDir, `covers_temp_${Date.now()}.tar.gz`);
+      await tar.create(
         {
           gzip: true,
-          file: backupFile,
+          file: coversBackupPath,
           cwd: path.join(__dirname, 'public', 'images'),
         },
         ['covers/']
       );
+      
+      // Extract both archives to a temp folder and repack
+      const tempMergeDir = path.join(backupDir, `merge_temp_${Date.now()}`);
+      fs.mkdirSync(tempMergeDir, { recursive: true });
+      
+      // Extract main backup
+      await tar.extract({
+        file: backupFile,
+        cwd: tempMergeDir
+      });
+      
+      // Extract covers backup
+      await tar.extract({
+        file: coversBackupPath,
+        cwd: tempMergeDir
+      });
+      
+      // Remove old backup file
+      fs.unlinkSync(backupFile);
+      fs.unlinkSync(coversBackupPath);
+      
+      // Create new combined backup
+      const allFiles = fs.readdirSync(tempMergeDir);
+      await tar.create(
+        {
+          gzip: true,
+          file: backupFile,
+          cwd: tempMergeDir
+        },
+        allFiles
+      );
+      
+      // Clean up temp directory
+      fs.rmSync(tempMergeDir, { recursive: true, force: true });
     }
     
     console.log(`Backup archive created: ${backupFile}`);
