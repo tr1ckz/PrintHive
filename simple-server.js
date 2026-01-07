@@ -3976,7 +3976,8 @@ app.put('/api/maintenance/:id', async (req, res) => {
       
       try {
         db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(newDueHours, id);
-        console.log(`[Maintenance Update] Recalculated hours_until_due to ${newDueHours.toFixed(2)} for task ${id} (interval changed from ${oldTask.interval_hours} to ${interval_hours})`);\n      } catch (e) {
+        console.log(`[Maintenance Update] Recalculated hours_until_due to ${newDueHours.toFixed(2)} for task ${id} (interval changed from ${oldTask.interval_hours} to ${interval_hours})`);
+      } catch (e) {
         console.error(`[Maintenance Update] Failed to recalculate hours_until_due:`, e.message);
       }
     }
