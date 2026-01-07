@@ -76,6 +76,13 @@ function Maintenance() {
   useEffect(() => {
     loadTasks();
     loadPrinters();
+    
+    // Auto-refresh every 30 seconds to keep data fresh
+    const refreshInterval = setInterval(() => {
+      loadTasks();
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const loadTasks = async () => {

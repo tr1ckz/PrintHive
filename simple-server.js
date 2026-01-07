@@ -4039,6 +4039,24 @@ app.post('/api/maintenance/:id/complete', async (req, res) => {
     const updatedTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
     console.log(`[Maintenance Complete] Updated task:`, JSON.stringify(updatedTask, null, 2));
     
+    // Send Discord notification
+    try {
+      const printerName = updatedTask.printer_id ? 
+        db.prepare('SELECT deviceName FROM printers WHERE deviceId = ?').get(updatedTask.printer_id)?.deviceName || updatedTask.printer_id
+        : 'All Printers';
+      
+      await sendDiscordNotification('maintenance', {
+        status: 'completed',
+        message: `Maintenance task "${updatedTask.task_name}" has been completed!`,
+        taskName: updatedTask.task_name,
+        printerName: printerName,
+        currentHours: totalPrintHours,
+        dueAtHours: nextDueHours
+      });
+    } catch (notifError) {
+      console.error('Failed to send Discord notification:', notifError);
+    }
+    
     res.json({ success: true, task: updatedTask });
   } catch (error) {
     console.error('Complete maintenance task error:', error);
@@ -4383,7 +4401,8 @@ async function sendDiscordNotification(type, data) {
       const enabledRow = getConfig.get('discord_printer_enabled');
       webhookUrl = webhookRow?.value;
       enabled = enabledRow?.value === 'true';
-    } else if (type === 'maintenance') {
+    } else if (type === 'maintenance' || type === 'backup') {
+      // Use maintenance webhook for maintenance and backup notifications
       const webhookRow = getConfig.get('discord_maintenance_webhook');
       const enabledRow = getConfig.get('discord_maintenance_enabled');
       webhookUrl = webhookRow?.value;
@@ -4453,6 +4472,21 @@ async function sendDiscordNotification(type, data) {
       if (data.printerName) embed.fields.push({ name: 'Printer', value: data.printerName, inline: true });
       if (data.currentHours !== undefined) embed.fields.push({ name: 'Current Hours', value: `${data.currentHours.toFixed(1)}h`, inline: true });
       if (data.dueAtHours !== undefined) embed.fields.push({ name: 'Due At', value: `${data.dueAtHours.toFixed(1)}h`, inline: true });
+    } else if (type === 'backup') {
+      embed = {
+        title: '💾 Database Backup Completed',
+        description: data.message || 'Database backup completed successfully',
+        color: 0x00FF00, // Green
+        fields: [],
+        footer: { text: 'PrintHive • System Backup' },
+        timestamp: new Date().toISOString()
+      };
+      
+      if (data.size) embed.fields.push({ name: 'Archive Size', value: data.size, inline: true });
+      if (data.videos !== undefined) embed.fields.push({ name: 'Videos', value: data.videos > 0 ? `${data.videos} files` : 'Excluded', inline: true });
+      if (data.library !== undefined) embed.fields.push({ name: 'Library Files', value: data.library > 0 ? `${data.library} files` : 'Excluded', inline: true });
+      if (data.covers !== undefined) embed.fields.push({ name: 'Cover Images', value: data.covers > 0 ? `${data.covers} files` : 'Excluded', inline: true });
+      if (data.remoteUploaded) embed.fields.push({ name: 'Remote Upload', value: '✅ Uploaded', inline: true });
     }
     
     // Get ping user ID if configured
@@ -6027,6 +6061,21 @@ app.post('/api/settings/database/backup', async (req, res) => {
       }
     } catch (webhookError) {
       console.error('Webhook error:', webhookError.message);
+    }
+    
+    // Send Discord notification
+    try {
+      await sendDiscordNotification('backup', {
+        status: 'completed',
+        message: `Database backup completed successfully!`,
+        size: backupSize,
+        videos: includeVideos ? videoCount : 0,
+        library: includeLibrary ? libraryCount : 0,
+        covers: includeCovers ? coverCount : 0,
+        remoteUploaded: remoteUploaded
+      });
+    } catch (discordError) {
+      console.error('Discord notification error:', discordError.message);
     }
     
     const result = { 
