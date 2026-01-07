@@ -3844,7 +3844,7 @@ app.get('/api/maintenance', async (req, res) => {
         hoursUntilDue = task.hours_until_due - currentPrintHours;
         console.log(`[Maintenance GET] Task "${task.task_name}": Calculated ${task.hours_until_due} - ${currentPrintHours.toFixed(2)} = ${hoursUntilDue.toFixed(2)} hrs remaining`);
         isOverdue = hoursUntilDue < 0;
-        isDueSoon = !isOverdue && hoursUntilDue <= 50;
+        isDueSoon = !isOverdue && hoursUntilDue <= 20;
       } else if (task.next_due && task.interval_hours) {
         // Fallback: Calculate from next_due and interval_hours
         // If next_due exists but hours_until_due is null, initialize it now
@@ -3880,7 +3880,7 @@ app.get('/api/maintenance', async (req, res) => {
           } catch (e) {
             console.error(`[Maintenance GET] Failed to initialize hours_until_due:`, e.message);
           }
-          isDueSoon = hoursUntilDue <= 50;
+          isDueSoon = hoursUntilDue <= 20;
         }
       } else {
         // Fallback to time-based if neither hours_until_due nor next_due is set
@@ -3950,11 +3950,36 @@ app.put('/api/maintenance/:id', async (req, res) => {
     const { id } = req.params;
     const { printer_id, task_name, task_type, description, interval_hours } = req.body;
     
+    // Get old task to check if interval changed
+    const oldTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
+    
     db.prepare(`
       UPDATE maintenance_tasks 
       SET printer_id = ?, task_name = ?, task_type = ?, description = ?, interval_hours = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(printer_id || null, task_name, task_type, description || '', interval_hours || 100, id);
+    
+    // If interval changed and task has been performed, recalculate hours_until_due
+    if (oldTask && oldTask.interval_hours !== interval_hours && oldTask.last_performed) {
+      // Calculate current print hours
+      const prints = db.prepare('SELECT costTime FROM prints').all();
+      let totalPrintSeconds = 0;
+      for (const print of prints) {
+        if (print.costTime) {
+          totalPrintSeconds += print.costTime;
+        }
+      }
+      const currentPrintHours = totalPrintSeconds / 3600;
+      
+      // Recalculate: if last performed, new due = current + new interval
+      const newDueHours = currentPrintHours + interval_hours;
+      
+      try {
+        db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(newDueHours, id);
+        console.log(`[Maintenance Update] Recalculated hours_until_due to ${newDueHours.toFixed(2)} for task ${id} (interval changed from ${oldTask.interval_hours} to ${interval_hours})`);\n      } catch (e) {
+        console.error(`[Maintenance Update] Failed to recalculate hours_until_due:`, e.message);
+      }
+    }
     
     const task = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
     
@@ -4619,7 +4644,7 @@ async function checkMaintenanceDueNotifications() {
       
       const notificationKey = `${task.id}`;
       const isOverdue = currentPrintHours >= task.hours_until_due;
-      const isDueSoon = !isOverdue && (task.hours_until_due - currentPrintHours <= 50);
+      const isDueSoon = !isOverdue && (task.hours_until_due - currentPrintHours <= 20);
       
       if (!isOverdue && !isDueSoon) continue;
       
@@ -5857,11 +5882,23 @@ app.post('/api/settings/database/backup', async (req, res) => {
     if (includeLibrary) {
       const libraryPath = path.join(dataDir, 'library');
       if (fs.existsSync(libraryPath)) {
-        const libraryFiles = fs.readdirSync(libraryPath).filter(f => f.endsWith('.3mf') || f.endsWith('.stl') || f.endsWith('.gcode'));
+        const allFiles = fs.readdirSync(libraryPath);
+        const libraryFiles = allFiles.filter(f => 
+          f.endsWith('.3mf') || f.endsWith('.stl') || f.endsWith('.gcode') || 
+          f.endsWith('.STL') || f.endsWith('.3MF') || f.endsWith('.GCODE')
+        );
+        console.log(`[Backup] Library path: ${libraryPath}, found ${allFiles.length} total files, ${libraryFiles.length} library files`);
         if (libraryFiles.length > 0) {
           filesToBackup.push('library/');
           libraryCount = libraryFiles.length;
+        } else if (allFiles.length > 0) {
+          // Include all files if no specific library files found
+          filesToBackup.push('library/');
+          libraryCount = allFiles.length;
+          console.log(`[Backup] Including all ${allFiles.length} files from library folder`);
         }
+      } else {
+        console.log(`[Backup] Library path does not exist: ${libraryPath}`);
       }
     }
     
@@ -6199,6 +6236,44 @@ app.post('/api/settings/database/test-remote', async (req, res) => {
 });
 
 // Get list of available backups
+// Delete a backup file
+app.delete('/api/settings/database/backups/:filename', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const { filename } = req.params;
+    
+    // Security: ensure filename doesn't contain path traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+    
+    const backupDir = path.join(__dirname, 'data', 'backups');
+    const backupFile = path.join(backupDir, filename);
+    
+    if (!fs.existsSync(backupFile)) {
+      return res.status(404).json({ error: 'Backup file not found' });
+    }
+    
+    fs.unlinkSync(backupFile);
+    console.log(`Deleted backup: ${filename}`);
+    
+    res.json({ success: true, message: 'Backup deleted successfully' });
+  } catch (error) {
+    console.error('Failed to delete backup:', error);
+    res.status(500).json({ error: 'Failed to delete backup' });
+  }
+});
+
 app.get('/api/settings/database/backups', (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });

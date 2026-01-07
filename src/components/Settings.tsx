@@ -295,6 +295,32 @@ function Settings({ userRole }: SettingsProps) {
     }
   };
 
+  const handleDeleteBackup = async (filename: string) => {
+    if (!confirm(`Are you sure you want to delete backup: ${filename}?`)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/settings/database/backups/${filename}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setToast({ message: 'Backup deleted', type: 'success' });
+        // Clear selection if deleted backup was selected
+        if (selectedBackup === filename) {
+          setSelectedBackup('');
+        }
+        loadAvailableBackups();
+      } else {
+        setToast({ message: data.error || 'Failed to delete backup', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Failed to delete backup', type: 'error' });
+    }
+  };
+
   const loadDatabaseSettings = async () => {
     try {
       const response = await fetch('/api/settings/database');
@@ -2129,18 +2155,56 @@ function Settings({ userRole }: SettingsProps) {
             
             <div className="form-group" style={{ marginBottom: '1rem' }}>
               <label>Available Backups</label>
-              <select
-                value={selectedBackup}
-                onChange={(e) => setSelectedBackup(e.target.value)}
-                disabled={restoreInProgress}
-              >
-                <option value="">-- Select a backup --</option>
-                {availableBackups.map((backup) => (
-                  <option key={backup.name} value={backup.name}>
-                    {backup.date} - {backup.size}
-                  </option>
-                ))}
-              </select>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {availableBackups.length === 0 ? (
+                  <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
+                    No backups found
+                  </div>
+                ) : (
+                  availableBackups.map((backup) => (
+                    <div key={backup.name} style={{ 
+                      display: 'flex', 
+                      gap: '0.5rem', 
+                      alignItems: 'center',
+                      padding: '0.75rem',
+                      background: selectedBackup === backup.name ? 'rgba(0, 212, 255, 0.1)' : 'rgba(255,255,255,0.05)',
+                      borderRadius: '8px',
+                      border: selectedBackup === backup.name ? '1px solid rgba(0, 212, 255, 0.3)' : '1px solid transparent'
+                    }}>
+                      <input 
+                        type="radio" 
+                        name="selectedBackup" 
+                        value={backup.name}
+                        checked={selectedBackup === backup.name}
+                        onChange={(e) => setSelectedBackup(e.target.value)}
+                        disabled={restoreInProgress}
+                        style={{ flexShrink: 0 }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 500 }}>{backup.date}</div>
+                        <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>{backup.size}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleDeleteBackup(backup.name);
+                        }}
+                        disabled={restoreInProgress}
+                        style={{ 
+                          padding: '0.4rem 0.8rem',
+                          fontSize: '0.85rem',
+                          background: '#ff4444',
+                          border: 'none'
+                        }}
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
               <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
                 Found {availableBackups.length} backup(s) in data/backups directory
               </small>
