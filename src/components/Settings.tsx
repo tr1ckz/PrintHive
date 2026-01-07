@@ -142,6 +142,16 @@ function Settings({ userRole }: SettingsProps) {
     details: Record<string, string | number>;
   } | null>(null);
   
+  // Remote backup settings
+  const [remoteBackupEnabled, setRemoteBackupEnabled] = useState(false);
+  const [remoteBackupType, setRemoteBackupType] = useState<'sftp' | 'ftp'>('sftp');
+  const [remoteBackupHost, setRemoteBackupHost] = useState('');
+  const [remoteBackupPort, setRemoteBackupPort] = useState(22);
+  const [remoteBackupUsername, setRemoteBackupUsername] = useState('');
+  const [remoteBackupPassword, setRemoteBackupPassword] = useState('');
+  const [remoteBackupPath, setRemoteBackupPath] = useState('/backups');
+  const [remoteBackupTesting, setRemoteBackupTesting] = useState(false);
+  
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -267,6 +277,14 @@ function Settings({ userRole }: SettingsProps) {
       setBackupInterval(data.backupInterval ?? 7);
       setBackupRetention(data.backupRetention ?? 30);
       setLastBackupDate(data.lastBackupDate ?? null);
+      // Remote backup settings
+      setRemoteBackupEnabled(data.remoteBackupEnabled ?? false);
+      setRemoteBackupType(data.remoteBackupType ?? 'sftp');
+      setRemoteBackupHost(data.remoteBackupHost ?? '');
+      setRemoteBackupPort(data.remoteBackupPort ?? 22);
+      setRemoteBackupUsername(data.remoteBackupUsername ?? '');
+      setRemoteBackupPassword(data.remoteBackupPassword ?? '');
+      setRemoteBackupPath(data.remoteBackupPath ?? '/backups');
     } catch (error) {
       console.error('Failed to load database settings:', error);
     }
@@ -402,7 +420,14 @@ function Settings({ userRole }: SettingsProps) {
         body: JSON.stringify({
           backupScheduleEnabled,
           backupInterval,
-          backupRetention
+          backupRetention,
+          remoteBackupEnabled,
+          remoteBackupType,
+          remoteBackupHost,
+          remoteBackupPort,
+          remoteBackupUsername,
+          remoteBackupPassword,
+          remoteBackupPath
         })
       });
       const data = await response.json();
@@ -415,6 +440,34 @@ function Settings({ userRole }: SettingsProps) {
       setToast({ message: 'Failed to save database settings', type: 'error' });
     } finally {
       setDbMaintenanceLoading(false);
+    }
+  };
+
+  const handleTestRemoteBackup = async () => {
+    setRemoteBackupTesting(true);
+    try {
+      const response = await fetch('/api/settings/database/test-remote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: remoteBackupType,
+          host: remoteBackupHost,
+          port: remoteBackupPort,
+          username: remoteBackupUsername,
+          password: remoteBackupPassword,
+          path: remoteBackupPath
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setToast({ message: 'Connection successful!', type: 'success' });
+      } else {
+        setToast({ message: data.error || 'Connection failed', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Connection test failed', type: 'error' });
+    } finally {
+      setRemoteBackupTesting(false);
     }
   };
 
@@ -1743,6 +1796,113 @@ function Settings({ userRole }: SettingsProps) {
                     Older backups will be automatically deleted
                   </small>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Remote Backup Settings */}
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>📤 Remote Backup Location</h4>
+            
+            <div className="toggle-group">
+              <label className="toggle-label">
+                <input
+                  type="checkbox"
+                  checked={remoteBackupEnabled}
+                  onChange={(e) => setRemoteBackupEnabled(e.target.checked)}
+                  disabled={dbMaintenanceLoading}
+                />
+                <span className="toggle-text">Enable remote backup (SFTP/FTP)</span>
+              </label>
+              <p className="toggle-hint">Upload backups to a remote server</p>
+            </div>
+
+            {remoteBackupEnabled && (
+              <div style={{ marginTop: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label>Protocol</label>
+                  <select
+                    value={remoteBackupType}
+                    onChange={(e) => {
+                      setRemoteBackupType(e.target.value as 'sftp' | 'ftp');
+                      setRemoteBackupPort(e.target.value === 'sftp' ? 22 : 21);
+                    }}
+                    disabled={dbMaintenanceLoading}
+                  >
+                    <option value="sftp">SFTP (Secure)</option>
+                    <option value="ftp">FTP</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="form-group">
+                    <label>Host</label>
+                    <input
+                      type="text"
+                      value={remoteBackupHost}
+                      onChange={(e) => setRemoteBackupHost(e.target.value)}
+                      placeholder="backup.example.com"
+                      disabled={dbMaintenanceLoading}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Port</label>
+                    <input
+                      type="number"
+                      value={remoteBackupPort}
+                      onChange={(e) => setRemoteBackupPort(parseInt(e.target.value) || 22)}
+                      placeholder={remoteBackupType === 'sftp' ? '22' : '21'}
+                      disabled={dbMaintenanceLoading}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="form-group">
+                    <label>Username</label>
+                    <input
+                      type="text"
+                      value={remoteBackupUsername}
+                      onChange={(e) => setRemoteBackupUsername(e.target.value)}
+                      placeholder="backup_user"
+                      disabled={dbMaintenanceLoading}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Password</label>
+                    <input
+                      type="password"
+                      value={remoteBackupPassword}
+                      onChange={(e) => setRemoteBackupPassword(e.target.value)}
+                      placeholder="••••••••"
+                      disabled={dbMaintenanceLoading}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label>Remote Path</label>
+                  <input
+                    type="text"
+                    value={remoteBackupPath}
+                    onChange={(e) => setRemoteBackupPath(e.target.value)}
+                    placeholder="/backups/printhive"
+                    disabled={dbMaintenanceLoading}
+                  />
+                  <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+                    Directory on the remote server where backups will be stored
+                  </small>
+                </div>
+
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={handleTestRemoteBackup}
+                  disabled={dbMaintenanceLoading || remoteBackupTesting || !remoteBackupHost}
+                  style={{ marginBottom: '1rem' }}
+                >
+                  {remoteBackupTesting ? 'Testing...' : '🔌 Test Connection'}
+                </button>
               </div>
             )}
 

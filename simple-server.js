@@ -5430,7 +5430,15 @@ app.get('/api/settings/database', async (req, res) => {
       backupScheduleEnabled: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_schedule_enabled')?.value === '1',
       backupInterval: parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('backup_interval')?.value || '7'),
       backupRetention: parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('backup_retention')?.value || '30'),
-      lastBackupDate: db.prepare('SELECT value FROM config WHERE key = ?').get('last_backup_date')?.value
+      lastBackupDate: db.prepare('SELECT value FROM config WHERE key = ?').get('last_backup_date')?.value,
+      // Remote backup settings
+      remoteBackupEnabled: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_enabled')?.value === '1',
+      remoteBackupType: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_type')?.value || 'sftp',
+      remoteBackupHost: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_host')?.value || '',
+      remoteBackupPort: parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_port')?.value || '22'),
+      remoteBackupUsername: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_username')?.value || '',
+      remoteBackupPassword: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password')?.value ? '********' : '',
+      remoteBackupPath: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_path')?.value || '/backups'
     };
     res.json(settings);
   } catch (error) {
@@ -5450,11 +5458,27 @@ app.post('/api/settings/database', async (req, res) => {
   }
   
   try {
-    const { backupScheduleEnabled, backupInterval, backupRetention } = req.body;
+    const { 
+      backupScheduleEnabled, backupInterval, backupRetention,
+      remoteBackupEnabled, remoteBackupType, remoteBackupHost, 
+      remoteBackupPort, remoteBackupUsername, remoteBackupPassword, remoteBackupPath 
+    } = req.body;
     
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_schedule_enabled', backupScheduleEnabled ? '1' : '0');
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_interval', backupInterval.toString());
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_retention', backupRetention.toString());
+    
+    // Remote backup settings
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_enabled', remoteBackupEnabled ? '1' : '0');
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_type', remoteBackupType || 'sftp');
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_host', remoteBackupHost || '');
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_port', (remoteBackupPort || 22).toString());
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_username', remoteBackupUsername || '');
+    // Only update password if it's not the masked value
+    if (remoteBackupPassword && remoteBackupPassword !== '********') {
+      db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_password', remoteBackupPassword);
+    }
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_path', remoteBackupPath || '/backups');
     
     res.json({ success: true });
   } catch (error) {
@@ -5600,7 +5624,8 @@ app.post('/api/settings/database/backup', async (req, res) => {
     
     // Create backup file with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + Date.now();
-    const backupFile = path.join(backupDir, `printhive_backup_${timestamp}.db`);
+    const backupFileName = `printhive_backup_${timestamp}.db`;
+    const backupFile = path.join(backupDir, backupFileName);
     
     console.log(`Creating database backup at ${backupFile}...`);
     
@@ -5629,9 +5654,155 @@ app.post('/api/settings/database/backup', async (req, res) => {
       }
     });
     
-    res.json({ success: true, message: 'Database backup created successfully' });
+    // Check if remote backup is enabled and upload
+    let remoteUploaded = false;
+    const remoteEnabled = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_enabled')?.value === '1';
+    
+    if (remoteEnabled) {
+      try {
+        const remoteType = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_type')?.value || 'sftp';
+        const remoteHost = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_host')?.value;
+        const remotePort = parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_port')?.value || '22');
+        const remoteUsername = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_username')?.value;
+        const remotePassword = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password')?.value;
+        const remotePath = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_path')?.value || '/backups';
+        
+        if (remoteHost && remoteUsername) {
+          if (remoteType === 'sftp') {
+            const Client = require('ssh2-sftp-client');
+            const sftp = new Client();
+            await sftp.connect({
+              host: remoteHost,
+              port: remotePort,
+              username: remoteUsername,
+              password: remotePassword
+            });
+            
+            // Ensure remote directory exists
+            try {
+              await sftp.mkdir(remotePath, true);
+            } catch (e) {
+              // Directory might already exist
+            }
+            
+            const remoteFilePath = `${remotePath}/${backupFileName}`;
+            await sftp.put(backupFile, remoteFilePath);
+            await sftp.end();
+            
+            console.log(`Backup uploaded to SFTP: ${remoteFilePath}`);
+            remoteUploaded = true;
+          } else if (remoteType === 'ftp') {
+            const ftp = require('basic-ftp');
+            const client = new ftp.Client();
+            await client.access({
+              host: remoteHost,
+              port: remotePort,
+              user: remoteUsername,
+              password: remotePassword,
+              secure: false
+            });
+            
+            // Ensure remote directory exists
+            try {
+              await client.ensureDir(remotePath);
+            } catch (e) {
+              // Directory might already exist
+            }
+            
+            await client.uploadFrom(backupFile, `${remotePath}/${backupFileName}`);
+            client.close();
+            
+            console.log(`Backup uploaded to FTP: ${remotePath}/${backupFileName}`);
+            remoteUploaded = true;
+          }
+        }
+      } catch (remoteError) {
+        console.error('Failed to upload backup to remote server:', remoteError.message);
+        // Don't fail the whole backup, just log the error
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: remoteUploaded ? 'Backup created and uploaded to remote server' : 'Database backup created successfully',
+      remoteUploaded
+    });
   } catch (error) {
     console.error('Failed to backup database:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Test remote backup connection
+app.post('/api/settings/database/test-remote', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  try {
+    const { type, host, port, username, password, path: remotePath } = req.body;
+    
+    if (!host || !username) {
+      return res.status(400).json({ success: false, error: 'Host and username are required' });
+    }
+    
+    // Get the actual password if masked
+    let actualPassword = password;
+    if (password === '********' || !password) {
+      actualPassword = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password')?.value || '';
+    }
+    
+    if (type === 'sftp') {
+      const Client = require('ssh2-sftp-client');
+      const sftp = new Client();
+      
+      await sftp.connect({
+        host,
+        port: port || 22,
+        username,
+        password: actualPassword
+      });
+      
+      // Try to list the directory
+      const exists = await sftp.exists(remotePath || '/');
+      await sftp.end();
+      
+      res.json({ 
+        success: true, 
+        message: `SFTP connection successful${exists ? `, path "${remotePath}" exists` : `, path "${remotePath}" does not exist (will be created)`}` 
+      });
+    } else if (type === 'ftp') {
+      const ftp = require('basic-ftp');
+      const client = new ftp.Client();
+      
+      await client.access({
+        host,
+        port: port || 21,
+        user: username,
+        password: actualPassword,
+        secure: false
+      });
+      
+      // Try to list the directory
+      try {
+        await client.cd(remotePath || '/');
+      } catch (e) {
+        // Path doesn't exist, that's okay
+      }
+      
+      client.close();
+      
+      res.json({ success: true, message: 'FTP connection successful' });
+    } else {
+      res.status(400).json({ success: false, error: 'Invalid protocol type' });
+    }
+  } catch (error) {
+    console.error('Remote connection test failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
