@@ -6014,6 +6014,25 @@ app.post('/api/settings/database/reindex', async (req, res) => {
 // In-memory backup job tracking
 const backupJobs = new Map();
 
+// In-memory restore job tracking
+const restoreJobs = new Map();
+
+// Check restore job status
+app.get('/api/settings/database/restore/status/:jobId', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const { jobId } = req.params;
+  const job = restoreJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  
+  res.json(job);
+});
+
 // Check backup job status
 app.get('/api/settings/database/backup/status/:jobId', (req, res) => {
   if (!req.session.authenticated) {
@@ -6564,28 +6583,58 @@ app.get('/api/settings/database/backups', (req, res) => {
     const backupDir = path.join(__dirname, 'data', 'backups');
     
     if (!fs.existsSync(backupDir)) {
-      return res.json({ success: true, backups: [] });
+      return res.json({ success: true, backups: [], stats: { count: 0, totalSize: 0, totalSizeFormatted: '0 B' } });
     }
     
+    let totalSize = 0;
     const backups = fs.readdirSync(backupDir)
       .filter(file => file.endsWith('.tar.gz'))
       .map(file => {
         const filePath = path.join(backupDir, file);
         const stats = fs.statSync(filePath);
+        totalSize += stats.size;
         return {
           name: file,
           size: formatBytes(stats.size),
+          sizeBytes: stats.size,
           date: stats.mtime.toLocaleString(),
           timestamp: stats.mtime.getTime()
         };
       })
       .sort((a, b) => b.timestamp - a.timestamp);
     
-    res.json({ success: true, backups });
+    res.json({ 
+      success: true, 
+      backups,
+      stats: {
+        count: backups.length,
+        totalSize: totalSize,
+        totalSizeFormatted: formatBytes(totalSize)
+      }
+    });
   } catch (error) {
     console.error('Failed to list backups:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// In-memory restore job tracking
+const restoreJobs = new Map();
+
+// Check restore job status
+app.get('/api/settings/database/restore/status/:jobId', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const { jobId } = req.params;
+  const job = restoreJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  
+  res.json(job);
 });
 
 // Restore from backup
@@ -6599,8 +6648,32 @@ app.post('/api/settings/database/restore', async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
   
+  const { backupFile, async: asyncMode } = req.body;
+  const jobId = `restore_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  
+  // Initialize job
+  restoreJobs.set(jobId, {
+    id: jobId,
+    status: 'running',
+    message: 'Starting restore...',
+    progress: 0,
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    result: null,
+    error: null
+  });
+  
+  // If async mode, return job ID immediately
+  if (asyncMode) {
+    res.json({ 
+      success: true, 
+      async: true,
+      jobId,
+      message: 'Restore started. Check status with /api/settings/database/restore/status/' + jobId
+    });
+  }
+  
   try {
-    const { backupFile } = req.body;
     
     if (!backupFile) {
       return res.status(400).json({ success: false, error: 'Backup file is required' });
@@ -6620,6 +6693,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     }
     
     console.log(`Restoring from backup archive ${backupFile}...`);
+    restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Extracting backup...', progress: 10 });
     
     // Close existing database connection
     db.close();
@@ -6638,6 +6712,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     });
     
     console.log(`Archive extracted to ${tempExtractDir}`);
+    restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Restoring database...', progress: 30 });
     
     // Restore database files
     const dataDir = path.join(__dirname, 'data');
@@ -6651,6 +6726,8 @@ app.post('/api/settings/database/restore', async (req, res) => {
     if (fs.existsSync(path.join(tempExtractDir, 'printhive.db-wal'))) {
       fs.copyFileSync(path.join(tempExtractDir, 'printhive.db-wal'), path.join(dataDir, 'printhive.db-wal'));
     }
+    
+    restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Restoring videos...', progress: 50 });
     
     // Restore videos if present
     const videosBackupPath = path.join(tempExtractDir, 'videos');
@@ -6667,20 +6744,34 @@ app.post('/api/settings/database/restore', async (req, res) => {
       console.log(`✓ Restored ${videoFiles.length} video files`);
     }
     
-    // Restore library files if present
+    restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Restoring library files...', progress: 70 });
+    
+    // Restore library files if present (to project root /library)
     const libraryBackupPath = path.join(tempExtractDir, 'library');
     if (fs.existsSync(libraryBackupPath)) {
-      const libraryDirPath = path.join(dataDir, 'library');
+      const libraryDirPath = path.join(__dirname, 'library');
       if (!fs.existsSync(libraryDirPath)) {
         fs.mkdirSync(libraryDirPath, { recursive: true });
       }
-      // Copy all library files
-      const libraryFiles = fs.readdirSync(libraryBackupPath);
-      libraryFiles.forEach(file => {
-        fs.copyFileSync(path.join(libraryBackupPath, file), path.join(libraryDirPath, file));
-      });
-      console.log(`✓ Restored ${libraryFiles.length} library files`);
+      // Recursively copy all library files
+      const copyRecursive = (src, dest) => {
+        const entries = fs.readdirSync(src, { withFileTypes: true });
+        for (const entry of entries) {
+          const srcPath = path.join(src, entry.name);
+          const destPath = path.join(dest, entry.name);
+          if (entry.isDirectory()) {
+            fs.mkdirSync(destPath, { recursive: true });
+            copyRecursive(srcPath, destPath);
+          } else {
+            fs.copyFileSync(srcPath, destPath);
+          }
+        }
+      };
+      copyRecursive(libraryBackupPath, libraryDirPath);
+      console.log(`✓ Restored library files to ${libraryDirPath}`);
     }
+    
+    restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Restoring cover images...', progress: 85 });
     
     // Restore cover images if present
     const coversBackupPath = path.join(tempExtractDir, 'covers');
@@ -6702,6 +6793,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     console.log('✓ Cleanup complete');
     
     console.log(`Restore from ${backupFile} completed successfully`);
+    restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Reconnecting database...', progress: 95 });
     
     // Reconnect to database
     const Database = require('better-sqlite3');
@@ -6709,12 +6801,35 @@ app.post('/api/settings/database/restore', async (req, res) => {
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     
-    res.json({ 
+    const result = { 
       success: true, 
-      message: 'Backup restored successfully. Please refresh the page to see your restored data.'
+      message: 'Backup restored successfully. Page will reload automatically.'
+    };
+    
+    // Update job status
+    restoreJobs.set(jobId, {
+      ...restoreJobs.get(jobId),
+      status: 'completed',
+      message: 'Restore completed',
+      progress: 100,
+      completedAt: new Date().toISOString(),
+      result
     });
+    
+    if (!asyncMode) {
+      res.json(result);
+    }
   } catch (error) {
     console.error('Failed to restore backup:', error);
+    
+    // Update job status
+    restoreJobs.set(jobId, {
+      ...restoreJobs.get(jobId),
+      status: 'failed',
+      message: error.message || 'Unknown restore error',
+      completedAt: new Date().toISOString(),
+      error: error.message || 'Unknown restore error'
+    });
     
     // Try to reconnect to database even if restore failed
     try {
@@ -6726,7 +6841,9 @@ app.post('/api/settings/database/restore', async (req, res) => {
       console.error('Failed to reconnect to database after restore error:', reconnectError);
     }
     
-    res.status(500).json({ success: false, error: error.message });
+    if (!asyncMode) {
+      res.status(500).json({ success: false, error: error.message });
+    }
   }
 });
 

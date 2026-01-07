@@ -23,6 +23,13 @@ if (!fs.existsSync(videosDir)) {
   fs.mkdirSync(videosDir, { recursive: true });
 }
 
+// Ensure backups directory exists
+const backupsDir = path.join(dataDir, 'backups');
+if (!fs.existsSync(backupsDir)) {
+  fs.mkdirSync(backupsDir, { recursive: true });
+  console.log('Created backups directory:', backupsDir);
+}
+
 // Initialize database schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (

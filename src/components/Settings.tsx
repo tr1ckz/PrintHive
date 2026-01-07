@@ -179,8 +179,11 @@ function Settings({ userRole }: SettingsProps) {
   
   // Restore state
   const [availableBackups, setAvailableBackups] = useState<any[]>([]);
+  const [backupStats, setBackupStats] = useState<{ count: number; totalSize: number; totalSizeFormatted: string }>({ count: 0, totalSize: 0, totalSizeFormatted: '0 B' });
   const [selectedBackup, setSelectedBackup] = useState('');
   const [restoreInProgress, setRestoreInProgress] = useState(false);
+  const [restoreProgress, setRestoreProgress] = useState(0);
+  const [restoreMessage, setRestoreMessage] = useState('');
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   
   // Toast state
@@ -307,6 +310,7 @@ function Settings({ userRole }: SettingsProps) {
       const data = await response.json();
       if (data.success) {
         setAvailableBackups(data.backups || []);
+        setBackupStats(data.stats || { count: 0, totalSize: 0, totalSizeFormatted: '0 B' });
       }
     } catch (error) {
       console.error('Failed to load available backups:', error);
@@ -596,31 +600,70 @@ function Settings({ userRole }: SettingsProps) {
     }
     
     setRestoreInProgress(true);
+    setRestoreProgress(0);
+    setRestoreMessage('Starting restore...');
+    setToast({ message: 'Starting restore... This may take a few minutes.', type: 'success' });
+    
     try {
+      // Start restore in async mode
       const response = await fetch('/api/settings/database/restore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ backupFile: selectedBackup })
+        body: JSON.stringify({ backupFile: selectedBackup, async: true })
       });
+      
       const data = await response.json();
-      if (data.success) {
-        setDbResultModal({
-          title: 'Restore Complete',
-          icon: '♻️',
-          details: {
-            'Status': 'Database restored successfully',
-            'Backup File': selectedBackup,
-            'Time': new Date().toLocaleString(),
-            'Note': 'Please refresh the page'
+      
+      if (data.async && data.jobId) {
+        // Poll for restore status
+        const pollStatus = async () => {
+          try {
+            const statusResponse = await fetch(`/api/settings/database/restore/status/${data.jobId}`);
+            const statusData = await statusResponse.json();
+            
+            setRestoreProgress(statusData.progress || 0);
+            setRestoreMessage(statusData.message || '');
+            
+            if (statusData.status === 'completed') {
+              setRestoreInProgress(false);
+              setRestoreProgress(100);
+              setRestoreMessage('Restore complete! Reloading page...');
+              setToast({ message: 'Restore completed! Reloading application...', type: 'success' });
+              setShowRestoreModal(false);
+              // Wait 2 seconds then reload
+              setTimeout(() => {
+                window.location.reload();
+              }, 2000);
+            } else if (statusData.status === 'failed') {
+              setRestoreInProgress(false);
+              setToast({ message: statusData.error || 'Restore failed', type: 'error' });
+            } else {
+              // Still running, poll again in 1 second
+              setTimeout(pollStatus, 1000);
+            }
+          } catch (pollError) {
+            console.error('Failed to poll restore status:', pollError);
+            // Keep polling on error
+            setTimeout(pollStatus, 2000);
           }
-        });
+        };
+        
+        // Start polling
+        setTimeout(pollStatus, 1000);
+      } else if (data.success) {
+        // Synchronous response (backwards compatibility)
+        setRestoreInProgress(false);
+        setToast({ message: 'Restore complete! Reloading page...', type: 'success' });
         setShowRestoreModal(false);
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       } else {
         setToast({ message: data.error || 'Failed to restore backup', type: 'error' });
+        setRestoreInProgress(false);
       }
-    } catch (error) {
-      setToast({ message: 'Failed to restore backup', type: 'error' });
-    } finally {
+    } catch (error: any) {
+      setToast({ message: error?.message || 'Failed to restore backup', type: 'error' });
       setRestoreInProgress(false);
     }
   };
@@ -2304,12 +2347,26 @@ function Settings({ userRole }: SettingsProps) {
               Restore the database from a previous backup
             </p>
             
+            {/* Backup Statistics */}
+            {backupStats.count > 0 && (
+              <div style={{ padding: '1rem', background: 'rgba(0, 212, 255, 0.1)', borderRadius: '8px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-around', fontSize: '0.9rem' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#00d4ff' }}>{backupStats.count}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.7)' }}>Backups</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#00d4ff' }}>{backupStats.totalSizeFormatted}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.7)' }}>Total Size</div>
+                </div>
+              </div>
+            )}
+            
             <div className="form-group" style={{ marginBottom: '1rem' }}>
               <label>Available Backups</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {availableBackups.length === 0 ? (
                   <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
-                    No backups found
+                    No backups found. Create a backup using "Backup Now" or place a backup file in /data/backups/
                   </div>
                 ) : (
                   availableBackups.map((backup) => (
@@ -2385,37 +2442,70 @@ function Settings({ userRole }: SettingsProps) {
               <div className="modal-overlay" onClick={() => !restoreInProgress && setShowRestoreModal(false)}>
                 <div className="db-result-modal" onClick={(e) => e.stopPropagation()}>
                   <div className="db-result-header">
-                    <span className="db-result-icon">⚠️</span>
-                    <h3>Confirm Restore</h3>
+                    <span className="db-result-icon">{restoreInProgress ? '♻️' : '⚠️'}</span>
+                    <h3>{restoreInProgress ? 'Restoring Backup' : 'Confirm Restore'}</h3>
                   </div>
                   <div className="db-result-details">
-                    <p style={{ marginBottom: '1rem', color: 'rgba(255,255,255,0.8)' }}>
-                      Are you sure you want to restore from this backup?
-                    </p>
-                    <p style={{ marginBottom: '1rem', fontWeight: 'bold', color: '#ff6b6b' }}>
-                      This will replace the current database!
-                    </p>
-                    <p style={{ marginBottom: '1.5rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)' }}>
-                      Backup: {selectedBackup}
-                    </p>
-                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                      <button 
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => setShowRestoreModal(false)}
-                        disabled={restoreInProgress}
-                      >
-                        Cancel
-                      </button>
-                      <button 
-                        type="button"
-                        className="btn btn-warning"
-                        onClick={handleRestoreBackup}
-                        disabled={restoreInProgress}
-                      >
-                        {restoreInProgress ? 'Restoring...' : 'Restore Now'}
-                      </button>
-                    </div>
+                    {restoreInProgress ? (
+                      <>
+                        <p style={{ marginBottom: '1rem', color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>
+                          {restoreMessage}
+                        </p>
+                        <div style={{ width: '100%', height: '30px', background: 'rgba(255,255,255,0.1)', borderRadius: '15px', overflow: 'hidden', marginBottom: '1rem' }}>
+                          <div 
+                            style={{ 
+                              width: `${restoreProgress}%`, 
+                              height: '100%', 
+                              background: 'linear-gradient(90deg, #00d4ff, #0099cc)', 
+                              transition: 'width 0.5s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              color: '#fff'
+                            }}
+                          >
+                            {restoreProgress}%
+                          </div>
+                        </div>
+                        {restoreProgress === 100 && (
+                          <p style={{ color: '#00ff00', textAlign: 'center', fontWeight: 600 }}>
+                            ✓ Restore complete! Reloading application...
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p style={{ marginBottom: '1rem', color: 'rgba(255,255,255,0.8)' }}>
+                          Are you sure you want to restore from this backup?
+                        </p>
+                        <p style={{ marginBottom: '1rem', fontWeight: 'bold', color: '#ff6b6b' }}>
+                          This will replace the current database!
+                        </p>
+                        <p style={{ marginBottom: '1.5rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)' }}>
+                          Backup: {selectedBackup}
+                        </p>
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                          <button 
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setShowRestoreModal(false)}
+                            disabled={restoreInProgress}
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            type="button"
+                            className="btn btn-warning"
+                            onClick={handleRestoreBackup}
+                            disabled={restoreInProgress}
+                          >
+                            Restore Now
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
