@@ -111,6 +111,23 @@ function Settings({ userRole }: SettingsProps) {
   const [discordPingUserId, setDiscordPingUserId] = useState('');
   const [discordLoading, setDiscordLoading] = useState(false);
   const [discordTesting, setDiscordTesting] = useState<string | null>(null);
+
+  // Unified notifications state (Discord, Telegram, Slack)
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  // Discord unified
+  const [discordWebhook, setDiscordWebhook] = useState('');
+  const [discordBackupEnabled, setDiscordBackupEnabled] = useState(false);
+  // Telegram
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramPrinterEnabled, setTelegramPrinterEnabled] = useState(false);
+  const [telegramMaintenanceEnabled, setTelegramMaintenanceEnabled] = useState(false);
+  const [telegramBackupEnabled, setTelegramBackupEnabled] = useState(false);
+  // Slack
+  const [slackWebhook, setSlackWebhook] = useState('');
+  const [slackPrinterEnabled, setSlackPrinterEnabled] = useState(false);
+  const [slackMaintenanceEnabled, setSlackMaintenanceEnabled] = useState(false);
+  const [slackBackupEnabled, setSlackBackupEnabled] = useState(false);
   
   // User profile state
   const [userProfile, setUserProfile] = useState({ username: '', email: '', displayName: '', oauthProvider: 'none' });
@@ -177,6 +194,7 @@ function Settings({ userRole }: SettingsProps) {
     loadUiSettings();
     loadWatchdogSettings();
     loadDiscordSettings();
+    loadNotificationsSettings();
     loadDatabaseSettings();
     loadAvailableBackups();
     loadUserProfile();
@@ -686,6 +704,106 @@ function Settings({ userRole }: SettingsProps) {
       setDiscordPingUserId(data.pingUserId || '');
     } catch (error) {
       console.error('Failed to load Discord settings:', error);
+    }
+  };
+
+  // Unified Notifications (Discord, Telegram, Slack)
+  const loadNotificationsSettings = async () => {
+    try {
+      const response = await fetch('/api/settings/notifications');
+      const data = await response.json();
+      if (!response.ok || !data.success) return;
+      const s = data.settings || {};
+      if (s.discord) {
+        setDiscordWebhook(s.discord.webhook || '');
+        setDiscordBackupEnabled(!!s.discord.backupEnabled);
+        // keep per-type flags for Discord from legacy too
+        setDiscordPrinterEnabled(!!s.discord.printerEnabled);
+        setDiscordMaintenanceEnabled(!!s.discord.maintenanceEnabled);
+        setDiscordPingUserId(s.discord.pingUserId || '');
+      }
+      if (s.telegram) {
+        setTelegramBotToken(s.telegram.botToken || '');
+        setTelegramChatId(s.telegram.chatId || '');
+        setTelegramPrinterEnabled(!!s.telegram.printerEnabled);
+        setTelegramMaintenanceEnabled(!!s.telegram.maintenanceEnabled);
+        setTelegramBackupEnabled(!!s.telegram.backupEnabled);
+      }
+      if (s.slack) {
+        setSlackWebhook(s.slack.webhook || '');
+        setSlackPrinterEnabled(!!s.slack.printerEnabled);
+        setSlackMaintenanceEnabled(!!s.slack.maintenanceEnabled);
+        setSlackBackupEnabled(!!s.slack.backupEnabled);
+      }
+    } catch (e) {
+      console.error('Failed to load notifications settings:', e);
+    }
+  };
+
+  const handleSaveNotificationsSettings = async () => {
+    setNotificationsLoading(true);
+    try {
+      const response = await fetch('/api/settings/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          discord: {
+            webhook: discordWebhook,
+            printerEnabled: discordPrinterEnabled,
+            maintenanceEnabled: discordMaintenanceEnabled,
+            backupEnabled: discordBackupEnabled,
+            pingUserId: discordPingUserId
+          },
+          telegram: {
+            botToken: telegramBotToken,
+            chatId: telegramChatId,
+            printerEnabled: telegramPrinterEnabled,
+            maintenanceEnabled: telegramMaintenanceEnabled,
+            backupEnabled: telegramBackupEnabled
+          },
+          slack: {
+            webhook: slackWebhook,
+            printerEnabled: slackPrinterEnabled,
+            maintenanceEnabled: slackMaintenanceEnabled,
+            backupEnabled: slackBackupEnabled
+          }
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setToast({ message: 'Notification settings saved!', type: 'success' });
+      } else {
+        setToast({ message: data.error || 'Failed to save notification settings', type: 'error' });
+      }
+    } catch (e) {
+      setToast({ message: 'Failed to save notification settings', type: 'error' });
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const handleTestDiscordUnified = async (type: 'printer' | 'maintenance') => {
+    if (!discordWebhook) {
+      setToast({ message: 'Please enter a Discord webhook URL', type: 'error' });
+      return;
+    }
+    setDiscordTesting(type);
+    try {
+      const response = await fetch('/api/discord/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, webhook: discordWebhook })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setToast({ message: `Test ${type} notification sent!`, type: 'success' });
+      } else {
+        setToast({ message: data.error || 'Failed to send test notification', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Failed to send test notification', type: 'error' });
+    } finally {
+      setDiscordTesting(null);
     }
   };
 
@@ -1490,119 +1608,95 @@ function Settings({ userRole }: SettingsProps) {
         {expandedCategories.integrations && (
           <>
 
-      {/* Discord Webhooks Section */}
-      <CollapsibleSection title="Discord Webhooks" icon="💬">
+      {/* Notifications Section (Discord, Telegram, Slack) */}
+      <CollapsibleSection title="Notifications" icon="🔔">
         <p className="form-description">
-          Get instant Discord notifications for print failures and maintenance alerts
+          Configure notification providers and alert types for Printer, Maintenance, and Backup.
         </p>
 
-        {/* Printer Alerts Webhook */}
-        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <label className="toggle-switch" style={{ marginRight: '1rem' }}>
-              <input
-                type="checkbox"
-                checked={discordPrinterEnabled}
-                onChange={(e) => setDiscordPrinterEnabled(e.target.checked)}
-                disabled={discordLoading}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-            <span style={{ fontWeight: 500, color: '#fff' }}>Printer Alerts</span>
+        {/* Discord */}
+        <div style={{ marginBottom: '2rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '0.75rem' }}>💬 Discord</h3>
+          <div className="form-group">
+            <label>Webhook URL</label>
+            <input
+              type="url"
+              value={discordWebhook}
+              onChange={(e) => setDiscordWebhook(e.target.value)}
+              placeholder="https://discord.com/api/webhooks/..."
+              disabled={notificationsLoading}
+            />
+            <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+              One webhook used for all Discord notifications
+            </small>
           </div>
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.75rem' }}>
-            Get notified when prints fail, encounter errors, or complete
-          </small>
-          {discordPrinterEnabled && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="url"
-                value={discordPrinterWebhook}
-                onChange={(e) => setDiscordPrinterWebhook(e.target.value)}
-                placeholder="https://discord.com/api/webhooks/..."
-                disabled={discordLoading}
-                style={{ flex: 1 }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => handleTestDiscordWebhook('printer')}
-                disabled={discordTesting === 'printer' || !discordPrinterWebhook}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                {discordTesting === 'printer' ? 'Sending...' : 'Test'}
-              </button>
-            </div>
-          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
+            <label className="toggle-label"><input type="checkbox" checked={discordPrinterEnabled} onChange={(e) => setDiscordPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Printer</span></label>
+            <label className="toggle-label"><input type="checkbox" checked={discordMaintenanceEnabled} onChange={(e) => setDiscordMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Maintenance</span></label>
+            <label className="toggle-label"><input type="checkbox" checked={discordBackupEnabled} onChange={(e) => setDiscordBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Backup</span></label>
+          </div>
+
+          <div className="form-group" style={{ marginTop: '0.75rem' }}>
+            <label>Ping User ID (optional)</label>
+            <input
+              type="text"
+              value={discordPingUserId}
+              onChange={(e) => setDiscordPingUserId(e.target.value)}
+              placeholder="874822659161092166"
+              disabled={notificationsLoading}
+              style={{ maxWidth: '300px' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => handleTestDiscordUnified('printer')} disabled={!discordWebhook || discordTesting === 'printer'}>
+              {discordTesting === 'printer' ? 'Sending...' : 'Test Printer'}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => handleTestDiscordUnified('maintenance')} disabled={!discordWebhook || discordTesting === 'maintenance'}>
+              {discordTesting === 'maintenance' ? 'Sending...' : 'Test Maintenance'}
+            </button>
+          </div>
         </div>
 
-        {/* Maintenance Alerts Webhook */}
-        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <label className="toggle-switch" style={{ marginRight: '1rem' }}>
-              <input
-                type="checkbox"
-                checked={discordMaintenanceEnabled}
-                onChange={(e) => setDiscordMaintenanceEnabled(e.target.checked)}
-                disabled={discordLoading}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-            <span style={{ fontWeight: 500, color: '#fff' }}>Maintenance Alerts</span>
-          </div>
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.75rem' }}>
-            Get notified when scheduled maintenance is due or overdue
-          </small>
-          {discordMaintenanceEnabled && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="url"
-                value={discordMaintenanceWebhook}
-                onChange={(e) => setDiscordMaintenanceWebhook(e.target.value)}
-                placeholder="https://discord.com/api/webhooks/..."
-                disabled={discordLoading}
-                style={{ flex: 1 }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => handleTestDiscordWebhook('maintenance')}
-                disabled={discordTesting === 'maintenance' || !discordMaintenanceWebhook}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                {discordTesting === 'maintenance' ? 'Sending...' : 'Test'}
-              </button>
+        {/* Telegram */}
+        <div style={{ marginBottom: '2rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '0.75rem' }}>📨 Telegram</h3>
+          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-group">
+              <label>Bot Token</label>
+              <input type="text" value={telegramBotToken} onChange={(e) => setTelegramBotToken(e.target.value)} placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11" disabled={notificationsLoading} />
             </div>
-          )}
+            <div className="form-group">
+              <label>Chat ID</label>
+              <input type="text" value={telegramChatId} onChange={(e) => setTelegramChatId(e.target.value)} placeholder="@your_channel_or_chat_id" disabled={notificationsLoading} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
+            <label className="toggle-label"><input type="checkbox" checked={telegramPrinterEnabled} onChange={(e) => setTelegramPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Printer</span></label>
+            <label className="toggle-label"><input type="checkbox" checked={telegramMaintenanceEnabled} onChange={(e) => setTelegramMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Maintenance</span></label>
+            <label className="toggle-label"><input type="checkbox" checked={telegramBackupEnabled} onChange={(e) => setTelegramBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Backup</span></label>
+          </div>
         </div>
 
-        {/* Ping User ID */}
-        <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-          <label style={{ fontWeight: 500, color: '#fff', marginBottom: '0.5rem', display: 'block' }}>
-            Discord User ID to Ping (optional)
-          </label>
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.75rem' }}>
-            Enter your Discord user ID to get pinged in notifications. Right-click your profile → Copy User ID
-          </small>
-          <input
-            type="text"
-            value={discordPingUserId}
-            onChange={(e) => setDiscordPingUserId(e.target.value)}
-            placeholder="e.g. 874822659161092166"
-            disabled={discordLoading}
-            style={{ maxWidth: '300px' }}
-          />
+        {/* Slack */}
+        <div style={{ marginBottom: '1rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '0.75rem' }}>🧩 Slack</h3>
+          <div className="form-group">
+            <label>Webhook URL</label>
+            <input type="url" value={slackWebhook} onChange={(e) => setSlackWebhook(e.target.value)} placeholder="https://hooks.slack.com/services/..." disabled={notificationsLoading} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
+            <label className="toggle-label"><input type="checkbox" checked={slackPrinterEnabled} onChange={(e) => setSlackPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Printer</span></label>
+            <label className="toggle-label"><input type="checkbox" checked={slackMaintenanceEnabled} onChange={(e) => setSlackMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Maintenance</span></label>
+            <label className="toggle-label"><input type="checkbox" checked={slackBackupEnabled} onChange={(e) => setSlackBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Backup</span></label>
+          </div>
         </div>
-        
-        <button 
-          type="button" 
-          className="btn btn-primary" 
-          onClick={handleSaveDiscordSettings}
-          disabled={discordLoading}
-        >
-          {discordLoading ? 'Saving...' : 'Save Discord Settings'}
+
+        <button type="button" className="btn btn-primary" onClick={handleSaveNotificationsSettings} disabled={notificationsLoading}>
+          {notificationsLoading ? 'Saving...' : 'Save Notification Settings'}
         </button>
-        </CollapsibleSection>
+      </CollapsibleSection>
           </>
         )}
       </div>

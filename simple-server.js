@@ -1358,7 +1358,7 @@ app.get('/api/printers', async (req, res) => {
               // Handle print state changes for Discord notifications
               mqttClient.on('print_completed', async (data) => {
                 console.log(`Print completed on ${data.printerName}:`, data.modelName);
-                await sendDiscordNotification('printer', {
+                await sendNotification('printer', {
                   status: 'completed',
                   printerName: data.printerName,
                   modelName: data.modelName,
@@ -1369,7 +1369,7 @@ app.get('/api/printers', async (req, res) => {
               
               mqttClient.on('print_failed', async (data) => {
                 console.log(`Print FAILED on ${data.printerName}:`, data);
-                await sendDiscordNotification('printer', {
+                await sendNotification('printer', {
                   status: 'failed',
                   printerName: data.printerName,
                   modelName: data.modelName,
@@ -1381,7 +1381,7 @@ app.get('/api/printers', async (req, res) => {
               
               mqttClient.on('print_error', async (data) => {
                 console.log(`Print ERROR on ${data.printerName}:`, data);
-                await sendDiscordNotification('printer', {
+                await sendNotification('printer', {
                   status: 'error',
                   printerName: data.printerName,
                   modelName: data.modelName,
@@ -1393,7 +1393,7 @@ app.get('/api/printers', async (req, res) => {
               
               mqttClient.on('print_paused', async (data) => {
                 console.log(`Print paused on ${data.printerName}:`, data.modelName);
-                await sendDiscordNotification('printer', {
+                await sendNotification('printer', {
                   status: 'paused',
                   printerName: data.printerName,
                   modelName: data.modelName,
@@ -4071,7 +4071,7 @@ app.post('/api/maintenance/:id/complete', async (req, res) => {
         db.prepare('SELECT deviceName FROM printers WHERE deviceId = ?').get(updatedTask.printer_id)?.deviceName || updatedTask.printer_id
         : 'All Printers';
       
-      await sendDiscordNotification('maintenance', {
+      await sendNotification('maintenance', {
         status: 'completed',
         message: `Maintenance task "${updatedTask.task_name}" has been completed!`,
         taskName: updatedTask.task_name,
@@ -4348,6 +4348,178 @@ app.post('/api/settings/discord', async (req, res) => {
   }
 });
 
+// Unified notifications settings (Discord, Telegram, Slack)
+app.get('/api/settings/notifications', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  try {
+    const get = db.prepare('SELECT value FROM config WHERE key = ?');
+    const response = {
+      discord: {
+        webhook: get.get('discord_printer_webhook')?.value || get.get('discord_maintenance_webhook')?.value || '',
+        printerEnabled: get.get('discord_printer_enabled')?.value === 'true',
+        maintenanceEnabled: get.get('discord_maintenance_enabled')?.value === 'true',
+        backupEnabled: get.get('discord_backup_enabled')?.value === 'true',
+        pingUserId: get.get('discord_ping_user_id')?.value || ''
+      },
+      telegram: {
+        botToken: get.get('telegram_bot_token')?.value || '',
+        chatId: get.get('telegram_chat_id')?.value || '',
+        printerEnabled: get.get('telegram_printer_enabled')?.value === 'true',
+        maintenanceEnabled: get.get('telegram_maintenance_enabled')?.value === 'true',
+        backupEnabled: get.get('telegram_backup_enabled')?.value === 'true'
+      },
+      slack: {
+        webhook: get.get('slack_webhook_url')?.value || '',
+        printerEnabled: get.get('slack_printer_enabled')?.value === 'true',
+        maintenanceEnabled: get.get('slack_maintenance_enabled')?.value === 'true',
+        backupEnabled: get.get('slack_backup_enabled')?.value === 'true'
+      }
+    };
+    res.json({ success: true, settings: response });
+  } catch (e) {
+    console.error('Get notifications settings error:', e);
+    res.status(500).json({ error: 'Failed to load notifications settings' });
+  }
+});
+
+app.post('/api/settings/notifications', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  try {
+    const upsert = db.prepare(`
+      INSERT INTO config (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `);
+    const { discord, telegram, slack } = req.body;
+    if (discord) {
+      if (discord.webhook !== undefined) {
+        upsert.run('discord_printer_webhook', discord.webhook || '');
+        upsert.run('discord_maintenance_webhook', discord.webhook || '');
+      }
+      if (discord.printerEnabled !== undefined) upsert.run('discord_printer_enabled', discord.printerEnabled ? 'true' : 'false');
+      if (discord.maintenanceEnabled !== undefined) upsert.run('discord_maintenance_enabled', discord.maintenanceEnabled ? 'true' : 'false');
+      if (discord.backupEnabled !== undefined) upsert.run('discord_backup_enabled', discord.backupEnabled ? 'true' : 'false');
+      if (discord.pingUserId !== undefined) upsert.run('discord_ping_user_id', discord.pingUserId || '');
+    }
+    if (telegram) {
+      if (telegram.botToken !== undefined) upsert.run('telegram_bot_token', telegram.botToken || '');
+      if (telegram.chatId !== undefined) upsert.run('telegram_chat_id', telegram.chatId || '');
+      if (telegram.printerEnabled !== undefined) upsert.run('telegram_printer_enabled', telegram.printerEnabled ? 'true' : 'false');
+      if (telegram.maintenanceEnabled !== undefined) upsert.run('telegram_maintenance_enabled', telegram.maintenanceEnabled ? 'true' : 'false');
+      if (telegram.backupEnabled !== undefined) upsert.run('telegram_backup_enabled', telegram.backupEnabled ? 'true' : 'false');
+    }
+    if (slack) {
+      if (slack.webhook !== undefined) upsert.run('slack_webhook_url', slack.webhook || '');
+      if (slack.printerEnabled !== undefined) upsert.run('slack_printer_enabled', slack.printerEnabled ? 'true' : 'false');
+      if (slack.maintenanceEnabled !== undefined) upsert.run('slack_maintenance_enabled', slack.maintenanceEnabled ? 'true' : 'false');
+      if (slack.backupEnabled !== undefined) upsert.run('slack_backup_enabled', slack.backupEnabled ? 'true' : 'false');
+    }
+    res.json({ success: true, message: 'Notification settings saved!' });
+  } catch (e) {
+    console.error('Save notifications settings error:', e);
+    res.status(500).json({ error: 'Failed to save notifications settings' });
+  }
+});
+
+// Slack & Telegram send helpers and unified dispatcher
+async function sendTelegramNotification(type, data) {
+  try {
+    const get = db.prepare('SELECT value FROM config WHERE key = ?');
+    const botToken = get.get('telegram_bot_token')?.value;
+    const chatId = get.get('telegram_chat_id')?.value;
+    if (!botToken || !chatId) return false;
+    const enabled = get.get(`telegram_${type}_enabled`)?.value === 'true';
+    if (!enabled) return false;
+
+    const titleMap = { printer: '🖨️ Printer', maintenance: '🔧 Maintenance', backup: '💾 Backup' };
+    const title = titleMap[type] || 'Notification';
+    let lines = [ `*${title}*`, data.message || '' ];
+    if (type === 'printer') {
+      if (data.printerName) lines.push(`• Printer: ${data.printerName}`);
+      if (data.modelName) lines.push(`• Model: ${data.modelName}`);
+      if (data.progress !== undefined) lines.push(`• Progress: ${data.progress}%`);
+      if (data.timeElapsed) lines.push(`• Time: ${data.timeElapsed}`);
+    } else if (type === 'maintenance') {
+      if (data.taskName) lines.push(`• Task: ${data.taskName}`);
+      if (data.printerName) lines.push(`• Printer: ${data.printerName}`);
+      if (data.currentHours !== undefined) lines.push(`• Current: ${data.currentHours.toFixed(1)}h`);
+      if (data.dueAtHours !== undefined) lines.push(`• Due At: ${data.dueAtHours.toFixed(1)}h`);
+    } else if (type === 'backup') {
+      if (data.size) lines.push(`• Size: ${data.size}`);
+      if (data.videos !== undefined) lines.push(`• Videos: ${data.videos}`);
+      if (data.library !== undefined) lines.push(`• Library: ${data.includeLibrary ? data.library : 'Excluded'}`);
+      if (data.covers !== undefined) lines.push(`• Covers: ${data.covers}`);
+      if (data.remoteUploaded) lines.push(`• Remote Upload: ✅`);
+    }
+    const text = lines.join('\n');
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
+    });
+    return true;
+  } catch (e) {
+    console.error('Telegram notification error:', e.message);
+    return false;
+  }
+}
+
+async function sendSlackNotification(type, data) {
+  try {
+    const get = db.prepare('SELECT value FROM config WHERE key = ?');
+    const webhook = get.get('slack_webhook_url')?.value;
+    if (!webhook) return false;
+    const enabled = get.get(`slack_${type}_enabled`)?.value === 'true';
+    if (!enabled) return false;
+    const titleMap = { printer: 'Printer', maintenance: 'Maintenance', backup: 'Backup' };
+    const emojiMap = { printer: '🖨️', maintenance: '🔧', backup: '💾' };
+    const title = `${emojiMap[type] || ''} ${titleMap[type] || 'Notification'}`;
+    const payload = {
+      text: data.message || title,
+      blocks: [
+        { type: 'header', text: { type: 'plain_text', text: title } },
+        { type: 'section', fields: [] }
+      ]
+    };
+    const addField = (name, value) => payload.blocks[1].fields.push({ type: 'mrkdwn', text: `*${name}:* ${value}` });
+    if (type === 'printer') {
+      if (data.printerName) addField('Printer', data.printerName);
+      if (data.modelName) addField('Model', data.modelName);
+      if (data.progress !== undefined) addField('Progress', `${data.progress}%`);
+      if (data.timeElapsed) addField('Time', data.timeElapsed);
+    } else if (type === 'maintenance') {
+      if (data.taskName) addField('Task', data.taskName);
+      if (data.printerName) addField('Printer', data.printerName);
+      if (data.currentHours !== undefined) addField('Current', `${data.currentHours.toFixed(1)}h`);
+      if (data.dueAtHours !== undefined) addField('Due At', `${data.dueAtHours.toFixed(1)}h`);
+    } else if (type === 'backup') {
+      if (data.size) addField('Archive Size', data.size);
+      if (data.videos !== undefined) addField('Videos', data.videos);
+      if (data.library !== undefined) addField('Library Files', data.includeLibrary ? `${data.library}` : 'Excluded');
+      if (data.covers !== undefined) addField('Cover Images', data.covers);
+      if (data.remoteUploaded) addField('Remote Upload', '✅ Uploaded');
+    }
+    await fetch(webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    return true;
+  } catch (e) {
+    console.error('Slack notification error:', e.message);
+    return false;
+  }
+}
+
+async function sendNotification(type, data) {
+  // Always try provider-specific notifications if enabled
+  try { await sendDiscordNotification(type, data); } catch {}
+  try { await sendTelegramNotification(type, data); } catch {}
+  try { await sendSlackNotification(type, data); } catch {}
+}
 // Test Discord webhook
 app.post('/api/discord/test', async (req, res) => {
   if (!req.session.authenticated) {
@@ -4664,7 +4836,7 @@ async function checkMaintenanceDueNotifications() {
         ? `This maintenance task is ${hoursOverdue.toFixed(1)} print hours overdue!`
         : `This maintenance task will be due in approximately ${(task.hours_until_due - currentPrintHours).toFixed(1)} print hours.`;
       
-      await sendDiscordNotification('maintenance', {
+      await sendNotification('maintenance', {
         status: currentStatus,
         taskName: task.task_name,
         printerName: task.printer_id || 'All Printers',
@@ -6133,7 +6305,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
     
     // Send Discord notification
     try {
-      await sendDiscordNotification('backup', {
+      await sendNotification('backup', {
         status: 'completed',
         message: `Database backup completed successfully!`,
         size: backupSize,
