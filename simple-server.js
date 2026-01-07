@@ -3832,10 +3832,14 @@ app.get('/api/maintenance', async (req, res) => {
     const tasksWithStatus = tasks.map(task => {
       let isOverdue = false;
       let isDueSoon = false;
+      let hoursUntilDue = null;
       
       if (task.hours_until_due) {
-        isOverdue = currentPrintHours >= task.hours_until_due;
-        isDueSoon = !isOverdue && (task.hours_until_due - currentPrintHours <= 10);
+        // hours_until_due stores the ABSOLUTE hour marker when maintenance is due
+        // e.g., if total print hours is 1000 and task is due at 2222, then 2222 - 1000 = 1222 hrs remaining
+        hoursUntilDue = task.hours_until_due - currentPrintHours;
+        isOverdue = hoursUntilDue < 0;
+        isDueSoon = !isOverdue && hoursUntilDue <= 50;
       } else if (task.next_due) {
         // Fallback to time-based if hours_until_due not set
         const now = new Date().toISOString();
@@ -3847,7 +3851,7 @@ app.get('/api/maintenance', async (req, res) => {
         ...task,
         isOverdue,
         isDueSoon,
-        hours_until_due: task.hours_until_due ? task.hours_until_due - currentPrintHours : null
+        hours_until_due: hoursUntilDue
       };
     });
     

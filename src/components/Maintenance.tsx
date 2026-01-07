@@ -343,12 +343,10 @@ function Maintenance() {
                     <span className="meta-item">🔄 Every {formatHours(task.interval_hours)}</span>
                     <span className="meta-item hours-display" style={{ 
                       fontWeight: 'bold', 
-                      color: (task.hours_until_due ?? 0) < 0 ? '#ff6b6b' : (task.hours_until_due ?? 0) === 0 ? '#ffa726' : (task.hours_until_due ?? 0) < 50 ? '#ffa726' : '#4caf50' 
+                      color: (task.hours_until_due ?? 0) < 0 ? '#ff6b6b' : (task.hours_until_due ?? 0) < 50 ? '#ffa726' : '#4caf50' 
                     }}>
                       ⏰ {(task.hours_until_due ?? 0) < 0
                         ? `${Math.abs(Math.round(task.hours_until_due ?? 0))} hrs overdue`
-                        : (task.hours_until_due ?? 0) === 0
-                        ? 'Due now!'
                         : `${Math.round(task.hours_until_due ?? 0)} hrs until maintenance`}
                     </span>
                     <span className="meta-item">📅 Last: {formatDate(task.last_performed)}</span>

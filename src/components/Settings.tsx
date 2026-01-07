@@ -419,7 +419,12 @@ function Settings({ userRole }: SettingsProps) {
 
   const handleBackupNow = async () => {
     setDbMaintenanceLoading(true);
+    setToast({ message: 'Creating backup... This may take several minutes for large backups.', type: 'success' });
     try {
+      // Use AbortController for long timeout (30 minutes for large backups)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000);
+      
       const response = await fetch('/api/settings/database/backup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -427,8 +432,20 @@ function Settings({ userRole }: SettingsProps) {
           includeVideos: backupIncludeVideos,
           includeLibrary: backupIncludeLibrary,
           includeCovers: backupIncludeCovers
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
+      
+      // Check if we got an HTML error page instead of JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Backup returned non-JSON response:', text.substring(0, 200));
+        throw new Error(`Server error (${response.status}): Backup may have timed out. Try excluding videos for faster backup.`);
+      }
+      
       const data = await response.json();
       if (data.success) {
         setDbResultModal({
@@ -450,7 +467,12 @@ function Settings({ userRole }: SettingsProps) {
         console.error('Backup failed:', data.error);
       }
     } catch (error: any) {
-      const errorMsg = error?.message || 'Failed to create backup - check console for details';
+      let errorMsg = 'Failed to create backup';
+      if (error?.name === 'AbortError') {
+        errorMsg = 'Backup timed out after 30 minutes. Try excluding videos for faster backup.';
+      } else if (error?.message) {
+        errorMsg = error.message;
+      }
       setToast({ message: errorMsg, type: 'error' });
       console.error('Backup error:', error);
     } finally {
