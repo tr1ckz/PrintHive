@@ -143,6 +143,16 @@ Configure in **Settings > Advanced > System > Backup Schedule**:
 - **Backup Interval**: Set frequency (1-365 days)
 - **Retention Period**: Automatic cleanup after X days
 
+#### Backup Options
+
+Choose what to include in your backups:
+- ✅ **Timelapse Videos** - Include all print timelapse videos
+- ✅ **Library Files** - Include .3mf, .stl, .gcode files
+- ✅ **Cover Images** - Include model cover images
+- Database is always included
+
+Uncheck options to create smaller, faster backups.
+
 #### Remote Backup (SFTP/FTP)
 
 1. Enable in **Settings > Advanced > System > Remote Backup Location**
@@ -150,6 +160,16 @@ Configure in **Settings > Advanced > System > Backup Schedule**:
 3. Configure host, port, username, password, and remote path
 4. Click **Test Connection** to verify settings
 5. Save - backups will auto-upload when created
+
+#### Restore from Backup
+
+1. Go to **Settings > Advanced > System > Restore from Backup**
+2. Select a backup from the dropdown list
+3. Click **Refresh List** to see the latest backups
+4. Click **Restore Backup** and confirm
+5. After restore completes, refresh the page
+
+**⚠️ Warning**: Restoring replaces the current database!
 
 ### Printer Maintenance
 

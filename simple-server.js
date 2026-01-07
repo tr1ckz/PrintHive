@@ -5419,6 +5419,16 @@ const gracefulShutdown = (signal) => {
   }
 };
 
+// Helper function to format bytes
+function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 // Database Maintenance APIs
 app.get('/api/settings/database', async (req, res) => {
   if (!req.session.authenticated) {
@@ -5438,7 +5448,11 @@ app.get('/api/settings/database', async (req, res) => {
       remoteBackupPort: parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_port')?.value || '22'),
       remoteBackupUsername: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_username')?.value || '',
       remoteBackupPassword: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password')?.value ? '********' : '',
-      remoteBackupPath: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_path')?.value || '/backups'
+      remoteBackupPath: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_path')?.value || '/backups',
+      // Backup options
+      backupIncludeVideos: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_videos')?.value !== '0',
+      backupIncludeLibrary: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_library')?.value !== '0',
+      backupIncludeCovers: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_covers')?.value !== '0'
     };
     res.json(settings);
   } catch (error) {
@@ -5461,7 +5475,8 @@ app.post('/api/settings/database', async (req, res) => {
     const { 
       backupScheduleEnabled, backupInterval, backupRetention,
       remoteBackupEnabled, remoteBackupType, remoteBackupHost, 
-      remoteBackupPort, remoteBackupUsername, remoteBackupPassword, remoteBackupPath 
+      remoteBackupPort, remoteBackupUsername, remoteBackupPassword, remoteBackupPath,
+      backupIncludeVideos, backupIncludeLibrary, backupIncludeCovers
     } = req.body;
     
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_schedule_enabled', backupScheduleEnabled ? '1' : '0');
@@ -5479,6 +5494,11 @@ app.post('/api/settings/database', async (req, res) => {
       db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_password', remoteBackupPassword);
     }
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_path', remoteBackupPath || '/backups');
+    
+    // Backup options
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_videos', backupIncludeVideos ? '1' : '0');
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_library', backupIncludeLibrary ? '1' : '0');
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_covers', backupIncludeCovers ? '1' : '0');
     
     res.json({ success: true });
   } catch (error) {
@@ -5803,6 +5823,99 @@ app.post('/api/settings/database/test-remote', async (req, res) => {
     }
   } catch (error) {
     console.error('Remote connection test failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get list of available backups
+app.get('/api/settings/database/backups', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const backupDir = path.join(__dirname, 'data', 'backups');
+    
+    if (!fs.existsSync(backupDir)) {
+      return res.json({ success: true, backups: [] });
+    }
+    
+    const backups = fs.readdirSync(backupDir)
+      .filter(file => file.endsWith('.db') || file.endsWith('.zip'))
+      .map(file => {
+        const filePath = path.join(backupDir, file);
+        const stats = fs.statSync(filePath);
+        return {
+          name: file,
+          size: formatBytes(stats.size),
+          date: stats.mtime.toLocaleString(),
+          timestamp: stats.mtime.getTime()
+        };
+      })
+      .sort((a, b) => b.timestamp - a.timestamp);
+    
+    res.json({ success: true, backups });
+  } catch (error) {
+    console.error('Failed to list backups:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Restore from backup
+app.post('/api/settings/database/restore', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  try {
+    const { backupFile } = req.body;
+    
+    if (!backupFile) {
+      return res.status(400).json({ success: false, error: 'Backup file is required' });
+    }
+    
+    const fs = require('fs');
+    const path = require('path');
+    const backupPath = path.join(__dirname, 'data', 'backups', backupFile);
+    const dbPath = path.join(__dirname, 'data', 'printhive.db');
+    
+    if (!fs.existsSync(backupPath)) {
+      return res.status(404).json({ success: false, error: 'Backup file not found' });
+    }
+    
+    console.log(`Restoring database from ${backupFile}...`);
+    
+    // Close existing database connection
+    db.close();
+    
+    // Copy backup file to database location
+    fs.copyFileSync(backupPath, dbPath);
+    
+    console.log(`Database restored from ${backupFile}`);
+    
+    // Reconnect to database
+    const Database = require('better-sqlite3');
+    db = new Database(dbPath);
+    db.pragma('journal_mode = WAL');
+    
+    res.json({ 
+      success: true, 
+      message: 'Database restored successfully. Please refresh the page.'
+    });
+  } catch (error) {
+    console.error('Failed to restore database:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

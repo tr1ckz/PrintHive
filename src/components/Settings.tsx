@@ -152,6 +152,17 @@ function Settings({ userRole }: SettingsProps) {
   const [remoteBackupPath, setRemoteBackupPath] = useState('/backups');
   const [remoteBackupTesting, setRemoteBackupTesting] = useState(false);
   
+  // Backup options
+  const [backupIncludeVideos, setBackupIncludeVideos] = useState(true);
+  const [backupIncludeLibrary, setBackupIncludeLibrary] = useState(true);
+  const [backupIncludeCovers, setBackupIncludeCovers] = useState(true);
+  
+  // Restore state
+  const [availableBackups, setAvailableBackups] = useState<any[]>([]);
+  const [selectedBackup, setSelectedBackup] = useState('');
+  const [restoreInProgress, setRestoreInProgress] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -164,6 +175,7 @@ function Settings({ userRole }: SettingsProps) {
     loadWatchdogSettings();
     loadDiscordSettings();
     loadDatabaseSettings();
+    loadAvailableBackups();
     loadUserProfile();
     loadCostSettings();
   }, []);
@@ -265,6 +277,18 @@ function Settings({ userRole }: SettingsProps) {
       setTimeout(() => {
         window.location.reload();
       }, 3000);
+    }
+  };
+
+  const loadAvailableBackups = async () => {
+    try {
+      const response = await fetch('/api/settings/database/backups');
+      const data = await response.json();
+      if (data.success) {
+        setAvailableBackups(data.backups || []);
+      }
+    } catch (error) {
+      console.error('Failed to load available backups:', error);
     }
   };
 
@@ -388,7 +412,13 @@ function Settings({ userRole }: SettingsProps) {
     setDbMaintenanceLoading(true);
     try {
       const response = await fetch('/api/settings/database/backup', {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          includeVideos: backupIncludeVideos,
+          includeLibrary: backupIncludeLibrary,
+          includeCovers: backupIncludeCovers
+        })
       });
       const data = await response.json();
       if (data.success) {
@@ -397,10 +427,15 @@ function Settings({ userRole }: SettingsProps) {
           icon: '💾',
           details: {
             'Status': 'Backup created successfully',
+            'Database Size': data.details?.databaseSize || 'N/A',
+            'Videos': backupIncludeVideos ? 'Included' : 'Excluded',
+            'Library Files': backupIncludeLibrary ? 'Included' : 'Excluded',
+            'Cover Images': backupIncludeCovers ? 'Included' : 'Excluded',
             'Time': new Date().toLocaleString()
           }
         });
         setLastBackupDate(new Date().toISOString());
+        loadAvailableBackups();
       } else {
         setToast({ message: data.error || 'Failed to create backup', type: 'error' });
       }
@@ -427,7 +462,10 @@ function Settings({ userRole }: SettingsProps) {
           remoteBackupPort,
           remoteBackupUsername,
           remoteBackupPassword,
-          remoteBackupPath
+          remoteBackupPath,
+          backupIncludeVideos,
+          backupIncludeLibrary,
+          backupIncludeCovers
         })
       });
       const data = await response.json();
@@ -440,6 +478,42 @@ function Settings({ userRole }: SettingsProps) {
       setToast({ message: 'Failed to save database settings', type: 'error' });
     } finally {
       setDbMaintenanceLoading(false);
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    if (!selectedBackup) {
+      setToast({ message: 'Please select a backup to restore', type: 'error' });
+      return;
+    }
+    
+    setRestoreInProgress(true);
+    try {
+      const response = await fetch('/api/settings/database/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backupFile: selectedBackup })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setDbResultModal({
+          title: 'Restore Complete',
+          icon: '♻️',
+          details: {
+            'Status': 'Database restored successfully',
+            'Backup File': selectedBackup,
+            'Time': new Date().toLocaleString(),
+            'Note': 'Please refresh the page'
+          }
+        });
+        setShowRestoreModal(false);
+      } else {
+        setToast({ message: data.error || 'Failed to restore backup', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Failed to restore backup', type: 'error' });
+    } finally {
+      setRestoreInProgress(false);
     }
   };
 
@@ -1800,6 +1874,49 @@ function Settings({ userRole }: SettingsProps) {
             )}
           </div>
 
+          {/* Backup Options */}
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>📦 Backup Options</h4>
+            <p className="form-description" style={{ marginBottom: '1rem' }}>
+              Select what to include in backups
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <input
+                  type="checkbox"
+                  checked={backupIncludeVideos}
+                  onChange={(e) => setBackupIncludeVideos(e.target.checked)}
+                  disabled={dbMaintenanceLoading}
+                />
+                <span className="toggle-text">Include timelapse videos</span>
+              </label>
+              
+              <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <input
+                  type="checkbox"
+                  checked={backupIncludeLibrary}
+                  onChange={(e) => setBackupIncludeLibrary(e.target.checked)}
+                  disabled={dbMaintenanceLoading}
+                />
+                <span className="toggle-text">Include library files (.3mf, .stl, .gcode)</span>
+              </label>
+              
+              <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <input
+                  type="checkbox"
+                  checked={backupIncludeCovers}
+                  onChange={(e) => setBackupIncludeCovers(e.target.checked)}
+                  disabled={dbMaintenanceLoading}
+                />
+                <span className="toggle-text">Include cover images</span>
+              </label>
+            </div>
+            <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '1rem' }}>
+              Database is always included. Uncheck options to create smaller, faster backups.
+            </small>
+          </div>
+
           {/* Remote Backup Settings */}
           <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
             <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>📤 Remote Backup Location</h4>
@@ -1915,6 +2032,93 @@ function Settings({ userRole }: SettingsProps) {
             >
               {dbMaintenanceLoading ? 'Saving...' : 'Save Backup Settings'}
             </button>
+          </div>
+
+          {/* Restore from Backup */}
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
+            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>♻️ Restore from Backup</h4>
+            <p className="form-description" style={{ marginBottom: '1rem' }}>
+              Restore the database from a previous backup
+            </p>
+            
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label>Available Backups</label>
+              <select
+                value={selectedBackup}
+                onChange={(e) => setSelectedBackup(e.target.value)}
+                disabled={restoreInProgress}
+              >
+                <option value="">-- Select a backup --</option>
+                {availableBackups.map((backup) => (
+                  <option key={backup.name} value={backup.name}>
+                    {backup.date} - {backup.size}
+                  </option>
+                ))}
+              </select>
+              <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+                Found {availableBackups.length} backup(s) in data/backups directory
+              </small>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={loadAvailableBackups}
+                disabled={restoreInProgress}
+              >
+                🔄 Refresh List
+              </button>
+              
+              <button 
+                type="button" 
+                className="btn btn-warning" 
+                onClick={() => setShowRestoreModal(true)}
+                disabled={!selectedBackup || restoreInProgress}
+              >
+                {restoreInProgress ? 'Restoring...' : '♻️ Restore Backup'}
+              </button>
+            </div>
+
+            {showRestoreModal && (
+              <div className="modal-overlay" onClick={() => !restoreInProgress && setShowRestoreModal(false)}>
+                <div className="db-result-modal" onClick={(e) => e.stopPropagation()}>
+                  <div className="db-result-header">
+                    <span className="db-result-icon">⚠️</span>
+                    <h3>Confirm Restore</h3>
+                  </div>
+                  <div className="db-result-details">
+                    <p style={{ marginBottom: '1rem', color: 'rgba(255,255,255,0.8)' }}>
+                      Are you sure you want to restore from this backup?
+                    </p>
+                    <p style={{ marginBottom: '1rem', fontWeight: 'bold', color: '#ff6b6b' }}>
+                      This will replace the current database!
+                    </p>
+                    <p style={{ marginBottom: '1.5rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)' }}>
+                      Backup: {selectedBackup}
+                    </p>
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                      <button 
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setShowRestoreModal(false)}
+                        disabled={restoreInProgress}
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        type="button"
+                        className="btn btn-warning"
+                        onClick={handleRestoreBackup}
+                        disabled={restoreInProgress}
+                      >
+                        {restoreInProgress ? 'Restoring...' : 'Restore Now'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         </CollapsibleSection>
