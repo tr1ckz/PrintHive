@@ -345,7 +345,7 @@ function Maintenance() {
                       fontWeight: 'bold', 
                       color: (task.hours_until_due ?? 0) < 0 ? '#ff6b6b' : (task.hours_until_due ?? 0) < 50 ? '#ffa726' : '#4caf50' 
                     }}>
-                      ⏰ {(task.hours_until_due ?? 0) > 0 
+                      ⏰ {(task.hours_until_due ?? 0) >= 0
                         ? `${Math.round(task.hours_until_due ?? 0)} hrs until maintenance` 
                         : `${Math.abs(Math.round(task.hours_until_due ?? 0))} hrs overdue`}
                     </span>

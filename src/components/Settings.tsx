@@ -438,9 +438,12 @@ function Settings({ userRole }: SettingsProps) {
         loadAvailableBackups();
       } else {
         setToast({ message: data.error || 'Failed to create backup', type: 'error' });
+        console.error('Backup failed:', data.error);
       }
-    } catch (error) {
-      setToast({ message: 'Failed to create backup', type: 'error' });
+    } catch (error: any) {
+      const errorMsg = error?.message || 'Failed to create backup - check console for details';
+      setToast({ message: errorMsg, type: 'error' });
+      console.error('Backup error:', error);
     } finally {
       setDbMaintenanceLoading(false);
     }

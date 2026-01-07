@@ -5910,7 +5910,8 @@ app.post('/api/settings/database/backup', async (req, res) => {
     });
   } catch (error) {
     console.error('Failed to backup database:', error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Backup error stack:', error.stack);
+    res.status(500).json({ success: false, error: error.message || 'Unknown backup error' });
   }
 });
 
