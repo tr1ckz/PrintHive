@@ -3836,7 +3836,8 @@ app.get('/api/maintenance', async (req, res) => {
       let isDueSoon = false;
       let hoursUntilDue = null;
       
-      console.log(`[Maintenance GET] Task "${task.task_name}": DB hours_until_due=${task.hours_until_due}, interval=${task.interval_hours}`);\n      
+      console.log(`[Maintenance GET] Task "${task.task_name}": DB hours_until_due=${task.hours_until_due}, interval=${task.interval_hours}`);
+      
       if (task.hours_until_due) {
         // hours_until_due stores the ABSOLUTE hour marker when maintenance is due
         // e.g., if total print hours is 1000 and task is due at 2222, then 2222 - 1000 = 1222 hrs remaining
