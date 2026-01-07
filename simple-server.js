@@ -2347,6 +2347,11 @@ app.get('/api/library/geometry/:id', async (req, res) => {
 });
 
 // Library endpoints
+// Health check endpoint (no auth required)
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 app.get('/api/library', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -4151,11 +4156,11 @@ app.post('/api/settings/restart', async (req, res) => {
   }
   
   console.log('=== RESTART REQUESTED BY ADMIN ===');
-  res.json({ success: true, message: 'Application will restart in 2 seconds...' });
+  res.json({ success: true, message: 'Server restarting...', shouldRestart: true });
   
   // Give time for response to be sent
   setTimeout(() => {
-    console.log('Shutting down for restart - Docker will auto-restart the container...');
+    console.log('Shutting down for restart - Docker/PM2 will auto-restart...');
     
     // Close database gracefully
     if (db) {
@@ -4171,12 +4176,10 @@ app.post('/api/settings/restart', async (req, res) => {
     if (httpServer) {
       httpServer.close(() => {
         console.log('HTTP server closed');
-        // Exit with code 1 to ensure Docker restarts the container
-        // Some Docker configs (like Unraid) may not restart on exit code 0
-        process.exit(1);
+        process.exit(0);
       });
       
-      // Force exit after 5 seconds if server doesn't close gracefully
+      // Force exit after 3 seconds if server doesn't close gracefully
       setTimeout(() => {
         console.log('Force exit after timeout');
         process.exit(1);
@@ -6618,9 +6621,6 @@ app.get('/api/settings/database/backups', (req, res) => {
   }
 });
 
-// In-memory restore job tracking
-const restoreJobs = new Map();
-
 // Check restore job status
 app.get('/api/settings/database/restore/status/:jobId', (req, res) => {
   if (!req.session.authenticated) {
@@ -6803,14 +6803,15 @@ app.post('/api/settings/database/restore', async (req, res) => {
     
     const result = { 
       success: true, 
-      message: 'Backup restored successfully. Page will reload automatically.'
+      message: 'Backup restored successfully. Server will restart automatically.',
+      shouldRestart: true
     };
     
     // Update job status
     restoreJobs.set(jobId, {
       ...restoreJobs.get(jobId),
       status: 'completed',
-      message: 'Restore completed',
+      message: 'Restore completed - restarting server...',
       progress: 100,
       completedAt: new Date().toISOString(),
       result
@@ -6819,6 +6820,12 @@ app.post('/api/settings/database/restore', async (req, res) => {
     if (!asyncMode) {
       res.json(result);
     }
+    
+    // Restart the server after a short delay
+    setTimeout(() => {
+      console.log('Restarting server after restore...');
+      process.exit(0); // Docker/PM2 will automatically restart
+    }, 3000);
   } catch (error) {
     console.error('Failed to restore backup:', error);
     

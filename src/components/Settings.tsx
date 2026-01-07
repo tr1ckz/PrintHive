@@ -3,6 +3,7 @@ import './Settings.css';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
 import UserManagement from './UserManagement';
+import LoadingSplash from './LoadingSplash';
 
 interface BambuStatus {
   connected: boolean;
@@ -143,6 +144,8 @@ function Settings({ userRole }: SettingsProps) {
   // System state
   const [restarting, setRestarting] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [showRestartSplash, setShowRestartSplash] = useState(false);
+  const [restartMessage, setRestartMessage] = useState('Restarting server...');
   
   // Database maintenance state
   const [dbVacuuming, setDbVacuuming] = useState(false);
@@ -288,19 +291,20 @@ function Settings({ userRole }: SettingsProps) {
   const handleRestartApp = async () => {
     setConfirmRestart(false);
     setRestarting(true);
-    setToast({ message: 'Restarting application...', type: 'success' });
     
     try {
-      await fetch('/api/settings/restart', { method: 'POST' });
-      // The server will restart, so we'll lose connection
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
+      const response = await fetch('/api/settings/restart', { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.shouldRestart) {
+        // Show splash screen and wait for server to come back up
+        setRestartMessage('Restarting server...');
+        setShowRestartSplash(true);
+      }
     } catch (error) {
       // Expected - server is restarting
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
+      setRestartMessage('Server restarting...');
+      setShowRestartSplash(true);
     }
   };
 
@@ -627,13 +631,11 @@ function Settings({ userRole }: SettingsProps) {
             if (statusData.status === 'completed') {
               setRestoreInProgress(false);
               setRestoreProgress(100);
-              setRestoreMessage('Restore complete! Reloading page...');
-              setToast({ message: 'Restore completed! Reloading application...', type: 'success' });
+              setRestoreMessage('Restore complete! Server restarting...');
               setShowRestoreModal(false);
-              // Wait 2 seconds then reload
-              setTimeout(() => {
-                window.location.reload();
-              }, 2000);
+              // Show splash screen while server restarts
+              setRestartMessage('Server restarting after restore...');
+              setShowRestartSplash(true);
             } else if (statusData.status === 'failed') {
               setRestoreInProgress(false);
               setToast({ message: statusData.error || 'Restore failed', type: 'error' });
@@ -2069,7 +2071,12 @@ function Settings({ userRole }: SettingsProps) {
               disabled={dbVacuuming || dbMaintenanceLoading}
               title="Removes unused space from the database"
             >
-              {dbVacuuming ? 'Vacuuming...' : '⚡ Vacuum DB'}
+              {dbVacuuming ? (
+                <>
+                  <span className="spinner-small"></span>
+                  Vacuuming...
+                </>
+              ) : '⚡ Vacuum DB'}
             </button>
             
             <button 
@@ -2079,7 +2086,12 @@ function Settings({ userRole }: SettingsProps) {
               disabled={dbAnalyzing || dbMaintenanceLoading}
               title="Analyzes query statistics to optimize performance"
             >
-              {dbAnalyzing ? 'Analyzing...' : '📊 Analyze DB'}
+              {dbAnalyzing ? (
+                <>
+                  <span className="spinner-small"></span>
+                  Analyzing...
+                </>
+              ) : '📊 Analyze DB'}
             </button>
 
             <button 
@@ -2089,7 +2101,12 @@ function Settings({ userRole }: SettingsProps) {
               disabled={dbRebuildingIndexes || dbMaintenanceLoading}
               title="Rebuilds all database indexes for optimal query performance"
             >
-              {dbRebuildingIndexes ? 'Rebuilding...' : '🔨 Rebuild Indexes'}
+              {dbRebuildingIndexes ? (
+                <>
+                  <span className="spinner-small"></span>
+                  Rebuilding...
+                </>
+              ) : '🔨 Rebuild Indexes'}
             </button>
 
             <button 
@@ -2594,6 +2611,14 @@ function Settings({ userRole }: SettingsProps) {
           message={toast.message} 
           type={toast.type} 
           onClose={() => setToast(null)} 
+        />
+      )}
+
+      {showRestartSplash && (
+        <LoadingSplash 
+          message={restartMessage}
+          checkServerHealth={true}
+          onComplete={() => window.location.reload()}
         />
       )}
     </div>
