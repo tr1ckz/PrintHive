@@ -188,11 +188,41 @@ function Printers() {
                             <span className="progress-eta">ETA: {new Date(printer.current_task.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           )}
                         </div>
-                        {(printer.current_task.nozzle_temp !== undefined || printer.current_task.bed_temp !== undefined || printer.current_task.speed_profile) && (
-                          <div className="progress-extra" style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', color: 'rgba(255,255,255,0.75)' }}>
-                            {typeof printer.current_task.nozzle_temp === 'number' && <span>Hotend: {Math.round(printer.current_task.nozzle_temp)}°C</span>}
-                            {typeof printer.current_task.bed_temp === 'number' && <span>Bed: {Math.round(printer.current_task.bed_temp)}°C</span>}
+                        {(printer.current_task.nozzle_temp !== undefined || printer.current_task.bed_temp !== undefined || printer.current_task.speed_profile || printer.current_task.speed_factor !== undefined || printer.current_task.z_height !== undefined) && (
+                          <div className="progress-extra" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem 1rem', marginTop: '0.5rem', color: 'rgba(255,255,255,0.8)' }}>
+                            {typeof printer.current_task.nozzle_temp === 'number' && <span>Hotend: {Math.round(printer.current_task.nozzle_temp)}°C{typeof printer.current_task.nozzle_target === 'number' ? `/${Math.round(printer.current_task.nozzle_target)}°` : ''}</span>}
+                            {typeof printer.current_task.bed_temp === 'number' && <span>Bed: {Math.round(printer.current_task.bed_temp)}°C{typeof printer.current_task.bed_target === 'number' ? `/${Math.round(printer.current_task.bed_target)}°` : ''}</span>}
+                            {typeof printer.current_task.chamber_temp === 'number' && <span>Chamber: {Math.round(printer.current_task.chamber_temp)}°C</span>}
+                            {typeof printer.current_task.env_temp === 'number' && <span>Env: {Math.round(printer.current_task.env_temp)}°C</span>}
+                            {typeof printer.current_task.env_humidity === 'number' && <span>Humidity: {Math.round(printer.current_task.env_humidity)}%</span>}
                             {printer.current_task.speed_profile && <span>Mode: {String(printer.current_task.speed_profile)}</span>}
+                            {typeof printer.current_task.speed_factor === 'number' && <span>Speed: {Math.round(printer.current_task.speed_factor)}%</span>}
+                            {typeof printer.current_task.feedrate === 'number' && <span>Feedrate: {Math.round(printer.current_task.feedrate)}</span>}
+                            {typeof printer.current_task.z_height === 'number' && <span>Z: {printer.current_task.z_height.toFixed(2)}mm</span>}
+                          </div>
+                        )}
+                        {(printer.current_task.gcode_state || printer.current_task.error_message || typeof printer.current_task.print_error === 'number') && (
+                          <div className="progress-state" style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>
+                            {printer.current_task.gcode_state && <span>State: {printer.current_task.gcode_state}</span>}
+                            {typeof printer.current_task.print_error === 'number' && printer.current_task.print_error > 0 && (
+                              <span>Error: 0x{printer.current_task.print_error.toString(16).toUpperCase()}</span>
+                            )}
+                            {printer.current_task.error_message && <span title={printer.current_task.error_message}>Details: {printer.current_task.error_message}</span>}
+                          </div>
+                        )}
+                        {printer.current_task.ams && (
+                          <div className="progress-ams" style={{ marginTop: '0.5rem' }}>
+                            <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>AMS</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 0.75rem' }}>
+                              {typeof printer.current_task.ams.active_tray === 'number' && <span>Active Slot: {printer.current_task.ams.active_tray}</span>}
+                              {printer.current_task.ams.trays?.slice(0, 4).map((t) => (
+                                <span key={t.slot} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', padding: '2px 6px', borderRadius: 6 }}>
+                                  S{t.slot}: {t.type || '—'} {t.color ? `(${t.color})` : ''}
+                                  {typeof t.humidity === 'number' ? ` • ${Math.round(t.humidity)}%` : ''}
+                                  {typeof t.temp === 'number' ? ` • ${Math.round(t.temp)}°C` : ''}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>

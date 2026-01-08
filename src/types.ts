@@ -18,6 +18,34 @@ export interface Printer {
     total_layers?: number;
     model_id?: string;
     has_3mf?: boolean;
+    // Extra telemetry
+    nozzle_temp?: number;
+    bed_temp?: number;
+    chamber_temp?: number;
+    nozzle_target?: number;
+    bed_target?: number;
+    speed_profile?: string;
+    speed_factor?: number;
+    feedrate?: number;
+    z_height?: number;
+    gcode_state?: string;
+    error_code?: number;
+    error_message?: string;
+    rtsp_url?: string;
+    ipcam_status?: string;
+    ipcam_bitrate?: number;
+    env_temp?: number;
+    env_humidity?: number;
+    ams?: {
+      active_tray: number | null;
+      trays: Array<{
+        slot: number;
+        color: string | null;
+        type: string | null;
+        humidity: number | null;
+        temp: number | null;
+      }>;
+    };
   };
 }
 

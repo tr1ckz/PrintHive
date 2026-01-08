@@ -130,15 +130,45 @@ class BambuMqttClient extends EventEmitter {
         nozzle_temp: (printData.nozzle_temper ?? printData.nozzle_temp ?? this.currentJobData.nozzle_temp ?? undefined),
         bed_temp: (printData.bed_temper ?? printData.bed_temp ?? this.currentJobData.bed_temp ?? undefined),
         chamber_temp: (printData.chamber_temper ?? printData.chamber_temp ?? this.currentJobData.chamber_temp ?? undefined),
-        speed_profile: (printData.speed_profile ?? printData.work_speed ?? printData.mc_print_speed ?? this.currentJobData.speed_profile ?? undefined),
-        fan_speed: (printData.fan_speed ?? printData.cooling_fan_speed ?? this.currentJobData.fan_speed ?? undefined)
+        nozzle_target: (printData.nozzle_target_temper ?? printData.target_nozzle_temper ?? this.currentJobData.nozzle_target ?? undefined),
+        bed_target: (printData.bed_target_temper ?? printData.target_bed_temper ?? this.currentJobData.bed_target ?? undefined),
+        speed_profile: (printData.speed_profile ?? printData.spd_lv ?? this.currentJobData.speed_profile ?? undefined),
+        speed_factor: (printData.mc_print_speed ?? printData.work_speed ?? this.currentJobData.speed_factor ?? undefined),
+        feedrate: (printData.feedrate ?? printData.feed_rate ?? this.currentJobData.feedrate ?? undefined),
+        z_height: (printData.z_height ?? printData.z ?? this.currentJobData.z_height ?? undefined),
+        fan_speed: (printData.fan_speed ?? printData.cooling_fan_speed ?? this.currentJobData.fan_speed ?? undefined),
+        env_temp: (printData.env_temp ?? this.currentJobData.env_temp ?? undefined),
+        env_humidity: (printData.env_humidity ?? this.currentJobData.env_humidity ?? undefined)
       };
       
       // Extract integrated camera RTSP URL from P1S
       if (printData.ipcam && printData.ipcam.rtsp_url) {
         newJobData.rtsp_url = printData.ipcam.rtsp_url;
+        if (printData.ipcam.status) newJobData.ipcam_status = printData.ipcam.status;
+        if (printData.ipcam.bitrate || printData.ipcam.bit_rate) newJobData.ipcam_bitrate = printData.ipcam.bitrate || printData.ipcam.bit_rate;
       } else if (this.currentJobData.rtsp_url) {
         newJobData.rtsp_url = this.currentJobData.rtsp_url;
+      }
+
+      // AMS information, when provided
+      const ams = data.ams || printData.ams;
+      if (ams) {
+        const trays = Array.isArray(ams.tray) ? ams.tray : (Array.isArray(ams.trays) ? ams.trays : []);
+        newJobData.ams = {
+          active_tray: (ams.active_tray ?? ams.cur_tray ?? ams.cur_tray_index ?? null),
+          trays: trays.map((t, idx) => ({
+            slot: (t.id ?? t.slot ?? idx),
+            color: (t.color ?? t.tray_color ?? null),
+            type: (t.type ?? t.tray_type ?? null),
+            humidity: (t.humidity ?? t.humi ?? null),
+            temp: (t.temp ?? t.temperature ?? null)
+          }))
+        };
+      }
+
+      // Error message if available
+      if (printData.error_msg || printData.last_error) {
+        newJobData.error_message = printData.error_msg || printData.last_error;
       }
       
       // Detect state changes for notifications
