@@ -144,7 +144,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
           </div>
         </div>
         
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => onNavigate('statistics')} style={{ cursor: 'pointer' }}>
           <div className="stat-icon">✅</div>
           <div className="stat-content">
             <span className="stat-value">{stats?.successRate?.toFixed(0) || 0}%</span>

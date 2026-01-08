@@ -1,6 +1,6 @@
 {
   "name": "printhive",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Web application for 3D printer management - monitor printers, manage models and timelapses",
   "main": "simple-server.js",
   "scripts": {
