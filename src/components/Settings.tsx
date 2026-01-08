@@ -98,6 +98,9 @@ function Settings({ userRole }: SettingsProps) {
   const [hideBmc, setHideBmc] = useState(false);
   const [colorScheme, setColorScheme] = useState('cyan');
   const [uiLoading, setUiLoading] = useState(false);
+  // System log level
+  const [logLevel, setLogLevel] = useState('INFO');
+  const logLevels = ['DEBUG', 'INFO', 'WARNING', 'ERROR'];
   
   // Watchdog settings state
   const [watchdogEnabled, setWatchdogEnabled] = useState(false);
@@ -300,10 +303,10 @@ function Settings({ userRole }: SettingsProps) {
     setRestarting(true);
     
     try {
-      const response = await fetch('/api/settings/restart', { method: 'POST' });
+      const response = await fetch('/api/system/restart', { method: 'POST' });
       const data = await response.json();
       
-      if (data.shouldRestart) {
+      if (response.ok) {
         // Show splash screen and wait for server to come back up
         setRestartMessage('Restarting server...');
         setShowRestartSplash(true);
@@ -312,6 +315,36 @@ function Settings({ userRole }: SettingsProps) {
       // Expected - server is restarting
       setRestartMessage('Server restarting...');
       setShowRestartSplash(true);
+    }
+  };
+
+  // Load current log level
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await fetch('/api/log-level');
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.level) setLogLevel(String(data.level).toUpperCase());
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const handleSaveLogLevel = async () => {
+    try {
+      const resp = await fetch('/api/log-level', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: logLevel })
+      });
+      if (resp.ok) {
+        setToast({ message: `Log level set to ${logLevel}`, type: 'success' });
+      } else {
+        setToast({ message: 'Failed to set log level', type: 'error' });
+      }
+    } catch {
+      setToast({ message: 'Failed to set log level', type: 'error' });
     }
   };
 
@@ -2074,6 +2107,19 @@ function Settings({ userRole }: SettingsProps) {
         <p className="form-description">
           Application management and maintenance
         </p>
+        
+        <div className="form-group">
+          <label>Log Level</label>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <select value={logLevel} onChange={(e) => setLogLevel(e.target.value)}>
+              {logLevels.map(l => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+            <button type="button" className="btn btn-secondary" onClick={handleSaveLogLevel}>Apply</button>
+          </div>
+          <small className="form-hint">Controls verbosity of server logs without restart</small>
+        </div>
         
         <div className="system-actions">
           <div className="system-action">

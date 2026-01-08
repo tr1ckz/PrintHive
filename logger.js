@@ -6,8 +6,8 @@ const levels = {
   ERROR: 40
 };
 
-const levelName = (process.env.LOG_LEVEL || 'INFO').toUpperCase();
-const threshold = levels[levelName] || levels.INFO;
+let levelName = (process.env.LOG_LEVEL || 'INFO').toUpperCase();
+let threshold = levels[levelName] || levels.INFO;
 
 function ts() {
   return new Date().toISOString();
@@ -20,7 +20,17 @@ function logAt(level, method, args) {
 }
 
 module.exports = {
-  level: levelName,
+  get level() { return levelName; },
+  setLevel: (lvl) => {
+    const newLvl = String(lvl || '').toUpperCase();
+    if (levels[newLvl]) {
+      levelName = newLvl;
+      threshold = levels[newLvl];
+      console.log(`[${new Date().toISOString()}] [INFO] Log level set to ${newLvl}`);
+    } else {
+      console.log(`[${new Date().toISOString()}] [WARN] Unknown log level '${lvl}', keeping ${levelName}`);
+    }
+  },
   debug: (...args) => logAt('DEBUG', 'log', args),
   info: (...args) => logAt('INFO', 'log', args),
   warn: (...args) => logAt('WARNING', 'warn', args),
