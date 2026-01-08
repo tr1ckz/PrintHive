@@ -12,6 +12,7 @@ services:
       - SESSION_SECRET=${SESSION_SECRET:-your-random-secret-key-change-this}
       - PUBLIC_URL=${PUBLIC_URL:-http://localhost:3000}
       - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s

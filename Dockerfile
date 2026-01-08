@@ -67,7 +67,7 @@ EXPOSE ${PORT}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+    CMD curl -f http://localhost:${PORT}/api/health || exit 1
 
-# Start the application
-CMD ["node", "simple-server.js"]
+# Start the application under a watchdog so restarts don't kill the container
+CMD ["node", "watchdog.js"]

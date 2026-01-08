@@ -1,4 +1,5 @@
 const express = require('express');
+const logger = require('./logger');
 const path = require('path');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
@@ -1309,10 +1310,9 @@ app.post('/auth/request-code', async (req, res) => {
 
 // API routes
 app.get('/api/printers', async (req, res) => {
-  console.log('=== PRINTERS REQUEST ===');
-  console.log('Authenticated:', req.session.authenticated);
-  console.log('Token:', req.session.token ? 'Present' : 'Missing');
-  console.log('Token preview:', req.session.token ? req.session.token.substring(0, 20) + '...' : 'N/A');
+  logger.info('Printers request');
+  logger.debug('Auth:', req.session.authenticated, 'Token present:', !!req.session.token);
+  logger.debug('Token preview:', req.session.token ? req.session.token.substring(0, 20) + '...' : 'N/A');
   
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -1322,7 +1322,7 @@ app.get('/api/printers', async (req, res) => {
     const response = await axios.get('https://api.bambulab.com/v1/iot-service/api/user/bind', {
       headers: { 'Authorization': `Bearer ${req.session.token}` }
     });
-    console.log('Printers response:', JSON.stringify(response.data, null, 2));
+    logger.debug('Printers response payload received');
     
     // Get camera URL and printer settings from global config
     const cameraUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url')?.value || null;
@@ -1351,18 +1351,18 @@ app.get('/api/printers', async (req, res) => {
               
               // Handle connection errors gracefully
               mqttClient.on('error', (error) => {
-                console.log(`MQTT error for ${device.dev_id}:`, error.message);
+                logger.warn(`MQTT error for ${device.dev_id}: ${error.message}`);
                 mqttClients.delete(clientKey);
               });
               
               mqttClient.on('disconnected', () => {
-                console.log(`MQTT disconnected for ${device.dev_id}`);
+                logger.info(`MQTT disconnected for ${device.dev_id}`);
                 mqttClients.delete(clientKey);
               });
               
               // Handle print state changes for Discord notifications
               mqttClient.on('print_completed', async (data) => {
-                console.log(`Print completed on ${data.printerName}:`, data.modelName);
+                logger.info(`Print completed on ${data.printerName}: ${data.modelName}`);
                 await sendNotification('printer', {
                   status: 'completed',
                   printerName: data.printerName,
@@ -1373,7 +1373,7 @@ app.get('/api/printers', async (req, res) => {
               });
               
               mqttClient.on('print_failed', async (data) => {
-                console.log(`Print FAILED on ${data.printerName}:`, data);
+                logger.warn(`Print FAILED on ${data.printerName}: ${data.modelName}`);
                 await sendNotification('printer', {
                   status: 'failed',
                   printerName: data.printerName,
@@ -1385,7 +1385,7 @@ app.get('/api/printers', async (req, res) => {
               });
               
               mqttClient.on('print_error', async (data) => {
-                console.log(`Print ERROR on ${data.printerName}:`, data);
+                logger.warn(`Print ERROR on ${data.printerName}: ${data.modelName}`);
                 await sendNotification('printer', {
                   status: 'error',
                   printerName: data.printerName,
@@ -1397,7 +1397,7 @@ app.get('/api/printers', async (req, res) => {
               });
               
               mqttClient.on('print_paused', async (data) => {
-                console.log(`Print paused on ${data.printerName}:`, data.modelName);
+                logger.info(`Print paused on ${data.printerName}: ${data.modelName}`);
                 await sendNotification('printer', {
                   status: 'paused',
                   printerName: data.printerName,
@@ -1409,9 +1409,9 @@ app.get('/api/printers', async (req, res) => {
               
               await mqttClient.connect();
               mqttClients.set(clientKey, mqttClient);
-              console.log(`Created MQTT client for ${device.dev_id}`);
+              logger.info(`Created MQTT client for ${device.dev_id}`);
             } catch (error) {
-              console.log(`Could not connect MQTT for ${device.dev_id}:`, error.message);
+              logger.warn(`Could not connect MQTT for ${device.dev_id}: ${error.message}`);
             }
           }
           
@@ -1454,7 +1454,7 @@ app.get('/api/printers', async (req, res) => {
                 if (file3mf) {
                   deviceData.current_task.model_id = file3mf.modelId;
                   deviceData.current_task.has_3mf = true;
-                  console.log(`Found 3MF for current job: ${file3mf.modelId}`);
+                  logger.debug(`Found 3MF for current job: ${file3mf.modelId}`);
                 }
               }
               
@@ -1462,7 +1462,7 @@ app.get('/api/printers', async (req, res) => {
               if (jobData.rtsp_url && !deviceData.camera_rtsp_url) {
                 deviceData.camera_rtsp_url = jobData.rtsp_url;
               }
-              console.log(`Got job data via MQTT for ${device.dev_id}`);
+              logger.debug(`Got job data via MQTT for ${device.dev_id}`);
             }
           }
         }
@@ -1475,7 +1475,7 @@ app.get('/api/printers', async (req, res) => {
     
     res.json(printersData);
   } catch (error) {
-    console.error('Printers error:', error.response?.data || error.message);
+    logger.error('Printers error:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to fetch printers', details: error.response?.data });
   }
 });
@@ -3858,9 +3858,9 @@ app.get('/api/maintenance', async (req, res) => {
     const totalPrintHours = totalPrintSeconds / 3600;
     
     // Check for overdue tasks based on print hours
-    console.log(`[Maintenance GET] Total print hours: ${totalPrintHours.toFixed(2)}`);
+    logger.debug(`[Maintenance] Total print hours: ${totalPrintHours.toFixed(2)}`);
     Object.keys(printerHours).forEach(pid => {
-      console.log(`[Maintenance GET] Printer ${pid}: ${(printerHours[pid] / 3600).toFixed(2)} hrs`);
+      logger.debug(`[Maintenance] Printer ${pid}: ${(printerHours[pid] / 3600).toFixed(2)} hrs`);
     });
     
     const tasksWithStatus = tasks.map(task => {
@@ -3872,19 +3872,19 @@ app.get('/api/maintenance', async (req, res) => {
       let isDueSoon = false;
       let hoursUntilDue = null;
       
-      console.log(`[Maintenance GET] Task "${task.task_name}": DB hours_until_due=${task.hours_until_due}, interval=${task.interval_hours}`);
+      logger.debug(`[Maintenance] Task "${task.task_name}": DB hours_until_due=${task.hours_until_due}, interval=${task.interval_hours}`);
       
       if (task.hours_until_due !== null && task.hours_until_due !== undefined) {
         // hours_until_due stores the ABSOLUTE hour marker when maintenance is due
         // e.g., if total print hours is 1000 and task is due at 2222, then 2222 - 1000 = 1222 hrs remaining
         hoursUntilDue = task.hours_until_due - currentPrintHours;
-        console.log(`[Maintenance GET] Task "${task.task_name}": Calculated ${task.hours_until_due} - ${currentPrintHours.toFixed(2)} = ${hoursUntilDue.toFixed(2)} hrs remaining`);
+        logger.debug(`[Maintenance] Task "${task.task_name}": Calculated ${task.hours_until_due} - ${currentPrintHours.toFixed(2)} = ${hoursUntilDue.toFixed(2)} hrs remaining`);
         isOverdue = hoursUntilDue < 0;
         isDueSoon = !isOverdue && hoursUntilDue <= 20;
       } else if (task.next_due && task.interval_hours) {
         // Fallback: Calculate from next_due and interval_hours
         // If next_due exists but hours_until_due is null, initialize it now
-        console.log(`[Maintenance GET] Task "${task.task_name}": hours_until_due is NULL, calculating from interval...`);
+        logger.debug(`[Maintenance] Task "${task.task_name}": hours_until_due is NULL, calculating from interval...`);
         
         // If never performed, due at current + interval
         // If last_performed exists, calculate from that
@@ -3901,10 +3901,10 @@ app.get('/api/maintenance', async (req, res) => {
           const taskNextDueHours = currentPrintHours + task.interval_hours;
           try {
             db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(taskNextDueHours, task.id);
-            console.log(`[Maintenance GET] Initialized hours_until_due=${taskNextDueHours} for task ${task.id}`);
+            logger.debug(`[Maintenance] Initialized hours_until_due=${taskNextDueHours} for task ${task.id}`);
             hoursUntilDue = task.interval_hours; // Since we just set it to current + interval
           } catch (e) {
-            console.error(`[Maintenance GET] Failed to initialize hours_until_due:`, e.message);
+            logger.warn(`[Maintenance] Failed to initialize hours_until_due: ${e.message}`);
           }
         } else {
           // New task never performed - set it to be due at current + interval
@@ -3912,9 +3912,9 @@ app.get('/api/maintenance', async (req, res) => {
           const taskNextDueHours = currentPrintHours + task.interval_hours;
           try {
             db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(taskNextDueHours, task.id);
-            console.log(`[Maintenance GET] Initialized new task hours_until_due=${taskNextDueHours} for task ${task.id}`);
+            logger.debug(`[Maintenance] Initialized new task hours_until_due=${taskNextDueHours} for task ${task.id}`);
           } catch (e) {
-            console.error(`[Maintenance GET] Failed to initialize hours_until_due:`, e.message);
+            logger.warn(`[Maintenance] Failed to initialize hours_until_due: ${e.message}`);
           }
           isDueSoon = hoursUntilDue <= 20;
         }

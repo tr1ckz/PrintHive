@@ -1,4 +1,5 @@
 const mqtt = require('mqtt');
+const logger = require('./logger');
 const EventEmitter = require('events');
 
 class BambuMqttClient extends EventEmitter {
@@ -27,21 +28,21 @@ class BambuMqttClient extends EventEmitter {
         connectTimeout: 10000
       };
 
-      console.log(`Connecting to Bambu printer MQTT at ${this.printerIp}:8883`);
+      logger.info(`Connecting to Bambu printer MQTT at ${this.printerIp}:8883`);
       this.client = mqtt.connect(`mqtts://${this.printerIp}:8883`, options);
 
       this.client.on('connect', () => {
-        console.log('Connected to Bambu printer MQTT');
+        logger.info('Connected to Bambu printer MQTT');
         this.connected = true;
         
         // Subscribe to printer status updates
         const topic = `device/${this.serialNumber}/report`;
         this.client.subscribe(topic, (err) => {
           if (err) {
-            console.error('MQTT subscribe error:', err);
+            logger.error('MQTT subscribe error:', err);
             reject(err);
           } else {
-            console.log(`Subscribed to ${topic}`);
+            logger.debug(`Subscribed to ${topic}`);
             
             // Request current status
             this.requestStatus();
@@ -55,18 +56,18 @@ class BambuMqttClient extends EventEmitter {
           const data = JSON.parse(message.toString());
           this.handleMessage(data);
         } catch (error) {
-          console.error('Error parsing MQTT message:', error);
+          logger.error('Error parsing MQTT message:', error);
         }
       });
 
       this.client.on('error', (error) => {
-        console.error('MQTT error:', error);
+        logger.error('MQTT error:', error);
         this.connected = false;
         this.emit('error', error);
       });
 
       this.client.on('close', () => {
-        console.log('MQTT connection closed');
+        logger.info('MQTT connection closed');
         this.connected = false;
         this.emit('disconnected');
       });
@@ -87,7 +88,7 @@ class BambuMqttClient extends EventEmitter {
       
       // Debug: Log ipcam data if present
       if (printData.ipcam) {
-        console.log('📹 P1S Camera RTSP URL detected:', printData.ipcam.rtsp_url || 'No URL');
+        logger.debug('P1S Camera RTSP URL detected');
       }
       
       // Initialize currentJobData if null
@@ -221,7 +222,7 @@ class BambuMqttClient extends EventEmitter {
       
       this.currentJobData = newJobData;
       this.emit('job_update', this.currentJobData);
-      console.log('Job update:', this.currentJobData);
+      logger.debug('Job update received');
     }
   }
 
@@ -241,9 +242,9 @@ class BambuMqttClient extends EventEmitter {
 
     this.client.publish(topic, JSON.stringify(message), (err) => {
       if (err) {
-        console.error('Error requesting status:', err);
+        logger.error('Error requesting status:', err);
       } else {
-        console.log('Requested printer status');
+        logger.debug('Requested printer status');
       }
     });
   }
