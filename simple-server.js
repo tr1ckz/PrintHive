@@ -99,50 +99,7 @@ try {
   logger.warn('Could not initialize log level from DB:', e.message);
 }
 
-// System controls: get/set log level
-app.get('/api/log-level', (req, res) => {
-  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-  res.json({ level: logger.level });
-});
-
-app.post('/api/log-level', (req, res) => {
-  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-  const { level } = req.body || {};
-  if (!level) return res.status(400).json({ error: 'Missing level' });
-  logger.setLevel(level);
-  try {
-    db.prepare('INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('log_level', String(level).toUpperCase());
-  } catch (e) {
-    logger.warn('Failed to persist log level:', e.message);
-  }
-  res.json({ ok: true, level: logger.level });
-});
-
-// System restart (watchdog picks this up)
-app.post('/api/system/restart', (req, res) => {
-  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-  try {
-    fs.writeFileSync('/tmp/restart.flag', '1');
-    logger.info('Restart flag created, watchdog will restart app');
-    res.json({ ok: true });
-  } catch (e) {
-    logger.error('Failed to write restart flag:', e.message);
-    res.status(500).json({ error: 'Failed to request restart' });
-  }
-});
-
-// Back-compat restart endpoint used by Settings
-app.post('/api/settings/restart', (req, res) => {
-  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-  try {
-    fs.writeFileSync('/tmp/restart.flag', '1');
-    logger.info('Restart flag created (compat endpoint)');
-    res.json({ shouldRestart: true });
-  } catch (e) {
-    logger.error('Failed to write restart flag:', e.message);
-    res.status(500).json({ error: 'Failed to request restart' });
-  }
-});
+// (moved system routes below session middleware)
 
 // Trust proxy (for nginx/reverse proxy)
 app.set('trust proxy', 1);
@@ -256,6 +213,50 @@ async function configureOIDC() {
     return false;
   }
 }
+// System controls: get/set log level (after session middleware)
+app.get('/api/log-level', (req, res) => {
+  if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
+  res.json({ level: logger.level });
+});
+
+app.post('/api/log-level', (req, res) => {
+  if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
+  const { level } = req.body || {};
+  if (!level) return res.status(400).json({ error: 'Missing level' });
+  logger.setLevel(level);
+  try {
+    db.prepare('INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('log_level', String(level).toUpperCase());
+  } catch (e) {
+    logger.warn('Failed to persist log level:', e.message);
+  }
+  res.json({ ok: true, level: logger.level });
+});
+
+// System restart (watchdog picks this up)
+app.post('/api/system/restart', (req, res) => {
+  if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    fs.writeFileSync('/tmp/restart.flag', '1');
+    logger.info('Restart flag created, watchdog will restart app');
+    res.json({ ok: true });
+  } catch (e) {
+    logger.error('Failed to write restart flag:', e.message);
+    res.status(500).json({ error: 'Failed to request restart' });
+  }
+});
+
+// Back-compat restart endpoint used by Settings
+app.post('/api/settings/restart', (req, res) => {
+  if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    fs.writeFileSync('/tmp/restart.flag', '1');
+    logger.info('Restart flag created (compat endpoint)');
+    res.json({ shouldRestart: true });
+  } catch (e) {
+    logger.error('Failed to write restart flag:', e.message);
+    res.status(500).json({ error: 'Failed to request restart' });
+  }
+});
 
 // OAuth routes (MUST be before static middleware to catch callbacks)
 app.get('/auth/oidc', async (req, res) => {

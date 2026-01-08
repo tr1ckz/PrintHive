@@ -4,6 +4,12 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/',
+  resolve: {
+    alias: {
+      // Force a single Three.js instance
+      three: '/node_modules/three'
+    }
+  },
   server: {
     port: 5173,
     proxy: {

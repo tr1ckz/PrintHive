@@ -1568,6 +1568,7 @@ function Settings({ userRole }: SettingsProps) {
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
               placeholder="Enter current password"
               required
               disabled={passwordLoading}
@@ -1580,6 +1581,7 @@ function Settings({ userRole }: SettingsProps) {
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
               placeholder="Enter new password"
               required
               disabled={passwordLoading}
@@ -1592,6 +1594,7 @@ function Settings({ userRole }: SettingsProps) {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
               placeholder="Confirm new password"
               required
               disabled={passwordLoading}
