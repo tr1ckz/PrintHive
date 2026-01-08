@@ -64,6 +64,7 @@ function Maintenance() {
   const [viewHistory, setViewHistory] = useState<number | null>(null);
   const [taskHistory, setTaskHistory] = useState<any[]>([]);
   const [filter, setFilter] = useState<'all' | 'overdue' | 'due-soon' | 'up-to-date'>('all');
+  const [printerFilter, setPrinterFilter] = useState<string>('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
   // Form state
@@ -86,6 +87,15 @@ function Maintenance() {
     
     return () => clearInterval(refreshInterval);
   }, []);
+
+  useEffect(() => {
+    // Set first printer as default when printers load
+    if (printers.length > 0 && !printerFilter && !formData.printer_id) {
+      const firstPrinterId = printers[0].id;
+      setPrinterFilter(firstPrinterId);
+      setFormData(prev => ({ ...prev, printer_id: firstPrinterId }));
+    }
+  }, [printers]);
 
   const loadTasks = async () => {
     try {
@@ -248,6 +258,11 @@ function Maintenance() {
   };
 
   const filteredTasks = tasks.filter(task => {
+    // Filter by printer first
+    if (printerFilter && task.printer_id !== printerFilter) {
+      return false;
+    }
+    
     const now = new Date();
     const nextDue = task.next_due ? new Date(task.next_due) : null;
     const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -263,6 +278,16 @@ function Maintenance() {
         return true;
     }
   });
+  
+  // Group tasks by printer
+  const tasksByPrinter = filteredTasks.reduce((acc, task) => {
+    const printerId = task.printer_id || 'unassigned';
+    if (!acc[printerId]) {
+      acc[printerId] = [];
+    }
+    acc[printerId].push(task);
+    return acc;
+  }, {} as Record<string, MaintenanceTask[]>);
 
   const overdueTasks = tasks.filter(t => {
     if (!t.next_due) return false;
@@ -331,6 +356,18 @@ function Maintenance() {
         <button className={`filter-btn ${filter === 'up-to-date' ? 'active' : ''}`} onClick={() => setFilter('up-to-date')}>
           Up to Date
         </button>
+        {printers.length > 1 && (
+          <select 
+            value={printerFilter} 
+            onChange={(e) => setPrinterFilter(e.target.value)}
+            className="printer-filter-dropdown"
+            style={{ marginLeft: 'auto' }}
+          >
+            {printers.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Tasks List */}
@@ -431,12 +468,13 @@ function Maintenance() {
                 </div>
                 
                 <div className="form-group">
-                  <label>Printer (optional)</label>
+                  <label>Printer *</label>
                   <select
                     value={formData.printer_id}
                     onChange={e => setFormData({ ...formData, printer_id: e.target.value })}
+                    required
                   >
-                    <option value="">All Printers</option>
+                    <option value="">Select a printer</option>
                     {printers.map(printer => (
                       <option key={printer.id} value={printer.id}>{printer.name}</option>
                     ))}

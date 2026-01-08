@@ -1419,7 +1419,13 @@ app.get('/api/printers', async (req, res) => {
           const mqttClient = mqttClients.get(clientKey);
           if (mqttClient && mqttClient.connected) {
             const jobData = mqttClient.getCurrentJob();
-            if (jobData) {
+            
+            // Always include AMS info at device level if available
+            if (jobData && jobData.ams) {
+              deviceData.ams = jobData.ams;
+            }
+            
+            if (jobData && jobData.name) {
               deviceData.current_task = {
                 name: jobData.name,
                 progress: jobData.progress,
@@ -1429,7 +1435,7 @@ app.get('/api/printers', async (req, res) => {
                 total_layers: jobData.total_layers
               };
               
-              // Include AMS information if available
+              // Also include AMS in current_task for backward compatibility
               if (jobData.ams) {
                 deviceData.current_task.ams = jobData.ams;
               }
@@ -3833,20 +3839,35 @@ app.get('/api/maintenance', async (req, res) => {
       ORDER BY next_due ASC NULLS LAST, task_name ASC
     `).all();
     
-    // Get current total print hours
-    const prints = db.prepare('SELECT costTime FROM prints').all();
+    // Get print hours per printer
+    const printerHours = {};
+    const allPrints = db.prepare('SELECT deviceId, costTime FROM prints').all();
     let totalPrintSeconds = 0;
-    for (const print of prints) {
+    
+    for (const print of allPrints) {
       if (print.costTime) {
         totalPrintSeconds += print.costTime;
+        if (print.deviceId) {
+          if (!printerHours[print.deviceId]) {
+            printerHours[print.deviceId] = 0;
+          }
+          printerHours[print.deviceId] += print.costTime;
+        }
       }
     }
-    const currentPrintHours = totalPrintSeconds / 3600;
+    const totalPrintHours = totalPrintSeconds / 3600;
     
     // Check for overdue tasks based on print hours
-    console.log(`[Maintenance GET] Current print hours: ${currentPrintHours.toFixed(2)}`);
+    console.log(`[Maintenance GET] Total print hours: ${totalPrintHours.toFixed(2)}`);
+    Object.keys(printerHours).forEach(pid => {
+      console.log(`[Maintenance GET] Printer ${pid}: ${(printerHours[pid] / 3600).toFixed(2)} hrs`);
+    });
     
     const tasksWithStatus = tasks.map(task => {
+      // Use printer-specific hours if task is assigned to a printer
+      const currentPrintHours = task.printer_id && printerHours[task.printer_id]
+        ? printerHours[task.printer_id] / 3600
+        : totalPrintHours;
       let isOverdue = false;
       let isDueSoon = false;
       let hoursUntilDue = null;

@@ -301,6 +301,32 @@ function Printers() {
                         )}
                       </div>
                     )}
+
+                    {/* AMS Info - Always visible if available (when not printing) */}
+                    {!printer.current_task && printer.ams && (
+                      <div style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                        <div className="progress-ams">
+                          <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>AMS</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 0.75rem' }}>
+                            {typeof printer.ams.active_tray === 'number' && <span className="chip subtle">Active Slot: {printer.ams.active_tray}</span>}
+                            {(amsExpanded[printer.dev_id] ? printer.ams.trays : printer.ams.trays.slice(0,4)).map((t) => (
+                              <span key={t.slot} className="ams-chip">
+                                <span className="color-dot" style={{ background: t.color || '#999' }} />
+                                S{t.slot}: {t.type || '—'}
+                                {t.color ? ` (${t.color})` : ''}
+                                {typeof t.humidity === 'number' ? ` • ${Math.round(t.humidity)}%` : ''}
+                                {typeof t.temp === 'number' ? ` • ${Math.round(t.temp)}°C` : ''}
+                              </span>
+                            ))}
+                            {printer.ams.trays && printer.ams.trays.length > 4 && (
+                              <button type="button" className="btn-link" onClick={() => toggleAms(printer.dev_id)}>
+                                {amsExpanded[printer.dev_id] ? 'Show less' : `Show all (${printer.ams.trays.length})`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
