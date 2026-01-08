@@ -55,6 +55,9 @@ function Printers() {
     }
   }, []);
 
+  const [amsExpanded, setAmsExpanded] = useState<Record<string, boolean>>({});
+  const toggleAms = (id: string) => setAmsExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+
   const normalizeProgress = (value: number | undefined | null) => {
     if (value === null || value === undefined || isNaN(value as any)) return 0;
     let v = Number(value);
@@ -63,6 +66,14 @@ function Printers() {
     // Clamp and round
     v = Math.max(0, Math.min(100, v));
     return Math.round(v);
+  };
+
+  const formatBitrate = (bps?: number) => {
+    if (!bps || isNaN(bps)) return null;
+    const mbps = bps / (1024 * 1024);
+    if (mbps >= 1) return `${mbps.toFixed(1)} Mbps`;
+    const kbps = bps / 1024;
+    return `${Math.round(kbps)} Kbps`;
   };
 
   if (loading) {
@@ -134,6 +145,19 @@ function Printers() {
                       }
                     }}
                   />
+                  {(printer.current_task?.rtsp_url || printer.current_task?.ipcam_status || printer.current_task?.ipcam_bitrate) && (
+                    <div className="camera-meta">
+                      {printer.current_task?.ipcam_status && (
+                        <span className={`camera-status ${String(printer.current_task.ipcam_status).toLowerCase()}`}>
+                          <span className="dot-live"></span>
+                          {String(printer.current_task.ipcam_status)}
+                        </span>
+                      )}
+                      {typeof printer.current_task?.ipcam_bitrate === 'number' && (
+                        <span className="camera-bitrate">{formatBitrate(printer.current_task.ipcam_bitrate)}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -214,14 +238,21 @@ function Printers() {
                           <div className="progress-ams" style={{ marginTop: '0.5rem' }}>
                             <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>AMS</div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 0.75rem' }}>
-                              {typeof printer.current_task.ams.active_tray === 'number' && <span>Active Slot: {printer.current_task.ams.active_tray}</span>}
-                              {printer.current_task.ams.trays?.slice(0, 4).map((t) => (
-                                <span key={t.slot} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', padding: '2px 6px', borderRadius: 6 }}>
-                                  S{t.slot}: {t.type || '—'} {t.color ? `(${t.color})` : ''}
+                              {typeof printer.current_task.ams.active_tray === 'number' && <span className="chip subtle">Active Slot: {printer.current_task.ams.active_tray}</span>}
+                              {(amsExpanded[printer.dev_id] ? printer.current_task.ams.trays : printer.current_task.ams.trays.slice(0,4)).map((t) => (
+                                <span key={t.slot} className="ams-chip">
+                                  <span className="color-dot" style={{ background: t.color || '#999' }} />
+                                  S{t.slot}: {t.type || '—'}
+                                  {t.color ? ` (${t.color})` : ''}
                                   {typeof t.humidity === 'number' ? ` • ${Math.round(t.humidity)}%` : ''}
                                   {typeof t.temp === 'number' ? ` • ${Math.round(t.temp)}°C` : ''}
                                 </span>
                               ))}
+                              {printer.current_task.ams.trays && printer.current_task.ams.trays.length > 4 && (
+                                <button type="button" className="btn-link" onClick={() => toggleAms(printer.dev_id)}>
+                                  {amsExpanded[printer.dev_id] ? 'Show less' : `Show all (${printer.current_task.ams.trays.length})`}
+                                </button>
+                              )}
                             </div>
                           </div>
                         )}
