@@ -16,8 +16,8 @@
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(0, 212, 255, 0.2);
-  border-top-color: #00d4ff;
+  border: 3px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
@@ -66,8 +66,8 @@
 
 .stat-card:hover {
   transform: translateY(-2px);
-  border-color: #00d4ff;
-  box-shadow: 0 8px 25px rgba(0, 212, 255, 0.2);
+  border-color: var(--color-primary);
+  box-shadow: 0 8px 25px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 .stat-icon {
@@ -123,7 +123,7 @@
 .widget-action {
   background: transparent;
   border: none;
-  color: #00d4ff;
+  color: var(--color-primary);
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
@@ -147,16 +147,16 @@
 .widget-empty button {
   margin-top: 1rem;
   padding: 0.5rem 1rem;
-  border: 1px solid #00d4ff;
+  border: 1px solid var(--color-primary);
   background: transparent;
-  color: #00d4ff;
+  color: var(--color-primary);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .widget-empty button:hover {
-  background: #00d4ff;
+  background: var(--color-primary);
   color: #0a0a0a;
 }
 
@@ -219,7 +219,7 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 0.85rem;
-  color: #00d4ff;
+  color: var(--color-primary);
   font-weight: 600;
 }
 
@@ -233,7 +233,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #00d4ff, #0099ff);
+  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
   border-radius: 3px;
   transition: width 0.3s ease;
 }

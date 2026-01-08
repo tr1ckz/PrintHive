@@ -109,7 +109,7 @@
 }
 
 .filter-btn.active {
-  background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   border-color: transparent;
   color: white;
 }

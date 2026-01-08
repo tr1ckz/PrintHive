@@ -41,9 +41,9 @@
   padding: 12px 20px;
   background: rgba(30, 41, 59, 0.8);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(0, 212, 255, 0.3);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
   border-radius: 10px;
-  color: #00d4ff;
+  color: var(--color-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -212,8 +212,8 @@
   position: absolute;
   width: 30px;
   height: 30px;
-  border: 3px solid rgba(0, 212, 255, 0.3);
-  border-top-color: #00d4ff;
+  border: 3px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   z-index: 1;
@@ -468,12 +468,12 @@
   width: 48px;
   height: 48px;
   border-radius: 10px;
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.3) 0%, rgba(0, 153, 255, 0.3) 100%);
-  border: 1px solid rgba(0, 212, 255, 0.3);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 30%, transparent) 0%, color-mix(in srgb, var(--color-secondary) 30%, transparent) 100%);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #00d4ff;
+  color: var(--color-primary);
   font-size: 24px;
   font-weight: 700;
 }

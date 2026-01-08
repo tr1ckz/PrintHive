@@ -12,7 +12,7 @@
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -136,8 +136,8 @@
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #00d4ff;
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .form-group input:disabled,
@@ -280,7 +280,7 @@
 }
 
 .toggle-label input[type="checkbox"]:checked {
-  background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
 }
 
 .toggle-label input[type="checkbox"]:checked::after {
@@ -420,7 +420,7 @@
   margin-left: auto;
   font-size: 1.2rem;
   font-weight: 700;
-  color: #00d4ff;
+  color: var(--color-primary);
   transition: transform 0.25s ease;
 }
 
@@ -488,7 +488,7 @@
 }
 
 .settings-section.collapsible.expanded .expand-icon {
-  color: #00d4ff;
+  color: var(--color-primary);
 }
 
 .settings-section.collapsible .section-content {

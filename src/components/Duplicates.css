@@ -22,7 +22,7 @@
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -123,13 +123,13 @@
 }
 
 .group-select:hover {
-  border-color: #00d4ff;
+  border-color: var(--color-primary);
 }
 
 .group-select:focus {
   outline: none;
-  border-color: #00d4ff;
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .stats {
@@ -318,8 +318,8 @@
 
 .tag {
   padding: 0.25rem 0.75rem;
-  background: rgba(0, 212, 255, 0.15);
-  color: #00d4ff;
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
   border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 500;

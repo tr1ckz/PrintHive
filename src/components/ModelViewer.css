@@ -47,7 +47,7 @@
 }
 
 .viewer-header {
-  background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   padding: 24px 32px;
   display: flex;
   align-items: center;
@@ -133,7 +133,7 @@
   width: 48px;
   height: 48px;
   border: 4px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #00d4ff;
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -245,7 +245,7 @@
 }
 
 .viewer-btn.active {
-  background: #00d4ff;
+  background: var(--color-primary);
   color: white;
 }
 
@@ -278,7 +278,7 @@
   -webkit-appearance: none;
   width: 16px;
   height: 16px;
-  background: #00d4ff;
+  background: var(--color-primary);
   border-radius: 50%;
   cursor: pointer;
 }
@@ -286,7 +286,7 @@
 .slice-slider::-moz-range-thumb {
   width: 16px;
   height: 16px;
-  background: #00d4ff;
+  background: var(--color-primary);
   border-radius: 50%;
   cursor: pointer;
   border: none;

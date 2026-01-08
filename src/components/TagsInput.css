@@ -16,7 +16,7 @@
 }
 
 .tags-input-wrapper:focus-within {
-  border-color: #00d4ff;
+  border-color: var(--color-primary);
 }
 
 .tags-input-wrapper.disabled {
@@ -29,11 +29,11 @@
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  background: linear-gradient(135deg, #00d4ff22, #0099ff22);
-  border: 1px solid #00d4ff44;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 13%, transparent), color-mix(in srgb, var(--color-secondary) 13%, transparent));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 27%, transparent);
   border-radius: 6px;
   font-size: 0.85rem;
-  color: #00d4ff;
+  color: var(--color-primary);
   font-weight: 500;
 }
 
@@ -46,7 +46,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: #00d4ff;
+  color: var(--color-primary);
   font-size: 14px;
   cursor: pointer;
   border-radius: 50%;
@@ -54,7 +54,7 @@
 }
 
 .tag-remove:hover {
-  background: #00d4ff33;
+  background: color-mix(in srgb, var(--color-primary) 20%, transparent);
   color: white;
 }
 
@@ -105,7 +105,7 @@
 
 .suggestion-item:hover,
 .suggestion-item.selected {
-  background: #00d4ff22;
+  background: color-mix(in srgb, var(--color-primary) 13%, transparent);
 }
 
 .suggestion-name {

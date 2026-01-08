@@ -3932,10 +3932,29 @@ app.post('/api/maintenance', async (req, res) => {
       return res.status(400).json({ error: 'Task name and type are required' });
     }
     
+    // Calculate current total print hours
+    const prints = db.prepare('SELECT costTime FROM prints').all();
+    let totalPrintSeconds = 0;
+    for (const print of prints) {
+      if (print.costTime) {
+        totalPrintSeconds += print.costTime;
+      }
+    }
+    const currentPrintHours = totalPrintSeconds / 3600;
+    
+    // New tasks should be due at: current print hours + interval
+    const taskInterval = interval_hours || 100;
+    const initialDueHours = currentPrintHours + taskInterval;
+    
+    console.log(`[Maintenance Create] Creating task "${task_name}"`);
+    console.log(`  - Current print hours: ${currentPrintHours.toFixed(2)}`);
+    console.log(`  - Interval: ${taskInterval} hours`);
+    console.log(`  - Will be due at print hour: ${initialDueHours.toFixed(2)}`);
+    
     const result = db.prepare(`
-      INSERT INTO maintenance_tasks (printer_id, task_name, task_type, description, interval_hours)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(printer_id || null, task_name, task_type, description || '', interval_hours || 100);
+      INSERT INTO maintenance_tasks (printer_id, task_name, task_type, description, interval_hours, hours_until_due)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(printer_id || null, task_name, task_type, description || '', taskInterval, initialDueHours);
     
     const task = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(result.lastInsertRowid);
     
@@ -4046,36 +4065,34 @@ app.post('/api/maintenance/:id/complete', async (req, res) => {
       }
     }
     const totalPrintHours = totalPrintSeconds / 3600;
+    
+    // Calculate the ABSOLUTE print hour marker when this task will be due
+    // This is the key: we store when (in terms of total print hours) the task should be due
     const nextDueHours = totalPrintHours + task.interval_hours;
     
-    // Store the next due as a marker based on print hours
-    // We'll convert this back in the frontend or in the maintenance calculation
+    // Also store a timestamp for next_due (for time-based fallback and UI display)
     const nextDue = new Date(now.getTime() + task.interval_hours * 60 * 60 * 1000);
     
+    console.log(`[Maintenance Complete] Task ${id} "${task.task_name}":`);
+    console.log(`  - Current total print hours: ${totalPrintHours.toFixed(2)}`);
+    console.log(`  - Task interval: ${task.interval_hours} hours`);
+    console.log(`  - Next due at print hour: ${nextDueHours.toFixed(2)}`);
+    console.log(`  - Hours remaining until due: ${task.interval_hours.toFixed(2)}`);
+    
+    // Update the task with both timestamp and absolute hour marker
     db.prepare(`
       UPDATE maintenance_tasks 
-      SET last_performed = ?, next_due = ?, updated_at = CURRENT_TIMESTAMP
+      SET last_performed = ?, 
+          next_due = ?, 
+          hours_until_due = ?,
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(now.toISOString(), nextDue.toISOString(), id);
-    
-    // Update hours_until_due - this is the ABSOLUTE hour marker when task is due
-    console.log(`[Maintenance Complete] Task ${id}: currentPrintHours=${totalPrintHours.toFixed(2)}, interval=${task.interval_hours}, nextDueHours=${nextDueHours.toFixed(2)}`);
-    
-    try {
-      db.prepare(`
-        UPDATE maintenance_tasks 
-        SET hours_until_due = ?
-        WHERE id = ?
-      `).run(nextDueHours, id);
-      console.log(`[Maintenance Complete] Successfully updated hours_until_due to ${nextDueHours.toFixed(2)}`);
-    } catch (e) {
-      console.error(`[Maintenance Complete] Failed to update hours_until_due: ${e.message}`);
-    }
+    `).run(now.toISOString(), nextDue.toISOString(), nextDueHours, id);
     
     const updatedTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
-    console.log(`[Maintenance Complete] Updated task:`, JSON.stringify(updatedTask, null, 2));
+    console.log(`[Maintenance Complete] Task updated successfully. hours_until_due=${updatedTask.hours_until_due}`);
     
-    // Send Discord notification
+    // Send notification
     try {
       const printerName = updatedTask.printer_id ? 
         db.prepare('SELECT deviceName FROM printers WHERE deviceId = ?').get(updatedTask.printer_id)?.deviceName || updatedTask.printer_id
@@ -4090,7 +4107,7 @@ app.post('/api/maintenance/:id/complete', async (req, res) => {
         dueAtHours: nextDueHours
       });
     } catch (notifError) {
-      console.error('Failed to send Discord notification:', notifError);
+      console.error('Failed to send notification:', notifError);
     }
     
     res.json({ success: true, task: updatedTask });

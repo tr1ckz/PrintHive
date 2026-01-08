@@ -31,7 +31,7 @@
 }
 
 .users-table thead {
-  background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
 }
 
 .users-table th {
@@ -97,13 +97,13 @@
 }
 
 .role-select:hover {
-  border-color: #00d4ff;
+  border-color: var(--color-primary);
 }
 
 .role-select:focus {
   outline: none;
-  border-color: #00d4ff;
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .role-select.role-admin {
