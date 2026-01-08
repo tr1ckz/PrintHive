@@ -56,7 +56,20 @@ function Printers() {
   }, []);
 
   const [amsExpanded, setAmsExpanded] = useState<Record<string, boolean>>({});
-  const toggleAms = (id: string) => setAmsExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('amsExpanded');
+      if (raw) setAmsExpanded(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  const toggleAms = (id: string) => {
+    setAmsExpanded(prev => {
+      const next = { ...prev, [id]: !prev[id] };
+      try { localStorage.setItem('amsExpanded', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   const normalizeProgress = (value: number | undefined | null) => {
     if (value === null || value === undefined || isNaN(value as any)) return 0;
@@ -74,6 +87,28 @@ function Printers() {
     if (mbps >= 1) return `${mbps.toFixed(1)} Mbps`;
     const kbps = bps / 1024;
     return `${Math.round(kbps)} Kbps`;
+  };
+
+  const getSpeedMode = (mode?: string | number, factor?: number) => {
+    // Normalize common values from Bambu: spd_lv (0-3) or strings
+    let name: string | null = null;
+    let level = -1;
+    if (typeof mode === 'number') level = mode;
+    if (typeof mode === 'string') {
+      const m = mode.toLowerCase();
+      if (m.includes('lud')) level = 3, name = 'Ludicrous';
+      else if (m.includes('sport')) level = 2, name = 'Sport';
+      else if (m.includes('std') || m.includes('standard')) level = 1, name = 'Standard';
+      else if (m.includes('silent')) level = 0, name = 'Silent';
+    }
+    if (level >= 0 && !name) name = ['Silent','Standard','Sport','Ludicrous'][level] || 'Standard';
+    if (!name && typeof factor === 'number') {
+      if (factor >= 160) name = 'Ludicrous';
+      else if (factor >= 120) name = 'Sport';
+      else if (factor >= 90) name = 'Standard';
+      else name = 'Silent';
+    }
+    return name;
   };
 
   if (loading) {
@@ -145,7 +180,7 @@ function Printers() {
                       }
                     }}
                   />
-                  {(printer.current_task?.rtsp_url || printer.current_task?.ipcam_status || printer.current_task?.ipcam_bitrate) && (
+                  {(printer.current_task?.rtsp_url || printer.current_task?.ipcam_status || printer.current_task?.ipcam_bitrate !== undefined) && (
                     <div className="camera-meta">
                       {printer.current_task?.ipcam_status && (
                         <span className={`camera-status ${String(printer.current_task.ipcam_status).toLowerCase()}`}>
@@ -154,7 +189,11 @@ function Printers() {
                         </span>
                       )}
                       {typeof printer.current_task?.ipcam_bitrate === 'number' && (
-                        <span className="camera-bitrate">{formatBitrate(printer.current_task.ipcam_bitrate)}</span>
+                        printer.current_task.ipcam_bitrate > 0 ? (
+                          <span className="camera-bitrate">{formatBitrate(printer.current_task.ipcam_bitrate)}</span>
+                        ) : (
+                          <span className="camera-status error"><span className="dot-live"></span>No bitrate</span>
+                        )
                       )}
                     </div>
                   )}
@@ -219,7 +258,11 @@ function Printers() {
                             {typeof printer.current_task.chamber_temp === 'number' && <span>Chamber: {Math.round(printer.current_task.chamber_temp)}°C</span>}
                             {typeof printer.current_task.env_temp === 'number' && <span>Env: {Math.round(printer.current_task.env_temp)}°C</span>}
                             {typeof printer.current_task.env_humidity === 'number' && <span>Humidity: {Math.round(printer.current_task.env_humidity)}%</span>}
-                            {printer.current_task.speed_profile && <span>Mode: {String(printer.current_task.speed_profile)}</span>}
+                            {getSpeedMode(printer.current_task.speed_profile, printer.current_task.speed_factor) && (
+                              <span className={`mode-badge mode-${getSpeedMode(printer.current_task.speed_profile, printer.current_task.speed_factor)!.toLowerCase()}`}> 
+                                {getSpeedMode(printer.current_task.speed_profile, printer.current_task.speed_factor)}
+                              </span>
+                            )}
                             {typeof printer.current_task.speed_factor === 'number' && <span>Speed: {Math.round(printer.current_task.speed_factor)}%</span>}
                             {typeof printer.current_task.feedrate === 'number' && <span>Feedrate: {Math.round(printer.current_task.feedrate)}</span>}
                             {typeof printer.current_task.z_height === 'number' && <span>Z: {printer.current_task.z_height.toFixed(2)}mm</span>}
