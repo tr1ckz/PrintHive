@@ -18,6 +18,9 @@ data/
 sessions/
 library/
 my-3d-models/
+
+# Version file (generated at runtime)
+version.json
 videos/
 
 # Build output

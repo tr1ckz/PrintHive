@@ -8,6 +8,13 @@ const fs = require('fs');
 const multer = require('multer');
 const passport = require('passport');
 const oidc = require('openid-client');
+
+// Sync version on startup
+try {
+  require('./version-sync.js');
+} catch (e) {
+  logger.warn('Version sync failed:', e.message);
+}
 const { 
   storePrints, 
   getAllPrintsFromDb, 
@@ -2431,6 +2438,22 @@ app.get('/api/library/geometry/:id', async (req, res) => {
 // Health check endpoint (no auth required)
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Version endpoint (no auth required)
+app.get('/api/version', (req, res) => {
+  try {
+    const versionPath = path.join(__dirname, 'version.json');
+    if (fs.existsSync(versionPath)) {
+      const versionData = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+      res.json(versionData);
+    } else {
+      res.status(404).json({ error: 'Version file not found' });
+    }
+  } catch (error) {
+    logger.error('Error reading version:', error);
+    res.status(500).json({ error: 'Failed to read version' });
+  }
 });
 
 app.get('/api/library', async (req, res) => {
