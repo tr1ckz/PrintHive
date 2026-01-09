@@ -4,6 +4,8 @@ import ModelViewer from './ModelViewer';
 import TagsInput from './TagsInput';
 import Toast from './Toast';
 import LoadingScreen from './LoadingScreen';
+import { API_ENDPOINTS } from '../config/api';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useDebounce } from '../hooks/useDebounce';
 
 interface LibraryFile {
@@ -79,7 +81,9 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
 
   const fetchFiles = async () => {
     try {
-      const response = await fetch('/api/library');
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.LIST, {
+        credentials: 'include',
+      });
       if (!response.ok) throw new Error('Failed to fetch library');
       const data = await response.json();
       setFiles(data);
@@ -147,9 +151,10 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
 
     try {
       setUploading(true);
-      const response = await fetch('/api/library/upload', {
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.UPLOAD, {
         method: 'POST',
-        body: formData
+        body: formData,
+        credentials: 'include',
       });
 
       if (!response.ok) throw new Error('Upload failed');
@@ -177,9 +182,10 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
         formData.append('file', fileList[i]);
 
         try {
-          const response = await fetch('/api/library/upload', {
+          const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.UPLOAD, {
             method: 'POST',
-            body: formData
+            body: formData,
+            credentials: 'include',
           });
 
           if (response.ok) {
@@ -242,7 +248,9 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
 
   const handleDownload = async (id: number, originalName: string) => {
     try {
-      const response = await fetch(`/api/library/download/${id}`);
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.DOWNLOAD(id), {
+        credentials: 'include',
+      });
       if (!response.ok) throw new Error('Download failed');
       
       const blob = await response.blob();
@@ -267,7 +275,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
     if (deleteConfirm === null) return;
 
     try {
-      const response = await fetch(`/api/library/${deleteConfirm}`, { method: 'DELETE' });
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.FILE(deleteConfirm), { method: 'DELETE', credentials: 'include' });
       if (!response.ok) throw new Error('Delete failed');
       
       setToast({ message: 'File deleted successfully', type: 'success' });
@@ -308,7 +316,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       
       for (const id of selectedFiles) {
         try {
-          const response = await fetch(`/api/library/${id}`, { method: 'DELETE' });
+          const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.FILE(id), { method: 'DELETE', credentials: 'include' });
           if (response.ok) success++;
           else failed++;
         } catch {
@@ -345,7 +353,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
           const existingTags = file?.tags ? file.tags.split(',').map(t => t.trim()) : [];
           const allTags = [...new Set([...existingTags, ...tagsArray])];
           
-          const response = await fetch(`/api/library/${fileId}/tags`, {
+          const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.UPDATE_TAGS(fileId), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tags: allTags })
@@ -369,9 +377,10 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   const handleScanFolder = async () => {
     try {
       setScanning(true);
-      const response = await fetch('/api/library/scan', {
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.SCAN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       });
 
       const result = await response.json();
@@ -382,7 +391,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
         // Start polling for progress
         const pollProgress = async () => {
           try {
-            const statusResponse = await fetch('/api/library/scan-status');
+            const statusResponse = await fetchWithRetry(API_ENDPOINTS.LIBRARY.SCAN_STATUS, { credentials: 'include' });
             const status = await statusResponse.json();
             
             setScanProgress(status);
@@ -418,7 +427,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
 
   const handleCancelScan = async () => {
     try {
-      const response = await fetch('/api/library/scan-cancel', { method: 'POST' });
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.SCAN_CANCEL, { method: 'POST', credentials: 'include' });
       const data = await response.json();
       if (data.success) {
         setToast({ message: 'Library scan cancelled', type: 'success' });
@@ -462,7 +471,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
     
     try {
       setAutoTagging(true);
-      const response = await fetch(`/api/library/${editingFile.id}/auto-tag`, {
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.AUTO_TAG(editingFile.id), {
         method: 'POST'
       });
       
@@ -489,7 +498,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       setSaving(true);
       
       // Save description
-      const descResponse = await fetch(`/api/library/${editingFile.id}`, {
+      const descResponse = await fetchWithRetry(API_ENDPOINTS.LIBRARY.FILE(editingFile.id), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: editDescription })
@@ -499,7 +508,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       
       // Save tags
       const tagsArray = editTags.split(',').map(t => t.trim()).filter(t => t.length > 0);
-      const tagsResponse = await fetch(`/api/library/${editingFile.id}/tags`, {
+      const tagsResponse = await fetchWithRetry(API_ENDPOINTS.LIBRARY.UPDATE_TAGS(editingFile.id), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tags: tagsArray })
@@ -525,7 +534,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
     try {
       setAutoTaggingAll(true);
       
-      const response = await fetch('/api/library/auto-tag-all', {
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.AUTO_TAG_ALL, {
         method: 'POST'
       });
       
@@ -537,7 +546,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
         // Start polling for progress
         const pollProgress = async () => {
           try {
-            const statusResponse = await fetch('/api/library/auto-tag-status');
+            const statusResponse = await fetchWithRetry(API_ENDPOINTS.LIBRARY.AUTO_TAG_STATUS, { credentials: 'include' });
             const status = await statusResponse.json();
             
             setAutoTagProgress(status);
@@ -576,7 +585,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   
   const handleCancelAutoTag = async () => {
     try {
-      const response = await fetch('/api/library/auto-tag-cancel', {
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.AUTO_TAG_CANCEL, {
         method: 'POST'
       });
       const data = await response.json();

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import './LoadingSplash.css';
+import { API_ENDPOINTS } from '../config/api';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 interface LoadingSplashProps {
   message?: string;
@@ -41,7 +43,7 @@ function LoadingSplash({
 
     const checkServer = async () => {
       try {
-        const response = await fetch('/api/health', { 
+        const response = await fetchWithRetry(API_ENDPOINTS.AUTH.HEALTH, { 
           method: 'GET',
           cache: 'no-cache',
         });

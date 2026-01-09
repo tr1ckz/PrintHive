@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './DashboardHome.css';
+import { API_ENDPOINTS } from '../config/api';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 interface PrinterStatus {
   id: string;
@@ -51,14 +53,14 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
   const loadDashboardData = async () => {
     try {
       // Load printers
-      const printersRes = await fetch('/api/printers/status');
+      const printersRes = await fetchWithRetry(API_ENDPOINTS.PRINTERS.STATUS, { credentials: 'include' });
       if (printersRes.ok) {
         const data = await printersRes.json();
         setPrinters(data.printers || []);
       }
 
       // Load stats
-      const statsRes = await fetch('/api/statistics');
+      const statsRes = await fetchWithRetry(API_ENDPOINTS.STATISTICS.HISTORY, { credentials: 'include' });
       if (statsRes.ok) {
         const data = await statsRes.json();
         // Map API response to expected interface
@@ -70,14 +72,14 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
       }
 
       // Load recent prints
-      const historyRes = await fetch('/api/prints?limit=5');
+      const historyRes = await fetchWithRetry(`${API_ENDPOINTS.MODELS.LIST}?limit=5`, { credentials: 'include' });
       if (historyRes.ok) {
         const data = await historyRes.json();
         setRecentPrints(data.slice(0, 5));
       }
 
       // Load library count
-      const libraryRes = await fetch('/api/library');
+      const libraryRes = await fetchWithRetry(API_ENDPOINTS.LIBRARY.LIST, { credentials: 'include' });
       if (libraryRes.ok) {
         const data = await libraryRes.json();
         setLibraryCount(data.length);

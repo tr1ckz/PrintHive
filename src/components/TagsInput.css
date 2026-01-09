@@ -7,8 +7,8 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 12px;
-  background: #1e1e1e;
-  border: 2px solid #333;
+  background: var(--bg-dark);
+  border: 2px solid var(--border-dark);
   border-radius: 8px;
   min-height: 44px;
   align-items: center;
@@ -63,14 +63,14 @@
   min-width: 100px;
   border: none;
   background: transparent;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.95rem;
   outline: none;
   padding: 4px 0;
 }
 
 .tags-input-field::placeholder {
-  color: #666;
+  color: var(--text-muted);
 }
 
 .tags-suggestions {
@@ -79,8 +79,8 @@
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: #1e1e1e;
-  border: 1px solid #333;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-dark);
   border-radius: 8px;
   overflow: hidden;
   z-index: 100;

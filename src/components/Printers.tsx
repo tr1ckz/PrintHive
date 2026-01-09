@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Printer } from '../types';
+import { API_ENDPOINTS } from '../config/api';
+import fetchWithRetry from '../utils/fetchWithRetry';
 import './Printers.css';
 import LoadingScreen from './LoadingScreen';
 
@@ -15,7 +17,7 @@ function Printers() {
     imageRefs.current.forEach((img, deviceId) => {
       const printer = printers.find(p => p.dev_id === deviceId);
       if (printer?.camera_rtsp_url && img) {
-        img.src = `/api/camera-snapshot?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=${cameraRefreshRef.current}`;
+        img.src = `${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=${cameraRefreshRef.current}`;
       }
     });
   }, [printers]);
@@ -41,7 +43,7 @@ function Printers() {
     try {
       setLoading(true);
       setError('');
-      const response = await fetch('/api/printers');
+      const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.LIST, { credentials: 'include' });
       const data = await response.json();
       setPrinters(data.devices || []);
     } catch (err) {
@@ -166,7 +168,7 @@ function Printers() {
                 <div className="printer-camera">
                   <img
                     ref={setImageRef(printer.dev_id)}
-                    src={`/api/camera-snapshot?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=0`}
+                    src={`${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=0`}
                     alt="Camera feed"
                     className="camera-feed"
                     style={{ transition: 'none' }}
@@ -210,7 +212,7 @@ function Printers() {
                     <div className="job-header">
                       <img 
                         className="job-cover" 
-                        src={`/api/job-cover/${printer.dev_id}`}
+                        src={API_ENDPOINTS.PRINTERS.JOB_COVER(printer.dev_id)}
                         alt="Print preview"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
@@ -227,7 +229,7 @@ function Printers() {
                       </div>
                       {printer.current_task.has_3mf && printer.current_task.model_id && (
                         <a 
-                          href={`/api/local/download/${printer.current_task.model_id}`}
+                          href={API_ENDPOINTS.MODELS.LOCAL_DOWNLOAD(printer.current_task.model_id)}
                           className="download-3mf-btn"
                           title="Download 3MF file"
                           download

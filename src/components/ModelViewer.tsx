@@ -4,6 +4,8 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { ThreeMFLoader } from 'threejs-webworker-3mf-loader';
 import ConfirmModal from './ConfirmModal';
+import { API_ENDPOINTS } from '../config/api';
+import fetchWithRetry from '../utils/fetchWithRetry';
 import './ModelViewer.css';
 
 interface ModelViewerProps {
@@ -195,7 +197,9 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
         setError(null);
 
         // Try to load pre-extracted geometry first
-        const geometryResponse = await fetch(`/api/library/geometry/${fileId}`);
+        const geometryResponse = await fetchWithRetry(API_ENDPOINTS.LIBRARY.GEOMETRY(fileId), {
+          credentials: 'include'
+        });
         
         if (geometryResponse.ok) {
           console.log('Loading pre-extracted geometry...');
@@ -226,7 +230,10 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
         console.log('Pre-extracted geometry not available, downloading full file...');
 
         // Check file size first to avoid downloading huge files
-        const headResponse = await fetch(`/api/library/download/${fileId}`, { method: 'HEAD' });
+        const headResponse = await fetchWithRetry(API_ENDPOINTS.LIBRARY.DOWNLOAD(fileId), {
+          method: 'HEAD',
+          credentials: 'include'
+        });
         const fileSize = parseInt(headResponse.headers.get('content-length') || '0');
         
         // Warn if file is over 50MB
@@ -237,7 +244,9 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
         }
 
         // Download the file
-        const response = await fetch(`/api/library/download/${fileId}`);
+        const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.DOWNLOAD(fileId), {
+          credentials: 'include'
+        });
         if (!response.ok) throw new Error('Failed to download model');
 
         const blob = await response.blob();
@@ -721,7 +730,9 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
           setConfirmLargeFile(null);
           setLoading(true);
           try {
-            const response = await fetch(`/api/library/download/${fileId}`);
+            const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.DOWNLOAD(fileId), {
+              credentials: 'include'
+            });
             if (!response.ok) throw new Error('Failed to download model');
             const blob = await response.blob();
             const arrayBuffer = await blob.arrayBuffer();

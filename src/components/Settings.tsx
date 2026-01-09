@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { API_ENDPOINTS } from '../config/api';
+import fetchWithRetry from '../utils/fetchWithRetry';
 import './Settings.css';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
@@ -241,7 +243,7 @@ function Settings({ userRole }: SettingsProps) {
 
   const loadBambuStatus = async () => {
     try {
-      const response = await fetch('/api/settings/bambu-status');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.BAMBU_STATUS, { credentials: 'include' });
       const data = await response.json();
       setBambuStatus(data);
     } catch (error) {
@@ -251,7 +253,7 @@ function Settings({ userRole }: SettingsProps) {
 
   const loadPrinterSettings = async () => {
     try {
-      const response = await fetch('/api/settings/printer-ftp');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.PRINTER_FTP, { credentials: 'include' });
       const data = await response.json();
       if (data.success) {
         setPrinterIp(data.printerIp || '');
@@ -265,7 +267,7 @@ function Settings({ userRole }: SettingsProps) {
 
   const loadOAuthSettings = async () => {
     try {
-      const response = await fetch('/api/settings/oauth');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.OAUTH, { credentials: 'include' });
       const data = await response.json();
       setOauthProvider(data.provider || 'none');
       setPublicHostname(data.publicHostname || '');
@@ -282,7 +284,7 @@ function Settings({ userRole }: SettingsProps) {
 
   const loadUiSettings = async () => {
     try {
-      const response = await fetch('/api/settings/ui');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, { credentials: 'include' });
       const data = await response.json();
       if (data.success) {
         setHideBmc(data.hideBmc || false);
@@ -296,10 +298,11 @@ function Settings({ userRole }: SettingsProps) {
   const handleSaveUiSettings = async () => {
     setUiLoading(true);
     try {
-      const response = await fetch('/api/settings/ui', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hideBmc, colorScheme })
+        body: JSON.stringify({ hideBmc, colorScheme }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -319,7 +322,7 @@ function Settings({ userRole }: SettingsProps) {
     setRestarting(true);
     
     try {
-      const response = await fetch('/api/system/restart', { method: 'POST' });
+      const response = await fetchWithRetry(API_ENDPOINTS.SYSTEM.RESTART, { method: 'POST', credentials: 'include' });
       const data = await response.json();
       
       if (response.ok) {
@@ -338,7 +341,7 @@ function Settings({ userRole }: SettingsProps) {
   useEffect(() => {
     (async () => {
       try {
-        const resp = await fetch('/api/log-level');
+        const resp = await fetchWithRetry(API_ENDPOINTS.SYSTEM.LOG_LEVEL, { credentials: 'include' });
         if (resp.ok) {
           const data = await resp.json();
           if (data && data.level) setLogLevel(String(data.level).toUpperCase());
@@ -349,10 +352,11 @@ function Settings({ userRole }: SettingsProps) {
 
   const handleSaveLogLevel = async () => {
     try {
-      const resp = await fetch('/api/log-level', {
+      const resp = await fetchWithRetry(API_ENDPOINTS.SYSTEM.LOG_LEVEL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ level: logLevel })
+        body: JSON.stringify({ level: logLevel }),
+        credentials: 'include'
       });
       if (resp.ok) {
         setToast({ message: `Log level set to ${logLevel}`, type: 'success' });
@@ -366,7 +370,7 @@ function Settings({ userRole }: SettingsProps) {
 
   const loadAvailableBackups = async () => {
     try {
-      const response = await fetch('/api/settings/database/backups');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_BACKUPS, { credentials: 'include' });
       const data = await response.json();
       if (data.success) {
         setAvailableBackups(data.backups || []);
@@ -383,8 +387,9 @@ function Settings({ userRole }: SettingsProps) {
     }
     
     try {
-      const response = await fetch(`/api/settings/database/backups/${filename}`, {
-        method: 'DELETE'
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_BACKUP_FILE(filename), {
+        method: 'DELETE',
+        credentials: 'include'
       });
       const data = await response.json();
       
@@ -405,7 +410,7 @@ function Settings({ userRole }: SettingsProps) {
 
   const loadDatabaseSettings = async () => {
     try {
-      const response = await fetch('/api/settings/database');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE, { credentials: 'include' });
       const data = await response.json();
       if (!response.ok) return;
       setBackupScheduleEnabled(data.backupScheduleEnabled ?? false);
@@ -442,8 +447,9 @@ function Settings({ userRole }: SettingsProps) {
   const handleVacuumDatabase = async () => {
     setDbVacuuming(true);
     try {
-      const response = await fetch('/api/settings/database/vacuum', {
-        method: 'POST'
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_VACUUM, {
+        method: 'POST',
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success && data.details) {
@@ -472,8 +478,9 @@ function Settings({ userRole }: SettingsProps) {
   const handleAnalyzeDatabase = async () => {
     setDbAnalyzing(true);
     try {
-      const response = await fetch('/api/settings/database/analyze', {
-        method: 'POST'
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_ANALYZE, {
+        method: 'POST',
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success && data.details) {
@@ -500,8 +507,9 @@ function Settings({ userRole }: SettingsProps) {
   const handleRebuildIndexes = async () => {
     setDbRebuildingIndexes(true);
     try {
-      const response = await fetch('/api/settings/database/reindex', {
-        method: 'POST'
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_REINDEX, {
+        method: 'POST',
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success && data.details) {
@@ -533,7 +541,7 @@ function Settings({ userRole }: SettingsProps) {
     
     try {
       // Start backup in async mode to avoid gateway timeouts
-      const response = await fetch('/api/settings/database/backup', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_BACKUP, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -541,7 +549,8 @@ function Settings({ userRole }: SettingsProps) {
           includeLibrary: backupIncludeLibrary,
           includeCovers: backupIncludeCovers,
           async: true // Use async mode with polling
-        })
+        }),
+        credentials: 'include'
       });
       
       // Check if we got an HTML error page instead of JSON
@@ -558,7 +567,9 @@ function Settings({ userRole }: SettingsProps) {
         // Poll for backup status
         const pollStatus = async () => {
           try {
-            const statusResponse = await fetch(`/api/settings/database/backup/status/${data.jobId}`);
+            const statusResponse = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_BACKUP_STATUS(data.jobId), {
+              credentials: 'include'
+            });
             const statusData = await statusResponse.json();
             
             setBackupProgress(statusData.progress || 0);
@@ -630,7 +641,7 @@ function Settings({ userRole }: SettingsProps) {
   const handleSaveDatabaseSettings = async () => {
     setDbMaintenanceLoading(true);
     try {
-      const response = await fetch('/api/settings/database', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -648,7 +659,8 @@ function Settings({ userRole }: SettingsProps) {
           backupIncludeLibrary,
           backupIncludeCovers,
           backupWebhookUrl
-        })
+        }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -676,10 +688,11 @@ function Settings({ userRole }: SettingsProps) {
     
     try {
       // Start restore in async mode
-      const response = await fetch('/api/settings/database/restore', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_RESTORE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ backupFile: selectedBackup, async: true })
+        body: JSON.stringify({ backupFile: selectedBackup, async: true }),
+        credentials: 'include'
       });
       
       const data = await response.json();
@@ -688,7 +701,9 @@ function Settings({ userRole }: SettingsProps) {
         // Poll for restore status
         const pollStatus = async () => {
           try {
-            const statusResponse = await fetch(`/api/settings/database/restore/status/${data.jobId}`);
+            const statusResponse = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_RESTORE_STATUS(data.jobId), {
+              credentials: 'include'
+            });
             const statusData = await statusResponse.json();
             
             setRestoreProgress(statusData.progress || 0);
@@ -739,7 +754,7 @@ function Settings({ userRole }: SettingsProps) {
   const handleTestRemoteBackup = async () => {
     setRemoteBackupTesting(true);
     try {
-      const response = await fetch('/api/settings/database/test-remote', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_TEST_REMOTE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -749,7 +764,8 @@ function Settings({ userRole }: SettingsProps) {
           username: remoteBackupUsername,
           password: remoteBackupPassword,
           path: remoteBackupPath
-        })
+        }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -766,7 +782,7 @@ function Settings({ userRole }: SettingsProps) {
 
   const loadWatchdogSettings = async () => {
     try {
-      const response = await fetch('/api/settings/watchdog');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.WATCHDOG, { credentials: 'include' });
       const data = await response.json();
       if (!response.ok) return;
       setWatchdogEnabled(data.enabled || false);
@@ -780,14 +796,15 @@ function Settings({ userRole }: SettingsProps) {
   const handleSaveWatchdogSettings = async () => {
     setWatchdogLoading(true);
     try {
-      const response = await fetch('/api/settings/watchdog', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.WATCHDOG, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           enabled: watchdogEnabled,
           interval: watchdogInterval,
           endpoint: watchdogEndpoint
-        })
+        }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -805,7 +822,7 @@ function Settings({ userRole }: SettingsProps) {
   // Discord webhook functions
   const loadDiscordSettings = async () => {
     try {
-      const response = await fetch('/api/settings/discord');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DISCORD, { credentials: 'include' });
       const data = await response.json();
       if (!response.ok) return;
       setDiscordPrinterWebhook(data.printerWebhook || '');
@@ -821,7 +838,7 @@ function Settings({ userRole }: SettingsProps) {
   // Unified Notifications (Discord, Telegram, Slack)
   const loadNotificationsSettings = async () => {
     try {
-      const response = await fetch('/api/settings/notifications');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.NOTIFICATIONS, { credentials: 'include' });
       const data = await response.json();
       if (!response.ok || !data.success) return;
       const s = data.settings || {};
@@ -854,7 +871,7 @@ function Settings({ userRole }: SettingsProps) {
   const handleSaveNotificationsSettings = async () => {
     setNotificationsLoading(true);
     try {
-      const response = await fetch('/api/settings/notifications', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.NOTIFICATIONS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -878,7 +895,8 @@ function Settings({ userRole }: SettingsProps) {
             maintenanceEnabled: slackMaintenanceEnabled,
             backupEnabled: slackBackupEnabled
           }
-        })
+        }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -900,10 +918,11 @@ function Settings({ userRole }: SettingsProps) {
     }
     setDiscordTesting(type);
     try {
-      const response = await fetch('/api/discord/test', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DISCORD_TEST, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, webhook: discordWebhook })
+        body: JSON.stringify({ type, webhook: discordWebhook }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -924,10 +943,11 @@ function Settings({ userRole }: SettingsProps) {
       return;
     }
     try {
-      const response = await fetch('/api/settings/notifications/test', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.NOTIFICATIONS_TEST, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: 'telegram', type })
+        body: JSON.stringify({ provider: 'telegram', type }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -946,10 +966,11 @@ function Settings({ userRole }: SettingsProps) {
       return;
     }
     try {
-      const response = await fetch('/api/settings/notifications/test', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.NOTIFICATIONS_TEST, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: 'slack', type })
+        body: JSON.stringify({ provider: 'slack', type }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -965,7 +986,7 @@ function Settings({ userRole }: SettingsProps) {
   const handleSaveDiscordSettings = async () => {
     setDiscordLoading(true);
     try {
-      const response = await fetch('/api/settings/discord', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DISCORD, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -974,7 +995,8 @@ function Settings({ userRole }: SettingsProps) {
           maintenanceWebhook: discordMaintenanceWebhook,
           maintenanceEnabled: discordMaintenanceEnabled,
           pingUserId: discordPingUserId
-        })
+        }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -997,10 +1019,11 @@ function Settings({ userRole }: SettingsProps) {
     }
     setDiscordTesting(type);
     try {
-      const response = await fetch('/api/discord/test', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DISCORD_TEST, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, webhook })
+        body: JSON.stringify({ type, webhook }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -1017,7 +1040,7 @@ function Settings({ userRole }: SettingsProps) {
 
   const loadUserProfile = async () => {
     try {
-      const response = await fetch('/api/settings/profile');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.PROFILE, { credentials: 'include' });
       const data = await response.json();
       if (!response.ok) return;
       setUserProfile(data);
@@ -1029,13 +1052,14 @@ function Settings({ userRole }: SettingsProps) {
   const handleSaveProfile = async () => {
     setProfileLoading(true);
     try {
-      const response = await fetch('/api/settings/profile', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.PROFILE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           displayName: userProfile.displayName,
           email: userProfile.email
-        })
+        }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -1052,7 +1076,7 @@ function Settings({ userRole }: SettingsProps) {
 
   const loadCostSettings = async () => {
     try {
-      const response = await fetch('/api/settings/costs');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.COSTS, { credentials: 'include' });
       const data = await response.json();
       if (!response.ok) return;
       setFilamentCostPerKg(data.filamentCostPerKg ?? 25);
@@ -1070,7 +1094,7 @@ function Settings({ userRole }: SettingsProps) {
   const handleSaveCostSettings = async () => {
     setCostLoading(true);
     try {
-      const response = await fetch('/api/settings/costs', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.COSTS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1079,7 +1103,8 @@ function Settings({ userRole }: SettingsProps) {
           printerWattage,
           currency: costCurrency,
           materialCosts
-        })
+        }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -1099,10 +1124,11 @@ function Settings({ userRole }: SettingsProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/settings/request-code', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.REQUEST_CODE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, region })
+        body: JSON.stringify({ email, region }),
+        credentials: 'include'
       });
 
       const data = await response.json();
@@ -1126,10 +1152,11 @@ function Settings({ userRole }: SettingsProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/settings/connect-bambu', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.CONNECT_BAMBU, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code, region })
+        body: JSON.stringify({ email, code, region }),
+        credentials: 'include'
       });
 
       const data = await response.json();
@@ -1158,8 +1185,9 @@ function Settings({ userRole }: SettingsProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/settings/disconnect-bambu', {
-        method: 'POST'
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DISCONNECT_BAMBU, {
+        method: 'POST',
+        credentials: 'include'
       });
 
       const data = await response.json();
@@ -1194,10 +1222,11 @@ function Settings({ userRole }: SettingsProps) {
     }
     
     try {
-      const response = await fetch('/api/settings/change-password', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.CHANGE_PASSWORD, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, newPassword })
+        body: JSON.stringify({ currentPassword, newPassword }),
+        credentials: 'include'
       });
       
       const data = await response.json();
@@ -1222,10 +1251,11 @@ function Settings({ userRole }: SettingsProps) {
     setFtpLoading(true);
     
     try {
-      const response = await fetch('/api/settings/save-printer-ftp', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.SAVE_PRINTER_FTP, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printerIp, printerAccessCode, cameraRtspUrl })
+        body: JSON.stringify({ printerIp, printerAccessCode, cameraRtspUrl }),
+        credentials: 'include'
       });
       
       const data = await response.json();
@@ -1246,10 +1276,11 @@ function Settings({ userRole }: SettingsProps) {
     setFtpTesting(true);
     
     try {
-      const response = await fetch('/api/settings/test-printer-ftp', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.TEST_PRINTER_FTP, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printerIp, printerAccessCode })
+        body: JSON.stringify({ printerIp, printerAccessCode }),
+        credentials: 'include'
       });
       
       const data = await response.json();
@@ -1271,7 +1302,7 @@ function Settings({ userRole }: SettingsProps) {
     setOauthLoading(true);
     
     try {
-      const response = await fetch('/api/settings/save-oauth', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.SAVE_OAUTH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1283,7 +1314,8 @@ function Settings({ userRole }: SettingsProps) {
           oidcClientId,
           oidcClientSecret,
           oidcEndSessionUrl
-        })
+        }),
+        credentials: 'include'
       });
       
       const data = await response.json();

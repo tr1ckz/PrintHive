@@ -2646,7 +2646,11 @@ app.get('/api/library/geometry/:id', async (req, res) => {
   }
 
   try {
-    const fileId = req.params.id;
+    const fileId = parseInt(req.params.id, 10);
+    if (Number.isNaN(fileId) || fileId < 0) {
+      return res.status(400).json({ error: 'Invalid file id' });
+    }
+
     const stlPath = path.join(geometryCache, `${fileId}.stl`);
     const modelPath = path.join(geometryCache, `${fileId}.model`);
 
@@ -2784,7 +2788,8 @@ app.get('/api/library/download/:id', async (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    const filePath = path.join(libraryDir, file.fileName);
+    const safeFileName = sanitizeFilePath(file.fileName);
+    const filePath = path.join(libraryDir, safeFileName);
     
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found on disk' });
@@ -2966,7 +2971,8 @@ app.delete('/api/library/:id', async (req, res) => {
     }
 
     // Delete file from disk
-    const filePath = path.join(libraryDir, file.fileName);
+    const safeFileName = sanitizeFilePath(file.fileName);
+    const filePath = path.join(libraryDir, safeFileName);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }

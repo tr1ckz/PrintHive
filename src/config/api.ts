@@ -17,13 +17,18 @@ export const API_ENDPOINTS = {
     LOGIN: `${API_BASE_URL}/auth/login`,
     LOGOUT: `${API_BASE_URL}/auth/logout`,
     CHECK: `${API_BASE_URL}/api/check-auth`,
+    USER_ME: `${API_BASE_URL}/api/user/me`,
     OIDC: `${API_BASE_URL}/auth/oidc`,
     OIDC_CALLBACK: `${API_BASE_URL}/auth/oidc/callback`,
+    HEALTH: `${API_BASE_URL}/api/health`,
   },
   
   PRINTERS: {
     LIST: `${API_BASE_URL}/api/printers`,
     CAMERA_SNAPSHOT: `${API_BASE_URL}/api/camera-snapshot`,
+    DOWNLOAD: (modelId: string) => `${API_BASE_URL}/api/printer/download/${modelId}`,
+    JOB_COVER: (deviceId: string) => `${API_BASE_URL}/api/job-cover/${deviceId}`,
+    STATUS: `${API_BASE_URL}/api/printers/status`,
   },
   
   MODELS: {
@@ -36,8 +41,10 @@ export const API_ENDPOINTS = {
     LIST: `${API_BASE_URL}/api/library`,
     UPLOAD: `${API_BASE_URL}/api/library/upload`,
     DOWNLOAD: (id: number) => `${API_BASE_URL}/api/library/download/${id}`,
-    DELETE: (id: number) => `${API_BASE_URL}/api/library/${id}`,
+    FILE: (id: number) => `${API_BASE_URL}/api/library/${id}`,
     THUMBNAIL: (id: number) => `${API_BASE_URL}/api/library/thumbnail/${id}`,
+    GEOMETRY: (id: number|string) => `${API_BASE_URL}/api/library/geometry/${id}`,
+    DUPLICATES: (groupBy: string) => `${API_BASE_URL}/api/library/duplicates?groupBy=${groupBy}`,
     SCAN: `${API_BASE_URL}/api/library/scan`,
     SCAN_STATUS: `${API_BASE_URL}/api/library/scan-status`,
     SCAN_CANCEL: `${API_BASE_URL}/api/library/scan-cancel`,
@@ -65,27 +72,53 @@ export const API_ENDPOINTS = {
   
   SETTINGS: {
     BAMBU_STATUS: `${API_BASE_URL}/api/settings/bambu-status`,
+    PRINTER_FTP: `${API_BASE_URL}/api/settings/printer-ftp`,
     REQUEST_CODE: `${API_BASE_URL}/api/settings/request-code`,
     CONNECT_BAMBU: `${API_BASE_URL}/api/settings/connect-bambu`,
     DISCONNECT_BAMBU: `${API_BASE_URL}/api/settings/disconnect-bambu`,
     CHANGE_PASSWORD: `${API_BASE_URL}/api/settings/change-password`,
+    OAUTH: `${API_BASE_URL}/api/settings/oauth`,
     TEST_PRINTER_FTP: `${API_BASE_URL}/api/settings/test-printer-ftp`,
+    SAVE_PRINTER_FTP: `${API_BASE_URL}/api/settings/save-printer-ftp`,
     SAVE_PRINTER: `${API_BASE_URL}/api/settings/save-printer`,
+    SAVE_OAUTH: `${API_BASE_URL}/api/settings/save-oauth`,
     SAVE_UI: `${API_BASE_URL}/api/settings/save-ui`,
+    UI: `${API_BASE_URL}/api/settings/ui`,
+    OAUTH_PUBLIC: `${API_BASE_URL}/api/settings/oauth-public`,
     GET: `${API_BASE_URL}/api/settings`,
     COSTS: `${API_BASE_URL}/api/settings/costs`,
+    LOG_LEVEL: `${API_BASE_URL}/api/log-level`,
+    WATCHDOG: `${API_BASE_URL}/api/settings/watchdog`,
+    NOTIFICATIONS: `${API_BASE_URL}/api/settings/notifications`,
+    NOTIFICATIONS_TEST: `${API_BASE_URL}/api/settings/notifications/test`,
+    DISCORD: `${API_BASE_URL}/api/settings/discord`,
+    DISCORD_TEST: `${API_BASE_URL}/api/discord/test`,
+    PROFILE: `${API_BASE_URL}/api/settings/profile`,
+    DATABASE: `${API_BASE_URL}/api/settings/database`,
+    DATABASE_BACKUPS: `${API_BASE_URL}/api/settings/database/backups`,
+    DATABASE_BACKUP: `${API_BASE_URL}/api/settings/database/backup`,
+    DATABASE_BACKUP_STATUS: (jobId: string) => `${API_BASE_URL}/api/settings/database/backup/status/${jobId}`,
+    DATABASE_RESTORE: `${API_BASE_URL}/api/settings/database/restore`,
+    DATABASE_RESTORE_STATUS: (jobId: string) => `${API_BASE_URL}/api/settings/database/restore/status/${jobId}`,
+    DATABASE_VACUUM: `${API_BASE_URL}/api/settings/database/vacuum`,
+    DATABASE_ANALYZE: `${API_BASE_URL}/api/settings/database/analyze`,
+    DATABASE_REINDEX: `${API_BASE_URL}/api/settings/database/reindex`,
+    DATABASE_TEST_REMOTE: `${API_BASE_URL}/api/settings/database/test-remote`,
+    DATABASE_BACKUP_FILE: (filename: string) => `${API_BASE_URL}/api/settings/database/backups/${filename}`,
+    DATABASE_RESTORE_UPLOAD: `${API_BASE_URL}/api/settings/database/restore`,
   },
   
   MAINTENANCE: {
-    TASKS: `${API_BASE_URL}/api/maintenance/tasks`,
-    TASK: (id: number) => `${API_BASE_URL}/api/maintenance/tasks/${id}`,
-    COMPLETE: (id: number) => `${API_BASE_URL}/api/maintenance/tasks/${id}/complete`,
-    HISTORY: (taskId: number) => `${API_BASE_URL}/api/maintenance/tasks/${taskId}/history`,
+    LIST: `${API_BASE_URL}/api/maintenance`,
+    TASK: (id: number) => `${API_BASE_URL}/api/maintenance/${id}`,
+    COMPLETE: (id: number) => `${API_BASE_URL}/api/maintenance/${id}/complete`,
+    HISTORY: (taskId: number) => `${API_BASE_URL}/api/maintenance/${taskId}/history`,
   },
   
   STATISTICS: {
     DASHBOARD: `${API_BASE_URL}/api/statistics/dashboard`,
     HISTORY: `${API_BASE_URL}/api/statistics`,
+    COSTS: `${API_BASE_URL}/api/statistics/costs`,
   },
   
   SYSTEM: {
@@ -99,10 +132,18 @@ export const API_ENDPOINTS = {
     LIST: `${API_BASE_URL}/api/users`,
     UPDATE_ROLE: (userId: number) => `${API_BASE_URL}/api/users/${userId}/role`,
     DELETE: (userId: number) => `${API_BASE_URL}/api/users/${userId}`,
+    ADMIN_LIST: `${API_BASE_URL}/api/admin/users`,
+    ADMIN_UPDATE_ROLE: (userId: number) => `${API_BASE_URL}/api/admin/users/${userId}/role`,
+    ADMIN_DELETE: (userId: number) => `${API_BASE_URL}/api/admin/users/${userId}`,
   },
   
   DUPLICATES: {
     CHECK: `${API_BASE_URL}/api/library/check-duplicates`,
+    LIST: `${API_BASE_URL}/api/library/duplicates`,
+  },
+
+  TAGS: {
+    LIST: `${API_BASE_URL}/api/tags`,
   },
 };
 

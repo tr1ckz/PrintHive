@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import './Login.css';
+import { API_ENDPOINTS } from '../config/api';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -30,7 +32,7 @@ function Login({ onLoginSuccess }: LoginProps) {
       console.log('[Login] Pathname:', window.location.pathname);
       console.log('[Login] Search:', window.location.search);
       
-      const response = await fetch('/api/settings/oauth-public');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.OAUTH_PUBLIC, { credentials: 'include' });
       const data = await response.json();
       console.log('[Login] OAuth provider:', data.provider);
       setOauthProvider(data.provider || 'none');
@@ -66,7 +68,7 @@ function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('/auth/login', {
+      const response = await fetchWithRetry(API_ENDPOINTS.AUTH.LOGIN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

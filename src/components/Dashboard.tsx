@@ -8,6 +8,8 @@ import DashboardHome from './DashboardHome';
 import Maintenance from './Maintenance';
 import Printers from './Printers';
 import Statistics from './Statistics';
+import { API_ENDPOINTS } from '../config/api';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -33,13 +35,13 @@ function Dashboard({ onLogout }: DashboardProps) {
   const [hideBmc, setHideBmc] = useState(true); // Default hidden until loaded
 
   useEffect(() => {
-    fetch('/api/user/me')
+    fetchWithRetry(API_ENDPOINTS.AUTH.USER_ME, { credentials: 'include' })
       .then(res => res.json())
       .then(data => setUserInfo(data))
       .catch(err => console.error('Failed to fetch user info:', err));
     
     // Fetch UI settings
-    fetch('/api/settings/ui')
+    fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (data.success) {

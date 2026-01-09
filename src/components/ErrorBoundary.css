@@ -1,0 +1,60 @@
+.error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-dark);
+  padding: 2rem;
+}
+
+.error-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  padding: 3rem;
+  max-width: 600px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.error-content h2 {
+  color: var(--status-error);
+  margin-bottom: 1rem;
+}
+
+.error-content p {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.error-content details {
+  text-align: left;
+  margin: 1rem 0;
+  background: var(--bg-modal);
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid var(--border-secondary);
+}
+
+.error-content pre {
+  color: var(--status-error-dark);
+  font-size: 0.85rem;
+  overflow-x: auto;
+}
+
+.error-content button {
+  background: var(--color-primary);
+  border: none;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-md);
+}
+
+.error-content button:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-lg);
+}

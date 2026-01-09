@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_ENDPOINTS } from '../config/api';
+import fetchWithRetry from '../utils/fetchWithRetry';
 import './TagsInput.css';
 
 interface Tag {
@@ -28,7 +30,7 @@ const TagsInput: React.FC<TagsInputProps> = ({ value, onChange, disabled, placeh
 
   // Fetch all tags on mount
   useEffect(() => {
-    fetch('/api/tags')
+    fetchWithRetry(API_ENDPOINTS.TAGS.LIST, { credentials: 'include' })
       .then(res => res.json())
       .then(data => setAllTags(data))
       .catch(err => console.error('Failed to fetch tags:', err));

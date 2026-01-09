@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import LoadingScreen from './components/LoadingScreen';
+import { API_ENDPOINTS } from './config/api';
+import { fetchWithRetry } from './utils/fetchWithRetry';
 import './App.css';
 
 function App() {
@@ -14,7 +16,9 @@ function App() {
 
   const loadColorScheme = async () => {
     try {
-      const response = await fetch('/api/settings/ui');
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, {
+        credentials: 'include',
+      });
       const data = await response.json();
       if (data.success && data.colorScheme) {
         applyColorScheme(data.colorScheme);
@@ -43,7 +47,7 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('/api/check-auth', {
+      const response = await fetchWithRetry(API_ENDPOINTS.AUTH.CHECK, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -59,7 +63,7 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/auth/logout', { 
+      const response = await fetchWithRetry(API_ENDPOINTS.AUTH.LOGOUT, { 
         method: 'POST',
         credentials: 'include'
       });

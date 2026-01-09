@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import ConfirmModal from './ConfirmModal';
 import Toast from './Toast';
 import './Maintenance.css';
+import { API_ENDPOINTS } from '../config/api';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 interface MaintenanceTask {
   id: number;
@@ -107,7 +109,7 @@ function Maintenance() {
 
   const loadTasks = async () => {
     try {
-      const response = await fetch('/api/maintenance');
+      const response = await fetchWithRetry(API_ENDPOINTS.MAINTENANCE.LIST, { credentials: 'include' });
       const data = await response.json();
       if (response.ok) {
         setTasks(data);
@@ -121,7 +123,7 @@ function Maintenance() {
 
   const loadPrinters = async () => {
     try {
-      const response = await fetch('/api/printers');
+      const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.LIST, { credentials: 'include' });
       const data = await response.json();
       if (response.ok && data.devices) {
         // Map device data to expected printer format
@@ -134,7 +136,7 @@ function Maintenance() {
 
   const loadHistory = async (taskId: number) => {
     try {
-      const response = await fetch(`/api/maintenance/${taskId}/history`);
+      const response = await fetchWithRetry(API_ENDPOINTS.MAINTENANCE.HISTORY(taskId), { credentials: 'include' });
       const data = await response.json();
       if (response.ok) {
         setTaskHistory(data);
@@ -155,10 +157,10 @@ function Maintenance() {
     }
     
     try {
-      const url = editingTask ? `/api/maintenance/${editingTask.id}` : '/api/maintenance';
+      const url = editingTask ? API_ENDPOINTS.MAINTENANCE.TASK(editingTask.id) : API_ENDPOINTS.MAINTENANCE.LIST;
       const method = editingTask ? 'PUT' : 'POST';
       
-      const response = await fetch(url, {
+      const response = await fetchWithRetry(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -186,7 +188,7 @@ function Maintenance() {
 
   const handleDelete = async (id: number) => {
     try {
-      const response = await fetch(`/api/maintenance/${id}`, { method: 'DELETE' });
+      const response = await fetchWithRetry(API_ENDPOINTS.MAINTENANCE.TASK(id), { method: 'DELETE', credentials: 'include' });
       const data = await response.json();
       
       if (data.success) {
@@ -203,7 +205,7 @@ function Maintenance() {
 
   const handleComplete = async (id: number) => {
     try {
-      const response = await fetch(`/api/maintenance/${id}/complete`, { method: 'POST' });
+      const response = await fetchWithRetry(API_ENDPOINTS.MAINTENANCE.COMPLETE(id), { method: 'POST', credentials: 'include' });
       const data = await response.json();
       
       if (data.success) {

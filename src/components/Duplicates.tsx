@@ -3,6 +3,8 @@ import './Duplicates.css';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
 import LoadingScreen from './LoadingScreen';
+import { API_ENDPOINTS } from '../config/api';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 interface LibraryFile {
   id: number;
@@ -40,7 +42,9 @@ function Duplicates() {
   const loadDuplicates = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/library/duplicates?groupBy=${groupBy}`);
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.DUPLICATES(groupBy), {
+        credentials: 'include',
+      });
       const data = await response.json();
       setDuplicates(data.duplicates || []);
     } catch (error) {
@@ -97,7 +101,7 @@ function Duplicates() {
 
     try {
       const deletePromises = Array.from(selectedFiles).map(fileId =>
-        fetch(`/api/library/${fileId}`, { method: 'DELETE' })
+        fetchWithRetry(API_ENDPOINTS.LIBRARY.FILE(fileId), { method: 'DELETE', credentials: 'include' })
       );
       
       await Promise.all(deletePromises);

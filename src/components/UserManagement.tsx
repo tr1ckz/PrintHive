@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { API_ENDPOINTS } from '../config/api';
+import fetchWithRetry from '../utils/fetchWithRetry';
 import './UserManagement.css';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
@@ -26,7 +28,7 @@ export default function UserManagement() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/users');
+      const response = await fetchWithRetry(API_ENDPOINTS.USERS.ADMIN_LIST, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
       setUsers(data);
@@ -39,10 +41,11 @@ export default function UserManagement() {
 
   const handleRoleChange = async (userId: number, newRole: string) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/role`, {
+      const response = await fetchWithRetry(API_ENDPOINTS.USERS.ADMIN_UPDATE_ROLE(userId), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: newRole })
+        body: JSON.stringify({ role: newRole }),
+        credentials: 'include'
       });
       
       if (!response.ok) throw new Error('Failed to update role');
@@ -65,8 +68,9 @@ export default function UserManagement() {
     setConfirmDelete(null);
     
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
-        method: 'DELETE'
+      const response = await fetchWithRetry(API_ENDPOINTS.USERS.ADMIN_DELETE(userId), {
+        method: 'DELETE',
+        credentials: 'include'
       });
       
       if (!response.ok) throw new Error('Failed to delete user');

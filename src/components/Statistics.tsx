@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { API_ENDPOINTS } from '../config/api';
+import fetchWithRetry from '../utils/fetchWithRetry';
 import './Statistics.css';
 import LoadingScreen from './LoadingScreen';
 
@@ -42,8 +44,8 @@ const Statistics: React.FC = () => {
       setError('');
       
       const [statsRes, costsRes] = await Promise.all([
-        fetch('/api/statistics'),
-        fetch('/api/statistics/costs')
+        fetchWithRetry(API_ENDPOINTS.STATISTICS.HISTORY, { credentials: 'include' }),
+        fetchWithRetry(API_ENDPOINTS.STATISTICS.COSTS, { credentials: 'include' })
       ]);
       
       if (!statsRes.ok) throw new Error('Failed to fetch statistics');

@@ -3,6 +3,8 @@ import './PrintHistory.css';
 import Toast from './Toast';
 import LoadingScreen from './LoadingScreen';
 import { useDebounce } from '../hooks/useDebounce';
+import { API_ENDPOINTS } from '../config/api';
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 interface Print {
   id: number;
   modelId: string;
@@ -55,6 +57,8 @@ const PrintHistory: React.FC = () => {
   } | null>(null);
   const [videoModal, setVideoModal] = useState<{ modelId: string; title: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const fetchPrints = async () => {
     try {
@@ -63,7 +67,9 @@ const PrintHistory: React.FC = () => {
       
       const params = new URLSearchParams({ source: 'db' });
 
-      const response = await fetch(`/api/models?${params.toString()}`);
+      const response = await fetchWithRetry(`${API_ENDPOINTS.MODELS.LIST}?${params.toString()}`, {
+        credentials: 'include',
+      });
       if (!response.ok) throw new Error('Failed to fetch prints');
       
       const data = await response.json();
@@ -80,7 +86,7 @@ const PrintHistory: React.FC = () => {
   const handleSync = async () => {
     try {
       setSyncing(true);
-      const response = await fetch('/api/sync', { method: 'POST' });
+      const response = await fetchWithRetry(API_ENDPOINTS.SYNC.CLOUD, { method: 'POST', credentials: 'include' });
       if (!response.ok) throw new Error('Failed to sync');
       
       const data = await response.json();
@@ -96,7 +102,7 @@ const PrintHistory: React.FC = () => {
   const handleMatchVideos = async () => {
     try {
       setMatching(true);
-      const response = await fetch('/api/match-videos', { method: 'POST' });
+      const response = await fetchWithRetry(API_ENDPOINTS.VIDEO.MATCH, { method: 'POST', credentials: 'include' });
       const data = await response.json();
       
       if (!response.ok) {
@@ -109,7 +115,7 @@ const PrintHistory: React.FC = () => {
         // Start polling for progress
         const pollProgress = async () => {
           try {
-            const statusResponse = await fetch('/api/match-videos-status');
+            const statusResponse = await fetchWithRetry(API_ENDPOINTS.VIDEO.MATCH_STATUS, { credentials: 'include' });
             const status = await statusResponse.json();
             
             setMatchProgress(status);
@@ -152,7 +158,7 @@ const PrintHistory: React.FC = () => {
 
   const handleCancelMatch = async () => {
     try {
-      const response = await fetch('/api/match-videos-cancel', { method: 'POST' });
+      const response = await fetchWithRetry(API_ENDPOINTS.VIDEO.MATCH_CANCEL, { method: 'POST', credentials: 'include' });
       const data = await response.json();
       if (data.success) {
         setToast({ message: 'Video matching cancelled', type: 'success' });
@@ -170,7 +176,7 @@ const PrintHistory: React.FC = () => {
 
     try {
       setSyncingPrinter(true);
-      const response = await fetch('/api/sync-printer-timelapses', {
+      const response = await fetchWithRetry(API_ENDPOINTS.SYNC.PRINTER_TIMELAPSES, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ printerIp, accessCode: printerAccessCode })
@@ -194,7 +200,7 @@ const PrintHistory: React.FC = () => {
 
   const handleDownload = async (modelId: string, title: string) => {
     try {
-      const response = await fetch(`/api/printer/download/${modelId}`);
+      const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.DOWNLOAD(modelId), { credentials: 'include' });
       if (!response.ok) throw new Error('Download failed');
       
       const blob = await response.blob();
