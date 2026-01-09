@@ -8,6 +8,7 @@ import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useDebounce } from '../hooks/useDebounce';
 import { formatFileSize } from '../utils/formatters';
+import { useEscapeKey } from '../hooks/useKeyboardShortcut';
 
 interface LibraryFile {
   id: number;
