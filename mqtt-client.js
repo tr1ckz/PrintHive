@@ -156,9 +156,18 @@ class BambuMqttClient extends EventEmitter {
       if (amsRaw) {
         // Some payloads nest AMS under ams[0].tray
         let traysSource = [];
-        if (Array.isArray(amsRaw.tray)) traysSource = amsRaw.tray;
-        else if (Array.isArray(amsRaw.trays)) traysSource = amsRaw.trays;
-        else if (Array.isArray(amsRaw.ams) && amsRaw.ams.length > 0) traysSource = amsRaw.ams[0].tray || amsRaw.ams[0].trays || [];
+        let amsUnit = null;
+        
+        if (Array.isArray(amsRaw.tray)) {
+          traysSource = amsRaw.tray;
+          amsUnit = amsRaw;
+        } else if (Array.isArray(amsRaw.trays)) {
+          traysSource = amsRaw.trays;
+          amsUnit = amsRaw;
+        } else if (Array.isArray(amsRaw.ams) && amsRaw.ams.length > 0) {
+          traysSource = amsRaw.ams[0].tray || amsRaw.ams[0].trays || [];
+          amsUnit = amsRaw.ams[0];
+        }
 
         const trays = Array.isArray(traysSource) ? traysSource : [];
         const activeTray = (amsRaw.active_tray ?? amsRaw.cur_tray ?? amsRaw.cur_tray_index ?? (amsRaw.tray_now ? parseInt(amsRaw.tray_now, 10) : null));
@@ -172,8 +181,8 @@ class BambuMqttClient extends EventEmitter {
             slot: (t.id ?? t.slot ?? idx),
             color: (t.color ?? t.tray_color ?? t.cols?.[0] ?? null),
             type: (t.type ?? t.tray_type ?? null),
-            humidity: (t.humidity ?? t.humi ?? amsRaw.humidity ?? null),
-            temp: (t.temp ?? t.temperature ?? amsRaw.temp ?? null)
+            humidity: (t.humidity ?? t.humi ?? (amsUnit ? amsUnit.humidity : null)),
+            temp: (t.temp ?? t.temperature ?? (amsUnit ? amsUnit.temp : null))
           }))
         };
 
