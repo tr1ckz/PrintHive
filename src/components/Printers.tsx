@@ -285,7 +285,7 @@ function Printers() {
                             {printer.current_task.error_message && <span title={printer.current_task.error_message}>Details: {printer.current_task.error_message}</span>}
                           </div>
                         )}
-                        {printer.current_task.ams && (
+                        {printer.current_task.ams && Array.isArray(printer.current_task.ams.trays) && printer.current_task.ams.trays.length > 0 ? (
                           <div className="progress-ams" style={{ marginTop: '0.5rem' }}>
                             <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>AMS</div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 0.75rem' }}>
@@ -306,12 +306,17 @@ function Printers() {
                               )}
                             </div>
                           </div>
-                        )}
+                        ) : printer.current_task.ams ? (
+                          <div className="progress-ams" style={{ marginTop: '0.5rem' }}>
+                            <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>AMS</div>
+                            <span className="chip subtle">No AMS trays reported</span>
+                          </div>
+                        ) : null}
                       </div>
                     )}
 
                     {/* AMS Info - Always visible if available (when not printing) */}
-                    {!printer.current_task && printer.ams && (
+                    {!printer.current_task && printer.ams && Array.isArray(printer.ams.trays) && printer.ams.trays.length > 0 ? (
                       <div style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                         <div className="progress-ams">
                           <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>AMS</div>
@@ -334,7 +339,14 @@ function Printers() {
                           </div>
                         </div>
                       </div>
-                    )}
+                    ) : (!printer.current_task && printer.ams ? (
+                      <div style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                        <div className="progress-ams">
+                          <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>AMS</div>
+                          <span className="chip subtle">No AMS trays reported</span>
+                        </div>
+                      </div>
+                    ) : null)}
                   </div>
                 )}
 

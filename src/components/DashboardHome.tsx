@@ -80,10 +80,19 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
         const raw = data?.hits || data?.models || data || [];
         const normalized = Array.isArray(raw) ? raw : [];
 
+        // Compute a base URL for relative cover paths (strip /api/models suffix)
+        const apiBase = API_ENDPOINTS.MODELS.LIST.replace(/\/api\/models.*$/, '');
+
+        const resolveCover = (cover?: string) => {
+          if (!cover) return '';
+          if (cover.startsWith('http://') || cover.startsWith('https://')) return cover;
+          return `${apiBase}${cover.startsWith('/') ? '' : '/'}${cover}`;
+        };
+
         setRecentPrints(
           normalized.slice(0, 5).map((print) => ({
             ...print,
-            cover: print.cover || print.coverUrl,
+            cover: resolveCover(print.cover || print.coverUrl || print.cover_url || print.snapShot),
             status: typeof print.status === 'string' ? parseInt(print.status, 10) || 0 : print.status,
           }))
         );
@@ -141,6 +150,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
 
   return (
     <div className="dashboard-home">
+      {/** Fallback cover image in case recent prints lack a valid thumbnail */}
+      <link rel="preload" as="image" href="/images/covers/placeholder.png" />
       {/* Quick Stats Row */}
       <div className="stats-row">
         <div className="stat-card">
@@ -236,7 +247,13 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                   <div key={print.id} className="recent-print-card" onClick={() => onNavigate('history')}>
                     <div className="recent-print-cover">
                       {print.cover ? (
-                        <img src={print.cover} alt="" />
+                        <img 
+                          src={print.cover} 
+                          alt=""
+                          onError={(e) => {
+                            e.currentTarget.src = '/images/covers/placeholder.png';
+                          }}
+                        />
                       ) : (
                         <span className="cover-placeholder">📦</span>
                       )}
