@@ -86,16 +86,18 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
         const resolveCover = (cover?: string) => {
           if (!cover) return '';
           if (cover.startsWith('http://') || cover.startsWith('https://')) return cover;
-          return `${apiBase}${cover.startsWith('/') ? '' : '/'}${cover}`;
+          if (cover.startsWith('/')) return `${apiBase}${cover}`;
+          return `${apiBase}/${cover}`;
         };
 
-        setRecentPrints(
-          normalized.slice(0, 5).map((print) => ({
-            ...print,
-            cover: resolveCover(print.cover || print.coverUrl || print.cover_url || print.snapShot),
-            status: typeof print.status === 'string' ? parseInt(print.status, 10) || 0 : print.status,
-          }))
-        );
+        const recentPrintsData = normalized.slice(0, 5).map((print) => ({
+          ...print,
+          cover: resolveCover(print.cover || print.coverUrl || print.cover_url || print.snapShot),
+          status: typeof print.status === 'string' ? parseInt(print.status, 10) || 0 : (print.status || 0),
+        }));
+        
+        console.log('Recent prints loaded:', recentPrintsData.length, recentPrintsData);
+        setRecentPrints(recentPrintsData);
       }
 
       // Load library count
@@ -189,6 +191,33 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
 
       {/* Main Widgets Grid */}
       <div className="widgets-grid">
+        {/* Active Printers Widget - Show Currently Printing */}
+        {printers.some(p => p.online && p.currentPrint) && (
+          <div className="widget active-prints-widget" style={{ gridColumn: '1 / -1' }}>
+            <div className="widget-header">
+              <h3>🔥 Currently Printing</h3>
+            </div>
+            <div className="widget-content">
+              <div className="active-prints-grid">
+                {printers
+                  .filter(p => p.online && p.currentPrint)
+                  .map(printer => (
+                    <div key={printer.id} className="active-print-card" onClick={() => onNavigate('printers')}>
+                      <div className="printer-badge">{printer.name}</div>
+                      <div className="print-title">{printer.currentPrint}</div>
+                      {printer.progress !== undefined && (
+                        <div className="print-progress-bar">
+                          <div className="progress-fill" style={{ width: `${printer.progress}%` }}></div>
+                          <span className="progress-text">{printer.progress}%</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Printers Widget */}
         <div className="widget printers-widget">
           <div className="widget-header">

@@ -1743,18 +1743,28 @@ app.get('/api/printers', async (req, res) => {
           if (mqttClient && mqttClient.connected) {
             const jobData = mqttClient.getCurrentJob();
             
+            logger.debug(`=== MQTT Job Data for ${device.dev_id} ===`);
+            logger.debug(`Job data exists: ${!!jobData}`);
+            if (jobData) {
+              logger.debug(`Job keys: ${Object.keys(jobData).join(', ')}`);
+              logger.debug(`Has AMS: ${!!jobData.ams}`);
+              if (jobData.ams) {
+                logger.debug(`AMS structure: ${JSON.stringify(jobData.ams, null, 2)}`);
+              }
+            }
+            
             // Always include AMS info at device level if available
             if (jobData && jobData.ams) {
               deviceData.ams = jobData.ams;
-              logger.debug(`AMS data available for ${device.dev_id}: ${jobData.ams.trays?.length} trays`);
+              logger.info(`✓ AMS data set for ${device.dev_id}: ${jobData.ams.trays?.length || 0} trays`);
             } else if (jobData) {
-              logger.debug(`No AMS data in jobData for ${device.dev_id}. Available keys:`, Object.keys(jobData));
+              logger.debug(`✗ No AMS data in jobData for ${device.dev_id}`);
             }
             
             if (jobData && jobData.name) {
               // Pass all MQTT job data to current_task (includes temps, speeds, AMS, etc.)
               deviceData.current_task = { ...jobData };
-              logger.debug(`Current task for ${device.dev_id} includes AMS: ${!!deviceData.current_task.ams}`);
+              logger.debug(`Current task set for ${device.dev_id}, includes AMS: ${!!deviceData.current_task.ams}`);
               
               // Check if there's a 3MF file for this print
               if (jobData.name) {
@@ -2941,12 +2951,13 @@ app.get('/api/library/duplicates', (req, res) => {
             name: groupFiles[0].originalName.replace(/\(\d+\)\./, '.').replace(/\(\d+\)$/, ''),
             files: groupFiles.map(f => ({
               id: f.id,
-              filename: f.originalName,
-              filesize: f.fileSize,
-              filetype: f.fileType,
-              upload_date: f.createdAt,
-              description: f.description,
-              tags: ''
+              fileName: f.originalName || f.fileName,
+              originalName: f.originalName || f.fileName,
+              fileSize: f.fileSize || 0,
+              fileType: f.fileType || 'unknown',
+              createdAt: f.createdAt,
+              description: f.description || '',
+              tags: f.tags || ''
             })),
             totalSize: groupFiles.reduce((sum, f) => sum + (f.fileSize || 0), 0)
           });
@@ -2982,12 +2993,13 @@ app.get('/api/library/duplicates', (req, res) => {
             name: `${formatSize(bytes)} - ${groupFiles[0].originalName || 'Unknown'}`,
             files: groupFiles.map(f => ({
               id: f.id,
-              filename: f.originalName,
-              filesize: f.fileSize,
-              filetype: f.fileType,
-              upload_date: f.createdAt,
-              description: f.description,
-              tags: ''
+              fileName: f.originalName || f.fileName,
+              originalName: f.originalName || f.fileName,
+              fileSize: f.fileSize || 0,
+              fileType: f.fileType || 'unknown',
+              createdAt: f.createdAt,
+              description: f.description || '',
+              tags: f.tags || ''
             })),
             totalSize: groupFiles.reduce((sum, f) => sum + (f.fileSize || 0), 0)
           });
