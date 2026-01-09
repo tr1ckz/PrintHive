@@ -7,6 +7,7 @@ import { useEscapeKey } from '../hooks/useKeyboardShortcut';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { formatDuration, formatWeight } from '../utils/formatters';
+import { exportToCSV } from '../utils/csvExport';
 interface Print {
   id: number;
   modelId: string;
@@ -65,6 +66,28 @@ const PrintHistory: React.FC = () => {
   // Keyboard shortcuts
   useEscapeKey(!!videoModal, () => setVideoModal(null));
   useEscapeKey(showPrinterSync, () => setShowPrinterSync(false));
+
+  const handleExportCSV = () => {
+    exportToCSV(
+      prints,
+      [
+        { header: 'Title', accessor: 'title' },
+        { header: 'Design', accessor: 'designTitle' },
+        { header: 'Printer', accessor: 'deviceName' },
+        { header: 'Status', accessor: 'status' },
+        { header: 'Start Time', accessor: (row) => new Date(row.startTime).toLocaleString() },
+        { header: 'End Time', accessor: (row) => row.endTime ? new Date(row.endTime).toLocaleString() : 'N/A' },
+        { header: 'Duration', accessor: (row) => formatDuration(row.costTime) },
+        { header: 'Weight (g)', accessor: (row) => row.weight ? formatWeight(row.weight) : 'N/A' },
+        { header: 'Material', accessor: (row) => row.material || 'N/A' },
+        { header: 'Profile', accessor: 'profileName' },
+        { header: 'Plate Type', accessor: 'plateType' },
+        { header: 'Has Video', accessor: (row) => row.hasVideo ? 'Yes' : 'No' },
+      ],
+      'print-history'
+    );
+    setToast({ message: 'Print history exported to CSV', type: 'success' });
+  };
 
   const fetchPrints = async () => {
     try {
@@ -260,34 +283,6 @@ const PrintHistory: React.FC = () => {
     }
   };
 
-  const handleExportCSV = () => {
-    const csv = [
-      ['Model ID', 'Title', 'Design', 'Printer', 'Status', 'Start Time', 'End Time', 'Duration (min)', 'Weight (g)', 'Length (mm)'],
-      ...prints.map(p => [
-        p.modelId,
-        p.title,
-        p.designTitle,
-        p.deviceName,
-        p.status,
-        new Date(p.startTime).toLocaleString(),
-        p.endTime ? new Date(p.endTime).toLocaleString() : '',
-        Math.round(p.costTime / 60),
-        p.weight.toFixed(2),
-        p.length.toFixed(2)
-      ])
-    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `print_history_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  };
-
   // Filter prints in real-time based on search and status
   useEffect(() => {
     let filtered = [...allPrints];
@@ -377,6 +372,9 @@ const PrintHistory: React.FC = () => {
                 <span>🔄</span> Sync Cloud
               </>
             )}
+          </button>
+          <button onClick={handleExportCSV} className="btn-export" title="Export to CSV">
+            <span>📊</span> Export CSV
           </button>
         </div>
       </div>

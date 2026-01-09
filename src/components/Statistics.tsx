@@ -4,7 +4,7 @@ import fetchWithRetry from '../utils/fetchWithRetry';
 import './Statistics.css';
 import LoadingScreen from './LoadingScreen';
 import { formatNumber, formatCurrency, formatWeight, formatDuration, formatPercentage } from '../utils/formatters';
-import { formatNumber, formatCurrency, formatWeight, formatDuration, formatPercentage } from '../utils/formatters';
+import { exportToCSV } from '../utils/csvExport';
 
 interface StatisticsData {
   totalPrints: number;
@@ -236,7 +236,12 @@ const Statistics: React.FC = () => {
 
       <div className="details-grid">
         <div className="detail-card">
-          <h3>Material by Color</h3>
+          <div className="detail-header">
+            <h3>Material by Color</h3>
+            <button onClick={handleExportMaterialsCSV} className="btn-export-small" title="Export to CSV">
+              📊
+            </button>
+          </div>
           <div className="material-list">
             {Object.entries(stats.materialsByColor)
               .filter(([color, data]) => color && data && data.weight)
@@ -298,7 +303,12 @@ const Statistics: React.FC = () => {
         </div>
 
         <div className="detail-card">
-          <h3>Prints by Printer</h3>
+          <div className="detail-header">
+            <h3>Prints by Printer</h3>
+            <button onClick={handleExportPrintersCSV} className="btn-export-small" title="Export to CSV">
+              📊
+            </button>
+          </div>
           <div className="printer-chart">
             {Object.entries(stats.printsByPrinter)
               .sort(([, a], [, b]) => b - a)

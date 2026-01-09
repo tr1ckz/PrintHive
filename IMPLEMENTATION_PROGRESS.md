@@ -165,6 +165,22 @@
   - Now passes all printer data: AMS, temps, speeds, z-height, feedrate, error messages
 - **Impact**: AMS trays display properly with colors, types, humidity, temps; all telemetry visible.
 
+### 19. CSV Export Functionality
+- **Status**: ✅ COMPLETED
+- **Files**: [src/utils/csvExport.ts](src/utils/csvExport.ts), [src/components/PrintHistory.tsx](src/components/PrintHistory.tsx), [src/components/Statistics.tsx](src/components/Statistics.tsx)
+- **Features**:
+  - Reusable CSV export utility with proper escaping
+  - PrintHistory export: 12 columns (title, design, printer, status, times, duration, weight, material, etc.)
+  - Statistics export: Materials by color/type, Printer usage statistics
+  - Filename includes date: `print-history_2026-01-09.csv`
+- **Impact**: Users can analyze data in Excel/Google Sheets; export for reports.
+
+### 20. Library Search Extension
+- **Status**: ✅ COMPLETED (Already Implemented)
+- **File**: [src/components/Library.tsx](src/components/Library.tsx#L112-L119)
+- **Features**: Search already matches filename, description, and tags
+- **Impact**: Verified working - no changes needed.
+
 ## 🔄 Partially Complete
 
 ### Settings.tsx Componentization
@@ -245,12 +261,12 @@
 
 ## 📊 Summary
 
-**Total Items**: 18 major features + 2 large refactors
-**Completed**: 18/18 (100%)
-**New Systems**: Formatters library, keyboard shortcuts, command palette, theme toggle, error boundaries, enhanced security, Spinner integration, ConfirmModal usage
+**Total Items**: 20 major features + 2 large refactors
+**Completed**: 20/20 (100%)
+**New Systems**: Formatters library, keyboard shortcuts, command palette, theme toggle, error boundaries, enhanced security, Spinner integration, ConfirmModal usage, CSV export
 **Large Refactors**: 0/2 (Settings componentization & server route splitting remain for future work)
 
-**Build Status**: ✅ Successful (96 modules, 988KB JS, 98KB CSS - all changes verified)
+**Build Status**: ✅ Successful (97 modules, 989KB JS, 99KB CSS - all changes verified)
 
 **Overall Progress**: **100% Complete** - All audit fixes + major enhancements implemented!
 
