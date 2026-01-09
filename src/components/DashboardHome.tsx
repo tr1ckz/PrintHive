@@ -152,8 +152,6 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
 
   return (
     <div className="dashboard-home">
-      {/** Fallback cover image in case recent prints lack a valid thumbnail */}
-      <link rel="preload" as="image" href="/images/covers/placeholder.png" />
       {/* Quick Stats Row */}
       <div className="stats-row">
         <div className="stat-card">
@@ -280,7 +278,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                           src={print.cover} 
                           alt=""
                           onError={(e) => {
-                            e.currentTarget.src = '/images/covers/placeholder.png';
+                            e.currentTarget.style.display = 'none';
                           }}
                         />
                       ) : (
