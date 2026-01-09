@@ -5,6 +5,7 @@ import ConfirmModal from './ConfirmModal';
 import LoadingScreen from './LoadingScreen';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import { useDebounce } from '../hooks/useDebounce';
 
 interface LibraryFile {
   id: number;
@@ -34,6 +35,8 @@ function Duplicates() {
   const [groupBy, setGroupBy] = useState<'hash' | 'name' | 'size'>('hash');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
   useEffect(() => {
     loadDuplicates();
@@ -129,10 +132,24 @@ function Duplicates() {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
   };
 
-  const totalSelectedSize = duplicates
+  const filteredDuplicates = duplicates.filter(group => {
+    if (!debouncedSearch.trim()) return true;
+    const term = debouncedSearch.toLowerCase();
+    return group.name.toLowerCase().includes(term) ||
+      group.files.some(file =>
+        file.originalName?.toLowerCase().includes(term) ||
+        file.fileName?.toLowerCase().includes(term) ||
+        file.description?.toLowerCase().includes(term)
+      );
+  });
+
+  const totalSelectedSize = filteredDuplicates
     .flatMap(group => group.files)
     .filter(file => selectedFiles.has(file.id))
-    .reduce((sum, file) => sum + file.filesize, 0);
+    .reduce((sum, file) => {
+      const size = (file as any).filesize ?? (file as any).fileSize ?? (file as any).file_size ?? 0;
+      return sum + size;
+    }, 0);
 
   if (loading) {
     return <LoadingScreen message="Scanning for duplicates..." />;
@@ -149,10 +166,20 @@ function Duplicates() {
       )}
       
       <div className="duplicates-header">
-        <h1>Duplicate Files</h1>
-        <p className="duplicates-description">
-          Find and remove duplicate files to free up space
-        </p>
+        <div>
+          <h1>Duplicate Files</h1>
+          <p className="duplicates-description">
+            Find and remove duplicate files to free up space
+          </p>
+        </div>
+        <div className="duplicates-search">
+          <input
+            type="text"
+            placeholder="Search duplicates..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
       </div>
 
       {duplicates.length > 0 && (
@@ -188,10 +215,10 @@ function Duplicates() {
           
           <div className="stats">
             <span className="stat">
-              {duplicates.length} duplicate group(s)
+              {filteredDuplicates.length} group(s)
             </span>
             <span className="stat">
-              {duplicates.reduce((sum, g) => sum + g.files.length, 0)} total files
+              {filteredDuplicates.reduce((sum, g) => sum + g.files.length, 0)} files
             </span>
           </div>
         </div>
@@ -217,7 +244,7 @@ function Duplicates() {
         )}
       </div>
 
-      {duplicates.length === 0 ? (
+      {filteredDuplicates.length === 0 ? (
         <div className="no-duplicates">
           <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -227,7 +254,7 @@ function Duplicates() {
         </div>
       ) : (
         <div className="duplicates-list">
-          {duplicates.map((group, idx) => (
+          {filteredDuplicates.map((group, idx) => (
             <div key={idx} className="duplicate-group">
               <div className="group-header">
                 <div className="group-info">

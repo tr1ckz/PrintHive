@@ -7,6 +7,7 @@ import LoadingScreen from './LoadingScreen';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useDebounce } from '../hooks/useDebounce';
+import { formatFileSize } from '../utils/formatters';
 
 interface LibraryFile {
   id: number;
@@ -42,6 +43,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   const [autoTagging, setAutoTagging] = useState(false);
   const [autoTaggingAll, setAutoTaggingAll] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
   const [bulkTagsModal, setBulkTagsModal] = useState(false);
@@ -100,6 +102,11 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Keyboard shortcuts
+  useEscapeKey(!!editingFile, () => setEditingFile(null));
+  useEscapeKey(!!viewingModel, () => setViewingModel(null));
+  useEscapeKey(bulkTagsModal, () => setBulkTagsModal(false));
 
   // Filter files based on search query and filters
   const filteredFiles = files
@@ -307,32 +314,36 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   };
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selectedFiles.size} selected files? This cannot be undone.`)) return;
-    
-    try {
-      setBulkDeleting(true);
-      let success = 0;
-      let failed = 0;
-      
-      for (const id of selectedFiles) {
+    setConfirmModal({
+      title: 'Delete Selected Files',
+      message: `Are you sure you want to delete ${selectedFiles.size} selected file${selectedFiles.size !== 1 ? 's' : ''}? This action cannot be undone.`,
+      onConfirm: async () => {
         try {
-          const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.FILE(id), { method: 'DELETE', credentials: 'include' });
-          if (response.ok) success++;
-          else failed++;
-        } catch {
-          failed++;
+          setBulkDeleting(true);
+          let success = 0;
+          let failed = 0;
+          
+          for (const id of selectedFiles) {
+            try {
+              const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.FILE(id), { method: 'DELETE', credentials: 'include' });
+              if (response.ok) success++;
+              else failed++;
+            } catch {
+              failed++;
+            }
+          }
+          
+          setToast({ 
+            message: `Deleted ${success} file${success !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}`, 
+            type: failed > 0 ? 'error' : 'success' 
+          });
+          setSelectedFiles(new Set());
+          fetchFiles();
+        } finally {
+          setBulkDeleting(false);
         }
       }
-      
-      setToast({ 
-        message: `Deleted ${success} files${failed > 0 ? `, ${failed} failed` : ''}`, 
-        type: failed > 0 ? 'error' : 'success' 
-      });
-      setSelectedFiles(new Set());
-      fetchFiles();
-    } finally {
-      setBulkDeleting(false);
-    }
+    });
   };
 
   const handleBulkAddTags = async () => {
@@ -435,12 +446,6 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
     } catch (err) {
       console.error('Error cancelling scan:', err);
     }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   const getFileIcon = (fileType: string) => {
@@ -877,7 +882,13 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
               style={{ display: 'none' }}
             />
             <label htmlFor="file-input" className="btn-browse">
-              {uploading ? '⏳ Uploading...' : '📁 Browse Files'}
+              {uploading ? (
+                <>
+                  <Spinner size="small" color="currentColor" /> Uploading...
+                </>
+              ) : (
+                '📁 Browse Files'
+              )}
             </label>
           </div>
         </div>
@@ -1140,6 +1151,18 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}
+        />
+      )}
+      
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          onConfirm={() => {
+            confirmModal.onConfirm();
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
         />
       )}
     </div>

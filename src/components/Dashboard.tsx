@@ -8,6 +8,8 @@ import DashboardHome from './DashboardHome';
 import Maintenance from './Maintenance';
 import Printers from './Printers';
 import Statistics from './Statistics';
+import ThemeToggle from './ThemeToggle';
+import CommandPalette from './CommandPalette';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import './Dashboard.css';
@@ -223,6 +225,15 @@ function Dashboard({ onLogout }: DashboardProps) {
           {activeTab === 'statistics' ? <Statistics /> : null}
         </div>
       </main>
+
+      {/* Buy Me A Coffee */}
+      {!hideBmc && <BuyMeACoffee />}
+      
+      {/* Theme Toggle */}
+      <ThemeToggle />
+      
+      {/* Command Palette */}
+      <CommandPalette onNavigate={(tab) => handleTabChange(tab as Tab)} />
     </div>
   );
 }

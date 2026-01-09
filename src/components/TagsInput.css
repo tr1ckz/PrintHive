@@ -97,7 +97,7 @@
   padding: 10px 14px;
   border: none;
   background: transparent;
-  color: white;
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
   transition: background 0.2s ease;
@@ -114,5 +114,5 @@
 
 .suggestion-count {
   font-size: 0.8rem;
-  color: #888;
+  color: var(--text-muted);
 }

@@ -9,15 +9,29 @@ function LoadingScreen({ message = 'Loading...' }: LoadingScreenProps) {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 95) return prev;
-        const increment = Math.random() * 15;
-        return Math.min(prev + increment, 95);
-      });
-    }, 200);
+    let active = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    return () => clearInterval(interval);
+    const tick = () => {
+      timeoutId = setTimeout(() => {
+        if (!active) return;
+        setProgress(prev => {
+          if (prev >= 95) return prev;
+          const increment = Math.random() * 15;
+          return Math.min(prev + increment, 95);
+        });
+        if (active) tick();
+      }, 200);
+    };
+
+    tick();
+
+    return () => {
+      active = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   return (

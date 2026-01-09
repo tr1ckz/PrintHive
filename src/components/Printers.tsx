@@ -218,6 +218,8 @@ function Printers() {
                           e.currentTarget.style.display = 'none';
                           const icon = e.currentTarget.nextElementSibling as HTMLElement;
                           if (icon) icon.style.display = 'inline-block';
+                          // Suppress network error - 404 is expected when no cover available
+                          e.preventDefault();
                         }}
                       />
                       <span className="job-icon" style={{ display: 'none' }}>🖨️</span>

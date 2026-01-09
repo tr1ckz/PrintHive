@@ -41,6 +41,10 @@ function LoadingSplash({
   useEffect(() => {
     if (!checkServerHealth) return;
 
+    let cancelled = false;
+    let pollTimeout: number | undefined;
+    let reloadTimeout: number | undefined;
+
     const checkServer = async () => {
       try {
         const response = await fetchWithRetry(API_ENDPOINTS.AUTH.HEALTH, { 
@@ -48,20 +52,29 @@ function LoadingSplash({
           cache: 'no-cache',
         });
         if (response.ok) {
+          if (cancelled) return;
           setServerReady(true);
           // Auto-refresh after brief delay
-          setTimeout(() => {
-            window.location.reload();
+          reloadTimeout = window.setTimeout(() => {
+            if (!cancelled) {
+              window.location.reload();
+            }
           }, 500);
         }
       } catch (error) {
         // Server not ready yet, keep checking
-        setTimeout(checkServer, 1000);
+        pollTimeout = window.setTimeout(checkServer, 1000);
       }
     };
 
     // Start checking immediately
     checkServer();
+
+    return () => {
+      cancelled = true;
+      if (pollTimeout) window.clearTimeout(pollTimeout);
+      if (reloadTimeout) window.clearTimeout(reloadTimeout);
+    };
   }, [checkServerHealth]);
 
   return (

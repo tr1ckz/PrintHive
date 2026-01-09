@@ -3,6 +3,8 @@ import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
 import './Statistics.css';
 import LoadingScreen from './LoadingScreen';
+import { formatNumber, formatCurrency, formatWeight, formatDuration, formatPercentage } from '../utils/formatters';
+import { formatNumber, formatCurrency, formatWeight, formatDuration, formatPercentage } from '../utils/formatters';
 
 interface StatisticsData {
   totalPrints: number;
@@ -64,16 +66,9 @@ const Statistics: React.FC = () => {
     }
   };
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    if (hours >= 24) {
-      const days = Math.floor(hours / 24);
-      const remainingHours = hours % 24;
-      return `${days}d ${remainingHours}h`;
-    }
-    return `${hours}h ${mins}m`;
-  };
+  useEffect(() => {
+    fetchStatistics();
+  }, []);
 
   const formatColor = (colorHex: string) => {
     if (!colorHex || colorHex === 'Unknown' || colorHex === 'undefined' || colorHex === 'null') {
@@ -149,7 +144,7 @@ const Statistics: React.FC = () => {
         <div className="stat-card gradient-green">
           <div className="stat-icon">✓</div>
           <div className="stat-content">
-            <div className="stat-value">{stats.successRate.toFixed(1)}%</div>
+            <div className="stat-value">{formatPercentage(stats.successRate, 1)}</div>
             <div className="stat-label">Success Rate</div>
           </div>
         </div>
@@ -173,7 +168,7 @@ const Statistics: React.FC = () => {
         <div className="stat-card gradient-orange">
           <div className="stat-icon">⚖</div>
           <div className="stat-content">
-            <div className="stat-value">{(stats.totalWeight / 1000).toFixed(2)}kg</div>
+            <div className="stat-value">{formatWeight(stats.totalWeight, 2)}</div>
             <div className="stat-label">Total Material</div>
           </div>
         </div>
@@ -196,8 +191,7 @@ const Statistics: React.FC = () => {
               <div className="cost-icon">💵</div>
               <div className="cost-content">
                 <div className="cost-value">
-                  {costs.currency === 'USD' ? '$' : costs.currency === 'EUR' ? '€' : costs.currency === 'GBP' ? '£' : ''}
-                  {costs.totalCost.toFixed(2)}
+                  {formatCurrency(costs.totalCost)}
                 </div>
                 <div className="cost-label">Total Cost</div>
               </div>
@@ -207,11 +201,10 @@ const Statistics: React.FC = () => {
               <div className="cost-icon">🧵</div>
               <div className="cost-content">
                 <div className="cost-value">
-                  {costs.currency === 'USD' ? '$' : costs.currency === 'EUR' ? '€' : costs.currency === 'GBP' ? '£' : ''}
-                  {costs.filamentCost.toFixed(2)}
+                  {formatCurrency(costs.filamentCost)}
                 </div>
                 <div className="cost-label">Filament Cost</div>
-                <div className="cost-detail">{costs.filamentUsedKg.toFixed(2)}kg used</div>
+                <div className="cost-detail">{formatWeight(costs.filamentUsedKg * 1000, 2)} used</div>
               </div>
             </div>
             
@@ -219,11 +212,10 @@ const Statistics: React.FC = () => {
               <div className="cost-icon">⚡</div>
               <div className="cost-content">
                 <div className="cost-value">
-                  {costs.currency === 'USD' ? '$' : costs.currency === 'EUR' ? '€' : costs.currency === 'GBP' ? '£' : ''}
-                  {costs.electricityCost.toFixed(2)}
+                  {formatCurrency(costs.electricityCost)}
                 </div>
                 <div className="cost-label">Electricity Cost</div>
-                <div className="cost-detail">{costs.printTimeHours.toFixed(0)}h total</div>
+                <div className="cost-detail">{formatNumber(costs.printTimeHours, 0)}h total</div>
               </div>
             </div>
             
@@ -231,8 +223,8 @@ const Statistics: React.FC = () => {
               <div className="cost-content">
                 <div className="cost-label">Current Settings</div>
                 <div className="cost-settings">
-                  <span>Filament: {costs.settings.filamentCostPerKg}/{costs.currency}/kg</span>
-                  <span>Electricity: {costs.settings.electricityCostPerKwh}/{costs.currency}/kWh</span>
+                  <span>Filament: {formatCurrency(costs.settings.filamentCostPerKg, false)}/kg</span>
+                  <span>Electricity: {formatCurrency(costs.settings.electricityCostPerKwh)}/kWh</span>
                   <span>Printer: {costs.settings.printerWattage}W</span>
                 </div>
                 <div className="cost-hint">Configure in Settings → Cost Calculator</div>
@@ -262,7 +254,7 @@ const Statistics: React.FC = () => {
                       <div className="material-details">
                         <div className="material-name">{name} ({data.type || 'Unknown'})</div>
                         <div className="material-stats">
-                          {data.count} prints • {data.weight.toFixed(1)}g • {data.length.toFixed(1)}mm
+                          {data.count} prints • {formatWeight(data.weight, 1)} • {formatNumber(data.length, 1)}mm
                         </div>
                       </div>
                     </div>

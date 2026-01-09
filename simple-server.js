@@ -1709,19 +1709,8 @@ app.get('/api/printers', async (req, res) => {
             }
             
             if (jobData && jobData.name) {
-              deviceData.current_task = {
-                name: jobData.name,
-                progress: jobData.progress,
-                remaining_time: jobData.remaining_time,
-                end_time: jobData.end_time,
-                layer_num: jobData.layer_num,
-                total_layers: jobData.total_layers
-              };
-              
-              // Also include AMS in current_task for backward compatibility
-              if (jobData.ams) {
-                deviceData.current_task.ams = jobData.ams;
-              }
+              // Pass all MQTT job data to current_task (includes temps, speeds, AMS, etc.)
+              deviceData.current_task = { ...jobData };
               
               // Check if there's a 3MF file for this print
               if (jobData.name) {
@@ -1850,19 +1839,22 @@ app.get('/api/job-cover/:dev_id', async (req, res) => {
     const accessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value;
     
     if (!printerIp || !accessCode) {
-      return res.status(404).json({ error: 'Printer settings not configured' });
+      // Silent 404 - expected when printer not configured
+      return res.status(404).end();
     }
     
     // Get MQTT client for this printer
     const mqttClient = mqttClients.get(dev_id);
     if (!mqttClient || !mqttClient.connected) {
-      return res.status(503).json({ error: 'Printer not connected' });
+      // Silent 404 - expected when printer offline
+      return res.status(404).end();
     }
     
     // Get current job data
     const jobData = mqttClient.getCurrentJob();
     if (!jobData || !jobData.gcode_file) {
-      return res.status(404).json({ error: 'No active print job' });
+      // Silent 404 - expected when no active job
+      return res.status(404).end();
     }
     
     // Fetch cover image from 3MF file
@@ -1874,7 +1866,8 @@ app.get('/api/job-cover/:dev_id', async (req, res) => {
     );
     
     if (!base64Image) {
-      return res.status(404).json({ error: 'Cover image not found' });
+      // Silent 404 - expected when 3MF has no cover
+      return res.status(404).end();
     }
     
     // Decode base64 and send as image
@@ -1883,8 +1876,9 @@ app.get('/api/job-cover/:dev_id', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
     res.send(imageBuffer);
   } catch (error) {
+    // Only log actual errors, not expected 404s
     console.error('Cover image error:', error);
-    res.status(500).json({ error: 'Failed to fetch cover image', details: error.message });
+    res.status(500).end();
   }
 });
 
@@ -2788,8 +2782,17 @@ app.get('/api/library/download/:id', async (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
+    // Sanitize and validate file path
     const safeFileName = sanitizeFilePath(file.fileName);
     const filePath = path.join(libraryDir, safeFileName);
+    
+    // Additional security check: ensure resolved path is within library directory
+    const resolvedPath = path.resolve(filePath);
+    const resolvedLibraryDir = path.resolve(libraryDir);
+    if (!resolvedPath.startsWith(resolvedLibraryDir)) {
+      console.error('Path traversal attempt detected:', filePath);
+      return res.status(403).json({ error: 'Access denied' });
+    }
     
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found on disk' });
@@ -2970,9 +2973,18 @@ app.delete('/api/library/:id', async (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    // Delete file from disk
+    // Delete file from disk with path validation
     const safeFileName = sanitizeFilePath(file.fileName);
     const filePath = path.join(libraryDir, safeFileName);
+    
+    // Security check: ensure resolved path is within library directory
+    const resolvedPath = path.resolve(filePath);
+    const resolvedLibraryDir = path.resolve(libraryDir);
+    if (!resolvedPath.startsWith(resolvedLibraryDir)) {
+      console.error('Path traversal attempt in delete:', filePath);
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
@@ -3005,6 +3017,11 @@ app.patch('/api/library/:id', async (req, res) => {
     const { description } = req.body;
     const fileId = req.params.id;
 
+    // Validate file ID is numeric
+    if (!/^\d+$/.test(fileId)) {
+      return res.status(400).json({ error: 'Invalid file ID' });
+    }
+
     // Check if file exists
     const file = db.prepare('SELECT id FROM library WHERE id = ?').get(fileId);
     console.log('File found:', !!file);
@@ -3013,9 +3030,12 @@ app.patch('/api/library/:id', async (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
+    // Sanitize description (prevent SQL injection and limit length)
+    const safeDescription = (description || '').substring(0, 5000);
+
     // Update description
     db.prepare('UPDATE library SET description = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(description || '', fileId);
+      .run(safeDescription, fileId);
 
     console.log('Description updated successfully');
     res.json({ success: true });

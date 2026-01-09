@@ -4,6 +4,7 @@ import Toast from './Toast';
 import './Maintenance.css';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import { useEscapeKey } from '../hooks/useKeyboardShortcut';
 
 interface MaintenanceTask {
   id: number;
@@ -85,6 +86,13 @@ function Maintenance() {
       setFormData(prev => ({ ...prev, printer_id: remembered }));
     }
   }, []);
+
+  // Keyboard shortcuts
+  useEscapeKey(showAddModal, () => {
+    setShowAddModal(false);
+    setEditingTask(null);
+  });
+  useEscapeKey(!!viewHistory, () => setViewHistory(null));
 
   useEffect(() => {
     loadTasks();

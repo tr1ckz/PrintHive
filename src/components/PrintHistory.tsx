@@ -3,8 +3,10 @@ import './PrintHistory.css';
 import Toast from './Toast';
 import LoadingScreen from './LoadingScreen';
 import { useDebounce } from '../hooks/useDebounce';
+import { useEscapeKey } from '../hooks/useKeyboardShortcut';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import { formatDuration, formatWeight } from '../utils/formatters';
 interface Print {
   id: number;
   modelId: string;
@@ -59,6 +61,10 @@ const PrintHistory: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  // Keyboard shortcuts
+  useEscapeKey(!!videoModal, () => setVideoModal(null));
+  useEscapeKey(showPrinterSync, () => setShowPrinterSync(false));
 
   const fetchPrints = async () => {
     try {
@@ -282,12 +288,6 @@ const PrintHistory: React.FC = () => {
     document.body.removeChild(a);
   };
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${mins}m`;
-  };
-
   // Filter prints in real-time based on search and status
   useEffect(() => {
     let filtered = [...allPrints];
@@ -368,7 +368,15 @@ const PrintHistory: React.FC = () => {
             </button>
           )}
           <button onClick={handleSync} className="btn-sync" disabled={syncing}>
-            <span>{syncing ? '⏳' : '🔄'}</span> {syncing ? 'Syncing...' : 'Sync Cloud'}
+            {syncing ? (
+              <>
+                <Spinner size="small" color="currentColor" /> Syncing...
+              </>
+            ) : (
+              <>
+                <span>🔄</span> Sync Cloud
+              </>
+            )}
           </button>
         </div>
       </div>

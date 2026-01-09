@@ -25,13 +25,13 @@
 .page-header h1 {
   font-size: 32px;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .page-header p {
   font-size: 16px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
 }
 
 .btn-refresh {
@@ -39,7 +39,7 @@
   align-items: center;
   gap: 8px;
   padding: 12px 20px;
-  background: rgba(30, 30, 30, 0.95);
+  background: var(--bg-overlay);
   backdrop-filter: blur(20px);
   border: none;
   border-radius: 12px;
@@ -48,7 +48,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-refresh:hover {
@@ -57,12 +57,12 @@
 }
 
 .loading-container, .error-container {
-  background: rgba(30, 30, 30, 0.95);
+  background: var(--bg-overlay);
   backdrop-filter: blur(20px);
   border-radius: 20px;
   padding: 64px 32px;
   text-align: center;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
 }
 
 .loading-container .spinner {
@@ -70,7 +70,7 @@
 }
 
 .error-container {
-  color: #dc2626;
+  color: var(--status-error);
   font-weight: 600;
 }
 
@@ -82,14 +82,14 @@
 }
 
 .stat-card {
-  background: rgba(30, 30, 30, 0.95);
+  background: var(--bg-overlay);
   backdrop-filter: blur(20px);
   border-radius: 20px;
   padding: 28px;
   display: flex;
   align-items: center;
   gap: 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
   transition: all 0.3s ease;
   animation: scaleIn 0.5s ease-out;
   overflow: hidden;
@@ -194,7 +194,7 @@
 .stat-value {
   font-size: 32px;
   font-weight: 800;
-  color: #fff;
+  color: var(--text-primary);
   margin-bottom: 4px;
   line-height: 1;
 }

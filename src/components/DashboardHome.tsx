@@ -18,9 +18,10 @@ interface RecentPrint {
   id: number;
   title: string;
   cover?: string;
-  status: number;
-  startTime: string;
-  deviceName: string;
+  coverUrl?: string;
+  status?: number | string;
+  startTime?: string;
+  deviceName?: string;
 }
 
 interface DashboardStats {
@@ -71,11 +72,21 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
         });
       }
 
-      // Load recent prints
-      const historyRes = await fetchWithRetry(`${API_ENDPOINTS.MODELS.LIST}?limit=5`, { credentials: 'include' });
+      // Load recent prints from the local database (not live cloud) and normalize the shape
+      const historyParams = new URLSearchParams({ limit: '5', source: 'db' });
+      const historyRes = await fetchWithRetry(`${API_ENDPOINTS.MODELS.LIST}?${historyParams.toString()}`, { credentials: 'include' });
       if (historyRes.ok) {
         const data = await historyRes.json();
-        setRecentPrints(data.slice(0, 5));
+        const raw = data?.hits || data?.models || data || [];
+        const normalized = Array.isArray(raw) ? raw : [];
+
+        setRecentPrints(
+          normalized.slice(0, 5).map((print) => ({
+            ...print,
+            cover: print.cover || print.coverUrl,
+            status: typeof print.status === 'string' ? parseInt(print.status, 10) || 0 : print.status,
+          }))
+        );
       }
 
       // Load library count
