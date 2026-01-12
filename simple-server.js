@@ -29,6 +29,7 @@ const {
 } = require('./database');
 const { getThumbnail, clearThumbnailCache } = require('./thumbnail-generator');
 const { autoDescribeModel } = require('./ai-describer');
+const telemetry = require('./telemetry');
 
 // Helper function to clean HTML-encoded descriptions (handles double/triple encoding)
 function cleanDescription(rawDescription) {
@@ -6239,6 +6240,8 @@ httpServer = app.listen(PORT, async () => {
   setupAutoVideoMatching();
   // Initialize maintenance notification checker
   setupMaintenanceNotifications();
+  // Initialize anonymous telemetry (if TELEMETRY_ENDPOINT is configured)
+  telemetry.init(db);
   
   // Auto-scan library on startup
   console.log('\n=== Scanning library directory ===');

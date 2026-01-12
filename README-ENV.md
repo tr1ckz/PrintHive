@@ -57,3 +57,30 @@ openssl rand -base64 32
 # Node.js
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
+
+## Anonymous Telemetry (Optional)
+
+The application supports sending anonymous usage statistics to help improve the product. This is **completely optional** and disabled by default.
+
+### What's collected (when enabled):
+- Random anonymous install ID (UUID)
+- App version
+- Platform (Linux/Windows/Mac)
+- Basic counts: printers, prints, library items, users
+- Feature flags (notifications enabled, etc.)
+
+### What's NOT collected:
+- IP addresses
+- Usernames, emails, or personal info
+- File names or print data
+- Bambu account credentials
+
+### Enable telemetry:
+Set the `TELEMETRY_ENDPOINT` environment variable to your analytics endpoint:
+
+```bash
+# In .env or docker-compose.yml
+TELEMETRY_ENDPOINT=https://your-analytics-server.com/api/heartbeat
+```
+
+You can use services like Supabase (free tier), your own server, or any webhook endpoint.
