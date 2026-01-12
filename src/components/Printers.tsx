@@ -208,41 +208,58 @@ function Printers() {
 
               <div className="printer-body">
                 {/* Always show AMS section if available */}
-                {(printer.ams || printer.current_task?.ams) ? (
-                  <div style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <div className="progress-ams">
-                      <div style={{ fontWeight: 600, marginBottom: '0.5rem', fontSize: '1.1rem', color: 'rgba(255,255,255,0.9)' }}>📦 AMS Filament</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 0.75rem' }}>
-                        {(printer.ams || printer.current_task?.ams) && (
-                          <>
-                            {typeof (printer.ams?.active_tray ?? printer.current_task?.ams?.active_tray) === 'number' && (printer.ams?.active_tray ?? printer.current_task?.ams?.active_tray) !== 255 && <span className="chip subtle">Active Slot: {printer.ams?.active_tray ?? printer.current_task?.ams?.active_tray}</span>}
-                            {(amsExpanded[printer.dev_id] ? (printer.ams?.trays || printer.current_task?.ams?.trays || []) : (printer.ams?.trays || printer.current_task?.ams?.trays || []).slice(0,4)).map((t) => (
-                              <span key={t.slot} className="ams-chip" title={`Slot ${t.slot}: ${t.type || 'Unknown'}${t.sub_brands ? ` ${t.sub_brands}` : ''}${t.remain != null ? ` (${t.remain}% remaining)` : ''}`}>
-                                <span className="color-dot" style={{ background: `#${t.color}` || '#999' }} />
-                                S{t.slot}: {t.sub_brands || t.type || '—'}
-                                {t.remain != null && ` ${t.remain}%`}
-                                {typeof t.humidity === 'number' ? ` • ${Math.round(t.humidity)}%` : ''}
-                                {typeof t.temp === 'number' ? ` • ${Math.round(t.temp)}°C` : ''}
-                              </span>
-                            ))}
-                            {(printer.ams?.trays || printer.current_task?.ams?.trays || []).length > 4 && (
-                              <button type="button" className="btn-link" onClick={() => toggleAms(printer.dev_id)}>
-                                {amsExpanded[printer.dev_id] ? 'Show less' : `Show all (${(printer.ams?.trays || printer.current_task?.ams?.trays || []).length})`}
-                              </button>
-                            )}
-                          </>
-                        )}
+                {(printer.ams || printer.current_task?.ams) && (() => {
+                  const amsData = printer.ams || printer.current_task?.ams;
+                  const trays = amsData?.trays || [];
+                  const activeTray = amsData?.active_tray;
+                  const firstTray = trays[0];
+                  return (
+                    <div className="ams-container">
+                      <div className="ams-header">
+                        <span className="ams-header-icon">📦</span>
+                        <span className="ams-header-title">AMS Filament</span>
+                        <div className="ams-header-info">
+                          {typeof firstTray?.humidity === 'number' && (
+                            <span className="humidity" title="Humidity">
+                              💧 {Math.round(firstTray.humidity)}%
+                            </span>
+                          )}
+                          {typeof firstTray?.temp === 'number' && (
+                            <span className="temp" title="Temperature">
+                              🌡️ {Math.round(firstTray.temp)}°C
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="ams-trays-grid">
+                        {trays.map((t) => {
+                          const isActive = typeof activeTray === 'number' && activeTray !== 255 && Number(t.slot) === activeTray;
+                          const colorHex = t.color ? `#${t.color.substring(0, 6)}` : '#666';
+                          const remainPercent = t.remain != null && t.remain >= 0 ? t.remain : null;
+                          // Determine fill color based on remaining percentage
+                          const fillColor = remainPercent != null 
+                            ? remainPercent > 50 ? '#22c55e' : remainPercent > 20 ? '#eab308' : '#ef4444'
+                            : colorHex;
+                          return (
+                            <div key={t.slot} className={`ams-tray-card${isActive ? ' active' : ''}`} title={`Slot ${t.slot}: ${t.type || 'Unknown'}${t.sub_brands ? ` (${t.sub_brands})` : ''}`}>
+                              <div className="ams-tray-slot">Slot {t.slot}</div>
+                              <div className="ams-tray-color-bar" style={{ background: colorHex }} />
+                              <div className="ams-tray-type">{t.sub_brands || t.type || 'Empty'}</div>
+                              {remainPercent != null && (
+                                <div className="ams-tray-remain">
+                                  <div className="ams-tray-remain-bar">
+                                    <div className="ams-tray-remain-fill" style={{ width: `${remainPercent}%`, background: fillColor }} />
+                                  </div>
+                                  <span className="ams-tray-remain-text">{remainPercent}%</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(255,100,100,0.1)', borderRadius: '8px', border: '1px solid rgba(255,100,100,0.3)' }}>
-                    <div style={{ fontWeight: 600, color: '#ff6666' }}>⚠️ No AMS data available</div>
-                    <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', marginTop: '0.25rem' }}>
-                      AMS data will appear here once received from printer
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {printer.current_task && printer.print_status === 'RUNNING' && (
                   <div className="current-job">
