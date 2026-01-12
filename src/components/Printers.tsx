@@ -207,8 +207,11 @@ function Printers() {
               )}
 
               <div className="printer-body">
+                {/* Debug: Log printer data */}
+                {console.log('Printer data:', printer.dev_id, 'ams:', printer.ams, 'current_task?.ams:', printer.current_task?.ams)}
+                
                 {/* Always show AMS section if available */}
-                {(printer.ams || printer.current_task?.ams) && (
+                {(printer.ams || printer.current_task?.ams) ? (
                   <div style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
                     <div className="progress-ams">
                       <div style={{ fontWeight: 600, marginBottom: '0.5rem', fontSize: '1.1rem', color: 'rgba(255,255,255,0.9)' }}>📦 AMS Filament</div>
@@ -233,6 +236,13 @@ function Printers() {
                           </>
                         )}
                       </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(255,100,100,0.1)', borderRadius: '8px', border: '1px solid rgba(255,100,100,0.3)' }}>
+                    <div style={{ fontWeight: 600, color: '#ff6666' }}>⚠️ No AMS data available</div>
+                    <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', marginTop: '0.25rem' }}>
+                      AMS data will appear here once received from printer
                     </div>
                   </div>
                 )}
