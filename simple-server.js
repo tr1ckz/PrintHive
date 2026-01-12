@@ -2331,14 +2331,23 @@ app.post('/api/sync', async (req, res) => {
         response.data.hits.slice(0, 50).map(async (print) => {
           const res = { cover: false, video: false };
           
-          // Download cover
-          if (print.cover && print.modelId) {
+          // Download cover - check both cover and coverUrl fields
+          const coverUrl = print.cover || print.coverUrl || print.snapshot;
+          if (coverUrl && print.modelId) {
             try {
-              const localPath = await downloadCoverImage(print.cover, print.modelId);
-              if (localPath) res.cover = true;
+              console.log(`Downloading cover for ${print.modelId}: ${coverUrl.substring(0, 80)}...`);
+              const localPath = await downloadCoverImage(coverUrl, print.modelId);
+              if (localPath) {
+                console.log(`✓ Cover saved: ${localPath}`);
+                res.cover = true;
+              } else {
+                console.log(`✗ Cover download returned null for ${print.modelId}`);
+              }
             } catch (err) {
-              console.log(`Cover download failed for ${print.modelId}`);
+              console.log(`✗ Cover download failed for ${print.modelId}: ${err.message}`);
             }
+          } else {
+            console.log(`No cover URL for ${print.modelId || print.id}`);
           }
           
           // Try to download timelapse video
