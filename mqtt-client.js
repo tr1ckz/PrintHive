@@ -134,13 +134,28 @@ class BambuMqttClient extends EventEmitter {
         chamber_temp: (printData.chamber_temper ?? printData.chamber_temp ?? this.currentJobData.chamber_temp ?? undefined),
         nozzle_target: (printData.nozzle_target_temper ?? printData.target_nozzle_temper ?? this.currentJobData.nozzle_target ?? undefined),
         bed_target: (printData.bed_target_temper ?? printData.target_bed_temper ?? this.currentJobData.bed_target ?? undefined),
-        speed_profile: (printData.speed_profile ?? printData.spd_lv ?? this.currentJobData.speed_profile ?? undefined),
-        speed_factor: (printData.mc_print_speed ?? printData.work_speed ?? this.currentJobData.speed_factor ?? undefined),
+        speed_profile: (printData.spd_lvl ?? printData.spd_lv ?? this.currentJobData.speed_profile ?? undefined),
+        speed_factor: (printData.spd_mag ?? printData.mc_print_speed ?? this.currentJobData.speed_factor ?? undefined),
         feedrate: (printData.feedrate ?? printData.feed_rate ?? this.currentJobData.feedrate ?? undefined),
         z_height: (printData.z_height ?? printData.z ?? this.currentJobData.z_height ?? undefined),
-        fan_speed: (printData.fan_speed ?? printData.cooling_fan_speed ?? this.currentJobData.fan_speed ?? undefined),
-        env_temp: (printData.env_temp ?? this.currentJobData.env_temp ?? undefined),
-        env_humidity: (printData.env_humidity ?? this.currentJobData.env_humidity ?? undefined)
+        // Fan speeds (0-15 scale from printer, convert to percentage)
+        cooling_fan: (printData.cooling_fan_speed ?? printData.fan_speed ?? this.currentJobData.cooling_fan ?? undefined),
+        aux_fan: (printData.big_fan1_speed ?? printData.aux_fan_speed ?? this.currentJobData.aux_fan ?? undefined),
+        chamber_fan: (printData.big_fan2_speed ?? printData.chamber_fan_speed ?? this.currentJobData.chamber_fan ?? undefined),
+        heatbreak_fan: (printData.heatbreak_fan_speed ?? this.currentJobData.heatbreak_fan ?? undefined),
+        // Lights
+        chamber_light: (printData.lights_report?.[0]?.node === 'chamber_light' ? printData.lights_report[0].mode : (this.currentJobData.chamber_light ?? undefined)),
+        // Stage/status
+        stg_cur: (printData.stg_cur ?? this.currentJobData.stg_cur ?? undefined),
+        // WiFi signal
+        wifi_signal: (printData.wifi_signal ?? this.currentJobData.wifi_signal ?? undefined),
+        // Print weight/length from cloud data
+        print_weight: (printData.print_weight ?? this.currentJobData.print_weight ?? undefined),
+        print_length: (printData.print_length ?? this.currentJobData.print_length ?? undefined),
+        // Total usage
+        total_usage: (printData.total_hours ?? printData.usage_hours ?? this.currentJobData.total_usage ?? undefined),
+        // HMS errors
+        hms: (printData.hms ?? this.currentJobData.hms ?? undefined)
       };
       
       // Extract integrated camera RTSP URL from P1S

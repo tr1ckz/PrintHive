@@ -261,6 +261,132 @@ function Printers() {
                   );
                 })()}
 
+                {/* Live Telemetry Section */}
+                {(printer.current_task || printer.ams) && (() => {
+                  const task = printer.current_task;
+                  const hasFans = task && (task.cooling_fan !== undefined || task.aux_fan !== undefined || task.chamber_fan !== undefined);
+                  const hasTemps = task && (task.nozzle_temp !== undefined || task.bed_temp !== undefined || task.chamber_temp !== undefined);
+                  const fanToPercent = (speed: number) => Math.ceil((speed / 15) * 100 / 10) * 10;
+                  
+                  if (!hasFans && !hasTemps && !task?.speed_factor && !task?.z_height) return null;
+                  
+                  return (
+                    <div className="telemetry-container">
+                      <div className="telemetry-header">
+                        <span className="telemetry-header-icon">📊</span>
+                        <span className="telemetry-header-title">Live Telemetry</span>
+                        {typeof task?.wifi_signal === 'number' && (
+                          <span className="telemetry-wifi" title="WiFi Signal">
+                            📶 {task.wifi_signal} dBm
+                          </span>
+                        )}
+                      </div>
+                      <div className="telemetry-grid">
+                        {/* Temperatures */}
+                        {hasTemps && (
+                          <div className="telemetry-section">
+                            <div className="telemetry-section-title">🌡️ Temps</div>
+                            <div className="telemetry-items">
+                              {typeof task?.nozzle_temp === 'number' && (
+                                <div className="telemetry-item">
+                                  <span className="telemetry-label">Nozzle</span>
+                                  <span className="telemetry-value">
+                                    {Math.round(task.nozzle_temp)}°C
+                                    {typeof task.nozzle_target === 'number' && task.nozzle_target > 0 && (
+                                      <span className="telemetry-target">/{task.nozzle_target}°</span>
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              {typeof task?.bed_temp === 'number' && (
+                                <div className="telemetry-item">
+                                  <span className="telemetry-label">Bed</span>
+                                  <span className="telemetry-value">
+                                    {Math.round(task.bed_temp)}°C
+                                    {typeof task.bed_target === 'number' && task.bed_target > 0 && (
+                                      <span className="telemetry-target">/{task.bed_target}°</span>
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              {typeof task?.chamber_temp === 'number' && (
+                                <div className="telemetry-item">
+                                  <span className="telemetry-label">Chamber</span>
+                                  <span className="telemetry-value">{Math.round(task.chamber_temp)}°C</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {/* Fans */}
+                        {hasFans && (
+                          <div className="telemetry-section">
+                            <div className="telemetry-section-title">🌀 Fans</div>
+                            <div className="telemetry-items">
+                              {typeof task?.cooling_fan === 'number' && (
+                                <div className="telemetry-item">
+                                  <span className="telemetry-label">Part</span>
+                                  <span className="telemetry-value fan-speed">
+                                    <span className={`fan-indicator ${task.cooling_fan > 0 ? 'active' : ''}`}>●</span>
+                                    {fanToPercent(task.cooling_fan)}%
+                                  </span>
+                                </div>
+                              )}
+                              {typeof task?.aux_fan === 'number' && (
+                                <div className="telemetry-item">
+                                  <span className="telemetry-label">Aux</span>
+                                  <span className="telemetry-value fan-speed">
+                                    <span className={`fan-indicator ${task.aux_fan > 0 ? 'active' : ''}`}>●</span>
+                                    {fanToPercent(task.aux_fan)}%
+                                  </span>
+                                </div>
+                              )}
+                              {typeof task?.chamber_fan === 'number' && (
+                                <div className="telemetry-item">
+                                  <span className="telemetry-label">Chamber</span>
+                                  <span className="telemetry-value fan-speed">
+                                    <span className={`fan-indicator ${task.chamber_fan > 0 ? 'active' : ''}`}>●</span>
+                                    {fanToPercent(task.chamber_fan)}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {/* Speed & Position */}
+                        {(task?.speed_factor !== undefined || task?.z_height !== undefined || task?.chamber_light !== undefined) && (
+                          <div className="telemetry-section">
+                            <div className="telemetry-section-title">⚡ Other</div>
+                            <div className="telemetry-items">
+                              {typeof task?.speed_factor === 'number' && (
+                                <div className="telemetry-item">
+                                  <span className="telemetry-label">Speed</span>
+                                  <span className="telemetry-value">{Math.round(task.speed_factor)}%</span>
+                                </div>
+                              )}
+                              {typeof task?.z_height === 'number' && (
+                                <div className="telemetry-item">
+                                  <span className="telemetry-label">Z</span>
+                                  <span className="telemetry-value">{task.z_height.toFixed(2)}mm</span>
+                                </div>
+                              )}
+                              {task?.chamber_light !== undefined && (
+                                <div className="telemetry-item">
+                                  <span className="telemetry-label">Light</span>
+                                  <span className="telemetry-value">
+                                    <span className={`light-indicator ${task.chamber_light === 'on' ? 'active' : ''}`}>💡</span>
+                                    {task.chamber_light === 'on' ? 'On' : 'Off'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {printer.current_task && printer.print_status === 'RUNNING' && (
                   <div className="current-job">
                     <div className="job-header">

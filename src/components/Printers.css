@@ -701,3 +701,118 @@
   color: rgba(255, 255, 255, 0.5);
   font-size: 0.9rem;
 }
+
+/* Live Telemetry Display */
+.telemetry-container {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 212, 255, 0.15);
+}
+
+.telemetry-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.telemetry-header-icon {
+  font-size: 1.1rem;
+}
+
+.telemetry-header-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.telemetry-wifi {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.telemetry-section {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.telemetry-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.telemetry-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.telemetry-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.telemetry-label {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.telemetry-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.telemetry-target {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
+}
+
+.telemetry-value.fan-speed {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.fan-indicator {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.fan-indicator.active {
+  color: #22c55e;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.light-indicator {
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.light-indicator.active {
+  opacity: 1;
+}

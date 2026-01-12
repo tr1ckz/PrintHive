@@ -46,8 +46,21 @@ export interface Printer {
     rtsp_url?: string;
     ipcam_status?: string;
     ipcam_bitrate?: number;
-    env_temp?: number;
-    env_humidity?: number;
+    // Fan speeds (0-15 scale)
+    cooling_fan?: number;
+    aux_fan?: number;
+    chamber_fan?: number;
+    heatbreak_fan?: number;
+    // Lights
+    chamber_light?: string;
+    // Network
+    wifi_signal?: number;
+    // Print stats
+    print_weight?: number;
+    print_length?: number;
+    total_usage?: number;
+    // HMS errors
+    hms?: Array<{ attr: number; code: number }>;
     ams?: {
       active_tray: number | null;
       trays: Array<{
