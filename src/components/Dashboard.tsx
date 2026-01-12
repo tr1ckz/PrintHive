@@ -10,6 +10,7 @@ import Printers from './Printers';
 import Statistics from './Statistics';
 import ThemeToggle from './ThemeToggle';
 import CommandPalette from './CommandPalette';
+import DiagnosticsPanel from './DiagnosticsPanel';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import './Dashboard.css';
@@ -18,7 +19,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics';
+type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics' | 'sysdiag';
 
 const tabPaths: Record<Tab, string> = {
   home: '/',
@@ -28,7 +29,8 @@ const tabPaths: Record<Tab, string> = {
   maintenance: '/maintenance',
   settings: '/settings',
   printers: '/printers',
-  statistics: '/statistics'
+  statistics: '/statistics',
+  sysdiag: '/sysdiag'
 };
 
 const getHashSection = () => {
@@ -45,6 +47,7 @@ const getTabFromLocation = (): Tab | null => {
   if (path.startsWith('/settings')) return 'settings';
   if (path.startsWith('/printers')) return 'printers';
   if (path.startsWith('/statistics')) return 'statistics';
+  if (path.startsWith('/sysdiag')) return 'sysdiag';
   if (path === '/' || path === '') return 'home';
   return null;
 };
@@ -278,6 +281,7 @@ function Dashboard({ onLogout }: DashboardProps) {
           {activeTab === 'settings' ? <Settings userRole={userInfo?.role} initialSection={settingsSection || undefined} /> : null}
           {activeTab === 'printers' ? <Printers /> : null}
           {activeTab === 'statistics' ? <Statistics /> : null}
+          {activeTab === 'sysdiag' ? <DiagnosticsPanel /> : null}
         </div>
       </main>
 
