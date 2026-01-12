@@ -103,7 +103,8 @@ class BambuMqttClient extends EventEmitter {
           layer_num: 0,
           total_layers: 0,
           gcode_state: 'IDLE',
-          print_error: 0
+          print_error: 0,
+          ams: null // Persist AMS data
         };
       }
       
@@ -194,8 +195,14 @@ class BambuMqttClient extends EventEmitter {
 
         logger.debug('Processed AMS data:', JSON.stringify(newJobData.ams, null, 2));
       } else {
-        logger.debug('No AMS data in message. Keys in data:', Object.keys(data));
-        logger.debug('Keys in printData:', Object.keys(printData));
+        // Preserve existing AMS data if we have it
+        if (this.currentJobData && this.currentJobData.ams) {
+          newJobData.ams = this.currentJobData.ams;
+          logger.debug('Preserving existing AMS data (no new AMS in this message)');
+        } else {
+          logger.debug('No AMS data in message. Keys in data:', Object.keys(data));
+          logger.debug('Keys in printData:', Object.keys(printData));
+        }
       }
 
       // Error message if available
@@ -256,6 +263,12 @@ class BambuMqttClient extends EventEmitter {
       this.lastPrintError = newPrintError;
       
       this.currentJobData = newJobData;
+      
+      // Log AMS status
+      if (this.currentJobData.ams) {
+        logger.info(`AMS data stored for ${this.printerName}: ${this.currentJobData.ams.trays?.length || 0} trays`);
+      }
+      
       this.emit('job_update', this.currentJobData);
       logger.debug('Job update received');
     }

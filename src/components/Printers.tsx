@@ -207,9 +207,6 @@ function Printers() {
               )}
 
               <div className="printer-body">
-                {/* Debug: Log printer data */}
-                {console.log('Printer data:', printer.dev_id, 'ams:', printer.ams, 'current_task?.ams:', printer.current_task?.ams)}
-                
                 {/* Always show AMS section if available */}
                 {(printer.ams || printer.current_task?.ams) ? (
                   <div style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
