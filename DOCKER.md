@@ -4,7 +4,7 @@
 
 ### Using Docker Hub (Recommended)
 ```bash
-docker pull ghcr.io/tr1ckz/printhive:latest
+docker pull tr1ckz/printhive:latest
 
 docker run -d \
   --name printhive \
@@ -13,7 +13,7 @@ docker run -d \
   -v printhive_data:/app/data \
   -v printhive_library:/app/library \
   -v printhive_sessions:/app/sessions \
-  ghcr.io/tr1ckz/printhive:latest
+  tr1ckz/printhive:latest
 ```
 
 **Custom Port Example:**
@@ -26,7 +26,7 @@ docker run -d \
   -v printhive_data:/app/data \
   -v printhive_library:/app/library \
   -v printhive_sessions:/app/sessions \
-  ghcr.io/tr1ckz/printhive:latest
+  tr1ckz/printhive:latest
 ```
 
 ### Building Locally
@@ -71,7 +71,7 @@ docker-compose up -d
 
 ### Step 2: Basic Configuration
 - **Name**: `printhive`
-- **Repository**: `ghcr.io/tr1ckz/printhive:latest`
+- **Repository**: `tr1ckz/printhive:latest`
 - **Network Type**: `Bridge`
 - **WebUI**: `http://[IP]:[PORT:3000]`
 
@@ -143,9 +143,9 @@ docker logs printhive
 
 ## GitHub Actions
 
-Automatic builds trigger on push to `main` branch. Images published to:
-- `ghcr.io/tr1ckz/printhive:latest`
-- `ghcr.io/tr1ckz/printhive:main`
+Automatic builds trigger on push to `main` branch. Images published to Docker Hub:
+- `tr1ckz/printhive:latest`
+- `tr1ckz/printhive:main`
 
 Multi-platform support: `linux/amd64`, `linux/arm64`
 

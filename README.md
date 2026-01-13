@@ -59,7 +59,7 @@ A comprehensive web application for managing 3D printers, including print histor
 
 1. Pull the latest image:
 ```bash
-docker pull ghcr.io/tr1ckz/printhive:latest
+docker pull tr1ckz/printhive:latest
 ```
 
 2. Create a docker-compose.yml:
@@ -67,7 +67,7 @@ docker pull ghcr.io/tr1ckz/printhive:latest
 version: '3.8'
 services:
   printhive:
-    image: ghcr.io/tr1ckz/printhive:latest
+    image: tr1ckz/printhive:latest
     container_name: printhive
     restart: unless-stopped
     ports:

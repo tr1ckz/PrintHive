@@ -3,8 +3,8 @@ version: '3.8'
 services:
   bambu-web:
     build: .
-    image: bambu-lab-integration:local
-    container_name: bambu-lab-integration
+    image: tr1ckz/printhive:latest
+    container_name: printhive
     # Use host network to access local network devices (RTSP cameras, printers)
     network_mode: host
     environment:
