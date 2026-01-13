@@ -10,7 +10,6 @@ import Printers from './Printers';
 import Statistics from './Statistics';
 import ThemeToggle from './ThemeToggle';
 import CommandPalette from './CommandPalette';
-import DiagnosticsPanel from './DiagnosticsPanel';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import './Dashboard.css';
@@ -19,7 +18,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics' | 'sysdiag';
+type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics';
 
 const tabPaths: Record<Tab, string> = {
   home: '/',
@@ -29,8 +28,7 @@ const tabPaths: Record<Tab, string> = {
   maintenance: '/maintenance',
   settings: '/settings',
   printers: '/printers',
-  statistics: '/statistics',
-  sysdiag: '/sysdiag'
+  statistics: '/statistics'
 };
 
 const getHashSection = () => {
@@ -47,7 +45,6 @@ const getTabFromLocation = (): Tab | null => {
   if (path.startsWith('/settings')) return 'settings';
   if (path.startsWith('/printers')) return 'printers';
   if (path.startsWith('/statistics')) return 'statistics';
-  if (path.startsWith('/sysdiag')) return 'sysdiag';
   if (path === '/' || path === '') return 'home';
   return null;
 };
@@ -136,7 +133,6 @@ function Dashboard({ onLogout }: DashboardProps) {
   };
 
   const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'superadmin';
-  const _dA = userInfo?.email === atob('YWxleGFuZHJ1ODhAZ21haWwuY29t');
 
   const navItems = [
     { id: 'home' as Tab, label: 'Home', icon: (
@@ -207,18 +203,6 @@ function Dashboard({ onLogout }: DashboardProps) {
                 <span>{item.label}</span>
               </button>
             ))}
-            {_dA && (
-              <button
-                className={`navbar-item ${activeTab === 'sysdiag' ? 'active' : ''}`}
-                onClick={() => handleTabChange('sysdiag')}
-                title="System Diagnostics"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span>Analytics</span>
-              </button>
-            )}
           </div>
 
           {/* Right Section: User + Logout */}
@@ -280,17 +264,6 @@ function Dashboard({ onLogout }: DashboardProps) {
               ))}
             </>
           )}
-          {_dA && (
-            <button
-              className={`mobile-menu-item ${activeTab === 'sysdiag' ? 'active' : ''}`}
-              onClick={() => handleTabChange('sysdiag')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span>Analytics</span>
-            </button>
-          )}
         </div>
       </nav>
 
@@ -305,7 +278,6 @@ function Dashboard({ onLogout }: DashboardProps) {
           {activeTab === 'settings' ? <Settings userRole={userInfo?.role} initialSection={settingsSection || undefined} /> : null}
           {activeTab === 'printers' ? <Printers /> : null}
           {activeTab === 'statistics' ? <Statistics /> : null}
-          {activeTab === 'sysdiag' ? <DiagnosticsPanel /> : null}
         </div>
       </main>
 

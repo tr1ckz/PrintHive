@@ -29,7 +29,6 @@ const {
 } = require('./database');
 const { getThumbnail, clearThumbnailCache } = require('./thumbnail-generator');
 const { autoDescribeModel } = require('./ai-describer');
-const telemetry = require('./telemetry');
 
 // Helper function to clean HTML-encoded descriptions (handles double/triple encoding)
 function cleanDescription(rawDescription) {
@@ -2754,26 +2753,6 @@ const _dV = (req) => {
 
 app.get('/api/internal/diag/auth', (req, res) => {
   res.json({ authorized: _dV(req) });
-});
-
-app.get('/api/internal/diag/data', async (req, res) => {
-  if (!_dV(req)) return res.status(404).json({ error: 'Not found' });
-  try {
-    const response = await axios.get('https://3d.tr1ck.dev/api/telemetry/installs', { timeout: 10000 });
-    res.json(response.data);
-  } catch (e) {
-    res.json({ installs: [] });
-  }
-});
-
-app.get('/api/internal/diag/summary', async (req, res) => {
-  if (!_dV(req)) return res.status(404).json({ error: 'Not found' });
-  try {
-    const response = await axios.get('https://3d.tr1ck.dev/api/telemetry/summary', { timeout: 10000 });
-    res.json(response.data);
-  } catch (e) {
-    res.json({ total_installs: 0, active_7d: 0, active_30d: 0, versions: {}, platforms: {} });
-  }
 });
 
 // Version endpoint (no auth required)
@@ -6272,8 +6251,6 @@ httpServer = app.listen(PORT, async () => {
   setupAutoVideoMatching();
   // Initialize maintenance notification checker
   setupMaintenanceNotifications();
-  // Initialize anonymous telemetry (if TELEMETRY_ENDPOINT is configured)
-  telemetry.init(db);
   
   // Auto-scan library on startup
   console.log('\n=== Scanning library directory ===');
