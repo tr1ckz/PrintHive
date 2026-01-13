@@ -62,6 +62,7 @@
   "overrides": {
     "async": "^3.2.6",
     "cross-spawn": "^7.0.6",
-    "glob": "^11.0.0"
+    "glob": "^11.0.0",
+    "brace-expansion": "^2.0.1"
   }
 }
