@@ -4480,17 +4480,6 @@ app.post('/api/library/cleanup-missing', async (req, res) => {
   }
 });
 
-// Global state for auto-tag background job
-let autoTagJob = {
-  running: false,
-  total: 0,
-  processed: 0,
-  updated: 0,
-  errors: 0,
-  currentFile: '',
-  startTime: null
-};
-
 // Helper to yield control back to event loop (prevents blocking)
 const yieldToEventLoop = () => new Promise(resolve => setImmediate(resolve));
 
@@ -4513,16 +4502,15 @@ app.post('/api/library/auto-tag-all', async (req, res) => {
     // Get all library items
     const items = db.prepare('SELECT * FROM library').all();
     
-    // Initialize job status
-    autoTagJob = {
-      running: true,
-      total: items.length,
-      processed: 0,
-      updated: 0,
-      errors: 0,
-      currentFile: '',
-      startTime: Date.now()
-    };
+    // Reset job status for new run
+    autoTagJob.running = true;
+    autoTagJob.total = items.length;
+    autoTagJob.processed = 0;
+    autoTagJob.completed = 0;
+    autoTagJob.failed = 0;
+    autoTagJob.currentFile = '';
+    autoTagJob.startTime = Date.now();
+    autoTagJob.queue = []; // Clear queue
     
     console.log(`=== AUTO-TAG ALL: Starting background job for ${items.length} files ===`);
     
@@ -4598,21 +4586,21 @@ app.post('/api/library/auto-tag-all', async (req, res) => {
             }
           }
           
-          autoTagJob.updated++;
+          autoTagJob.completed++;
           
           // Yield control every file to keep server responsive
           await yieldToEventLoop();
           
         } catch (err) {
           console.error(`  Error processing ${file.originalName}:`, err.message);
-          autoTagJob.errors++;
+          autoTagJob.failed++;
           // Yield even on error
           await yieldToEventLoop();
         }
       }
       
       const elapsed = ((Date.now() - autoTagJob.startTime) / 1000).toFixed(1);
-      console.log(`=== AUTO-TAG ALL COMPLETE: ${autoTagJob.updated} updated, ${autoTagJob.errors} errors in ${elapsed}s ===`);
+      console.log(`=== AUTO-TAG ALL COMPLETE: ${autoTagJob.completed} completed, ${autoTagJob.failed} failed in ${elapsed}s ===`);
       
       autoTagJob.running = false;
       autoTagJob.currentFile = '';
@@ -4623,37 +4611,6 @@ app.post('/api/library/auto-tag-all', async (req, res) => {
     autoTagJob.running = false;
     res.status(500).json({ error: 'Failed to start auto-tag job' });
   }
-});
-
-// Check auto-tag job status
-app.get('/api/library/auto-tag-status', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  const elapsed = autoTagJob.startTime ? ((Date.now() - autoTagJob.startTime) / 1000).toFixed(1) : 0;
-  const percent = autoTagJob.total > 0 ? Math.round((autoTagJob.processed / autoTagJob.total) * 100) : 0;
-  
-  res.json({
-    ...autoTagJob,
-    elapsedSeconds: elapsed,
-    percentComplete: percent
-  });
-});
-
-// Cancel auto-tag job
-app.post('/api/library/auto-tag-cancel', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  if (!autoTagJob.running) {
-    return res.json({ success: false, message: 'No auto-tag job running' });
-  }
-  
-  // Note: This sets the flag, the loop will check and stop
-  autoTagJob.running = false;
-  res.json({ success: true, message: 'Auto-tag job cancelled' });
 });
 
 // Helper function to recursively walk directory
