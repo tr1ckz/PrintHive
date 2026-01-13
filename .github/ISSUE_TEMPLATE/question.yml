@@ -1,0 +1,88 @@
+name: Question/Support
+description: Ask a question or get help with PrintHive
+title: "[Question]: "
+labels: ["question", "support"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about using PrintHive? We're here to help! Please check the [documentation](../README.md) and [wiki](../WIKI.md) first.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: How do I...? / Can PrintHive do...? / I need help with...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What is your question about?
+      options:
+        - Installation & Setup
+        - Docker & Deployment
+        - Printer Connection
+        - Authentication (OAuth/OIDC/Authentik)
+        - Reverse Proxy (Nginx/Traefik)
+        - Model Library Management
+        - Video/Timelapse
+        - Settings & Configuration
+        - API Usage
+        - Unraid Installation
+        - Troubleshooting
+        - General Usage
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What Have You Tried?
+      description: Have you attempted to solve this yourself? What did you try?
+      placeholder: |
+        I've tried...
+        I checked...
+        I read...
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Provide details about your setup (if relevant)
+      placeholder: |
+        - PrintHive version: latest
+        - Deployment: Docker Compose
+        - OS: Ubuntu 22.04
+        - Printer: X1 Carbon
+        - Using reverse proxy: Yes (Nginx)
+        - Using SSO: Yes (Authentik)
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs or Screenshots
+      description: If applicable, provide logs or screenshots
+      placeholder: Paste logs or drag images here...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm before submitting
+      options:
+        - label: I have searched existing issues and discussions for similar questions
+          required: true
+        - label: I have read the relevant documentation
+          required: true

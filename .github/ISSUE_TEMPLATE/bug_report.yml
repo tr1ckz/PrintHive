@@ -1,0 +1,158 @@
+name: Bug Report
+description: Report a bug or issue with PrintHive
+title: "[Bug]: "
+labels: ["bug", "needs triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this bug! Please fill out the information below to help us investigate.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what went wrong...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Describe what should have happened...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Describe what actually happened...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: PrintHive Version
+      description: What version of PrintHive are you running?
+      options:
+        - latest (Docker Hub)
+        - main (GitHub)
+        - v1.3.5
+        - v1.3.0
+        - v1.2.0
+        - v1.1.0
+        - v1.0.0
+        - Other (specify in additional context)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment Method
+      description: How are you running PrintHive?
+      options:
+        - Docker (Docker Hub image)
+        - Docker Compose
+        - Unraid
+        - Docker (built from source)
+        - Node.js (bare metal)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: printer
+    attributes:
+      label: Printer Model
+      description: Which Bambu Lab printer are you using?
+      options:
+        - X1 Carbon
+        - X1
+        - P1P
+        - P1S
+        - A1
+        - A1 Mini
+        - Multiple printers
+        - Other/Not applicable
+    validations:
+      required: false
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & Version
+      description: What browser are you using? (e.g., Chrome 120, Firefox 121, Safari 17)
+      placeholder: Chrome 120
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      description: What OS is your server/Docker host running?
+      placeholder: Ubuntu 22.04, Windows 11, Unraid 6.12, etc.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Please paste any relevant log output from `docker logs printhive` or console errors
+      render: shell
+      placeholder: |
+        Paste logs here...
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain the problem
+      placeholder: Drag and drop images here or paste URLs
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here (network setup, reverse proxy, authentication, etc.)
+      placeholder: Any additional details that might help...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following before submitting
+      options:
+        - label: I have searched existing issues to ensure this bug hasn't been reported
+          required: true
+        - label: I have checked the documentation and wiki for solutions
+          required: true
+        - label: I am running the latest version of PrintHive (or specified version above)
+          required: true
