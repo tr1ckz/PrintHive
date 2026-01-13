@@ -3209,12 +3209,13 @@ app.get('/library/share', async (req, res) => {
           /* 3D Viewer Styles */
           #viewer canvas { width: 100% !important; height: 100% !important; }
           .viewer-toolbar {
-            position: absolute;
-            top: 16px;
-            left: 16px;
             display: flex;
             gap: 8px;
-            z-index: 10;
+            padding: 12px 16px;
+            background: rgba(0,0,0,0.3);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            justify-content: center;
+            flex-wrap: wrap;
           }
           .viewer-btn {
             width: 40px;
@@ -3269,17 +3270,13 @@ app.get('/library/share', async (req, res) => {
             cursor: pointer;
           }
           .viewer-controls {
-            position: absolute;
-            bottom: 16px;
-            left: 50%;
-            transform: translateX(-50%);
             display: flex;
-            gap: 8px;
-            background: rgba(0,0,0,0.6);
+            gap: 12px;
             padding: 8px 16px;
-            border-radius: 8px;
+            background: rgba(0,0,0,0.2);
             font-size: 0.75rem;
-            color: #a1a1aa;
+            color: #71717a;
+            justify-content: center;
           }
           .expiry-badge {
             display: inline-flex;
@@ -3298,7 +3295,7 @@ app.get('/library/share', async (req, res) => {
       <body>
         <div class="container">
           <div class="header">
-            <img src="/data/logo.png" alt="PrintHive" class="logo-img" onerror="this.style.display='none'">
+            <img src="/images/logo.png" alt="PrintHive" class="logo-img" onerror="this.style.display='none'">
             <div class="header-text">
               <h1>PrintHive</h1>
               <p>Shared 3D Model</p>
@@ -3427,9 +3424,9 @@ app.get('/library/share', async (req, res) => {
           
           function addModelToScene(geometry) {
             const material = new THREE.MeshStandardMaterial({ 
-              color: 0x888888,
-              metalness: 0.3,
-              roughness: 0.4,
+              color: 0xcccccc,
+              metalness: 0.2,
+              roughness: 0.5,
               flatShading: false,
               clippingPlanes: [],
               clipShadows: true
