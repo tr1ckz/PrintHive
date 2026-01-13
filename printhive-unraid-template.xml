@@ -3,24 +3,29 @@
   <Name>PrintHive</Name>
   <Repository>tr1ckz/printhive:latest</Repository>
   <Registry>https://hub.docker.com/r/tr1ckz/printhive</Registry>
+  <Branch>
+    <Tag>latest</Tag>
+    <TagDescription>Latest stable release</TagDescription>
+  </Branch>
   <Network>bridge</Network>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
   <Support>https://github.com/tr1ckz/PrintHive/issues</Support>
   <Project>https://github.com/tr1ckz/PrintHive</Project>
-  <Overview>PrintHive - A comprehensive web application for managing 3D printers, including print history tracking, model library management, real-time printer monitoring via MQTT, and timelapse video management.</Overview>
-  <Category>Productivity: Tools:</Category>
+  <Overview>PrintHive - A comprehensive web application for managing 3D printers. Features include print history tracking, model library management, real-time printer monitoring via MQTT, timelapse video management, cloud sync with Bambu Cloud, statistics and analytics, duplicate detection, and multi-user support with OIDC authentication.</Overview>
+  <Category>Productivity: Tools: Other:</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <Icon>https://raw.githubusercontent.com/tr1ckz/PrintHive/main/public/images/logo.png</Icon>
-  <ExtraParams/>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
   <PostArgs/>
   <DonateText>Buy me a coffee</DonateText>
   <DonateLink>https://buymeacoffee.com/tr1ck</DonateLink>
   <Requires/>
   <Config Name="WebUI Port" Target="3000" Default="3000" Mode="tcp" Description="Web interface port" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
-  <Config Name="Data" Target="/app/data" Default="/mnt/user/appdata/printhive/data" Mode="rw" Description="Application data (database, thumbnails, cache)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/printhive/data</Config>
-  <Config Name="Sessions" Target="/app/sessions" Default="/mnt/user/appdata/printhive/sessions" Mode="rw" Description="Session storage" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/printhive/sessions</Config>
-  <Config Name="Library" Target="/app/library" Default="/mnt/user/appdata/printhive/library" Mode="rw" Description="3D model library storage" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/printhive/library</Config>
-  <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="" Mode="" Description="Random secret key for session encryption (required)" Type="Variable" Display="always" Required="true" Mask="true"/>
-  <Config Name="PUBLIC_URL" Target="PUBLIC_URL" Default="http://localhost:3000" Mode="" Description="Public URL where your application is hosted" Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="Data" Target="/app/data" Default="/mnt/user/appdata/printhive/data" Mode="rw" Description="Application data including database, thumbnails, and cache" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/printhive/data</Config>
+  <Config Name="Sessions" Target="/app/sessions" Default="/mnt/user/appdata/printhive/sessions" Mode="rw" Description="Session storage for user authentication" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/printhive/sessions</Config>
+  <Config Name="Library" Target="/app/library" Default="/mnt/user/appdata/printhive/library" Mode="rw" Description="3D model library storage (.3mf, .stl, .gcode files)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/printhive/library</Config>
+  <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="" Mode="" Description="Random secret key for session encryption. Generate with: openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="PUBLIC_URL" Target="PUBLIC_URL" Default="http://localhost:3000" Mode="" Description="Public URL where the app is accessible (e.g. https://printhive.yourdomain.com)" Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="PORT" Target="PORT" Default="3000" Mode="" Description="Internal container port (change if using custom port)" Type="Variable" Display="advanced" Required="false" Mask="false">3000</Config>
 </Container>
