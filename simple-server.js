@@ -3223,12 +3223,45 @@ app.get('/library/share', async (req, res) => {
           import * as THREE from 'three';
           import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
           import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+          import { ThreeMFLoader } from 'three/addons/loaders/3MFLoader.js';
           
           let camera, scene, renderer, controls;
           const container = document.getElementById('viewer');
           const fileName = '${share.originalName}';
           const isSTL = fileName.toLowerCase().endsWith('.stl');
           const is3MF = fileName.toLowerCase().endsWith('.3mf');
+          
+          function addModelToScene(geometry) {
+            const material = new THREE.MeshPhongMaterial({ 
+              color: 0x667eea,
+              specular: 0x111111,
+              shininess: 50
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // Center the model
+            geometry.computeBoundingBox();
+            const center = new THREE.Vector3();
+            geometry.boundingBox.getCenter(center);
+            mesh.position.sub(center);
+            
+            // Position above grid
+            const size = new THREE.Vector3();
+            geometry.boundingBox.getSize(size);
+            mesh.position.y += size.y / 2;
+            
+            scene.add(mesh);
+            
+            // Fit camera
+            const maxDim = Math.max(size.x, size.y, size.z);
+            camera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
+            controls.target.set(0, size.y / 2, 0);
+            controls.update();
+          }
+          
+          function showError(message) {
+            container.innerHTML = '<div class="viewer-placeholder"><div class="icon">❌</div><p>' + message + '</p></div>';
+          }
           
           function init() {
             scene = new THREE.Scene();
@@ -3264,70 +3297,45 @@ app.get('/library/share', async (req, res) => {
             const gridHelper = new THREE.GridHelper(200, 20, 0x444444, 0x222222);
             scene.add(gridHelper);
             
-            // Load model
-            if (isSTL) {
-              const loader = new STLLoader();
-              loader.load('/api/library/share/${hash}/geometry', (geometry) => {
-                const material = new THREE.MeshPhongMaterial({ 
-                  color: 0x667eea,
-                  specular: 0x111111,
-                  shininess: 50
-                });
-                const mesh = new THREE.Mesh(geometry, material);
+            // Load model - try geometry endpoint first (works for both STL and pre-extracted 3MF)
+            const stlLoader = new STLLoader();
+            stlLoader.load('/api/library/share/${hash}/geometry', 
+              (geometry) => {
+                addModelToScene(geometry);
+              }, 
+              undefined, 
+              (error) => {
+                console.log('STL/cached geometry failed, trying alternative...', error);
                 
-                // Center the model
-                geometry.computeBoundingBox();
-                const center = new THREE.Vector3();
-                geometry.boundingBox.getCenter(center);
-                mesh.position.sub(center);
-                
-                // Position above grid
-                const size = new THREE.Vector3();
-                geometry.boundingBox.getSize(size);
-                mesh.position.y += size.y / 2;
-                
-                scene.add(mesh);
-                
-                // Fit camera
-                const maxDim = Math.max(size.x, size.y, size.z);
-                camera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
-                controls.target.set(0, size.y / 2, 0);
-                controls.update();
-              }, undefined, (error) => {
-                console.error('Error loading STL:', error);
-                container.innerHTML = '<div class="viewer-placeholder"><div class="icon">❌</div><p>Failed to load model</p></div>';
-              });
-            } else if (is3MF) {
-              // For 3MF, use the geometry endpoint which extracts the model
-              const loader = new STLLoader();
-              loader.load('/api/library/share/${hash}/geometry', (geometry) => {
-                const material = new THREE.MeshPhongMaterial({ 
-                  color: 0x667eea,
-                  specular: 0x111111,
-                  shininess: 50
-                });
-                const mesh = new THREE.Mesh(geometry, material);
-                
-                geometry.computeBoundingBox();
-                const center = new THREE.Vector3();
-                geometry.boundingBox.getCenter(center);
-                mesh.position.sub(center);
-                
-                const size = new THREE.Vector3();
-                geometry.boundingBox.getSize(size);
-                mesh.position.y += size.y / 2;
-                
-                scene.add(mesh);
-                
-                const maxDim = Math.max(size.x, size.y, size.z);
-                camera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
-                controls.target.set(0, size.y / 2, 0);
-                controls.update();
-              }, undefined, (error) => {
-                console.error('Error loading 3MF:', error);
-                container.innerHTML = '<div class="viewer-placeholder"><div class="icon">❌</div><p>Failed to load model</p></div>';
-              });
-            }
+                // If geometry endpoint failed and it's a 3MF, try loading original file with 3MFLoader
+                if (is3MF) {
+                  const threeMFLoader = new ThreeMFLoader();
+                  threeMFLoader.load('/api/library/share/${hash}/download',
+                    (object) => {
+                      // 3MFLoader returns a Group, we need to extract geometry
+                      let foundMesh = false;
+                      object.traverse((child) => {
+                        if (child.isMesh && !foundMesh) {
+                          foundMesh = true;
+                          const geometry = child.geometry;
+                          addModelToScene(geometry);
+                        }
+                      });
+                      if (!foundMesh) {
+                        showError('No mesh found in 3MF file');
+                      }
+                    },
+                    undefined,
+                    (err) => {
+                      console.error('3MF loading also failed:', err);
+                      showError('Failed to load 3MF model');
+                    }
+                  );
+                } else {
+                  showError('Failed to load model');
+                }
+              }
+            );
             
             animate();
           }
@@ -3437,37 +3445,41 @@ app.get('/api/library/share/:hash/geometry', async (req, res) => {
     const isSTL = share.originalName.toLowerCase().endsWith('.stl');
     const is3MF = share.originalName.toLowerCase().endsWith('.3mf');
 
+    // First check if we have pre-extracted geometry in cache (much more reliable)
+    const stlCachePath = path.join(geometryCache, `${share.id}.stl`);
+    
+    if (fs.existsSync(stlCachePath)) {
+      res.setHeader('Content-Type', 'application/sla');
+      return res.sendFile(stlCachePath);
+    }
+
     if (isSTL) {
       // Stream STL file directly
       res.setHeader('Content-Type', 'model/stl');
       const fileStream = fs.createReadStream(filePath);
       fileStream.pipe(res);
     } else if (is3MF) {
-      // Extract model.stl from 3MF archive
+      // For 3MF, we need to extract and convert the geometry
+      // The 3MF contains XML model data, not STL, so we need to process it
       const JSZip = require('jszip');
       const data = fs.readFileSync(filePath);
       const zip = await JSZip.loadAsync(data);
       
-      // Look for STL or model file inside 3MF
-      let modelFile = null;
+      // First look for an embedded STL (some 3MF files have them)
       for (const fileName of Object.keys(zip.files)) {
         if (fileName.toLowerCase().endsWith('.stl')) {
-          modelFile = zip.files[fileName];
-          break;
-        }
-        if (fileName.toLowerCase().includes('3d/3dmodel.model') || fileName.toLowerCase().endsWith('.model')) {
-          modelFile = zip.files[fileName];
-          break;
+          const content = await zip.files[fileName].async('nodebuffer');
+          res.setHeader('Content-Type', 'model/stl');
+          return res.send(content);
         }
       }
       
-      if (modelFile) {
-        const content = await modelFile.async('nodebuffer');
-        res.setHeader('Content-Type', 'model/stl');
-        res.send(content);
-      } else {
-        res.status(404).json({ error: 'No viewable model found in 3MF' });
-      }
+      // If no STL, try to find the model XML and convert it
+      // For now, return 404 and suggest generating geometry
+      res.status(404).json({ 
+        error: 'Geometry not yet extracted. 3MF files require pre-processing.',
+        hint: 'View the model in the main library to trigger geometry extraction.'
+      });
     } else {
       res.status(400).json({ error: 'Unsupported file format for 3D viewing' });
     }
