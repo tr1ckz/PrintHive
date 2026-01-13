@@ -2990,7 +2990,10 @@ app.get('/library/share', async (req, res) => {
     const fileSize = share.fileSize ? (share.fileSize / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown';
     const uploadDate = share.uploadedAt ? new Date(share.uploadedAt).toLocaleDateString() : 'Unknown';
     const tags = share.tags ? share.tags.split(',').map(t => `<span class="tag">${t.trim()}</span>`).join('') : '';
-    const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
+    
+    // Get public URL from database settings or environment
+    const publicHostname = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_publicHostname');
+    const publicUrl = publicHostname?.value || process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
     const thumbnailUrl = `${publicUrl}/api/library/share/${hash}/thumbnail`;
     const escapedDesc = (share.description || 'Shared 3D model from PrintHive').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
@@ -3423,15 +3426,20 @@ app.get('/library/share', async (req, res) => {
           const is3MF = fileName.toLowerCase().endsWith('.3mf');
           
           function addModelToScene(geometry) {
+            // Compute vertex normals for smooth shading
+            geometry.computeVertexNormals();
+            
             const material = new THREE.MeshStandardMaterial({ 
-              color: 0xcccccc,
-              metalness: 0.2,
-              roughness: 0.5,
+              color: 0x00d4ff,
+              metalness: 0.3,
+              roughness: 0.4,
               flatShading: false,
               clippingPlanes: [],
               clipShadows: true
             });
             const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
             loadedMesh = mesh;
             
             // Center the model
@@ -3463,30 +3471,37 @@ app.get('/library/share', async (req, res) => {
           
           function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0f0f23);
+            scene.background = new THREE.Color(0x444444);
             
-            camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 10000);
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 10000);
             camera.position.set(100, 100, 100);
             
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.localClippingEnabled = true;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             container.innerHTML = '';
             container.appendChild(renderer.domElement);
             
             // Create clipping plane for slice mode
             clippingPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 100);
             
-            // Lighting
+            // Lighting - match Library viewer
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
             
             const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
             directionalLight1.position.set(1, 1, 1);
+            directionalLight1.castShadow = true;
+            directionalLight1.shadow.mapSize.width = 2048;
+            directionalLight1.shadow.mapSize.height = 2048;
+            directionalLight1.shadow.camera.near = 0.5;
+            directionalLight1.shadow.camera.far = 500;
             scene.add(directionalLight1);
             
-            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
             directionalLight2.position.set(-1, -1, -1);
             scene.add(directionalLight2);
             
@@ -3494,6 +3509,12 @@ app.get('/library/share', async (req, res) => {
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 5;
+            controls.maxDistance = 2000;
+            controls.zoomSpeed = 1.2;
+            controls.rotateSpeed = 1.0;
+            controls.panSpeed = 0.8;
             
             // Grid with cyan accent
             const gridHelper = new THREE.GridHelper(400, 40, 0x00d4ff, 0x404040);
