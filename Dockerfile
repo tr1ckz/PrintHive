@@ -1,8 +1,9 @@
-# Use Node.js LTS (Alpine)
-FROM node:20-alpine
+# Use Node.js LTS (Alpine) - Latest stable with security patches
+FROM node:20-alpine AS base
 
 # Install system dependencies including git for GitHub dependencies
-RUN apk add --no-cache \
+# Update package index and upgrade existing packages for security
+RUN apk update && apk upgrade && apk add --no-cache \
     python3 \
     make \
     g++ \
@@ -30,7 +31,8 @@ RUN npm pkg delete dependencies.canvas dependencies.gl 2>/dev/null || true && \
 # @napi-rs/canvas should install without compilation thanks to prebuilt binaries
 # Don't omit optional deps - rollup needs platform-specific binaries
 RUN rm -f package-lock.json && \
-    npm install --legacy-peer-deps
+    npm install --legacy-peer-deps && \
+    npm audit fix --force
 
 # Copy application files
 COPY . .
