@@ -3755,32 +3755,16 @@ app.get('/api/library/share/:hash/thumbnail', async (req, res) => {
       return res.status(404).json({ error: 'Shared model not found' });
     }
 
-    // Use existing thumbnail endpoint logic
-    const thumbnailPath = path.join(__dirname, 'data', 'thumbnails', `${share.id}.png`);
-    
-    if (fs.existsSync(thumbnailPath)) {
+    // Use the same getThumbnail function that generates and caches thumbnails
+    try {
+      const thumbnail = await getThumbnail(share);
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=86400');
-      return res.sendFile(thumbnailPath);
+      return res.send(thumbnail);
+    } catch (err) {
+      console.error('Failed to generate thumbnail:', err.message);
+      res.status(404).json({ error: 'Thumbnail not available' });
     }
-    
-    // Try to generate thumbnail if it doesn't exist
-    const thumbnailGenerator = require('./thumbnail-generator');
-    const safeFileName = sanitizeFilePath(share.fileName);
-    const modelPath = path.join(libraryDir, safeFileName);
-    
-    if (fs.existsSync(modelPath)) {
-      try {
-        await thumbnailGenerator.generateThumbnail(modelPath, thumbnailPath);
-        res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Cache-Control', 'public, max-age=86400');
-        return res.sendFile(thumbnailPath);
-      } catch (err) {
-        console.error('Failed to generate thumbnail:', err.message);
-      }
-    }
-    
-    res.status(404).json({ error: 'Thumbnail not available' });
   } catch (error) {
     console.error('Share thumbnail error:', error.message);
     res.status(500).json({ error: 'Failed to load thumbnail' });
