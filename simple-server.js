@@ -2887,6 +2887,58 @@ app.post('/api/library/share/:id', async (req, res) => {
   }
 });
 
+// Helper function to render expired share page
+function renderExpiredPage() {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <title>Link Expired - PrintHive</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link rel="icon" href="/images/favicon/favicon.ico">
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+          color: #e4e4e7; 
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .container {
+          text-align: center;
+          padding: 40px;
+        }
+        .icon { font-size: 64px; margin-bottom: 24px; }
+        h1 { font-size: 2rem; margin-bottom: 16px; color: #fff; }
+        p { color: #a1a1aa; font-size: 1.1rem; margin-bottom: 24px; }
+        a {
+          display: inline-block;
+          padding: 12px 24px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: #fff;
+          text-decoration: none;
+          border-radius: 8px;
+          font-weight: 500;
+        }
+        a:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3); }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="icon">⏰</div>
+        <h1>Share Link Expired</h1>
+        <p>This share link has expired. Share links are valid for 24 hours.</p>
+        <a href="https://github.com/tr1ckz/PrintHive">Learn about PrintHive</a>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
 // Get shared model (no auth required)
 app.get('/library/share', async (req, res) => {
   const { hash } = req.query;
@@ -2897,14 +2949,33 @@ app.get('/library/share', async (req, res) => {
 
   try {
     const share = db.prepare(`
-      SELECT l.*, ls.share_hash FROM library l
+      SELECT l.*, ls.share_hash, ls.created_at as share_created_at FROM library l
       INNER JOIN library_shares ls ON l.id = ls.model_id
       WHERE ls.share_hash = ?
     `).get(hash);
     
     if (!share) {
-      return res.status(404).json({ error: 'Shared model not found' });
+      return res.status(404).send(renderExpiredPage());
     }
+
+    // Check if share link has expired (24 hours)
+    const shareCreated = new Date(share.share_created_at);
+    const now = new Date();
+    const hoursSinceCreation = (now - shareCreated) / (1000 * 60 * 60);
+    
+    if (hoursSinceCreation > 24) {
+      // Delete expired share
+      db.prepare('DELETE FROM library_shares WHERE share_hash = ?').run(hash);
+      return res.status(410).send(renderExpiredPage());
+    }
+
+    // Calculate time remaining
+    const hoursRemaining = Math.max(0, 24 - hoursSinceCreation);
+    const expiryText = hoursRemaining > 1 
+      ? `Expires in ${Math.floor(hoursRemaining)} hours` 
+      : hoursRemaining > 0 
+        ? `Expires in ${Math.floor(hoursRemaining * 60)} minutes`
+        : 'Expiring soon';
 
     // Update access count
     db.prepare(`
@@ -2919,6 +2990,9 @@ app.get('/library/share', async (req, res) => {
     const fileSize = share.fileSize ? (share.fileSize / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown';
     const uploadDate = share.uploadedAt ? new Date(share.uploadedAt).toLocaleDateString() : 'Unknown';
     const tags = share.tags ? share.tags.split(',').map(t => `<span class="tag">${t.trim()}</span>`).join('') : '';
+    const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
+    const thumbnailUrl = `${publicUrl}/api/library/share/${hash}/thumbnail`;
+    const escapedDesc = (share.description || 'Shared 3D model from PrintHive').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
     // Return HTML page with model viewer
     res.send(`
@@ -2928,7 +3002,24 @@ app.get('/library/share', async (req, res) => {
         <title>${share.originalName} - PrintHive Share</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description" content="${share.description || 'Shared 3D model from PrintHive'}">
+        <meta name="description" content="${escapedDesc}">
+        
+        <!-- OpenGraph Meta Tags for Link Previews -->
+        <meta property="og:title" content="${share.originalName} - PrintHive">
+        <meta property="og:description" content="${escapedDesc}">
+        <meta property="og:image" content="${thumbnailUrl}">
+        <meta property="og:image:width" content="512">
+        <meta property="og:image:height" content="512">
+        <meta property="og:url" content="${publicUrl}/library/share?hash=${hash}">
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="PrintHive">
+        
+        <!-- Twitter Card Meta Tags -->
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="${share.originalName} - PrintHive">
+        <meta name="twitter:description" content="${escapedDesc}">
+        <meta name="twitter:image" content="${thumbnailUrl}">
+        
         <link rel="icon" href="/images/favicon/favicon.ico">
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2951,15 +3042,11 @@ app.get('/library/share', async (req, res) => {
             padding-bottom: 16px;
             border-bottom: 1px solid rgba(255,255,255,0.1);
           }
-          .logo {
+          .logo-img {
             width: 48px;
             height: 48px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
+            object-fit: contain;
           }
           .header-text h1 { 
             font-size: 1.5rem; 
@@ -3121,6 +3208,66 @@ app.get('/library/share', async (req, res) => {
           
           /* 3D Viewer Styles */
           #viewer canvas { width: 100% !important; height: 100% !important; }
+          .viewer-toolbar {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+          }
+          .viewer-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #a1a1aa;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+          }
+          .viewer-btn:hover {
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+          }
+          .viewer-btn.active {
+            background: rgba(102, 126, 234, 0.3);
+            color: #667eea;
+            border-color: #667eea;
+          }
+          .viewer-btn svg {
+            width: 20px;
+            height: 20px;
+          }
+          .viewer-divider {
+            width: 1px;
+            background: rgba(255,255,255,0.1);
+            margin: 0 4px;
+          }
+          .slice-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .slice-slider {
+            width: 120px;
+            height: 6px;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            outline: none;
+          }
+          .slice-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+          }
           .viewer-controls {
             position: absolute;
             bottom: 16px;
@@ -3134,12 +3281,24 @@ app.get('/library/share', async (req, res) => {
             font-size: 0.75rem;
             color: #a1a1aa;
           }
+          .expiry-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: #fbbf24;
+            margin-bottom: 16px;
+          }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <div class="logo">🐝</div>
+            <img src="/data/logo.png" alt="PrintHive" class="logo-img" onerror="this.style.display='none'">
             <div class="header-text">
               <h1>PrintHive</h1>
               <p>Shared 3D Model</p>
@@ -3161,10 +3320,43 @@ app.get('/library/share', async (req, res) => {
                   </div>
                 `}
               </div>
-              ${isViewable ? `<div class="viewer-controls">🖱️ Drag to rotate • Scroll to zoom • Right-click to pan</div>` : ''}
+              ${isViewable ? `
+              <div class="viewer-toolbar">
+                <button class="viewer-btn" id="btn-wireframe" title="Toggle Wireframe">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                  </svg>
+                </button>
+                <button class="viewer-btn" id="btn-rotate" title="Toggle Auto-Rotate">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                  </svg>
+                </button>
+                <button class="viewer-btn" id="btn-reset" title="Reset Camera">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 10l-4 4l6 6l4-16l-16 4l6 6l4-4z"/>
+                  </svg>
+                </button>
+                <div class="viewer-divider"></div>
+                <div class="slice-control">
+                  <button class="viewer-btn" id="btn-slice" title="Toggle Slice View">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 12h18M3 6h18M3 18h18"/>
+                    </svg>
+                  </button>
+                  <input type="range" class="slice-slider" id="slice-slider" min="0" max="100" value="100" style="display: none;">
+                </div>
+              </div>
+              <div class="viewer-controls">🖱️ Drag to rotate • Scroll to zoom • Right-click to pan</div>
+              ` : ''}
             </div>
             
             <div class="info-panel">
+              <div class="expiry-badge">
+                <span>⏱️</span>
+                <span>${expiryText}</span>
+              </div>
+              
               <div class="thumbnail-preview">
                 <img src="/api/library/share/${hash}/thumbnail" alt="Model thumbnail" onerror="this.parentElement.innerHTML='<div style=\\'color:#52525b;font-size:48px\\'>📦</div>'">
               </div>
@@ -3225,19 +3417,25 @@ app.get('/library/share', async (req, res) => {
           import { STLLoader } from 'three/addons/loaders/STLLoader.js';
           import { ThreeMFLoader } from 'three/addons/loaders/3MFLoader.js';
           
-          let camera, scene, renderer, controls;
+          let camera, scene, renderer, controls, loadedMesh, clippingPlane;
+          let wireframeMode = false, autoRotateMode = false, sliceMode = false;
+          let modelHeight = 100;
           const container = document.getElementById('viewer');
           const fileName = '${share.originalName}';
           const isSTL = fileName.toLowerCase().endsWith('.stl');
           const is3MF = fileName.toLowerCase().endsWith('.3mf');
           
           function addModelToScene(geometry) {
-            const material = new THREE.MeshPhongMaterial({ 
-              color: 0x667eea,
-              specular: 0x111111,
-              shininess: 50
+            const material = new THREE.MeshStandardMaterial({ 
+              color: 0x888888,
+              metalness: 0.3,
+              roughness: 0.4,
+              flatShading: false,
+              clippingPlanes: [],
+              clipShadows: true
             });
             const mesh = new THREE.Mesh(geometry, material);
+            loadedMesh = mesh;
             
             // Center the model
             geometry.computeBoundingBox();
@@ -3251,6 +3449,9 @@ app.get('/library/share', async (req, res) => {
             mesh.position.y += size.y / 2;
             
             scene.add(mesh);
+            
+            // Store model height for slice control
+            modelHeight = size.y;
             
             // Fit camera
             const maxDim = Math.max(size.x, size.y, size.z);
@@ -3273,8 +3474,12 @@ app.get('/library/share', async (req, res) => {
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.localClippingEnabled = true;
             container.innerHTML = '';
             container.appendChild(renderer.domElement);
+            
+            // Create clipping plane for slice mode
+            clippingPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 100);
             
             // Lighting
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -3293,8 +3498,8 @@ app.get('/library/share', async (req, res) => {
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
             
-            // Grid
-            const gridHelper = new THREE.GridHelper(200, 20, 0x444444, 0x222222);
+            // Grid with cyan accent
+            const gridHelper = new THREE.GridHelper(400, 40, 0x00d4ff, 0x404040);
             scene.add(gridHelper);
             
             // Load model - try geometry endpoint first (works for both STL and pre-extracted 3MF)
@@ -3356,6 +3561,56 @@ app.get('/library/share', async (req, res) => {
             camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
+          });
+          
+          // Viewer control handlers
+          document.getElementById('btn-wireframe')?.addEventListener('click', function() {
+            wireframeMode = !wireframeMode;
+            this.classList.toggle('active', wireframeMode);
+            if (loadedMesh) {
+              loadedMesh.material.wireframe = wireframeMode;
+            }
+          });
+          
+          document.getElementById('btn-rotate')?.addEventListener('click', function() {
+            autoRotateMode = !autoRotateMode;
+            this.classList.toggle('active', autoRotateMode);
+            if (controls) {
+              controls.autoRotate = autoRotateMode;
+              controls.autoRotateSpeed = 2.0;
+            }
+          });
+          
+          document.getElementById('btn-reset')?.addEventListener('click', function() {
+            const maxDim = Math.max(modelHeight, 100);
+            camera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
+            controls.target.set(0, modelHeight / 2, 0);
+            controls.update();
+          });
+          
+          const sliceSlider = document.getElementById('slice-slider');
+          document.getElementById('btn-slice')?.addEventListener('click', function() {
+            sliceMode = !sliceMode;
+            this.classList.toggle('active', sliceMode);
+            sliceSlider.style.display = sliceMode ? 'block' : 'none';
+            
+            if (loadedMesh) {
+              if (sliceMode) {
+                loadedMesh.material.clippingPlanes = [clippingPlane];
+                updateSlice(parseFloat(sliceSlider.value));
+              } else {
+                loadedMesh.material.clippingPlanes = [];
+              }
+            }
+          });
+          
+          function updateSlice(value) {
+            const sliceY = (value / 100) * modelHeight;
+            clippingPlane.constant = sliceY;
+          }
+          
+          sliceSlider?.addEventListener('input', function() {
+            updateSlice(parseFloat(this.value));
           });
           
           init();
