@@ -161,10 +161,6 @@ const Statistics: React.FC = () => {
     return { css: cssColor, name };
   };
 
-  useEffect(() => {
-    fetchStatistics();
-  }, []);
-
   if (loading) {
     return <LoadingScreen message="Loading statistics..." />;
   }

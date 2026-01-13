@@ -3,12 +3,12 @@ import PrintHistory from './PrintHistory';
 import Library from './Library';
 import Duplicates from './Duplicates';
 import Settings from './Settings';
-import BuyMeACoffee from './BuyMeACoffee';
 import DashboardHome from './DashboardHome';
 import Maintenance from './Maintenance';
 import Printers from './Printers';
 import ThemeToggle from './ThemeToggle';
 import CommandPalette from './CommandPalette';
+import Statistics from './Statistics';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import './Dashboard.css';
@@ -17,7 +17,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers';
+type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics';
 
 const tabPaths: Record<Tab, string> = {
   home: '/',
@@ -26,7 +26,8 @@ const tabPaths: Record<Tab, string> = {
   duplicates: '/duplicates',
   maintenance: '/maintenance',
   settings: '/settings',
-  printers: '/printers'
+  printers: '/printers',
+  statistics: '/statistics'
 };
 
 const getHashSection = () => {
@@ -42,6 +43,7 @@ const getTabFromLocation = (): Tab | null => {
   if (path.startsWith('/maintenance')) return 'maintenance';
   if (path.startsWith('/settings')) return 'settings';
   if (path.startsWith('/printers')) return 'printers';
+  if (path.startsWith('/statistics')) return 'statistics';
   if (path === '/' || path === '') return 'home';
   return null;
 };
@@ -63,25 +65,12 @@ function Dashboard({ onLogout }: DashboardProps) {
   const [settingsSection, setSettingsSection] = useState<string | null>(() => getHashSection());
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [hideBmc, setHideBmc] = useState(true); // Default hidden until loaded
 
   useEffect(() => {
     fetchWithRetry(API_ENDPOINTS.AUTH.USER_ME, { credentials: 'include' })
       .then(res => res.json())
       .then(data => setUserInfo(data))
       .catch(err => console.error('Failed to fetch user info:', err));
-    
-    // Fetch UI settings
-    fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setHideBmc(data.hideBmc || false);
-        } else {
-          setHideBmc(false); // Show by default if fetch fails
-        }
-      })
-      .catch(() => setHideBmc(false)); // Show by default if fetch fails
   }, []);
 
   useEffect(() => {
@@ -140,6 +129,11 @@ function Dashboard({ onLogout }: DashboardProps) {
     { id: 'history' as Tab, label: 'History', icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    )},
+    { id: 'statistics' as Tab, label: 'Stats', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 21V9m5 12V3m5 18v-8m5 8V13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     )},
     { id: 'library' as Tab, label: 'Library', icon: (
@@ -204,7 +198,6 @@ function Dashboard({ onLogout }: DashboardProps) {
 
           {/* Right Section: User + Logout */}
           <div className="navbar-right">
-            {!hideBmc && <BuyMeACoffee username="tr1ck" />}
             <div className="navbar-user">
               <div className="user-avatar">{(userInfo?.display_name || userInfo?.username)?.[0]?.toUpperCase() || 'U'}</div>
               <span className="user-name">{userInfo?.display_name || userInfo?.username || 'User'}</span>
@@ -269,6 +262,7 @@ function Dashboard({ onLogout }: DashboardProps) {
         <div className="content-wrapper">
           {activeTab === 'home' ? <DashboardHome onNavigate={(tab) => handleTabChange(tab as Tab)} /> : null}
           {activeTab === 'history' ? <PrintHistory /> : null}
+          {activeTab === 'statistics' ? <Statistics /> : null}
           {activeTab === 'library' ? <Library userRole={userInfo?.role} /> : null}
           {activeTab === 'duplicates' ? <Duplicates /> : null}
           {activeTab === 'maintenance' ? <Maintenance /> : null}
@@ -276,9 +270,6 @@ function Dashboard({ onLogout }: DashboardProps) {
           {activeTab === 'printers' ? <Printers /> : null}
         </div>
       </main>
-
-      {/* Buy Me A Coffee */}
-      {!hideBmc && <BuyMeACoffee />}
       
       {/* Theme Toggle */}
       <ThemeToggle />

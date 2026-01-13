@@ -4,6 +4,8 @@ const { createCanvas } = require('@napi-rs/canvas');
 
 // Cache directory for thumbnails
 const THUMB_DIR = path.join(__dirname, 'data', 'thumbnails');
+const THUMB_SIZE = 256;
+const PNG_OPTIONS = { compressionLevel: 9 };
 
 // Ensure thumbnail directory exists
 if (!fs.existsSync(THUMB_DIR)) {
@@ -180,7 +182,7 @@ function parse3MF(filePath) {
 /**
  * Project 3D vertices to 2D isometric view
  */
-function projectIsometric(vertices) {
+function projectIsometric(vertices, scaleBase = 250) {
   if (!vertices || vertices.length === 0) return [];
   
   // Find bounding box
@@ -205,7 +207,7 @@ function projectIsometric(vertices) {
   const rangeY = maxY - minY;
   const rangeZ = maxZ - minZ;
   const maxRange = Math.max(rangeX, rangeY, rangeZ);
-  const scale = maxRange > 0 ? 250 / maxRange : 1;
+  const scale = maxRange > 0 ? scaleBase / maxRange : 1;
   
   // Isometric projection
   const projected = [];
@@ -233,8 +235,8 @@ function projectIsometric(vertices) {
  */
 async function generateModelThumbnail(file, filePath) {
   console.log('Generating model thumbnail for:', file.originalName);
-  const width = 400;
-  const height = 400;
+  const width = THUMB_SIZE;
+  const height = THUMB_SIZE;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
@@ -270,33 +272,33 @@ async function generateModelThumbnail(file, filePath) {
 
   // If we have an embedded PNG, resize it to our standard size
   if (embeddedPNG) {
-    console.log('Resizing embedded thumbnail to 800x800');
+    console.log(`Resizing embedded thumbnail to ${THUMB_SIZE}x${THUMB_SIZE}`);
     const { loadImage, createCanvas } = require('@napi-rs/canvas');
     const image = await loadImage(embeddedPNG);
     console.log('Original embedded thumbnail size:', image.width, 'x', image.height);
-    const canvas = createCanvas(800, 800);
+    const canvas = createCanvas(THUMB_SIZE, THUMB_SIZE);
     const ctx = canvas.getContext('2d');
     
     // Draw white background
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 800, 800);
+    ctx.fillRect(0, 0, THUMB_SIZE, THUMB_SIZE);
     
     // Calculate scaling to fit image in 800x800 while maintaining aspect ratio
-    const scale = Math.min(800 / image.width, 800 / image.height);
+    const scale = Math.min(THUMB_SIZE / image.width, THUMB_SIZE / image.height);
     const scaledWidth = image.width * scale;
     const scaledHeight = image.height * scale;
-    const x = (800 - scaledWidth) / 2;
-    const y = (800 - scaledHeight) / 2;
+    const x = (THUMB_SIZE - scaledWidth) / 2;
+    const y = (THUMB_SIZE - scaledHeight) / 2;
     
     ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
-    return canvas.toBuffer('image/png');
+    return canvas.toBuffer('image/png', PNG_OPTIONS);
   }
 
   if (vertices && vertices.length > 0) {
     console.log('Successfully parsed', vertices.length, 'vertices');
     // Project to 2D
     console.log('Projecting to isometric view...');
-    const projected = projectIsometric(vertices);
+    const projected = projectIsometric(vertices, Math.min(width, height) * 0.6);
     
     if (projected.length > 0) {
       console.log('Rendering', projected.length, 'projected vertices...');
@@ -342,34 +344,36 @@ async function generateModelThumbnail(file, filePath) {
   } else {
     console.log('No vertices found, falling back to cube icon');
     // Fallback to cube icon if parsing fails
-    drawCube(ctx, width / 2, height / 2 - 30, 120);
+    const cubeSize = Math.round(width * 0.3);
+    const verticalOffset = Math.round(height * 0.08);
+    drawCube(ctx, width / 2, height / 2 - verticalOffset, cubeSize);
   }
 
   // File type label
   ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-  ctx.font = 'bold 48px Arial';
+  ctx.font = `bold ${Math.round(width * 0.12)}px Arial`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(file.fileType.toUpperCase(), width / 2, height - 60);
+  ctx.fillText(file.fileType.toUpperCase(), width / 2, height - Math.round(height * 0.15));
 
   // File name (truncated)
   ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.font = '16px Arial';
+  ctx.font = `${Math.round(width * 0.05)}px Arial`;
   const maxNameLength = 30;
   const fileName = file.originalName.length > maxNameLength 
     ? file.originalName.substring(0, maxNameLength) + '...' 
     : file.originalName;
-  ctx.fillText(fileName, width / 2, height - 20);
+  ctx.fillText(fileName, width / 2, height - Math.round(height * 0.05));
 
-  return canvas.toBuffer('image/png');
+  return canvas.toBuffer('image/png', PNG_OPTIONS);
 }
 
 /**
  * Generate a simple colored thumbnail for GCODE files
  */
 function generateGCodeThumbnail(file) {
-  const width = 400;
-  const height = 400;
+  const width = THUMB_SIZE;
+  const height = THUMB_SIZE;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
@@ -381,25 +385,25 @@ function generateGCodeThumbnail(file) {
   ctx.fillRect(0, 0, width, height);
 
   // Draw document icon for GCODE
-  drawDocument(ctx, width / 2, height / 2 - 30, 120);
+  drawDocument(ctx, width / 2, height / 2 - Math.round(height * 0.08), Math.round(width * 0.32));
 
   // File type label
   ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-  ctx.font = 'bold 48px Arial';
+  ctx.font = `bold ${Math.round(width * 0.12)}px Arial`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('GCODE', width / 2, height - 60);
+  ctx.fillText('GCODE', width / 2, height - Math.round(height * 0.15));
 
   // File name (truncated)
   ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.font = '16px Arial';
+  ctx.font = `${Math.round(width * 0.05)}px Arial`;
   const maxNameLength = 30;
   const fileName = file.originalName.length > maxNameLength 
     ? file.originalName.substring(0, maxNameLength) + '...' 
     : file.originalName;
-  ctx.fillText(fileName, width / 2, height - 20);
+  ctx.fillText(fileName, width / 2, height - Math.round(height * 0.05));
 
-  return canvas.toBuffer('image/png');
+  return canvas.toBuffer('image/png', PNG_OPTIONS);
 }
 function drawCube(ctx, centerX, centerY, size) {
   const s = size / 2;
