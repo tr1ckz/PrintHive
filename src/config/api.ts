@@ -38,6 +38,7 @@ export const API_ENDPOINTS = {
   },
   
   LIBRARY: {
+    BASE: `${API_BASE_URL}/api/library`,
     LIST: `${API_BASE_URL}/api/library`,
     UPLOAD: `${API_BASE_URL}/api/library/upload`,
     DOWNLOAD: (id: number) => `${API_BASE_URL}/api/library/download/${id}`,
