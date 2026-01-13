@@ -1,9 +1,14 @@
 # Use Node.js LTS (Alpine) - Latest stable with security patches
 FROM node:20-alpine AS base
 
+# Use Alpine Edge repository for latest security patches
+RUN echo 'https://dl-cdn.alpinelinux.org/alpine/edge/main' > /etc/apk/repositories && \
+    echo 'https://dl-cdn.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories && \
+    echo 'https://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories
+
 # Install system dependencies including git for GitHub dependencies
 # Update package index and upgrade existing packages for security
-RUN apk update && apk upgrade && apk add --no-cache \
+RUN apk update && apk upgrade --available && apk add --no-cache \
     python3 \
     make \
     g++ \
@@ -21,6 +26,11 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+
+# Override vulnerable transitive dependencies
+RUN npm pkg set overrides.async="^3.2.6" && \
+    npm pkg set overrides.cross-spawn="^7.0.6" && \
+    npm pkg set overrides.glob="^11.0.0"
 
 # Remove unused packages that require compilation (gl, old canvas)
 # Keep only @napi-rs/canvas which has prebuilt binaries
