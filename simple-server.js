@@ -2897,6 +2897,476 @@ app.get('/library/share', async (req, res) => {
 
   try {
     const share = db.prepare(`
+      SELECT l.*, ls.share_hash FROM library l
+      INNER JOIN library_shares ls ON l.id = ls.model_id
+      WHERE ls.share_hash = ?
+    `).get(hash);
+    
+    if (!share) {
+      return res.status(404).json({ error: 'Shared model not found' });
+    }
+
+    // Update access count
+    db.prepare(`
+      UPDATE library_shares 
+      SET accessed_count = accessed_count + 1, last_accessed = datetime('now')
+      WHERE share_hash = ?
+    `).run(hash);
+
+    const isViewable = share.originalName.toLowerCase().endsWith('.stl') || 
+                       share.originalName.toLowerCase().endsWith('.3mf');
+    
+    const fileSize = share.fileSize ? (share.fileSize / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown';
+    const uploadDate = share.uploadedAt ? new Date(share.uploadedAt).toLocaleDateString() : 'Unknown';
+    const tags = share.tags ? share.tags.split(',').map(t => `<span class="tag">${t.trim()}</span>`).join('') : '';
+
+    // Return HTML page with model viewer
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <title>${share.originalName} - PrintHive Share</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="${share.description || 'Shared 3D model from PrintHive'}">
+        <link rel="icon" href="/images/favicon/favicon.ico">
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+            color: #e4e4e7; 
+            min-height: 100vh;
+          }
+          .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 20px; 
+          }
+          .header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+          }
+          .logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+          }
+          .header-text h1 { 
+            font-size: 1.5rem; 
+            font-weight: 600;
+            color: #fff;
+          }
+          .header-text p {
+            font-size: 0.875rem;
+            color: #a1a1aa;
+          }
+          .main-content {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+          }
+          @media (max-width: 900px) {
+            .main-content { grid-template-columns: 1fr; }
+          }
+          .viewer-section {
+            background: #0f0f23;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+          }
+          #viewer { 
+            width: 100%; 
+            height: 65vh; 
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+          }
+          .viewer-placeholder {
+            text-align: center;
+            color: #71717a;
+          }
+          .viewer-placeholder .icon { font-size: 48px; margin-bottom: 12px; }
+          .info-panel {
+            background: rgba(255,255,255,0.02);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.05);
+            height: fit-content;
+          }
+          .model-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+            word-break: break-word;
+          }
+          .model-description {
+            color: #a1a1aa;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+          }
+          .tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+          }
+          .tag {
+            background: rgba(102, 126, 234, 0.2);
+            color: #a5b4fc;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+          }
+          .meta-info {
+            display: grid;
+            gap: 12px;
+            padding: 16px 0;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 20px;
+          }
+          .meta-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+          }
+          .meta-label { color: #71717a; }
+          .meta-value { color: #e4e4e7; font-weight: 500; }
+          .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+          }
+          .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            transition: all 0.2s;
+          }
+          .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+          }
+          .btn-primary:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+          }
+          .btn-secondary {
+            background: rgba(255,255,255,0.05);
+            color: #e4e4e7;
+            border: 1px solid rgba(255,255,255,0.1);
+          }
+          .btn-secondary:hover {
+            background: rgba(255,255,255,0.1);
+          }
+          .btn-icon { font-size: 1.1rem; }
+          .thumbnail-preview {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #0f0f23;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .thumbnail-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+          }
+          .footer {
+            text-align: center;
+            padding: 24px;
+            color: #52525b;
+            font-size: 0.8rem;
+          }
+          .footer a {
+            color: #667eea;
+            text-decoration: none;
+          }
+          .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin { to { transform: rotate(360deg); } }
+          
+          /* 3D Viewer Styles */
+          #viewer canvas { width: 100% !important; height: 100% !important; }
+          .viewer-controls {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            color: #a1a1aa;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="logo">🐝</div>
+            <div class="header-text">
+              <h1>PrintHive</h1>
+              <p>Shared 3D Model</p>
+            </div>
+          </div>
+          
+          <div class="main-content">
+            <div class="viewer-section">
+              <div id="viewer">
+                ${isViewable ? `
+                  <div class="viewer-placeholder" id="loading">
+                    <div class="loading-spinner"></div>
+                    <p style="margin-top: 12px;">Loading 3D model...</p>
+                  </div>
+                ` : `
+                  <div class="viewer-placeholder">
+                    <div class="icon">📦</div>
+                    <p>3D preview not available for this file type</p>
+                  </div>
+                `}
+              </div>
+              ${isViewable ? `<div class="viewer-controls">🖱️ Drag to rotate • Scroll to zoom • Right-click to pan</div>` : ''}
+            </div>
+            
+            <div class="info-panel">
+              <div class="thumbnail-preview">
+                <img src="/api/library/share/${hash}/thumbnail" alt="Model thumbnail" onerror="this.parentElement.innerHTML='<div style=\\'color:#52525b;font-size:48px\\'>📦</div>'">
+              </div>
+              
+              <div class="model-name">${share.originalName}</div>
+              
+              ${share.description ? `<div class="model-description">${share.description}</div>` : ''}
+              
+              ${tags ? `<div class="tags-container">${tags}</div>` : ''}
+              
+              <div class="meta-info">
+                <div class="meta-row">
+                  <span class="meta-label">File Size</span>
+                  <span class="meta-value">${fileSize}</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">Uploaded</span>
+                  <span class="meta-value">${uploadDate}</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">File Type</span>
+                  <span class="meta-value">${share.originalName.split('.').pop().toUpperCase()}</span>
+                </div>
+              </div>
+              
+              <div class="actions">
+                <a href="/api/library/share/${hash}/download" class="btn btn-primary">
+                  <span class="btn-icon">⬇️</span>
+                  Download Model
+                </a>
+                ${isViewable ? `
+                  <button onclick="resetView()" class="btn btn-secondary">
+                    <span class="btn-icon">🔄</span>
+                    Reset View
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+          
+          <div class="footer">
+            Shared via <a href="https://github.com/tr1ckz/PrintHive" target="_blank">PrintHive</a> • 3D Printer Management
+          </div>
+        </div>
+        
+        ${isViewable ? `
+        <script type="importmap">
+          {
+            "imports": {
+              "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+              "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/"
+            }
+          }
+        </script>
+        <script type="module">
+          import * as THREE from 'three';
+          import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+          import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+          
+          let camera, scene, renderer, controls;
+          const container = document.getElementById('viewer');
+          const fileName = '${share.originalName}';
+          const isSTL = fileName.toLowerCase().endsWith('.stl');
+          const is3MF = fileName.toLowerCase().endsWith('.3mf');
+          
+          function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f0f23);
+            
+            camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 10000);
+            camera.position.set(100, 100, 100);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.innerHTML = '';
+            container.appendChild(renderer.domElement);
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight1.position.set(1, 1, 1);
+            scene.add(directionalLight1);
+            
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+            directionalLight2.position.set(-1, -1, -1);
+            scene.add(directionalLight2);
+            
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // Grid
+            const gridHelper = new THREE.GridHelper(200, 20, 0x444444, 0x222222);
+            scene.add(gridHelper);
+            
+            // Load model
+            if (isSTL) {
+              const loader = new STLLoader();
+              loader.load('/api/library/share/${hash}/geometry', (geometry) => {
+                const material = new THREE.MeshPhongMaterial({ 
+                  color: 0x667eea,
+                  specular: 0x111111,
+                  shininess: 50
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // Center the model
+                geometry.computeBoundingBox();
+                const center = new THREE.Vector3();
+                geometry.boundingBox.getCenter(center);
+                mesh.position.sub(center);
+                
+                // Position above grid
+                const size = new THREE.Vector3();
+                geometry.boundingBox.getSize(size);
+                mesh.position.y += size.y / 2;
+                
+                scene.add(mesh);
+                
+                // Fit camera
+                const maxDim = Math.max(size.x, size.y, size.z);
+                camera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
+                controls.target.set(0, size.y / 2, 0);
+                controls.update();
+              }, undefined, (error) => {
+                console.error('Error loading STL:', error);
+                container.innerHTML = '<div class="viewer-placeholder"><div class="icon">❌</div><p>Failed to load model</p></div>';
+              });
+            } else if (is3MF) {
+              // For 3MF, use the geometry endpoint which extracts the model
+              const loader = new STLLoader();
+              loader.load('/api/library/share/${hash}/geometry', (geometry) => {
+                const material = new THREE.MeshPhongMaterial({ 
+                  color: 0x667eea,
+                  specular: 0x111111,
+                  shininess: 50
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                geometry.computeBoundingBox();
+                const center = new THREE.Vector3();
+                geometry.boundingBox.getCenter(center);
+                mesh.position.sub(center);
+                
+                const size = new THREE.Vector3();
+                geometry.boundingBox.getSize(size);
+                mesh.position.y += size.y / 2;
+                
+                scene.add(mesh);
+                
+                const maxDim = Math.max(size.x, size.y, size.z);
+                camera.position.set(maxDim * 1.5, maxDim * 1.5, maxDim * 1.5);
+                controls.target.set(0, size.y / 2, 0);
+                controls.update();
+              }, undefined, (error) => {
+                console.error('Error loading 3MF:', error);
+                container.innerHTML = '<div class="viewer-placeholder"><div class="icon">❌</div><p>Failed to load model</p></div>';
+              });
+            }
+            
+            animate();
+          }
+          
+          function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+          }
+          
+          window.resetView = function() {
+            camera.position.set(100, 100, 100);
+            controls.target.set(0, 0, 0);
+            controls.update();
+          };
+          
+          window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+          });
+          
+          init();
+        </script>
+        ` : ''}
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Share view error:', error.message);
+    res.status(500).json({ error: 'Failed to load shared model' });
+  }
+});
+
+// Download shared model (no auth required)
+app.get('/api/library/share/:hash/download', async (req, res) => {
+  try {
+    const { hash } = req.params;
+    const share = db.prepare(`
       SELECT l.* FROM library l
       INNER JOIN library_shares ls ON l.id = ls.model_id
       WHERE ls.share_hash = ?
@@ -2906,42 +3376,150 @@ app.get('/library/share', async (req, res) => {
       return res.status(404).json({ error: 'Shared model not found' });
     }
 
-    // Return HTML page with model viewer
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${share.originalName} - PrintHive Share</title>
-        <meta charset="utf-8">
-        <style>
-          body { margin: 0; font-family: Arial, sans-serif; background: #1a1a1a; color: #fff; }
-          .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-          h1 { margin-bottom: 10px; }
-          .info { color: #888; margin-bottom: 20px; }
-          #viewer { width: 100%; height: 70vh; background: #000; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>${share.originalName}</h1>
-          <div class="info">
-            ${share.description || 'No description'}
-          </div>
-          <div id="viewer">
-            <p style="text-align: center; padding-top: 40px;">Loading 3D model...</p>
-          </div>
-        </div>
-        <script type="module">
-          // Basic 3D viewer would go here
-          // For now just show a message
-          document.getElementById('viewer').innerHTML = '<p style="text-align: center; padding-top: 40px;">3D Viewer Coming Soon</p>';
-        </script>
-      </body>
-      </html>
-    `);
+    const safeFileName = sanitizeFilePath(share.fileName);
+    const filePath = path.join(libraryDir, safeFileName);
+    
+    const resolvedPath = path.resolve(filePath);
+    const resolvedLibraryDir = path.resolve(libraryDir);
+    if (!resolvedPath.startsWith(resolvedLibraryDir)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+
+    const stats = fs.statSync(filePath);
+    res.setHeader('Content-Length', stats.size);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${share.originalName}"`);
+    
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+    
+    fileStream.on('error', (err) => {
+      console.error('File stream error:', err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to stream file' });
+      }
+    });
   } catch (error) {
-    console.error('Share view error:', error.message);
-    res.status(500).json({ error: 'Failed to load shared model' });
+    console.error('Share download error:', error.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to download file' });
+    }
+  }
+});
+
+// Geometry for shared model (no auth required) - for 3D viewer
+app.get('/api/library/share/:hash/geometry', async (req, res) => {
+  try {
+    const { hash } = req.params;
+    const share = db.prepare(`
+      SELECT l.* FROM library l
+      INNER JOIN library_shares ls ON l.id = ls.model_id
+      WHERE ls.share_hash = ?
+    `).get(hash);
+    
+    if (!share) {
+      return res.status(404).json({ error: 'Shared model not found' });
+    }
+
+    const safeFileName = sanitizeFilePath(share.fileName);
+    const filePath = path.join(libraryDir, safeFileName);
+    
+    const resolvedPath = path.resolve(filePath);
+    const resolvedLibraryDir = path.resolve(libraryDir);
+    if (!resolvedPath.startsWith(resolvedLibraryDir)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const isSTL = share.originalName.toLowerCase().endsWith('.stl');
+    const is3MF = share.originalName.toLowerCase().endsWith('.3mf');
+
+    if (isSTL) {
+      // Stream STL file directly
+      res.setHeader('Content-Type', 'model/stl');
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+    } else if (is3MF) {
+      // Extract model.stl from 3MF archive
+      const JSZip = require('jszip');
+      const data = fs.readFileSync(filePath);
+      const zip = await JSZip.loadAsync(data);
+      
+      // Look for STL or model file inside 3MF
+      let modelFile = null;
+      for (const fileName of Object.keys(zip.files)) {
+        if (fileName.toLowerCase().endsWith('.stl')) {
+          modelFile = zip.files[fileName];
+          break;
+        }
+        if (fileName.toLowerCase().includes('3d/3dmodel.model') || fileName.toLowerCase().endsWith('.model')) {
+          modelFile = zip.files[fileName];
+          break;
+        }
+      }
+      
+      if (modelFile) {
+        const content = await modelFile.async('nodebuffer');
+        res.setHeader('Content-Type', 'model/stl');
+        res.send(content);
+      } else {
+        res.status(404).json({ error: 'No viewable model found in 3MF' });
+      }
+    } else {
+      res.status(400).json({ error: 'Unsupported file format for 3D viewing' });
+    }
+  } catch (error) {
+    console.error('Share geometry error:', error.message);
+    res.status(500).json({ error: 'Failed to load geometry' });
+  }
+});
+
+// Thumbnail for shared model (no auth required)
+app.get('/api/library/share/:hash/thumbnail', async (req, res) => {
+  try {
+    const { hash } = req.params;
+    const share = db.prepare(`
+      SELECT l.* FROM library l
+      INNER JOIN library_shares ls ON l.id = ls.model_id
+      WHERE ls.share_hash = ?
+    `).get(hash);
+    
+    if (!share) {
+      return res.status(404).json({ error: 'Shared model not found' });
+    }
+
+    // Use existing thumbnail endpoint logic
+    const thumbnailPath = path.join(__dirname, 'data', 'thumbnails', `${share.id}.png`);
+    
+    if (fs.existsSync(thumbnailPath)) {
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.sendFile(thumbnailPath);
+    }
+    
+    // Try to generate thumbnail if it doesn't exist
+    const thumbnailGenerator = require('./thumbnail-generator');
+    const safeFileName = sanitizeFilePath(share.fileName);
+    const modelPath = path.join(libraryDir, safeFileName);
+    
+    if (fs.existsSync(modelPath)) {
+      try {
+        await thumbnailGenerator.generateThumbnail(modelPath, thumbnailPath);
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.sendFile(thumbnailPath);
+      } catch (err) {
+        console.error('Failed to generate thumbnail:', err.message);
+      }
+    }
+    
+    res.status(404).json({ error: 'Thumbnail not available' });
+  } catch (error) {
+    console.error('Share thumbnail error:', error.message);
+    res.status(500).json({ error: 'Failed to load thumbnail' });
   }
 });
 
