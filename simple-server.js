@@ -291,7 +291,18 @@ function sanitizeFilePath(input) {
   return normalized;
 }
 
-const upload = multer({ 
+// Security: HTML escape for safe output in HTML context
+function htmlEscape(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -305,6 +316,24 @@ const upload = multer({
 
 // Middleware
 app.use(express.json());
+
+// Security headers middleware
+app.use((req, res, next) => {
+  // Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  // Prevent MIME sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Enable XSS protection
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  // Referrer Policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Content Security Policy - allow inline scripts for viewer but restrict external resources
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://cdn.jsdelivr.net");
+  // Permissions Policy (formerly Feature Policy)
+  res.setHeader('Permissions-Policy', 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()');
+  next();
+});
+
 // Initialize logger level from DB if present
 try {
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get('log_level');
@@ -2989,26 +3018,27 @@ app.get('/library/share', async (req, res) => {
     
     const fileSize = share.fileSize ? (share.fileSize / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown';
     const uploadDate = share.uploadedAt ? new Date(share.uploadedAt).toLocaleDateString() : 'Unknown';
-    const tags = share.tags ? share.tags.split(',').map(t => `<span class="tag">${t.trim()}</span>`).join('') : '';
+    const tags = share.tags ? share.tags.split(',').map(t => `<span class="tag">${htmlEscape(t.trim())}</span>`).join('') : '';
     
     // Get public URL from database settings or environment
     const publicHostname = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_publicHostname');
     const publicUrl = publicHostname?.value || process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
     const thumbnailUrl = `${publicUrl}/api/library/share/${hash}/thumbnail`;
-    const escapedDesc = (share.description || 'Shared 3D model from PrintHive').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const escapedName = htmlEscape(share.originalName);
+    const escapedDesc = htmlEscape(share.description || 'Shared 3D model from PrintHive');
 
     // Return HTML page with model viewer
     res.send(`
       <!DOCTYPE html>
       <html lang="en">
       <head>
-        <title>${share.originalName} - PrintHive Share</title>
+        <title>${escapedName} - PrintHive Share</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="description" content="${escapedDesc}">
         
         <!-- OpenGraph Meta Tags for Link Previews -->
-        <meta property="og:title" content="${share.originalName} - PrintHive">
+        <meta property="og:title" content="${escapedName} - PrintHive">
         <meta property="og:description" content="${escapedDesc}">
         <meta property="og:image" content="${thumbnailUrl}">
         <meta property="og:image:width" content="512">
@@ -3019,7 +3049,7 @@ app.get('/library/share', async (req, res) => {
         
         <!-- Twitter Card Meta Tags -->
         <meta name="twitter:card" content="summary_large_image">
-        <meta name="twitter:title" content="${share.originalName} - PrintHive">
+        <meta name="twitter:title" content="${escapedName} - PrintHive">
         <meta name="twitter:description" content="${escapedDesc}">
         <meta name="twitter:image" content="${thumbnailUrl}">
         
@@ -3361,9 +3391,9 @@ app.get('/library/share', async (req, res) => {
                 <img src="/api/library/share/${hash}/thumbnail" alt="Model thumbnail" onerror="this.parentElement.innerHTML='<div style=\\'color:#52525b;font-size:48px\\'>📦</div>'">
               </div>
               
-              <div class="model-name">${share.originalName}</div>
+              <div class="model-name">${escapedName}</div>
               
-              ${share.description ? `<div class="model-description">${share.description}</div>` : ''}
+              ${share.description ? `<div class="model-description">${escapedDesc}</div>` : ''}
               
               ${tags ? `<div class="tags-container">${tags}</div>` : ''}
               
@@ -3378,7 +3408,7 @@ app.get('/library/share', async (req, res) => {
                 </div>
                 <div class="meta-row">
                   <span class="meta-label">File Type</span>
-                  <span class="meta-value">${share.originalName.split('.').pop().toUpperCase()}</span>
+                  <span class="meta-value">${htmlEscape(share.originalName.split('.').pop()).toUpperCase()}</span>
                 </div>
               </div>
               
