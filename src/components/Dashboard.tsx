@@ -7,7 +7,6 @@ import BuyMeACoffee from './BuyMeACoffee';
 import DashboardHome from './DashboardHome';
 import Maintenance from './Maintenance';
 import Printers from './Printers';
-import Statistics from './Statistics';
 import ThemeToggle from './ThemeToggle';
 import CommandPalette from './CommandPalette';
 import { API_ENDPOINTS } from '../config/api';
@@ -18,7 +17,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics';
+type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers';
 
 const tabPaths: Record<Tab, string> = {
   home: '/',
@@ -27,8 +26,7 @@ const tabPaths: Record<Tab, string> = {
   duplicates: '/duplicates',
   maintenance: '/maintenance',
   settings: '/settings',
-  printers: '/printers',
-  statistics: '/statistics'
+  printers: '/printers'
 };
 
 const getHashSection = () => {
@@ -44,7 +42,6 @@ const getTabFromLocation = (): Tab | null => {
   if (path.startsWith('/maintenance')) return 'maintenance';
   if (path.startsWith('/settings')) return 'settings';
   if (path.startsWith('/printers')) return 'printers';
-  if (path.startsWith('/statistics')) return 'statistics';
   if (path === '/' || path === '') return 'home';
   return null;
 };
@@ -277,7 +274,6 @@ function Dashboard({ onLogout }: DashboardProps) {
           {activeTab === 'maintenance' ? <Maintenance /> : null}
           {activeTab === 'settings' ? <Settings userRole={userInfo?.role} initialSection={settingsSection || undefined} /> : null}
           {activeTab === 'printers' ? <Printers /> : null}
-          {activeTab === 'statistics' ? <Statistics /> : null}
         </div>
       </main>
 

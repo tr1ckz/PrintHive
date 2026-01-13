@@ -467,6 +467,27 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
     }
   };
 
+  const handleShare = async (file: LibraryFile) => {
+    try {
+      const response = await fetchWithRetry(`${API_ENDPOINTS.LIBRARY.BASE}/share/${file.id}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) throw new Error('Failed to generate share link');
+      
+      const { hash } = await response.json();
+      const shareUrl = `${window.location.origin}/library/share?hash=${hash}`;
+      
+      // Copy to clipboard
+      await navigator.clipboard.writeText(shareUrl);
+      setToast({ message: 'Share link copied to clipboard!', type: 'success' });
+    } catch (err) {
+      console.error('Failed to generate share link:', err);
+      setToast({ message: 'Failed to generate share link', type: 'error' });
+    }
+  };
+
   const handleEditFile = (file: LibraryFile) => {
     setEditingFile(file);
     setEditDescription(file.description || '');
@@ -1034,10 +1055,10 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
               <div className="file-actions">
                 {(file.fileType === 'stl' || file.fileType === '3mf') && (
                   <button 
-                    onClick={() => handleView3D(file)}
+                    onClick={() => handleShare(file)}
                     className="btn-view-3d"
                   >
-                    👁️ View 3D
+                    🔗 Share
                   </button>
                 )}
                 <button 

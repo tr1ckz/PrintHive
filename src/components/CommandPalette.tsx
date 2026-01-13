@@ -70,14 +70,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ onNavigate }) => {
       keywords: ['devices', 'status']
     },
     {
-      id: 'nav-statistics',
-      label: 'Go to Statistics',
-      icon: '📈',
-      action: () => onNavigate('statistics'),
-      category: 'Navigation',
-      keywords: ['stats', 'charts', 'analytics']
-    },
-    {
       id: 'nav-settings',
       label: 'Go to Settings',
       icon: '⚙️',

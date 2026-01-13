@@ -2856,6 +2856,95 @@ app.post('/api/library/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// Generate share link for library item
+app.post('/api/library/share/:id', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const { id } = req.params;
+    const file = db.prepare('SELECT * FROM library WHERE id = ?').get(id);
+    
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Generate a random hash for sharing
+    const crypto = require('crypto');
+    const hash = crypto.randomBytes(16).toString('hex');
+    
+    // Store the share hash in database
+    db.prepare(`
+      INSERT OR REPLACE INTO library_shares (model_id, share_hash, created_at, created_by)
+      VALUES (?, ?, datetime('now'), ?)
+    `).run(id, hash, req.session.userId);
+    
+    res.json({ hash });
+  } catch (error) {
+    console.error('Share generation error:', error.message);
+    res.status(500).json({ error: 'Failed to generate share link' });
+  }
+});
+
+// Get shared model (no auth required)
+app.get('/library/share', async (req, res) => {
+  const { hash } = req.query;
+  
+  if (!hash) {
+    return res.status(400).json({ error: 'Share hash required' });
+  }
+
+  try {
+    const share = db.prepare(`
+      SELECT l.* FROM library l
+      INNER JOIN library_shares ls ON l.id = ls.model_id
+      WHERE ls.share_hash = ?
+    `).get(hash);
+    
+    if (!share) {
+      return res.status(404).json({ error: 'Shared model not found' });
+    }
+
+    // Return HTML page with model viewer
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${share.originalName} - PrintHive Share</title>
+        <meta charset="utf-8">
+        <style>
+          body { margin: 0; font-family: Arial, sans-serif; background: #1a1a1a; color: #fff; }
+          .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+          h1 { margin-bottom: 10px; }
+          .info { color: #888; margin-bottom: 20px; }
+          #viewer { width: 100%; height: 70vh; background: #000; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>${share.originalName}</h1>
+          <div class="info">
+            ${share.description || 'No description'}
+          </div>
+          <div id="viewer">
+            <p style="text-align: center; padding-top: 40px;">Loading 3D model...</p>
+          </div>
+        </div>
+        <script type="module">
+          // Basic 3D viewer would go here
+          // For now just show a message
+          document.getElementById('viewer').innerHTML = '<p style="text-align: center; padding-top: 40px;">3D Viewer Coming Soon</p>';
+        </script>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Share view error:', error.message);
+    res.status(500).json({ error: 'Failed to load shared model' });
+  }
+});
+
 app.get('/api/library/download/:id', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });

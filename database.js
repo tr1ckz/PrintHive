@@ -177,6 +177,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_problems_type ON problems(problem_type);
   CREATE INDEX IF NOT EXISTS idx_problems_resolved ON problems(resolved_at);
 
+  CREATE TABLE IF NOT EXISTS library_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL,
+    share_hash TEXT UNIQUE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    accessed_count INTEGER DEFAULT 0,
+    last_accessed DATETIME,
+    FOREIGN KEY (model_id) REFERENCES library(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_library_shares_hash ON library_shares(share_hash);
+  CREATE INDEX IF NOT EXISTS idx_library_shares_model ON library_shares(model_id);
+
   CREATE TABLE IF NOT EXISTS maintenance_tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     printer_id TEXT,
