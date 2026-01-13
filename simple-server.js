@@ -1245,6 +1245,18 @@ let libraryScanJob = {
   startTime: null
 };
 
+// Global state for auto-tag background job
+let autoTagJob = {
+  running: false,
+  total: 0,
+  processed: 0,
+  completed: 0,
+  failed: 0,
+  currentFile: '',
+  startTime: null,
+  queue: []
+};
+
 // Match videos to prints based on timestamp (non-blocking background job)
 app.post('/api/match-videos', (req, res) => {
   if (!req.session.authenticated) {
@@ -4167,7 +4179,7 @@ app.put('/api/library/:id/tags', async (req, res) => {
   }
 });
 
-// Auto-tag endpoint - analyzes file and suggests description/tags
+// Auto-tag endpoint - queues file for background analysis
 app.post('/api/library/:id/auto-tag', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
@@ -4175,7 +4187,6 @@ app.post('/api/library/:id/auto-tag', async (req, res) => {
   
   try {
     const fileId = parseInt(req.params.id);
-    console.log(`=== AUTO-TAG REQUEST for file ${fileId} ===`);
     
     // Get file info
     const file = db.prepare('SELECT * FROM library WHERE id = ?').get(fileId);
@@ -4183,74 +4194,181 @@ app.post('/api/library/:id/auto-tag', async (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
     
-    console.log(`  Analyzing: ${file.originalName}`);
-    console.log(`  Stored filePath: ${file.filePath}`);
-    console.log(`  Stored fileName: ${file.fileName}`);
-    
-    // Try multiple possible file paths
-    let actualFilePath = null;
-    const possiblePaths = [
-      file.filePath, // Original stored path
-      path.join(libraryDir, file.fileName), // library dir + fileName
-      path.join(__dirname, 'library', file.fileName), // relative to server
-      `/app/library/${file.fileName}` // Docker path
-    ];
-    
-    for (const testPath of possiblePaths) {
-      console.log(`  Trying path: ${testPath}`);
-      if (fs.existsSync(testPath)) {
-        actualFilePath = testPath;
-        console.log(`  ✓ Found file at: ${actualFilePath}`);
-        break;
-      }
+    // Check if already queued
+    if (autoTagJob.queue.find(f => f.id === fileId)) {
+      return res.json({ 
+        status: 'already_queued',
+        message: 'File is already queued for analysis',
+        jobStatus: autoTagJob
+      });
     }
     
-    if (!actualFilePath) {
-      // Try to find by ID prefix (handles Unicode filename issues)
-      const fileIdPrefix = file.fileName.split('-')[0]; // Get the timestamp prefix
-      console.log(`  Searching by ID prefix: ${fileIdPrefix}`);
-      
-      const searchDirs = [libraryDir, path.join(__dirname, 'library'), '/app/library'];
-      for (const dir of searchDirs) {
-        if (fs.existsSync(dir)) {
-          try {
-            const files = fs.readdirSync(dir);
-            const matchingFile = files.find(f => f.startsWith(fileIdPrefix));
-            if (matchingFile) {
-              actualFilePath = path.join(dir, matchingFile);
-              console.log(`  ✓ Found file by prefix: ${actualFilePath}`);
-              break;
-            }
-          } catch (err) {
-            console.log(`  Could not read dir ${dir}: ${err.message}`);
-          }
-        }
-      }
-    }
-    
-    if (!actualFilePath) {
-      console.log(`  ERROR: File not found in any location`);
-      console.log(`  Tried: ${possiblePaths.join(', ')}`);
-      return res.status(404).json({ error: 'File not found on disk', triedPaths: possiblePaths });
-    }
-    
-    // Run auto-analysis
-    const analysis = await autoDescribeModel(actualFilePath, file.originalName);
-    
-    console.log(`  Auto-generated description: ${analysis.description}`);
-    console.log(`  Auto-generated tags: ${analysis.tags.join(', ')}`);
-    
-    res.json({
-      success: true,
-      description: analysis.description,
-      tags: analysis.tags,
-      metadata: analysis.metadata
+    // Add to queue
+    autoTagJob.queue.push({
+      id: fileId,
+      fileName: file.fileName,
+      originalName: file.originalName,
+      filePath: file.filePath,
+      timestamp: Date.now()
     });
+    
+    // Return immediately
+    res.json({
+      status: 'queued',
+      message: `File queued for background analysis. Position: ${autoTagJob.queue.length}`,
+      jobStatus: {
+        running: autoTagJob.running,
+        queued: autoTagJob.queue.length,
+        completed: autoTagJob.completed,
+        failed: autoTagJob.failed
+      }
+    });
+    
+    // Start processing if not already running
+    if (!autoTagJob.running) {
+      processAutoTagQueue();
+    }
   } catch (error) {
-    console.error('Auto-tag error:', error);
-    res.status(500).json({ error: 'Failed to auto-tag file: ' + error.message });
+    console.error('Auto-tag queue error:', error);
+    res.status(500).json({ error: 'Failed to queue auto-tag: ' + error.message });
   }
 });
+
+// Get auto-tag job status
+app.get('/api/library/auto-tag-status', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  res.json({
+    running: autoTagJob.running,
+    total: autoTagJob.total,
+    processed: autoTagJob.processed,
+    completed: autoTagJob.completed,
+    failed: autoTagJob.failed,
+    queued: autoTagJob.queue.length,
+    currentFile: autoTagJob.currentFile,
+    elapsedTime: autoTagJob.running ? Math.round((Date.now() - autoTagJob.startTime) / 1000) : 0
+  });
+});
+
+// Cancel auto-tag job
+app.post('/api/library/auto-tag-cancel', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  autoTagJob.running = false;
+  autoTagJob.queue = [];
+  
+  res.json({ success: true, message: 'Auto-tag job cancelled' });
+});
+
+// Background auto-tag processor
+async function processAutoTagQueue() {
+  if (autoTagJob.running || autoTagJob.queue.length === 0) {
+    return;
+  }
+  
+  autoTagJob.running = true;
+  autoTagJob.total = autoTagJob.queue.length;
+  autoTagJob.processed = 0;
+  autoTagJob.startTime = Date.now();
+  
+  console.log(`=== AUTO-TAG JOB STARTED: ${autoTagJob.total} files queued ===`);
+  
+  try {
+    while (autoTagJob.queue.length > 0 && autoTagJob.running) {
+      const fileData = autoTagJob.queue.shift();
+      autoTagJob.processed++;
+      autoTagJob.currentFile = fileData.originalName;
+      
+      console.log(`[${autoTagJob.processed}/${autoTagJob.total}] Analyzing: ${fileData.originalName}`);
+      
+      try {
+        // Try multiple possible file paths
+        let actualFilePath = null;
+        const possiblePaths = [
+          fileData.filePath,
+          path.join(libraryDir, fileData.fileName),
+          path.join(__dirname, 'library', fileData.fileName),
+          `/app/library/${fileData.fileName}`
+        ];
+        
+        for (const testPath of possiblePaths) {
+          if (fs.existsSync(testPath)) {
+            actualFilePath = testPath;
+            break;
+          }
+        }
+        
+        if (!actualFilePath) {
+          // Try to find by ID prefix
+          const fileIdPrefix = fileData.fileName.split('-')[0];
+          const searchDirs = [libraryDir, path.join(__dirname, 'library'), '/app/library'];
+          for (const dir of searchDirs) {
+            if (fs.existsSync(dir)) {
+              try {
+                const files = fs.readdirSync(dir);
+                const matchingFile = files.find(f => f.startsWith(fileIdPrefix));
+                if (matchingFile) {
+                  actualFilePath = path.join(dir, matchingFile);
+                  break;
+                }
+              } catch (err) {
+                // Skip
+              }
+            }
+          }
+        }
+        
+        if (!actualFilePath) {
+          console.error(`  ✗ File not found for ID ${fileData.id}`);
+          autoTagJob.failed++;
+        } else {
+          // Run auto-analysis
+          const analysis = await autoDescribeModel(actualFilePath, fileData.originalName);
+          
+          // Update database
+          if (analysis.description) {
+            db.prepare('UPDATE library SET description = ? WHERE id = ?').run(analysis.description, fileData.id);
+          }
+          
+          if (analysis.tags && analysis.tags.length > 0) {
+            for (const tag of analysis.tags) {
+              // Insert or get tag
+              const existingTag = db.prepare('SELECT id FROM tags WHERE name = ?').get(tag);
+              if (existingTag) {
+                db.prepare('INSERT OR IGNORE INTO library_tags (library_id, tag_id) VALUES (?, ?)').run(fileData.id, existingTag.id);
+              } else {
+                const insertTag = db.prepare('INSERT INTO tags (name) VALUES (?)');
+                const result = insertTag.run(tag);
+                db.prepare('INSERT OR IGNORE INTO library_tags (library_id, tag_id) VALUES (?, ?)').run(fileData.id, result.lastInsertRowid);
+              }
+            }
+          }
+          
+          console.log(`  ✓ Completed: ${fileData.originalName}`);
+          autoTagJob.completed++;
+        }
+      } catch (error) {
+        console.error(`  ✗ Error analyzing ${fileData.originalName}:`, error.message);
+        autoTagJob.failed++;
+      }
+      
+      // Yield to event loop
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    
+    const elapsed = ((Date.now() - autoTagJob.startTime) / 1000).toFixed(1);
+    console.log(`=== AUTO-TAG JOB COMPLETE: ${autoTagJob.completed} completed, ${autoTagJob.failed} failed in ${elapsed}s ===`);
+  } catch (error) {
+    console.error('Auto-tag job error:', error);
+  } finally {
+    autoTagJob.running = false;
+    autoTagJob.currentFile = '';
+  }
+}
 
 // Clean HTML-encoded descriptions in library
 app.post('/api/library/clean-descriptions', async (req, res) => {
