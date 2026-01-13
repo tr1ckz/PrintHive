@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import './Library.css';
 import ModelViewer from './ModelViewer';
 import TagsInput from './TagsInput';
@@ -83,7 +83,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   
   const isAdmin = userRole === 'admin';
 
-  const fetchFiles = async () => {
+  const fetchFiles = useCallback(async () => {
     try {
       const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.LIST, {
         credentials: 'include',
@@ -96,11 +96,11 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchFiles();
-  }, []);
+  }, [fetchFiles]);
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -110,43 +110,48 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   useEscapeKey(!!viewingModel, () => setViewingModel(null));
   useEscapeKey(bulkTagsModal, () => setBulkTagsModal(false));
 
-  // Filter files based on search query and filters
-  const filteredFiles = files
-    .filter(file => {
-      const query = debouncedSearchQuery.toLowerCase();
-      const matchesQuery = !query || 
-        file.originalName.toLowerCase().includes(query) ||
-        file.description.toLowerCase().includes(query) ||
-        file.tags.toLowerCase().includes(query);
-      
-      const matchesType = filterType === 'all' || file.fileType === filterType;
-      
-      const matchesSizeMin = !filterSizeMin || file.fileSize >= filterSizeMin * 1024 * 1024;
-      const matchesSizeMax = !filterSizeMax || file.fileSize <= filterSizeMax * 1024 * 1024;
-      
-      return matchesQuery && matchesType && matchesSizeMin && matchesSizeMax;
-    })
-    .sort((a, b) => {
-      let comparison = 0;
-      switch (sortBy) {
-        case 'name':
-          comparison = a.originalName.localeCompare(b.originalName);
-          break;
-        case 'size':
-          comparison = a.fileSize - b.fileSize;
-          break;
-        case 'date':
-        default:
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      }
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
+  // Filter files based on search query and filters (memoized for performance)
+  const filteredFiles = useMemo(() => {
+    return files
+      .filter(file => {
+        const query = debouncedSearchQuery.toLowerCase();
+        const matchesQuery = !query || 
+          file.originalName.toLowerCase().includes(query) ||
+          file.description.toLowerCase().includes(query) ||
+          file.tags.toLowerCase().includes(query);
+        
+        const matchesType = filterType === 'all' || file.fileType === filterType;
+        
+        const matchesSizeMin = !filterSizeMin || file.fileSize >= filterSizeMin * 1024 * 1024;
+        const matchesSizeMax = !filterSizeMax || file.fileSize <= filterSizeMax * 1024 * 1024;
+        
+        return matchesQuery && matchesType && matchesSizeMin && matchesSizeMax;
+      })
+      .sort((a, b) => {
+        let comparison = 0;
+        switch (sortBy) {
+          case 'name':
+            comparison = a.originalName.localeCompare(b.originalName);
+            break;
+          case 'size':
+            comparison = a.fileSize - b.fileSize;
+            break;
+          case 'date':
+          default:
+            comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        }
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+  }, [files, debouncedSearchQuery, filterType, filterSizeMin, filterSizeMax, sortBy, sortOrder]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredFiles.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedFiles = filteredFiles.slice(startIndex, endIndex);
+  // Pagination (memoized)
+  const { totalPages, paginatedFiles } = useMemo(() => {
+    const totalPages = Math.ceil(filteredFiles.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedFiles = filteredFiles.slice(startIndex, endIndex);
+    return { totalPages, paginatedFiles };
+  }, [filteredFiles, currentPage, itemsPerPage]);
 
   // Reset to page 1 when search changes
   useEffect(() => {

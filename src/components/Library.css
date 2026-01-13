@@ -411,6 +411,8 @@
   display: flex;
   gap: 0.5rem;
   padding: 0 1.5rem 1.5rem 1.5rem;
+  justify-content: center;
+  align-items: center;
 }
 
 .btn-view-3d,
