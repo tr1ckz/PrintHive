@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>PrintHive</Name>
+  <Repository>tr1ckz/printhive:latest</Repository>
+  <Registry>https://hub.docker.com/r/tr1ckz/printhive</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/tr1ckz/PrintHive/issues</Support>
+  <Project>https://github.com/tr1ckz/PrintHive</Project>
+  <Overview>PrintHive - A comprehensive web application for managing 3D printers, including print history tracking, model library management, real-time printer monitoring via MQTT, and timelapse video management.</Overview>
+  <Category>Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]</WebUI>
+  <Icon>https://raw.githubusercontent.com/tr1ckz/PrintHive/main/public/images/logo.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <DonateText>Buy me a coffee</DonateText>
+  <DonateLink>https://buymeacoffee.com/tr1ck</DonateLink>
+  <Requires/>
+  <Config Name="WebUI Port" Target="3000" Default="3000" Mode="tcp" Description="Web interface port" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Data" Target="/app/data" Default="/mnt/user/appdata/printhive/data" Mode="rw" Description="Application data (database, thumbnails, cache)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/printhive/data</Config>
+  <Config Name="Sessions" Target="/app/sessions" Default="/mnt/user/appdata/printhive/sessions" Mode="rw" Description="Session storage" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/printhive/sessions</Config>
+  <Config Name="Library" Target="/app/library" Default="/mnt/user/appdata/printhive/library" Mode="rw" Description="3D model library storage" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/printhive/library</Config>
+  <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="" Mode="" Description="Random secret key for session encryption (required)" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="PUBLIC_URL" Target="PUBLIC_URL" Default="http://localhost:3000" Mode="" Description="Public URL where your application is hosted" Type="Variable" Display="always" Required="false" Mask="false"/>
+</Container>
