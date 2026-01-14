@@ -1257,6 +1257,18 @@ let autoTagJob = {
   queue: []
 };
 
+// Global state for bulk delete background job
+let bulkDeleteJob = {
+  running: false,
+  total: 0,
+  processed: 0,
+  deleted: 0,
+  failed: 0,
+  currentFile: '',
+  startTime: null,
+  queue: []
+};
+
 // Match videos to prints based on timestamp (non-blocking background job)
 app.post('/api/match-videos', (req, res) => {
   if (!req.session.authenticated) {
@@ -4263,6 +4275,134 @@ app.post('/api/library/auto-tag-cancel', (req, res) => {
   
   res.json({ success: true, message: 'Auto-tag job cancelled' });
 });
+
+// Bulk delete endpoint - queues files for background deletion
+app.post('/api/library/bulk-delete', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { fileIds } = req.body;
+  
+  if (!Array.isArray(fileIds) || fileIds.length === 0) {
+    return res.status(400).json({ error: 'No files to delete' });
+  }
+
+  if (bulkDeleteJob.running) {
+    return res.json({
+      success: false,
+      message: 'Bulk delete already running',
+      status: bulkDeleteJob
+    });
+  }
+
+  try {
+    // Initialize job
+    bulkDeleteJob = {
+      running: true,
+      total: fileIds.length,
+      processed: 0,
+      deleted: 0,
+      failed: 0,
+      currentFile: '',
+      startTime: Date.now(),
+      queue: [...fileIds]
+    };
+
+    console.log(`=== BULK DELETE: Starting background job for ${fileIds.length} files ===`);
+
+    // Return immediately with job started
+    res.json({
+      success: true,
+      message: `Bulk delete started for ${fileIds.length} files. Check /api/library/bulk-delete-status for progress.`,
+      status: bulkDeleteJob
+    });
+
+    // Start processing in background
+    processBulkDeleteQueue();
+  } catch (error) {
+    console.error('Failed to start bulk delete:', error.message);
+    res.status(500).json({ error: 'Failed to start bulk delete: ' + error.message });
+  }
+});
+
+// Get bulk delete job status
+app.get('/api/library/bulk-delete-status', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  res.json({
+    running: bulkDeleteJob.running,
+    total: bulkDeleteJob.total,
+    processed: bulkDeleteJob.processed,
+    deleted: bulkDeleteJob.deleted,
+    failed: bulkDeleteJob.failed,
+    queued: bulkDeleteJob.queue.length,
+    currentFile: bulkDeleteJob.currentFile,
+    elapsedTime: bulkDeleteJob.running ? Math.round((Date.now() - bulkDeleteJob.startTime) / 1000) : 0
+  });
+});
+
+// Cancel bulk delete job
+app.post('/api/library/bulk-delete-cancel', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  bulkDeleteJob.running = false;
+  bulkDeleteJob.queue = [];
+
+  res.json({ success: true, message: 'Bulk delete job cancelled' });
+});
+
+// Background bulk delete processor
+async function processBulkDeleteQueue() {
+  while (bulkDeleteJob.running && bulkDeleteJob.queue.length > 0) {
+    const fileId = bulkDeleteJob.queue.shift();
+    
+    if (!fileId) break;
+    
+    try {
+      bulkDeleteJob.currentFile = fileId.toString();
+      
+      // Get file info for logging
+      const file = db.prepare('SELECT fileName, originalName FROM library WHERE id = ?').get(fileId);
+      
+      // Delete from database
+      db.prepare('DELETE FROM library WHERE id = ?').run(fileId);
+      
+      // Delete associated thumbnail and geometry cache
+      const thumbPath = path.join(__dirname, 'data', 'thumbnails', `${fileId}.png`);
+      const geoPath = path.join(__dirname, 'data', 'geometry', `${fileId}.stl`);
+      
+      if (fs.existsSync(thumbPath)) {
+        fs.unlinkSync(thumbPath);
+      }
+      if (fs.existsSync(geoPath)) {
+        fs.unlinkSync(geoPath);
+      }
+      
+      bulkDeleteJob.deleted++;
+      console.log(`  [${bulkDeleteJob.processed + 1}/${bulkDeleteJob.total}] Deleted: ${file?.originalName || fileId}`);
+    } catch (error) {
+      bulkDeleteJob.failed++;
+      console.error(`Failed to delete file ${fileId}:`, error.message);
+    }
+    
+    bulkDeleteJob.processed++;
+    
+    // Small delay to avoid blocking
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  
+  if (bulkDeleteJob.processed >= bulkDeleteJob.total) {
+    const elapsed = ((Date.now() - bulkDeleteJob.startTime) / 1000).toFixed(1);
+    console.log(`=== BULK DELETE COMPLETE: ${bulkDeleteJob.deleted} deleted, ${bulkDeleteJob.failed} failed in ${elapsed}s ===`);
+    bulkDeleteJob.running = false;
+    bulkDeleteJob.currentFile = '';
+  }
+}
 
 // Background auto-tag processor
 async function processAutoTagQueue() {

@@ -36,11 +36,52 @@ function Duplicates() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteProgress, setDeleteProgress] = useState<{
+    running: boolean;
+    total: number;
+    processed: number;
+    deleted: number;
+    failed: number;
+  } | null>(null);
   const debouncedSearch = useDebounce(searchTerm, 300);
 
   useEffect(() => {
     loadDuplicates();
   }, [groupBy]);
+
+  // Poll for delete job progress
+  useEffect(() => {
+    if (!deleteProgress?.running) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.BULK_DELETE_STATUS, {
+          credentials: 'include',
+        });
+        const data = await response.json();
+        setDeleteProgress({
+          running: data.running,
+          total: data.total,
+          processed: data.processed,
+          deleted: data.deleted,
+          failed: data.failed
+        });
+
+        if (!data.running && deleteProgress.running) {
+          setToast({
+            message: `Deletion complete: ${data.deleted} deleted, ${data.failed} failed`,
+            type: data.failed > 0 ? 'error' : 'success'
+          });
+          setSelectedFiles(new Set());
+          loadDuplicates();
+        }
+      } catch (error) {
+        console.error('Failed to check delete progress:', error);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [deleteProgress?.running]);
 
   const loadDuplicates = async () => {
     setLoading(true);
@@ -103,19 +144,30 @@ function Duplicates() {
     setConfirmDelete(false);
 
     try {
-      const deletePromises = Array.from(selectedFiles).map(fileId =>
-        fetchWithRetry(API_ENDPOINTS.LIBRARY.FILE(fileId), { method: 'DELETE', credentials: 'include' })
-      );
+      const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.BULK_DELETE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ fileIds: Array.from(selectedFiles) })
+      });
       
-      await Promise.all(deletePromises);
+      const data = await response.json();
       
-      setSelectedFiles(new Set());
-      loadDuplicates();
-      
-      setToast({ message: `Successfully deleted ${deletePromises.length} file(s)`, type: 'success' });
+      if (data.success) {
+        setDeleteProgress({
+          running: true,
+          total: data.status.total,
+          processed: 0,
+          deleted: 0,
+          failed: 0
+        });
+        setToast({ message: `Started deleting ${selectedFiles.size} file(s)...`, type: 'success' });
+      } else {
+        setToast({ message: data.message || 'Failed to start deletion', type: 'error' });
+      }
     } catch (error) {
       console.error('Failed to delete files:', error);
-      setToast({ message: 'Failed to delete some files. Please try again.', type: 'error' });
+      setToast({ message: 'Failed to start deletion. Please try again.', type: 'error' });
     }
   };
 
@@ -243,6 +295,33 @@ function Duplicates() {
           </div>
         )}
       </div>
+
+      {deleteProgress?.running && (
+        <div className="progress-panel">
+          <div className="progress-header">
+            <h3>🗑️ Deleting Files...</h3>
+            <button 
+              className="btn-cancel"
+              onClick={() => fetchWithRetry(API_ENDPOINTS.LIBRARY.BULK_DELETE_CANCEL, { method: 'POST', credentials: 'include' })}
+            >
+              Cancel
+            </button>
+          </div>
+          <div className="progress-info">
+            <span>{deleteProgress.processed} / {deleteProgress.total} files</span>
+            <span>{deleteProgress.deleted} deleted, {deleteProgress.failed} failed</span>
+          </div>
+          <div className="progress-bar">
+            <div 
+              className="progress-fill" 
+              style={{ width: `${Math.round((deleteProgress.processed / deleteProgress.total) * 100)}%` }}
+            ></div>
+          </div>
+          <div className="progress-percent">
+            {Math.round((deleteProgress.processed / deleteProgress.total) * 100)}%
+          </div>
+        </div>
+      )}
 
       {filteredDuplicates.length === 0 ? (
         <div className="no-duplicates">

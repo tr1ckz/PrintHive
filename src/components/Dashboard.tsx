@@ -9,6 +9,7 @@ import Printers from './Printers';
 import ThemeToggle from './ThemeToggle';
 import CommandPalette from './CommandPalette';
 import Statistics from './Statistics';
+import BackgroundJobTracker from './BackgroundJobTracker';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import './Dashboard.css';
@@ -270,6 +271,9 @@ function Dashboard({ onLogout }: DashboardProps) {
           {activeTab === 'printers' ? <Printers /> : null}
         </div>
       </main>
+      
+      {/* Background Job Tracker */}
+      <BackgroundJobTracker />
       
       {/* Theme Toggle */}
       <ThemeToggle />

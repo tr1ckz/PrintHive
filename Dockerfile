@@ -1,5 +1,5 @@
 # Use Node.js LTS (Alpine) - Latest stable with security patches
-FROM node:20-alpine AS base
+FROM node:25-alpine AS base
 
 # Use Alpine Edge repository for latest security patches
 RUN echo 'https://dl-cdn.alpinelinux.org/alpine/edge/main' > /etc/apk/repositories && \
