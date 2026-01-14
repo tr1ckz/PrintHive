@@ -80,21 +80,23 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
         const raw = data?.hits || data?.models || data || [];
         const normalized = Array.isArray(raw) ? raw : [];
 
-        // Compute a base URL for relative cover paths (strip /api/models suffix)
-        const apiBase = API_ENDPOINTS.MODELS.LIST.replace(/\/api\/models.*$/, '');
-
-        const resolveCover = (cover?: string) => {
-          if (!cover) return '';
-          if (cover.startsWith('http://') || cover.startsWith('https://')) return cover;
-          if (cover.startsWith('/')) return `${apiBase}${cover}`;
-          return `${apiBase}/${cover}`;
-        };
-
-        const recentPrintsData = normalized.slice(0, 5).map((print) => ({
-          ...print,
-          cover: resolveCover(print.cover || print.coverUrl || print.cover_url || print.snapShot),
-          status: typeof print.status === 'string' ? parseInt(print.status, 10) || 0 : (print.status || 0),
-        }));
+        const recentPrintsData = normalized.slice(0, 5).map((print) => {
+          // Use library thumbnail if available, else use cover from print data
+          let coverUrl = '';
+          if (print.id) {
+            // Use library thumbnail endpoint
+            coverUrl = API_ENDPOINTS.LIBRARY.THUMBNAIL(print.id);
+          } else if (print.cover) {
+            // Fallback to cover URL if provided
+            coverUrl = print.cover.startsWith('http') ? print.cover : `/api${print.cover}`;
+          }
+          
+          return {
+            ...print,
+            cover: coverUrl,
+            status: typeof print.status === 'string' ? parseInt(print.status, 10) || 0 : (print.status || 0),
+          };
+        });
         
         console.log('Recent prints loaded:', recentPrintsData.length, recentPrintsData);
         setRecentPrints(recentPrintsData);

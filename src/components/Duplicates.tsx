@@ -45,6 +45,28 @@ function Duplicates() {
   } | null>(null);
   const debouncedSearch = useDebounce(searchTerm, 300);
 
+  // Restore progress from localStorage on mount
+  useEffect(() => {
+    const savedProgress = localStorage.getItem('duplicateDeleteProgress');
+    if (savedProgress) {
+      try {
+        const progress = JSON.parse(savedProgress);
+        if (progress.running) {
+          setDeleteProgress(progress);
+        }
+      } catch (error) {
+        console.error('Failed to restore progress:', error);
+      }
+    }
+  }, []);
+
+  // Persist progress to localStorage
+  useEffect(() => {
+    if (deleteProgress) {
+      localStorage.setItem('duplicateDeleteProgress', JSON.stringify(deleteProgress));
+    }
+  }, [deleteProgress]);
+
   useEffect(() => {
     loadDuplicates();
   }, [groupBy]);
@@ -59,19 +81,21 @@ function Duplicates() {
           credentials: 'include',
         });
         const data = await response.json();
-        setDeleteProgress({
+        const newProgress = {
           running: data.running,
           total: data.total,
           processed: data.processed,
           deleted: data.deleted,
           failed: data.failed
-        });
+        };
+        setDeleteProgress(newProgress);
 
         if (!data.running && deleteProgress.running) {
           setToast({
             message: `Deletion complete: ${data.deleted} deleted, ${data.failed} failed`,
             type: data.failed > 0 ? 'error' : 'success'
           });
+          localStorage.removeItem('duplicateDeleteProgress');
           setSelectedFiles(new Set());
           loadDuplicates();
         }
