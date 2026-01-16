@@ -10,6 +10,7 @@ import ThemeToggle from './ThemeToggle';
 import CommandPalette from './CommandPalette';
 import Statistics from './Statistics';
 import BackgroundJobTracker from './BackgroundJobTracker';
+import BuyMeACoffee from './BuyMeACoffee';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import './Dashboard.css';
@@ -66,12 +67,23 @@ function Dashboard({ onLogout }: DashboardProps) {
   const [settingsSection, setSettingsSection] = useState<string | null>(() => getHashSection());
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hideBmc, setHideBmc] = useState(false);
 
   useEffect(() => {
     fetchWithRetry(API_ENDPOINTS.AUTH.USER_ME, { credentials: 'include' })
       .then(res => res.json())
       .then(data => setUserInfo(data))
       .catch(err => console.error('Failed to fetch user info:', err));
+
+    // Load UI settings for Buy Me A Coffee preference
+    fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setHideBmc(data.hideBmc || false);
+        }
+      })
+      .catch(err => console.error('Failed to fetch UI settings:', err));
   }, []);
 
   useEffect(() => {
@@ -274,6 +286,9 @@ function Dashboard({ onLogout }: DashboardProps) {
       
       {/* Background Job Tracker */}
       <BackgroundJobTracker />
+      
+      {/* Buy Me A Coffee */}
+      {!hideBmc && <BuyMeACoffee />}
       
       {/* Theme Toggle */}
       <ThemeToggle />

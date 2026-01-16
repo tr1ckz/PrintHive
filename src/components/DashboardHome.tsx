@@ -81,11 +81,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
         const normalized = Array.isArray(raw) ? raw : [];
 
         const recentPrintsData = normalized.slice(0, 5).map((print) => {
-          // Use library thumbnail if available, else use cover from print data
+          // Use coverUrl from database (local cache), fallback to cover from print data
           let coverUrl = '';
-          if (print.id) {
-            // Use library thumbnail endpoint
-            coverUrl = API_ENDPOINTS.LIBRARY.THUMBNAIL(print.id);
+          if (print.coverUrl) {
+            // Use locally cached cover image
+            coverUrl = print.coverUrl;
           } else if (print.cover) {
             // Fallback to cover URL if provided
             coverUrl = print.cover.startsWith('http') ? print.cover : `/api${print.cover}`;

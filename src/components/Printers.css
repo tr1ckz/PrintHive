@@ -94,8 +94,14 @@
 
 .printers-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
   gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .printers-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .printer-card {
@@ -451,6 +457,20 @@
 
 .printer-body {
   padding: 20px 24px 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .printer-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Make current job span both columns */
+.printer-body .current-job {
+  grid-column: 1 / -1;
 }
 
 .printer-status {

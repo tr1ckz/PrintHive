@@ -415,9 +415,14 @@ async function autoDescribeModel(filePath, fileName) {
           // Detect language of description
           results.language = detectLanguage(rawDesc);
         }
-        // Remove 'credited' tag - use specific designer tag instead if available
+        // Add designer tag if available
         if (metadata.designer) {
           results.tags.push('remix');
+          // Add specific tags based on designer
+          const designerLower = metadata.designer.toLowerCase();
+          if (designerLower.includes('thingiverse') || designerLower.includes('printables')) {
+            results.tags.push('community-design');
+          }
         }
       }
     }
@@ -431,13 +436,82 @@ async function autoDescribeModel(filePath, fileName) {
       }
     }
     
-    // 4. Build description if not already set
+    // 4. Normalize and enhance tags with smarter logic
+    const normalizedTags = new Set();
+    const lower = fileName.toLowerCase();
+    
+    // Add specific product names and identifiers
+    if (lower.includes('ski') && (lower.includes('holder') || lower.includes('mount') || lower.includes('rack'))) {
+      normalizedTags.add('ski-holder');
+      normalizedTags.add('sports-equipment');
+      normalizedTags.add('functional');
+    }
+    
+    // Detect specific household items with better logic
+    if (lower.includes('soap') && (lower.includes('holder') || lower.includes('dish') || lower.includes('dispenser'))) {
+      normalizedTags.add('soap-holder');
+      normalizedTags.add('bathroom');
+      normalizedTags.add('functional');
+    }
+    
+    if (lower.includes('toothbrush') && (lower.includes('holder') || lower.includes('stand'))) {
+      normalizedTags.add('toothbrush-holder');
+      normalizedTags.add('bathroom');
+      normalizedTags.add('functional');
+    }
+    
+    if (lower.includes('phone') && (lower.includes('holder') || lower.includes('stand') || lower.includes('mount'))) {
+      normalizedTags.add('phone-stand');
+      normalizedTags.add('electronics');
+      normalizedTags.add('functional');
+    }
+    
+    // Improve existing tags based on combinations
+    if (lower.includes('wall') && (lower.includes('mount') || lower.includes('hook') || lower.includes('bracket'))) {
+      normalizedTags.add('wall-mount');
+      normalizedTags.add('functional');
+    }
+    
+    // Add normalized versions of existing tags
+    for (const tag of results.tags) {
+      const tagLower = tag.toLowerCase();
+      // Convert multi-word tags to hyphenated format
+      if (tagLower.includes(' ')) {
+        normalizedTags.add(tagLower.replace(/\s+/g, '-'));
+      } else {
+        normalizedTags.add(tagLower);
+      }
+      
+      // Add related generic tags
+      if (['toy', 'figurine', 'miniature'].includes(tagLower)) {
+        normalizedTags.add('collectible');
+      }
+      if (['holder', 'mount', 'bracket', 'stand', 'rack'].includes(tagLower)) {
+        normalizedTags.add('functional');
+      }
+      if (['vase', 'pot', 'ornament', 'decoration'].includes(tagLower)) {
+        normalizedTags.add('decorative');
+      }
+    }
+    
+    // 5. Build description with context if not already set
     if (!results.description) {
       const parts = [];
       
-      // Start with filename-based features
-      if (filenameAnalysis.features.length > 0) {
-        parts.push(filenameAnalysis.features[0]);
+      // Build from specific detected items first
+      if (normalizedTags.has('ski-holder')) {
+        parts.push('Wall-mounted ski storage holder');
+      } else if (normalizedTags.has('soap-holder')) {
+        parts.push('Bathroom soap holder');
+      } else if (normalizedTags.has('phone-stand')) {
+        parts.push('Adjustable phone stand');
+      } else if (normalizedTags.has('toothbrush-holder')) {
+        parts.push('Wall-mounted toothbrush holder');
+      } else {
+        // Fallback to filename-based features
+        if (filenameAnalysis.features.length > 0) {
+          parts.push(filenameAnalysis.features[0]);
+        }
       }
       
       // Add dimension info
@@ -453,14 +527,13 @@ async function autoDescribeModel(filePath, fileName) {
       results.description = parts.join(' - ') || fileName.replace(/\.(3mf|stl|gcode)$/i, '');
     }
     
-    // 5. Truncate description to reasonable length for display
+    // 6. Truncate description to reasonable length for display
     results.description = truncateDescription(results.description, 300);
     
-    // 6. Deduplicate and clean tags
-
-    results.tags = [...new Set(results.tags)].filter(t => t && t.length > 0);
+    // 7. Merge normalized tags with results
+    results.tags = [...normalizedTags].filter(t => t && t.length > 0);
     
-    // 6. Add default tag if none found
+    // 8. Add default tag if none found
     if (results.tags.length === 0) {
       results.tags.push('3d-model');
     }

@@ -328,7 +328,7 @@ app.use((req, res, next) => {
   // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   // Content Security Policy - allow inline scripts for viewer but restrict external resources
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' blob: https://cdn.jsdelivr.net https://cloudflareinsights.com");
   // Permissions Policy (formerly Feature Policy)
   res.setHeader('Permissions-Policy', 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()');
   next();
@@ -1786,6 +1786,9 @@ app.get('/api/printers', async (req, res) => {
               await mqttClient.connect();
               mqttClients.set(clientKey, mqttClient);
               logger.info(`Created MQTT client for ${device.dev_id}`);
+              
+              // Wait briefly for initial MQTT message with AMS data
+              await new Promise(resolve => setTimeout(resolve, 500));
             } catch (error) {
               logger.warn(`Could not connect MQTT for ${device.dev_id}: ${error.message}`);
             }
