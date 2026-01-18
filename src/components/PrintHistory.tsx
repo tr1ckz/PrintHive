@@ -637,56 +637,45 @@ const PrintHistory: React.FC = () => {
       {/* SD Card Sync Modal */}
       {showSdCardSync && (
         <div className="video-modal-overlay" onClick={() => setShowSdCardSync(false)}>
-          <div className="video-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+          <div className="video-modal-content sd-card-modal" onClick={(e) => e.stopPropagation()}>
             <div className="video-modal-header">
               <h2>Sync SD Card Files</h2>
               <button onClick={() => setShowSdCardSync(false)} className="btn-modal-close" title="Close">
                 <span>✕</span>
               </button>
             </div>
-            <div className="video-modal-body" style={{ padding: '20px' }}>
-              <p style={{ marginBottom: '15px', color: 'var(--text-secondary)' }}>
+            <div className="video-modal-body sd-card-modal-body">
+              <p className="sd-card-description">
                 This will scan your printer's SD card for gcode/3mf files and add any prints not already in your history.
               </p>
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 500 }}>Printer IP Address</label>
+              <div className="sd-card-field">
+                <label>Printer IP Address</label>
                 <input
                   type="text"
                   placeholder="192.168.1.100"
                   value={printerIp}
                   onChange={(e) => setPrinterIp(e.target.value)}
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                  className="sd-card-input"
                 />
               </div>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 500 }}>Access Code</label>
+              <div className="sd-card-field">
+                <label>Access Code</label>
                 <input
                   type="password"
                   placeholder="12345678"
                   value={printerAccessCode}
                   onChange={(e) => setPrinterAccessCode(e.target.value)}
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                  className="sd-card-input"
                 />
               </div>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => setShowSdCardSync(false)}
-                  style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'transparent' }}
-                >
+              <div className="sd-card-actions">
+                <button onClick={() => setShowSdCardSync(false)} className="btn-cancel">
                   Cancel
                 </button>
                 <button
                   onClick={handleSdCardSync}
                   disabled={syncingSdCard || !printerIp || !printerAccessCode}
-                  style={{ 
-                    padding: '8px 16px', 
-                    borderRadius: '4px', 
-                    border: 'none', 
-                    background: 'var(--primary-color)', 
-                    color: 'white',
-                    cursor: syncingSdCard || !printerIp || !printerAccessCode ? 'not-allowed' : 'pointer',
-                    opacity: syncingSdCard || !printerIp || !printerAccessCode ? 0.5 : 1
-                  }}
+                  className="btn-primary"
                 >
                   {syncingSdCard ? 'Syncing...' : 'Sync SD Card'}
                 </button>

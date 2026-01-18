@@ -77,3 +77,37 @@ body {
     font-size: 14px;
   }
 }
+
+/* Global form input styling for dark theme */
+input, textarea, select {
+  background: var(--bg-card, rgba(30, 30, 30, 0.95));
+  color: var(--text-primary, #ffffff);
+  border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.1));
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-primary, #00d4ff);
+}
+
+/* Ensure buttons have proper colors */
+button {
+  color: var(--text-primary, #ffffff);
+}
+
+/* Fix autofill background for dark theme */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px rgba(30, 30, 30, 0.95) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
