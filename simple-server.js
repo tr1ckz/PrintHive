@@ -114,6 +114,157 @@ function setupCloudAutoSync() {
   setInterval(runCloudSyncOnce, intervalMinutes * 60 * 1000);
 }
 
+// Periodic FTP sync for timelapses and SD card files (only when printer idle)
+function setupFtpAutoSync() {
+  const intervalMinutes = 30; // sync every 30 minutes
+  
+  async function runFtpSyncOnce() {
+    try {
+      logger.info('[FtpSync] Starting automatic FTP sync...');
+      
+      // Get all configured printers from database
+      const printers = db.prepare(`
+        SELECT p.dev_id, p.name, p.ip_address, p.access_code, p.serial_number
+        FROM printers p
+        WHERE p.ip_address IS NOT NULL AND p.ip_address != ''
+        AND p.access_code IS NOT NULL AND p.access_code != ''
+      `).all();
+      
+      if (!printers || printers.length === 0) {
+        logger.info('[FtpSync] No printers configured with FTP credentials; skipping.');
+        return;
+      }
+      
+      for (const printer of printers) {
+        try {
+          // Check if printer is currently printing via MQTT
+          const clientKey = `${printer.ip_address}:${printer.dev_id}`;
+          const mqttClient = mqttClients.get(clientKey);
+          
+          if (mqttClient && mqttClient.connected) {
+            const currentJob = mqttClient.getCurrentJob();
+            const gcodeState = currentJob?.gcode_state || 'IDLE';
+            
+            // Skip if printer is actively printing
+            if (gcodeState === 'RUNNING' || gcodeState === 'PAUSE' || gcodeState === 'PREPARE') {
+              logger.info(`[FtpSync] Skipping ${printer.name} - printer is ${gcodeState}`);
+              continue;
+            }
+          }
+          
+          logger.info(`[FtpSync] Syncing ${printer.name} (${printer.ip_address})...`);
+          
+          // Connect to printer FTP
+          const connected = await bambuFtp.connect(printer.ip_address, printer.access_code);
+          if (!connected) {
+            logger.warn(`[FtpSync] Could not connect to ${printer.name} via FTP`);
+            continue;
+          }
+          
+          // Sync timelapses
+          try {
+            const videosDir = path.join(__dirname, 'data', 'videos');
+            const timelapses = await bambuFtp.downloadAllTimelapses(videosDir, false);
+            const newTimelapses = timelapses.filter(t => !t.skipped).length;
+            if (newTimelapses > 0) {
+              logger.info(`[FtpSync] Downloaded ${newTimelapses} new timelapses from ${printer.name}`);
+            }
+          } catch (err) {
+            logger.warn(`[FtpSync] Error syncing timelapses from ${printer.name}: ${err.message}`);
+          }
+          
+          // Sync SD card files to print history
+          try {
+            const sdFiles = await bambuFtp.listAllPrinterFiles();
+            if (sdFiles.length > 0) {
+              // Get existing prints
+              const existingPrints = getAllPrintsFromDb();
+              const existingTitles = new Set(existingPrints.map(p => p.title?.toLowerCase()));
+              const existingFileNames = new Set(existingPrints.map(p => {
+                const title = p.title || p.plateName || '';
+                return title.toLowerCase().replace(/\.(gcode|3mf)$/i, '');
+              }));
+              
+              // Filter for new files
+              const newFiles = sdFiles.filter(file => {
+                const baseName = file.name.replace(/\.(gcode|3mf)$/i, '').toLowerCase();
+                return !existingTitles.has(file.name.toLowerCase()) && !existingFileNames.has(baseName);
+              });
+              
+              // Add to print history
+              let added = 0;
+              for (const file of newFiles) {
+                const modelId = `sd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const printData = {
+                  id: null,
+                  designId: null,
+                  designTitle: file.name,
+                  instanceId: null,
+                  modelId: modelId,
+                  title: file.name,
+                  cover: null,
+                  videoUrl: null,
+                  videoLocal: null,
+                  coverLocal: null,
+                  status: 2,
+                  feedbackStatus: null,
+                  startTime: file.modified || new Date().toISOString(),
+                  endTime: file.modified || new Date().toISOString(),
+                  weight: null,
+                  length: null,
+                  costTime: null,
+                  profileId: null,
+                  plateIndex: null,
+                  plateName: file.name,
+                  deviceId: printer.dev_id,
+                  deviceModel: null,
+                  deviceName: printer.name,
+                  bedType: null,
+                  jobType: null,
+                  mode: 'local',
+                  isPublicProfile: false,
+                  isPrintable: false,
+                  isDelete: false,
+                  amsDetailMapping: [],
+                  material: {},
+                  platform: 'local',
+                  stepSummary: [],
+                  nozzleInfos: [],
+                  snapShot: null
+                };
+                storePrint(printData);
+                added++;
+              }
+              
+              if (added > 0) {
+                logger.info(`[FtpSync] Added ${added} new prints from ${printer.name} SD card`);
+              }
+            }
+          } catch (err) {
+            logger.warn(`[FtpSync] Error syncing SD card from ${printer.name}: ${err.message}`);
+          }
+          
+          // Disconnect
+          await bambuFtp.disconnect();
+          
+        } catch (err) {
+          logger.warn(`[FtpSync] Error syncing ${printer.name}: ${err.message}`);
+        }
+      }
+      
+      logger.info('[FtpSync] Automatic FTP sync completed');
+    } catch (err) {
+      logger.warn('[FtpSync] Unexpected error:', err.message);
+    }
+  }
+  
+  // Run first sync after 2 minutes (give time for MQTT to connect), then every 30 minutes
+  setTimeout(() => {
+    runFtpSyncOnce();
+    setInterval(runFtpSyncOnce, intervalMinutes * 60 * 1000);
+  }, 2 * 60 * 1000);
+}
+
 // Auto-scan library every 5 minutes in background
 function setupAutoLibraryScan() {
   const intervalMinutes = 5;
@@ -7879,6 +8030,8 @@ httpServer = app.listen(PORT, async () => {
   backgroundSync.start();
   // Start automatic cloud sync (uses tokens in settings)
   setupCloudAutoSync();
+  // Start automatic FTP sync (every 30 min, only when idle)
+  setupFtpAutoSync();
   // Start automatic library scanning (every 5 min)
   setupAutoLibraryScan();
   // Start automatic video matching (every 10 min)
