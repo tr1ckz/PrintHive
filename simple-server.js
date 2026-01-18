@@ -1126,6 +1126,75 @@ app.post('/api/settings/test-printer-ftp', async (req, res) => {
   }
 });
 
+// Get all printer configurations
+app.get('/api/printers/config', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const printers = db.prepare('SELECT * FROM printers ORDER BY name').all();
+    res.json({ success: true, printers });
+  } catch (error) {
+    console.error('Failed to load printer configs:', error);
+    res.status(500).json({ error: 'Failed to load printer configurations' });
+  }
+});
+
+// Save or update printer configuration
+app.post('/api/printers/config', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const { dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url } = req.body;
+  
+  if (!dev_id) {
+    return res.status(400).json({ error: 'dev_id is required' });
+  }
+  
+  try {
+    const upsert = db.prepare(`
+      INSERT INTO printers (dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(dev_id) DO UPDATE SET 
+        name = ?,
+        ip_address = ?,
+        access_code = ?,
+        serial_number = ?,
+        camera_rtsp_url = ?,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+    
+    upsert.run(
+      dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url,
+      name, ip_address, access_code, serial_number, camera_rtsp_url
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to save printer config:', error);
+    res.status(500).json({ error: 'Failed to save printer configuration' });
+  }
+});
+
+// Delete printer configuration
+app.delete('/api/printers/config/:dev_id', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const { dev_id } = req.params;
+  
+  try {
+    db.prepare('DELETE FROM printers WHERE dev_id = ?').run(dev_id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete printer config:', error);
+    res.status(500).json({ error: 'Failed to delete printer configuration' });
+  }
+});
+
 // Get UI settings (hide buy me a coffee, etc.) - PUBLIC endpoint
 app.get('/api/settings/ui', (req, res) => {
   try {
@@ -1701,8 +1770,12 @@ app.get('/api/printers', async (req, res) => {
       const devicesWithExtras = await Promise.all(printersData.devices.map(async (device) => {
         const deviceData = { ...device };
         
-        // Add camera URL
-        if (cameraUrl) {
+        // Check for per-printer camera URL from printers table
+        const printerConfig = db.prepare('SELECT camera_rtsp_url FROM printers WHERE dev_id = ?').get(device.dev_id);
+        if (printerConfig?.camera_rtsp_url) {
+          deviceData.camera_rtsp_url = printerConfig.camera_rtsp_url;
+        } else if (cameraUrl) {
+          // Fallback to global camera URL
           deviceData.camera_rtsp_url = cameraUrl;
         }
         

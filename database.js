@@ -223,6 +223,20 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_maintenance_history_task ON maintenance_history(task_id);
   CREATE INDEX IF NOT EXISTS idx_maintenance_history_date ON maintenance_history(completed_at);
+
+  CREATE TABLE IF NOT EXISTS printers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dev_id TEXT UNIQUE NOT NULL,
+    name TEXT,
+    ip_address TEXT,
+    access_code TEXT,
+    serial_number TEXT,
+    camera_rtsp_url TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_printers_dev_id ON printers(dev_id);
 `);
 
 // Migration: Move settings to global config table

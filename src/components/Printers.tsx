@@ -9,6 +9,10 @@ function Printers() {
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedPrinter, setSelectedPrinter] = useState<Printer | null>(null);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [cameraUrl, setCameraUrl] = useState('');
+  const [savingConfig, setSavingConfig] = useState(false);
   const cameraRefreshRef = useRef(0);
   const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
 
@@ -50,6 +54,46 @@ function Printers() {
       setError('Failed to load printers');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openConfigModal = (printer: Printer) => {
+    setSelectedPrinter(printer);
+    setCameraUrl(printer.camera_rtsp_url || '');
+    setShowConfigModal(true);
+  };
+
+  const closeConfigModal = () => {
+    setShowConfigModal(false);
+    setSelectedPrinter(null);
+    setCameraUrl('');
+  };
+
+  const saveConfig = async () => {
+    if (!selectedPrinter) return;
+    
+    setSavingConfig(true);
+    try {
+      const response = await fetchWithRetry('/api/printers/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dev_id: selectedPrinter.dev_id,
+          name: selectedPrinter.name,
+          camera_rtsp_url: cameraUrl
+        }),
+        credentials: 'include'
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        closeConfigModal();
+        await fetchPrinters(); // Reload printers to show updated camera
+      }
+    } catch (err) {
+      console.error('Failed to save printer config:', err);
+    } finally {
+      setSavingConfig(false);
     }
   };
 
@@ -158,9 +202,22 @@ function Printers() {
                   <h3>{printer.name}</h3>
                   <p className="printer-model">{printer.dev_product_name}</p>
                 </div>
-                <div className={`status-badge ${printer.online ? 'online' : 'offline'}`}>
-                  <span className="status-dot"></span>
-                  {printer.online ? 'Online' : 'Offline'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className={`status-badge ${printer.online ? 'online' : 'offline'}`}>
+                    <span className="status-dot"></span>
+                    {printer.online ? 'Online' : 'Offline'}
+                  </div>
+                  <button 
+                    className="btn-icon" 
+                    onClick={() => openConfigModal(printer)}
+                    title="Configure Printer"
+                    style={{ padding: '8px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '6px' }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
 
@@ -523,6 +580,41 @@ function Printers() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Printer Configuration Modal */}
+      {showConfigModal && selectedPrinter && (
+        <div className="modal-overlay" onClick={closeConfigModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Configure {selectedPrinter.name}</h2>
+              <button className="close-btn" onClick={closeConfigModal}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Camera RTSP URL</label>
+                <input
+                  type="text"
+                  value={cameraUrl}
+                  onChange={(e) => setCameraUrl(e.target.value)}
+                  placeholder="rtsps://192.168.x.x:322/streaming/live/1"
+                  disabled={savingConfig}
+                />
+                <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
+                  Configure a camera feed for this specific printer
+                </small>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={closeConfigModal} disabled={savingConfig}>
+                Cancel
+              </button>
+              <button className="btn-primary" onClick={saveConfig} disabled={savingConfig}>
+                {savingConfig ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
