@@ -739,7 +739,7 @@ function migrateBambuAccounts() {
       if (hasBambuEmail) selectQuery += ', bambu_email';
       if (hasBambuToken) selectQuery += ', bambu_token';
       if (hasBambuRegion) selectQuery += ', bambu_region';
-      selectQuery += ' FROM settings WHERE bambu_token IS NOT NULL AND bambu_token != ""';
+      selectQuery += " FROM settings WHERE bambu_token IS NOT NULL AND bambu_token != ''";
       
       // Get all users with Bambu credentials in settings table
       const bambuSettings = db.prepare(selectQuery).all();
