@@ -778,8 +778,8 @@ app.get('/auth/oidc/callback', async (req, res) => {
     
     // Determine role based on Authentik groups
     let role = 'user';
-    if (userInfo.groups) {
-      const groups = Array.isArray(userInfo.groups) ? userInfo.groups : [userInfo.groups];
+    if (claims.groups) {
+      const groups = Array.isArray(claims.groups) ? claims.groups : [claims.groups];
       console.log('User groups from Authentik:', groups);
       
       // Check for admin groups (case-insensitive)
