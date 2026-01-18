@@ -1157,14 +1157,14 @@ app.post('/api/settings/disconnect-bambu', (req, res) => {
   }
 });
 
-// Get all Bambu Lab accounts for current user
+// Get all Bambu Lab accounts (global - shared across all users)
 app.get('/api/bambu/accounts', (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
   try {
-    const accounts = db.prepare('SELECT id, email, region, is_primary, updated_at FROM bambu_accounts WHERE user_id = ? ORDER BY is_primary DESC, id ASC').all(req.session.userId);
+    const accounts = db.prepare('SELECT id, email, region, is_primary, updated_at FROM bambu_accounts ORDER BY is_primary DESC, id ASC').all();
     res.json({ success: true, accounts });
   } catch (error) {
     console.error('Failed to load accounts:', error);
@@ -1172,10 +1172,15 @@ app.get('/api/bambu/accounts', (req, res) => {
   }
 });
 
-// Add new Bambu Lab account
+// Add new Bambu Lab account (global - admin/superadmin only)
 app.post('/api/bambu/accounts/add', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  // Only admin/superadmin can add accounts
+  if (!['admin', 'superadmin'].includes(req.session.role)) {
+    return res.status(403).json({ error: 'Only administrators can add Bambu accounts' });
   }
 
   const { email, code, region } = req.body;
@@ -1193,10 +1198,10 @@ app.post('/api/bambu/accounts/add', async (req, res) => {
       const token = response.data.accessToken;
       
       // Check if first account - make it primary
-      const existingCount = db.prepare('SELECT COUNT(*) as count FROM bambu_accounts WHERE user_id = ?').get(req.session.userId).count;
+      const existingCount = db.prepare('SELECT COUNT(*) as count FROM bambu_accounts').get().count;
       const isPrimary = existingCount === 0 ? 1 : 0;
 
-      // Insert new account
+      // Insert new account (user_id tracks who added it, but access is global)
       db.prepare(`
         INSERT INTO bambu_accounts (user_id, email, region, token, is_primary)
         VALUES (?, ?, ?, ?, ?)
@@ -1219,17 +1224,22 @@ app.post('/api/bambu/accounts/add', async (req, res) => {
   }
 });
 
-// Remove Bambu Lab account
+// Remove Bambu Lab account (global - admin/superadmin only)
 app.delete('/api/bambu/accounts/:id', (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  // Only admin/superadmin can remove accounts
+  if (!['admin', 'superadmin'].includes(req.session.role)) {
+    return res.status(403).json({ error: 'Only administrators can remove Bambu accounts' });
   }
 
   const accountId = parseInt(req.params.id);
 
   try {
-    // Check if this account belongs to current user
-    const account = db.prepare('SELECT * FROM bambu_accounts WHERE id = ? AND user_id = ?').get(accountId, req.session.userId);
+    // Check if account exists
+    const account = db.prepare('SELECT * FROM bambu_accounts WHERE id = ?').get(accountId);
     
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });
@@ -1240,16 +1250,10 @@ app.delete('/api/bambu/accounts/:id', (req, res) => {
 
     // If it was primary, make another one primary
     if (account.is_primary) {
-      const newPrimary = db.prepare('SELECT * FROM bambu_accounts WHERE user_id = ? ORDER BY id ASC LIMIT 1').get(req.session.userId);
+      const newPrimary = db.prepare('SELECT * FROM bambu_accounts ORDER BY id ASC LIMIT 1').get();
       if (newPrimary) {
         db.prepare('UPDATE bambu_accounts SET is_primary = 1 WHERE id = ?').run(newPrimary.id);
-        req.session.token = newPrimary.token;
-        req.session.region = newPrimary.region;
-      } else {
-        req.session.token = null;
-        req.session.region = null;
       }
-      req.session.save();
     }
 
     res.json({ success: true });
@@ -1259,32 +1263,32 @@ app.delete('/api/bambu/accounts/:id', (req, res) => {
   }
 });
 
-// Set primary Bambu Lab account
+// Set primary Bambu Lab account (global - admin/superadmin only)
 app.post('/api/bambu/accounts/:id/primary', (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  // Only admin/superadmin can change primary account
+  if (!['admin', 'superadmin'].includes(req.session.role)) {
+    return res.status(403).json({ error: 'Only administrators can change the primary account' });
   }
 
   const accountId = parseInt(req.params.id);
 
   try {
-    // Check if this account belongs to current user
-    const account = db.prepare('SELECT * FROM bambu_accounts WHERE id = ? AND user_id = ?').get(accountId, req.session.userId);
+    // Check if account exists
+    const account = db.prepare('SELECT * FROM bambu_accounts WHERE id = ?').get(accountId);
     
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });
     }
 
-    // Unset all primary flags for this user
-    db.prepare('UPDATE bambu_accounts SET is_primary = 0 WHERE user_id = ?').run(req.session.userId);
+    // Unset all primary flags
+    db.prepare('UPDATE bambu_accounts SET is_primary = 0').run();
     
     // Set this one as primary
     db.prepare('UPDATE bambu_accounts SET is_primary = 1 WHERE id = ?').run(accountId);
-
-    // Update session
-    req.session.token = account.token;
-    req.session.region = account.region;
-    req.session.save();
 
     res.json({ success: true });
   } catch (error) {
@@ -2054,8 +2058,8 @@ app.get('/api/printers', async (req, res) => {
   
   let printersData = { devices: [] };
   
-  // Get all Bambu accounts for this user
-  const bambuAccounts = db.prepare('SELECT id, email, token, region FROM bambu_accounts WHERE user_id = ?').all(req.session.userId);
+  // Get all Bambu accounts (global)
+  const bambuAccounts = db.prepare('SELECT id, email, token, region FROM bambu_accounts').all();
   
   // Try to get printers from all connected Bambu Cloud accounts
   if (bambuAccounts.length > 0) {

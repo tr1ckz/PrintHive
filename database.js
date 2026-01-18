@@ -753,23 +753,27 @@ function migrateBambuAccounts() {
             const email = setting.bambu_email || 'imported@bambulab.com';
             const region = setting.bambu_region || 'global';
             
-            // Check if already migrated
-            const existing = db.prepare('SELECT id FROM bambu_accounts WHERE user_id = ? AND token = ?').get(setting.user_id, setting.bambu_token);
+            // Check if already migrated (by token - accounts are global now)
+            const existing = db.prepare('SELECT id FROM bambu_accounts WHERE token = ?').get(setting.bambu_token);
             
             if (!existing) {
-              // Migrate to new table as primary account
+              // Migrate to new table as primary account (user_id tracks who originally added it)
+              // Check if any account exists - first one should be primary
+              const anyExists = db.prepare('SELECT COUNT(*) as count FROM bambu_accounts').get().count > 0;
+              const isPrimary = anyExists ? 0 : 1;
+              
               db.prepare(`
                 INSERT INTO bambu_accounts (user_id, email, region, token, is_primary)
-                VALUES (?, ?, ?, ?, 1)
-              `).run(setting.user_id, email, region, setting.bambu_token);
+                VALUES (?, ?, ?, ?, ?)
+              `).run(setting.user_id, email, region, setting.bambu_token, isPrimary);
               
-              console.log(`✓ Migrated Bambu account for user ${setting.user_id}`);
+              console.log(`✓ Migrated Bambu account ${email} (global access)`);
               migrated++;
             } else {
-              console.log(`✓ Bambu account for user ${setting.user_id} already migrated`);
+              console.log(`✓ Bambu account ${email} already migrated`);
             }
           } catch (err) {
-            console.error(`Failed to migrate Bambu account for user ${setting.user_id}:`, err.message);
+            console.error(`Failed to migrate Bambu account:`, err.message);
           }
         }
         
