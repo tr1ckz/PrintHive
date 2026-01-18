@@ -15,13 +15,28 @@ function Printers() {
   const [savingConfig, setSavingConfig] = useState(false);
   const cameraRefreshRef = useRef(0);
   const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
+  const preloadRefs = useRef<Map<string, HTMLImageElement>>(new Map());
 
   const refreshCameras = useCallback(() => {
     cameraRefreshRef.current += 1;
     imageRefs.current.forEach((img, deviceId) => {
       const printer = printers.find(p => p.dev_id === deviceId);
       if (printer?.camera_rtsp_url && img) {
-        img.src = `${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=${cameraRefreshRef.current}`;
+        const newUrl = `${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=${cameraRefreshRef.current}`;
+        
+        // Preload the new image before swapping to prevent black flash
+        const preloadImg = new Image();
+        preloadImg.onload = () => {
+          // Only update if the image element still exists
+          if (imageRefs.current.has(deviceId)) {
+            img.src = newUrl;
+          }
+        };
+        preloadImg.onerror = () => {
+          // Keep the old image on error - don't flash black
+        };
+        preloadImg.src = newUrl;
+        preloadRefs.current.set(deviceId, preloadImg);
       }
     });
   }, [printers]);
@@ -40,6 +55,7 @@ function Printers() {
       clearInterval(interval);
       // Clear all image refs on unmount
       imageRefs.current.clear();
+      preloadRefs.current.clear();
     };
   }, [printers, refreshCameras]);
 
