@@ -157,11 +157,13 @@ export function AccountSettings() {
         </button>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Account Security" icon="🔒">
-        <form onSubmit={handlePasswordChange} className="password-change-form">
-          <p className="form-description">
-            Change your account password
-          </p>
+      {/* Only show password change for local accounts, not OIDC users */}
+      {userProfile.oauthProvider === 'none' && (
+        <CollapsibleSection title="Account Security" icon="🔒">
+          <form onSubmit={handlePasswordChange} className="password-change-form">
+            <p className="form-description">
+              Change your account password
+            </p>
           
           <div className="form-group">
             <label>Current Password</label>
@@ -211,6 +213,7 @@ export function AccountSettings() {
           </button>
         </form>
       </CollapsibleSection>
+      )}
     </>
   );
 }

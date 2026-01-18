@@ -214,6 +214,9 @@ function Dashboard({ onLogout }: DashboardProps) {
 
           {/* Right Section: User + Logout */}
           <div className="navbar-right">
+            {/* Buy Me A Coffee */}
+            {!hideBmc && <BuyMeACoffee />}
+            
             <div className="navbar-user">
               <div className="user-avatar">{(userInfo?.display_name || userInfo?.username)?.[0]?.toUpperCase() || 'U'}</div>
               <span className="user-name">{userInfo?.display_name || userInfo?.username || 'User'}</span>
@@ -289,9 +292,6 @@ function Dashboard({ onLogout }: DashboardProps) {
       
       {/* Background Job Tracker */}
       <BackgroundJobTracker />
-      
-      {/* Buy Me A Coffee */}
-      {!hideBmc && <BuyMeACoffee />}
       
       {/* Theme Toggle */}
       <ThemeToggle />

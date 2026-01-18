@@ -975,6 +975,142 @@ app.post('/api/settings/disconnect-bambu', (req, res) => {
   }
 });
 
+// Get all Bambu Lab accounts for current user
+app.get('/api/bambu/accounts', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const accounts = db.prepare('SELECT id, email, region, is_primary, updated_at FROM bambu_accounts WHERE user_id = ? ORDER BY is_primary DESC, id ASC').all(req.session.userId);
+    res.json({ success: true, accounts });
+  } catch (error) {
+    console.error('Failed to load accounts:', error);
+    res.status(500).json({ error: 'Failed to load accounts' });
+  }
+});
+
+// Add new Bambu Lab account
+app.post('/api/bambu/accounts/add', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { email, code, region } = req.body;
+  const apiUrl = region === 'china'
+    ? 'https://api.bambulab.cn/v1/user-service/user/login'
+    : 'https://api.bambulab.com/v1/user-service/user/login';
+
+  try {
+    // Login to get token
+    const response = await axios.post(apiUrl, { account: email, code }, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (response.data && response.data.accessToken) {
+      const token = response.data.accessToken;
+      
+      // Check if first account - make it primary
+      const existingCount = db.prepare('SELECT COUNT(*) as count FROM bambu_accounts WHERE user_id = ?').get(req.session.userId).count;
+      const isPrimary = existingCount === 0 ? 1 : 0;
+
+      // Insert new account
+      db.prepare(`
+        INSERT INTO bambu_accounts (user_id, email, region, token, is_primary)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(req.session.userId, email, region, token, isPrimary);
+
+      // If this is the primary account, update session
+      if (isPrimary) {
+        req.session.token = token;
+        req.session.region = region;
+        req.session.save();
+      }
+
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, error: 'Invalid verification code' });
+    }
+  } catch (error) {
+    console.error('Failed to add account:', error);
+    res.json({ success: false, error: error.response?.data?.message || 'Failed to connect account' });
+  }
+});
+
+// Remove Bambu Lab account
+app.delete('/api/bambu/accounts/:id', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const accountId = parseInt(req.params.id);
+
+  try {
+    // Check if this account belongs to current user
+    const account = db.prepare('SELECT * FROM bambu_accounts WHERE id = ? AND user_id = ?').get(accountId, req.session.userId);
+    
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    // Delete account
+    db.prepare('DELETE FROM bambu_accounts WHERE id = ?').run(accountId);
+
+    // If it was primary, make another one primary
+    if (account.is_primary) {
+      const newPrimary = db.prepare('SELECT * FROM bambu_accounts WHERE user_id = ? ORDER BY id ASC LIMIT 1').get(req.session.userId);
+      if (newPrimary) {
+        db.prepare('UPDATE bambu_accounts SET is_primary = 1 WHERE id = ?').run(newPrimary.id);
+        req.session.token = newPrimary.token;
+        req.session.region = newPrimary.region;
+      } else {
+        req.session.token = null;
+        req.session.region = null;
+      }
+      req.session.save();
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to remove account:', error);
+    res.status(500).json({ error: 'Failed to remove account' });
+  }
+});
+
+// Set primary Bambu Lab account
+app.post('/api/bambu/accounts/:id/primary', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const accountId = parseInt(req.params.id);
+
+  try {
+    // Check if this account belongs to current user
+    const account = db.prepare('SELECT * FROM bambu_accounts WHERE id = ? AND user_id = ?').get(accountId, req.session.userId);
+    
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    // Unset all primary flags for this user
+    db.prepare('UPDATE bambu_accounts SET is_primary = 0 WHERE user_id = ?').run(req.session.userId);
+    
+    // Set this one as primary
+    db.prepare('UPDATE bambu_accounts SET is_primary = 1 WHERE id = ?').run(accountId);
+
+    // Update session
+    req.session.token = account.token;
+    req.session.region = account.region;
+    req.session.save();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to set primary account:', error);
+    res.status(500).json({ error: 'Failed to set primary account' });
+  }
+});
+
 // Change password
 app.post('/api/settings/change-password', (req, res) => {
   if (!req.session.authenticated) {
@@ -1736,17 +1872,28 @@ app.get('/api/printers', async (req, res) => {
   
   let printersData = { devices: [] };
   
-  // Try to get printers from Bambu Cloud if user has linked account
-  if (req.session.token) {
-    try {
-      const response = await axios.get('https://api.bambulab.com/v1/iot-service/api/user/bind', {
-        headers: { 'Authorization': `Bearer ${req.session.token}` }
-      });
-      logger.debug('Printers response payload received from Bambu Cloud');
-      printersData = response.data || { devices: [] };
-    } catch (error) {
-      logger.warn('Could not fetch from Bambu Cloud (user may not have linked account):', error.message);
-      // Continue to fallback logic below
+  // Get all Bambu accounts for this user
+  const bambuAccounts = db.prepare('SELECT id, email, token, region FROM bambu_accounts WHERE user_id = ?').all(req.session.userId);
+  
+  // Try to get printers from all connected Bambu Cloud accounts
+  if (bambuAccounts.length > 0) {
+    for (const account of bambuAccounts) {
+      try {
+        const apiUrl = account.region === 'china' 
+          ? 'https://api.bambulab.cn/v1/iot-service/api/user/bind'
+          : 'https://api.bambulab.com/v1/iot-service/api/user/bind';
+        
+        const response = await axios.get(apiUrl, {
+          headers: { 'Authorization': `Bearer ${account.token}` }
+        });
+        
+        if (response.data?.devices) {
+          logger.debug(`Found ${response.data.devices.length} printers from account ${account.email}`);
+          printersData.devices = [...printersData.devices, ...response.data.devices];
+        }
+      } catch (error) {
+        logger.warn(`Could not fetch printers from account ${account.email}:`, error.message);
+      }
     }
   }
   

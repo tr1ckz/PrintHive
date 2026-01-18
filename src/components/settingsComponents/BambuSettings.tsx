@@ -3,20 +3,28 @@ import { API_ENDPOINTS } from '../../config/api';
 import fetchWithRetry from '../../utils/fetchWithRetry';
 import { useSettingsContext } from './SettingsContext';
 import { CollapsibleSection } from './CollapsibleSection';
-import { BambuStatus } from './types';
+
+interface BambuAccount {
+  id: number;
+  email: string;
+  region: string;
+  is_primary: boolean;
+  updated_at: string;
+}
 
 export function BambuSettings() {
   const { setToast } = useSettingsContext();
-  const [bambuStatus, setBambuStatus] = useState<BambuStatus | null>(null);
+  const [accounts, setAccounts] = useState<BambuAccount[]>([]);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [region, setRegion] = useState('global');
   const [loading, setLoading] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
-    loadBambuStatus();
+    loadAccounts();
   }, []);
 
   useEffect(() => {
@@ -26,13 +34,16 @@ export function BambuSettings() {
     }
   }, [countdown]);
 
-  const loadBambuStatus = async () => {
+  const loadAccounts = async () => {
     try {
-      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.BAMBU_STATUS, { credentials: 'include' });
+      const response = await fetchWithRetry('/api/bambu/accounts', { credentials: 'include' });
       const data = await response.json();
-      setBambuStatus(data);
+      if (data.success) {
+        setAccounts(data.accounts || []);
+        setShowAddForm(data.accounts.length === 0);
+      }
     } catch (error) {
-      console.error('Failed to load Bambu status:', error);
+      console.error('Failed to load Bambu accounts:', error);
     }
   };
 
@@ -69,7 +80,7 @@ export function BambuSettings() {
     setLoading(true);
 
     try {
-      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.CONNECT_BAMBU, {
+      const response = await fetchWithRetry('/api/bambu/accounts/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code, region }),
@@ -79,10 +90,12 @@ export function BambuSettings() {
       const data = await response.json();
 
       if (data.success) {
-        setToast({ message: 'Successfully connected to Bambu Lab!', type: 'success' });
+        setToast({ message: 'Successfully connected Bambu Lab account!', type: 'success' });
         setCode('');
+        setEmail('');
         setCodeSent(false);
-        await loadBambuStatus();
+        setShowAddForm(false);
+        await loadAccounts();
       } else {
         setToast({ message: data.error, type: 'error' });
       }
@@ -93,21 +106,21 @@ export function BambuSettings() {
     }
   };
 
-  const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect your Bambu Lab account?')) return;
+  const handleDisconnect = async (accountId: number) => {
+    if (!confirm('Are you sure you want to disconnect this Bambu Lab account?')) return;
     setLoading(true);
 
     try {
-      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DISCONNECT_BAMBU, {
-        method: 'POST',
+      const response = await fetchWithRetry(`/api/bambu/accounts/${accountId}`, {
+        method: 'DELETE',
         credentials: 'include'
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setToast({ message: 'Disconnected from Bambu Lab', type: 'success' });
-        await loadBambuStatus();
+        setToast({ message: 'Disconnected Bambu Lab account', type: 'success' });
+        await loadAccounts();
       } else {
         setToast({ message: 'Failed to disconnect', type: 'error' });
       }
@@ -118,46 +131,108 @@ export function BambuSettings() {
     }
   };
 
+  const handleSetPrimary = async (accountId: number) => {
+    setLoading(true);
+    try {
+      const response = await fetchWithRetry(`/api/bambu/accounts/${accountId}/primary`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setToast({ message: 'Primary account updated', type: 'success' });
+        await loadAccounts();
+      } else {
+        setToast({ message: 'Failed to update primary account', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: 'Failed to update primary account', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <CollapsibleSection title="Bambu Lab Account" icon="🔗" defaultExpanded={!bambuStatus?.connected}>
-      {bambuStatus?.connected ? (
-        <div className="bambu-connected">
-          <div className="status-badge connected">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Connected
-          </div>
+    <CollapsibleSection title="Bambu Lab Accounts" icon="🔗" defaultExpanded={accounts.length === 0}>
+      <p className="form-description">
+        Connect multiple Bambu Lab accounts to manage all your printers in one place
+      </p>
 
-          <div className="bambu-info">
-            <div className="info-row">
-              <span className="info-label">Email:</span>
-              <span className="info-value">{bambuStatus.email}</span>
-            </div>
-            <div className="info-row">
-              <span className="info-label">Region:</span>
-              <span className="info-value">{bambuStatus.region === 'china' ? 'China' : 'Global'}</span>
-            </div>
-            {bambuStatus.lastUpdated && (
-              <div className="info-row">
-                <span className="info-label">Last updated:</span>
-                <span className="info-value">{new Date(bambuStatus.lastUpdated).toLocaleString()}</span>
+      {/* Connected Accounts List */}
+      {accounts.length > 0 && (
+        <div className="bambu-accounts-list" style={{ marginBottom: '20px' }}>
+          {accounts.map((account) => (
+            <div key={account.id} className="bambu-account-card" style={{ 
+              padding: '15px', 
+              background: 'var(--card-bg)', 
+              border: '1px solid var(--border)', 
+              borderRadius: '8px', 
+              marginBottom: '10px' 
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <strong>{account.email}</strong>
+                    {account.is_primary && (
+                      <span style={{ 
+                        fontSize: '12px', 
+                        padding: '2px 8px', 
+                        background: 'var(--accent-color)', 
+                        borderRadius: '4px' 
+                      }}>
+                        Primary
+                      </span>
+                    )}
+                  </div>
+                  <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
+                    Region: {account.region === 'china' ? 'China' : 'Global'} • 
+                    Updated: {new Date(account.updated_at).toLocaleString()}
+                  </small>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  {!account.is_primary && (
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={() => handleSetPrimary(account.id)}
+                      disabled={loading}
+                      style={{ fontSize: '14px', padding: '6px 12px' }}
+                    >
+                      Set Primary
+                    </button>
+                  )}
+                  <button 
+                    className="btn btn-danger"
+                    onClick={() => handleDisconnect(account.id)}
+                    disabled={loading}
+                    style={{ fontSize: '14px', padding: '6px 12px' }}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
-
-          <button 
-            className="btn btn-danger" 
-            onClick={handleDisconnect}
-            disabled={loading}
-          >
-            Disconnect
-          </button>
+            </div>
+          ))}
         </div>
+      )}
+
+      {/* Add Account Button or Form */}
+      {!showAddForm ? (
+        <button 
+          className="btn btn-primary" 
+          onClick={() => setShowAddForm(true)}
+          disabled={loading}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
+            <path d="M12 4v16m8-8H4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Add Another Account
+        </button>
       ) : (
         <form onSubmit={codeSent ? handleConnect : handleRequestCode} className="bambu-connect-form">
           <p className="form-description">
-            Connect your Bambu Lab account to access your printers and print history
+            Connect a Bambu Lab account to access printers
           </p>
 
           <div className="form-group">
@@ -227,6 +302,17 @@ export function BambuSettings() {
               >
                 Change Email
               </button>
+              {accounts.length > 0 && (
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => { setShowAddForm(false); setCodeSent(false); setCode(''); setEmail(''); setCountdown(0); }}
+                  disabled={loading}
+                  style={{ marginLeft: '10px' }}
+                >
+                  Cancel
+                </button>
+              )}
             </>
           )}
         </form>

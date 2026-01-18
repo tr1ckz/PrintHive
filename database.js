@@ -237,6 +237,20 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_printers_dev_id ON printers(dev_id);
+
+  CREATE TABLE IF NOT EXISTS bambu_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    email TEXT NOT NULL,
+    region TEXT DEFAULT 'global',
+    token TEXT,
+    is_primary INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_bambu_accounts_user ON bambu_accounts(user_id);
 `);
 
 // Migration: Move settings to global config table
