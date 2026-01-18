@@ -2103,14 +2103,22 @@ app.get('/api/printers', async (req, res) => {
       const devicesWithExtras = await Promise.all(printersData.devices.map(async (device) => {
         const deviceData = { ...device };
         
-        // Check for per-printer camera URL from printers table
-        const printerConfig = db.prepare('SELECT camera_rtsp_url FROM printers WHERE dev_id = ?').get(device.dev_id);
-        if (printerConfig?.camera_rtsp_url) {
-          deviceData.camera_rtsp_url = printerConfig.camera_rtsp_url;
-        } else if (cameraUrl) {
-          // Fallback to global camera URL
+        // Check for per-printer config from printers table (camera URL, IP, access code)
+        const printerConfig = db.prepare('SELECT camera_rtsp_url, ip_address, access_code FROM printers WHERE dev_id = ?').get(device.dev_id);
+        if (printerConfig) {
+          if (printerConfig.camera_rtsp_url) deviceData.camera_rtsp_url = printerConfig.camera_rtsp_url;
+          if (printerConfig.ip_address) deviceData.ip_address = printerConfig.ip_address;
+          if (printerConfig.access_code) deviceData.access_code = printerConfig.access_code;
+        }
+        
+        // Fallback to global camera URL
+        if (!deviceData.camera_rtsp_url && cameraUrl) {
           deviceData.camera_rtsp_url = cameraUrl;
         }
+        
+        // Fallback to global printer IP/access code
+        if (!deviceData.ip_address && printerIp) deviceData.ip_address = printerIp;
+        if (!deviceData.access_code && accessCode) deviceData.access_code = accessCode;
         
         // Try to get current job from MQTT client - always connect if credentials available
         if (printerIp && accessCode) {

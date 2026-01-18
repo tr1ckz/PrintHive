@@ -266,6 +266,33 @@ const PrintHistory: React.FC = () => {
     }
   };
 
+  const openSdCardSyncModal = async () => {
+    // Pre-fill with printer settings if available
+    try {
+      const response = await fetchWithRetry('/api/printers', { credentials: 'include' });
+      const data = await response.json();
+      
+      // Find first printer with IP and access code
+      const printer = data.devices?.find((p: any) => p.ip_address && p.access_code);
+      if (printer) {
+        setPrinterIp(printer.ip_address);
+        setPrinterAccessCode(printer.access_code);
+      } else {
+        // Try to get from global config
+        const configResponse = await fetchWithRetry('/api/printers/config', { credentials: 'include' });
+        const configData = await configResponse.json();
+        if (configData.printers?.length > 0) {
+          const firstPrinter = configData.printers[0];
+          if (firstPrinter.ip_address) setPrinterIp(firstPrinter.ip_address);
+          if (firstPrinter.access_code) setPrinterAccessCode(firstPrinter.access_code);
+        }
+      }
+    } catch (err) {
+      console.log('Could not pre-fill printer settings:', err);
+    }
+    setShowSdCardSync(true);
+  };
+
   const handleDownload = async (modelId: string, title: string) => {
     try {
       const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.DOWNLOAD(modelId), { credentials: 'include' });
@@ -401,7 +428,7 @@ const PrintHistory: React.FC = () => {
               <span>✕</span> Cancel
             </button>
           )}
-          <button onClick={() => setShowSdCardSync(true)} className="btn-sync" title="Sync SD card files to print history">
+          <button onClick={openSdCardSyncModal} className="btn-sync" title="Sync SD card files to print history">
             <span>💾</span> Sync SD Card
           </button>
           <button onClick={handleSync} className="btn-sync" disabled={syncing}>
