@@ -773,6 +773,49 @@ function migrateBambuAccounts() {
           }
         }
         
+        // Migrate printer data from settings to printers table
+        console.log('Checking for printer data to migrate...');
+        const printerSettings = db.prepare(`
+          SELECT user_id, printer_ip, printer_access_code, camera_rtsp_url 
+          FROM settings 
+          WHERE printer_ip IS NOT NULL AND printer_ip != ''
+        `).all();
+        
+        let printersMigrated = 0;
+        for (const printerSetting of printerSettings) {
+          try {
+            // Check if printer already exists by IP
+            const existingPrinter = db.prepare('SELECT id FROM printers WHERE ip_address = ?').get(printerSetting.printer_ip);
+            
+            if (!existingPrinter) {
+              // Create a dev_id from IP address (will be updated when printer connects via MQTT)
+              const devId = `printer_${printerSetting.printer_ip.replace(/\./g, '_')}`;
+              
+              db.prepare(`
+                INSERT INTO printers (dev_id, name, ip_address, access_code, camera_rtsp_url)
+                VALUES (?, ?, ?, ?, ?)
+              `).run(
+                devId,
+                `Printer at ${printerSetting.printer_ip}`,
+                printerSetting.printer_ip,
+                printerSetting.printer_access_code,
+                printerSetting.camera_rtsp_url || null
+              );
+              
+              console.log(`✓ Migrated printer ${printerSetting.printer_ip}`);
+              printersMigrated++;
+            } else {
+              console.log(`✓ Printer ${printerSetting.printer_ip} already migrated`);
+            }
+          } catch (err) {
+            console.error(`Failed to migrate printer ${printerSetting.printer_ip}:`, err.message);
+          }
+        }
+        
+        if (printersMigrated > 0) {
+          console.log(`✓ Migrated ${printersMigrated} printer(s)`);
+        }
+        
         // After successful migration, remove Bambu columns from settings table
         if (migrated > 0) {
           console.log('Migration complete - cleaning up old settings table...');
