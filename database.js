@@ -714,6 +714,74 @@ function updatePrintVideoPath(modelId, videoLocal) {
   return updatePrintVideo.run({ modelId, videoLocal });
 }
 
+// Migration: Move Bambu credentials from settings table to bambu_accounts table
+try {
+  // Check if settings table exists and has bambu data
+  const settingsTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'").get();
+  
+  if (settingsTableExists) {
+    console.log('Found old settings table - checking for Bambu credentials to migrate...');
+    
+    // Get all users with Bambu credentials in settings table
+    const bambuSettings = db.prepare('SELECT user_id, bambu_email, bambu_token, bambu_region FROM settings WHERE bambu_token IS NOT NULL AND bambu_token != ""').all();
+    
+    if (bambuSettings.length > 0) {
+      console.log(`Found ${bambuSettings.length} Bambu credentials to migrate`);
+      
+      for (const setting of bambuSettings) {
+        try {
+          // Check if already migrated
+          const existing = db.prepare('SELECT id FROM bambu_accounts WHERE user_id = ? AND email = ?').get(setting.user_id, setting.bambu_email);
+          
+          if (!existing) {
+            // Migrate to new table as primary account
+            db.prepare(`
+              INSERT INTO bambu_accounts (user_id, email, region, token, is_primary)
+              VALUES (?, ?, ?, ?, 1)
+            `).run(setting.user_id, setting.bambu_email, setting.bambu_region || 'global', setting.bambu_token);
+            
+            console.log(`✓ Migrated Bambu account for user ${setting.user_id}`);
+          } else {
+            console.log(`✓ Bambu account for user ${setting.user_id} already migrated`);
+          }
+        } catch (err) {
+          console.error(`Failed to migrate Bambu account for user ${setting.user_id}:`, err.message);
+        }
+      }
+      
+      // After successful migration, remove Bambu columns from settings table
+      console.log('Migration complete - cleaning up old settings table...');
+      try {
+        // SQLite doesn't support DROP COLUMN directly, so we need to recreate the table
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS settings_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            printer_ip TEXT,
+            printer_access_code TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+          );
+          
+          INSERT INTO settings_new (id, user_id, printer_ip, printer_access_code, updated_at)
+          SELECT id, user_id, printer_ip, printer_access_code, updated_at FROM settings;
+          
+          DROP TABLE settings;
+          
+          ALTER TABLE settings_new RENAME TO settings;
+        `);
+        console.log('✓ Cleaned up old settings table');
+      } catch (err) {
+        console.error('Failed to cleanup settings table (non-critical):', err.message);
+      }
+    } else {
+      console.log('No Bambu credentials found in settings table to migrate');
+    }
+  }
+} catch (error) {
+  console.error('Bambu account migration check failed (non-critical):', error.message);
+}
+
 module.exports = {
   db,
   storePrint,

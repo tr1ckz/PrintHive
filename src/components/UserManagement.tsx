@@ -16,6 +16,7 @@ interface User {
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('user');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -23,7 +24,18 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
+    fetchCurrentUserRole();
   }, []);
+
+  const fetchCurrentUserRole = async () => {
+    try {
+      const response = await fetchWithRetry('/api/auth/me', { credentials: 'include' });
+      const data = await response.json();
+      setCurrentUserRole(data.role || 'user');
+    } catch (err) {
+      console.error('Failed to fetch current user role:', err);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -138,15 +150,15 @@ export default function UserManagement() {
                 <td>
                   <select
                     className={`role-select role-${user.role}`}
-                    value={user.role === 'superadmin' ? 'admin' : user.role}
+                    value={user.role}
                     onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                    disabled={user.role === 'superadmin'}
-                    title={user.role === 'superadmin' ? 'Superadmin role cannot be changed' : ''}
+                    disabled={user.role === 'superadmin' && currentUserRole !== 'superadmin'}
+                    title={user.role === 'superadmin' && currentUserRole !== 'superadmin' ? 'Only superadmins can change superadmin roles' : ''}
                   >
+                    {currentUserRole === 'superadmin' && <option value="superadmin">Super Admin</option>}
                     <option value="admin">Admin</option>
                     <option value="user">User</option>
                   </select>
-                  {user.role === 'superadmin' && <span className="superadmin-badge">🔒 Super</span>}
                 </td>
                 <td>{new Date(user.created_at).toLocaleDateString()}</td>
                 <td>

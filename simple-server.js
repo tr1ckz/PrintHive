@@ -625,9 +625,25 @@ app.get('/auth/oidc/callback', async (req, res) => {
       }
     }
     
+    // Determine role based on Authentik groups
+    let role = 'user';
+    if (userInfo.groups) {
+      const groups = Array.isArray(userInfo.groups) ? userInfo.groups : [userInfo.groups];
+      console.log('User groups from Authentik:', groups);
+      
+      // Check for admin groups (case-insensitive)
+      if (groups.some(g => ['admin', 'admins'].includes(g.toLowerCase()))) {
+        role = 'superadmin';
+        console.log('User is in Admin/Admins group - assigning superadmin role');
+      } else if (groups.some(g => ['users', 'friends'].includes(g.toLowerCase()))) {
+        role = 'user';
+        console.log('User is in Users/Friends group - assigning user role');
+      }
+    }
+    
     if (!user) {
-      // Create new user
-      console.log('Creating new OIDC user:', username, email);
+      // Create new user with role based on groups
+      console.log('Creating new OIDC user:', username, email, 'with role:', role);
       const result = db.prepare(
         'INSERT INTO users (username, email, oauth_provider, oauth_id, role, password, display_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).run(
@@ -635,12 +651,19 @@ app.get('/auth/oidc/callback', async (req, res) => {
         email || '',
         'oidc',
         sub,
-        'user',
+        role,
         '', // No password for OAuth users
         name
       );
       user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
       console.log('New user created with ID:', user.id);
+    } else {
+      // Update existing user role based on current groups
+      if (user.role !== 'superadmin' || role === 'superadmin') {
+        console.log('Updating user role from', user.role, 'to', role, 'based on groups');
+        db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
+        user.role = role;
+      }
     }
     
     console.log('=== OIDC AUTH SUCCESS ===');
@@ -740,6 +763,14 @@ app.get('/', (req, res) => {
 
 // Admin route (prevents OAuth auto-redirect)
 app.get('/admin', (req, res) => {
+  // Only allow /admin if LOCALAUTH is enabled
+  const localAuthEnabled = process.env.LOCALAUTH === 'true';
+  
+  if (!localAuthEnabled) {
+    // Redirect to home if local auth is disabled
+    return res.redirect('/');
+  }
+  
   const distExists = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));
   const staticDir = distExists ? 'dist' : 'public';
   res.sendFile(path.join(__dirname, staticDir, 'index.html'));
@@ -5450,21 +5481,26 @@ app.patch('/api/admin/users/:id/role', requireAdmin, (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
   
-  if (!['admin', 'user'].includes(role)) {
+  if (!['admin', 'user', 'superadmin'].includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
   
   try {
+    const currentUser = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
     const targetUser = db.prepare('SELECT role, username FROM users WHERE id = ?').get(id);
     
-    // Prevent changing superadmin role
-    if (targetUser.role === 'superadmin') {
-      return res.status(400).json({ error: 'Cannot change superadmin role' });
+    // Only superadmins can promote to superadmin or demote superadmins
+    if (role === 'superadmin' && currentUser.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmins can promote to superadmin' });
+    }
+    
+    if (targetUser.role === 'superadmin' && currentUser.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmins can change superadmin roles' });
     }
     
     // Prevent removing the last admin
     const adminCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE role IN (?, ?)').get('admin', 'superadmin');
-    if (targetUser.role === 'admin' && role !== 'admin' && adminCount.count <= 1) {
+    if ((targetUser.role === 'admin' || targetUser.role === 'superadmin') && (role !== 'admin' && role !== 'superadmin') && adminCount.count <= 1) {
       return res.status(400).json({ error: 'Cannot remove the last admin' });
     }
     

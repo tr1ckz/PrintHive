@@ -129,8 +129,48 @@ See [README-ENV.md](README-ENV.md) for detailed environment variable documentati
 - `OAUTH_ISSUER`: OIDC provider URL
 - `OAUTH_CLIENT_ID`: OAuth client ID
 - `OAUTH_CLIENT_SECRET`: OAuth client secret
+- `OAUTH_GROUPS_CLAIM`: Claim name for groups (default: 'groups')
+- `LOCALAUTH`: Set to 'true' to enable /admin local login route (default: false)
 - `DISCORD_WEBHOOK_URL`: Discord webhook for notifications
 - `MQTT_BROKER`: MQTT broker address
+
+### Authentication & Authorization
+
+#### Local Authentication
+By default, local authentication via `/admin` is disabled for security. To enable it:
+```yaml
+environment:
+  - LOCALAUTH=true
+```
+
+#### OIDC/SSO Authentication (Authentik, Keycloak, etc.)
+PrintHive supports automatic role mapping from OIDC provider groups:
+
+**Group-Based Role Assignment:**
+- Users in **Admin** or **Admins** group → Assigned **Super Admin** role
+- Users in **Users** or **Friends** group → Assigned **User** role
+- Groups are case-insensitive
+
+Configure your OIDC provider to include groups in the ID token:
+```yaml
+environment:
+  - OAUTH_ISSUER=https://auth.yourdomain.com/application/o/printhive/
+  - OAUTH_CLIENT_ID=your-client-id
+  - OAUTH_CLIENT_SECRET=your-client-secret
+  - OAUTH_GROUPS_CLAIM=groups  # Default claim name
+```
+
+**User Roles:**
+- **Super Admin**: Full access, can promote other users to super admin, manage all settings
+- **Admin**: Can manage users, settings, and perform administrative tasks
+- **User**: Can view and use printers, manage their own prints and library
+
+#### Multiple Bambu Lab Accounts
+Users can connect multiple Bambu Lab accounts to manage all their printers in one place:
+- Add multiple accounts from different regions (Global/China)
+- Set one account as primary
+- Printers from all connected accounts appear in the dashboard
+- Perfect for users with multiple Bambu Cloud accounts
 
 ## Administration
 
@@ -194,10 +234,16 @@ Configure in **Settings > Advanced > System**:
 
 Manage users in **Settings > Administration > User Management**:
 
-- Create new users
-- Assign roles (user, admin, superadmin)
-- Enable/disable accounts
-- Reset passwords
+- View all users with their roles and authentication methods
+- Change user roles (User, Admin, Super Admin)
+- Super Admins can promote users to Super Admin
+- Delete users (cannot delete last admin or super admin)
+- See authentication method (Local, OIDC, etc.)
+
+**Role Permissions:**
+- **Super Admin**: Full system access, can manage all users and promote to super admin
+- **Admin**: Can manage users (except super admins), configure settings
+- **User**: Basic access to printers, prints, and personal library
 - View user activity
 
 ### Settings Organization
