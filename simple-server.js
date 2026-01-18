@@ -2920,6 +2920,150 @@ app.post('/api/sync-printer-timelapses', async (req, res) => {
   }
 });
 
+// Sync SD card files with print history
+app.post('/api/sync-sd-card', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  console.log('=== SD CARD SYNC REQUEST ===');
+  
+  const printerIp = req.body.printerIp;
+  const accessCode = req.body.accessCode;
+
+  if (!printerIp || !accessCode) {
+    return res.status(400).json({ 
+      error: 'Missing printer credentials',
+      details: 'Please provide both printerIp and accessCode' 
+    });
+  }
+
+  try {
+    console.log(`Connecting to printer at ${printerIp} for SD card sync...`);
+    
+    // Connect to printer via FTP
+    const connected = await bambuFtp.connect(printerIp, accessCode);
+    if (!connected) {
+      return res.status(500).json({
+        error: 'FTP/FTPS not available on this printer',
+        details: 'Could not establish FTP connection to printer. Ensure the printer is on LAN mode or FTP is enabled.',
+        hint: 'Check your printer settings and network configuration'
+      });
+    }
+
+    // List all files on SD card
+    const sdFiles = await bambuFtp.listAllPrinterFiles();
+    console.log(`Found ${sdFiles.length} files on printer SD card`);
+
+    if (sdFiles.length === 0) {
+      await bambuFtp.disconnect();
+      return res.json({
+        success: true,
+        added: 0,
+        files: [],
+        message: 'No files found on SD card'
+      });
+    }
+
+    // Get all existing prints from database
+    const existingPrints = getAllPrintsFromDb();
+    const existingTitles = new Set(existingPrints.map(p => p.title?.toLowerCase()));
+    const existingFileNames = new Set(existingPrints.map(p => {
+      // Extract filename from title or plateName
+      const title = p.title || p.plateName || '';
+      return title.toLowerCase().replace(/\.(gcode|3mf)$/i, '');
+    }));
+
+    // Filter for files not in history
+    const newFiles = sdFiles.filter(file => {
+      const baseName = file.name.replace(/\.(gcode|3mf)$/i, '').toLowerCase();
+      const hasTitle = existingTitles.has(file.name.toLowerCase());
+      const hasFileName = existingFileNames.has(baseName);
+      return !hasTitle && !hasFileName;
+    });
+
+    console.log(`Found ${newFiles.length} new files not in print history`);
+
+    // Create print records for missing files
+    const added = [];
+    for (const file of newFiles) {
+      try {
+        // Generate a unique modelId for the SD card file
+        const modelId = `sd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Create print record
+        const printData = {
+          id: null, // Auto-increment
+          designId: null,
+          designTitle: file.name,
+          instanceId: null,
+          modelId: modelId,
+          title: file.name,
+          cover: null,
+          videoUrl: null,
+          videoLocal: null,
+          coverLocal: null,
+          status: 2, // Status 2 = completed (assuming SD card files are completed prints)
+          feedbackStatus: null,
+          startTime: file.modified || new Date().toISOString(),
+          endTime: file.modified || new Date().toISOString(),
+          weight: null,
+          length: null,
+          costTime: null,
+          profileId: null,
+          plateIndex: null,
+          plateName: file.name,
+          deviceId: null,
+          deviceModel: null,
+          deviceName: 'SD Card Import',
+          bedType: null,
+          jobType: null,
+          mode: 'local',
+          isPublicProfile: false,
+          isPrintable: false,
+          isDelete: false,
+          amsDetailMapping: [],
+          material: {},
+          platform: 'local',
+          stepSummary: [],
+          nozzleInfos: [],
+          snapShot: null
+        };
+
+        storePrint(printData);
+        added.push({
+          name: file.name,
+          modelId: modelId,
+          modified: file.modified
+        });
+
+        console.log(`✓ Added ${file.name} to print history`);
+      } catch (err) {
+        console.error(`Failed to add ${file.name} to history:`, err.message);
+      }
+    }
+
+    // Disconnect
+    await bambuFtp.disconnect();
+
+    res.json({
+      success: true,
+      added: added.length,
+      scanned: sdFiles.length,
+      files: added.map(f => f.name),
+      message: `Added ${added.length} new prints from SD card to history`
+    });
+
+  } catch (error) {
+    console.error('SD card sync error:', error);
+    await bambuFtp.disconnect();
+    res.status(500).json({ 
+      error: 'Failed to sync SD card files',
+      details: error.message 
+    });
+  }
+});
+
 // Statistics endpoint
 app.get('/api/statistics', (req, res) => {
   try {

@@ -9,6 +9,7 @@ A comprehensive web application for managing 3D printers, including print histor
 ### Core Features
 - **Authentication**: Secure login with OIDC support (Authentik, Keycloak, Auth0, etc.)
 - **Print History**: Track all your prints with cover images from MakerWorld, paginated display, per-device filtering
+- **SD Card Sync**: Automatically import print history from printer SD card for locally sliced files
 - **Model Library**: Upload and manage your 3D model files (.3mf, .stl, .gcode)
 - **Printer Monitoring**: Real-time status updates via MQTT including AMS data
 - **Cloud Sync**: Automatic synchronization with Bambu Cloud
@@ -171,6 +172,28 @@ Users can connect multiple Bambu Lab accounts to manage all their printers in on
 - Set one account as primary
 - Printers from all connected accounts appear in the dashboard
 - Perfect for users with multiple Bambu Cloud accounts
+
+#### SD Card Print History Sync
+Track manually sliced prints that aren't synced to Bambu Cloud:
+
+**What it does:**
+- Scans printer SD card for .gcode and .3mf files via FTP/FTPS
+- Compares files to existing print history
+- Automatically adds missing prints to your history
+- Perfect for tracking prints sliced in OrcaSlicer, PrusaSlicer, or other third-party slicers
+
+**How to use:**
+1. Navigate to **Print History** page
+2. Click **Sync SD Card** button
+3. Enter your printer's IP address and access code
+4. Click **Sync SD Card** to scan and import
+
+**Requirements:**
+- Printer must be accessible on your network
+- FTP/FTPS access must be enabled (default on most Bambu printers)
+- Access code from printer settings
+
+**Note:** The printer doesn't need to be in LAN-only mode. When connecting via Bambu Lab account, you can find the access code in the Printers view.
 
 ## Administration
 

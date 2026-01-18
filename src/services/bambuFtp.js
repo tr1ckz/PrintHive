@@ -325,6 +325,116 @@ class BambuFtpService {
       return [];
     }
   }
+
+  /**
+   * List all gcode files from the SD card
+   * @returns {Promise<Array>} Array of gcode file info with metadata
+   */
+  async listSdCardFiles() {
+    if (!this.printerIp || !this.accessCode) {
+      throw new Error('Not connected to printer. Call connect() first.');
+    }
+
+    try {
+      console.log('Listing files on SD card...');
+      
+      const { stdout } = await execAsync(
+        `curl --user bblp:${this.accessCode} --ssl-reqd --insecure ftps://${this.printerIp}:990/ -X "MLSD"`,
+        { timeout: 30000, maxBuffer: 10 * 1024 * 1024 }
+      );
+      
+      const files = [];
+      const lines = stdout.trim().split('\n');
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        // Parse MLSD format: type=file;size=12345;modify=20240115120000; filename.gcode
+        const match = line.match(/type=([^;]+);.*size=(\d+);.*modify=(\d+);.*\s+(.+)$/);
+        if (match && match[1] === 'file') {
+          const [, type, size, modify, name] = match;
+          
+          // Only include gcode and 3mf files
+          if (name.endsWith('.gcode') || name.endsWith('.3mf') || 
+              name.endsWith('.GCODE') || name.endsWith('.3MF')) {
+            
+            // Parse modify timestamp (format: YYYYMMDDHHmmss)
+            let modifiedDate = null;
+            if (modify && modify.length >= 14) {
+              const year = modify.substr(0, 4);
+              const month = modify.substr(4, 2);
+              const day = modify.substr(6, 2);
+              const hour = modify.substr(8, 2);
+              const minute = modify.substr(10, 2);
+              const second = modify.substr(12, 2);
+              modifiedDate = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+            }
+            
+            files.push({
+              name: name.trim(),
+              size: parseInt(size),
+              modified: modifiedDate ? modifiedDate.toISOString() : null,
+              path: `/${name.trim()}`
+            });
+          }
+        }
+      }
+      
+      console.log(`Found ${files.length} gcode/3mf file(s) on SD card`);
+      return files;
+    } catch (error) {
+      console.error('Failed to list SD card files:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get detailed file list with directory exploration
+   * Lists files from common directories: /, /model, /cache
+   * @returns {Promise<Array>} Combined array of all gcode/3mf files found
+   */
+  async listAllPrinterFiles() {
+    if (!this.printerIp || !this.accessCode) {
+      throw new Error('Not connected to printer. Call connect() first.');
+    }
+
+    try {
+      console.log('Scanning printer for all gcode/3mf files...');
+      
+      const allFiles = [];
+      const directories = ['/', '/model', '/cache'];
+      
+      for (const dir of directories) {
+        try {
+          console.log(`Scanning ${dir}...`);
+          const { stdout } = await execAsync(
+            `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --list-only ftps://${this.printerIp}:990${dir}/`,
+            { timeout: 15000, maxBuffer: 10 * 1024 * 1024 }
+          );
+          
+          const files = stdout.trim().split('\n').filter(f => f.length > 0).map(f => f.trim());
+          
+          for (const name of files) {
+            if (name.match(/\.(gcode|3mf)$/i)) {
+              allFiles.push({
+                name,
+                path: `${dir}/${name}`,
+                directory: dir
+              });
+            }
+          }
+        } catch (err) {
+          console.log(`Could not scan ${dir}: ${err.message}`);
+        }
+      }
+      
+      console.log(`Found ${allFiles.length} total gcode/3mf file(s) across all directories`);
+      return allFiles;
+    } catch (error) {
+      console.error('Failed to scan printer files:', error.message);
+      return [];
+    }
+  }
 }
 
 module.exports = new BambuFtpService();

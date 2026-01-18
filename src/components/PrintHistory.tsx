@@ -46,7 +46,9 @@ const PrintHistory: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [syncing, setSyncing] = useState(false);
   const [syncingPrinter, setSyncingPrinter] = useState(false);
+  const [syncingSdCard, setSyncingSdCard] = useState(false);
   const [showPrinterSync, setShowPrinterSync] = useState(false);
+  const [showSdCardSync, setShowSdCardSync] = useState(false);
   const [printerIp, setPrinterIp] = useState('');
   const [printerAccessCode, setPrinterAccessCode] = useState('');
   const [matching, setMatching] = useState(false);
@@ -67,6 +69,7 @@ const PrintHistory: React.FC = () => {
   // Keyboard shortcuts
   useEscapeKey(!!videoModal, () => setVideoModal(null));
   useEscapeKey(showPrinterSync, () => setShowPrinterSync(false));
+  useEscapeKey(showSdCardSync, () => setShowSdCardSync(false));
 
   const handleExportCSV = () => {
     exportToCSV(
@@ -228,6 +231,41 @@ const PrintHistory: React.FC = () => {
     }
   };
 
+  const handleSdCardSync = async () => {
+    if (!printerIp || !printerAccessCode) {
+      setToast({ message: 'Please enter printer IP and access code', type: 'error' });
+      return;
+    }
+
+    try {
+      setSyncingSdCard(true);
+      const response = await fetchWithRetry('/api/sync-sd-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ printerIp, accessCode: printerAccessCode })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        setToast({ message: `SD card sync failed:\n${data.error}\n\n${data.details || ''}\n${data.hint || ''}`, type: 'error' });
+        return;
+      }
+      
+      setToast({ 
+        message: `✓ Scanned ${data.scanned} files on SD card\n✓ Added ${data.added} new prints to history:\n${data.files?.slice(0, 10).join('\n')}${data.files?.length > 10 ? '\n...' : ''}`, 
+        type: 'success' 
+      });
+      setShowSdCardSync(false);
+      fetchPrints(); // Refresh the print list
+    } catch (err) {
+      setToast({ message: 'SD card sync failed: ' + (err instanceof Error ? err.message : 'Unknown error'), type: 'error' });
+    } finally {
+      setSyncingSdCard(false);
+    }
+  };
+
   const handleDownload = async (modelId: string, title: string) => {
     try {
       const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.DOWNLOAD(modelId), { credentials: 'include' });
@@ -363,6 +401,9 @@ const PrintHistory: React.FC = () => {
               <span>✕</span> Cancel
             </button>
           )}
+          <button onClick={() => setShowSdCardSync(true)} className="btn-sync" title="Sync SD card files to print history">
+            <span>💾</span> Sync SD Card
+          </button>
           <button onClick={handleSync} className="btn-sync" disabled={syncing}>
             {syncing ? (
               <>
@@ -373,9 +414,6 @@ const PrintHistory: React.FC = () => {
                 <span>🔄</span> Sync Cloud
               </>
             )}
-          </button>
-          <button onClick={handleExportCSV} className="btn-export" title="Export to CSV">
-            <span>📊</span> Export CSV
           </button>
         </div>
       </div>
@@ -567,6 +605,68 @@ const PrintHistory: React.FC = () => {
           </div>
         )}
         </>
+      )}
+
+      {/* SD Card Sync Modal */}
+      {showSdCardSync && (
+        <div className="video-modal-overlay" onClick={() => setShowSdCardSync(false)}>
+          <div className="video-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="video-modal-header">
+              <h2>Sync SD Card Files</h2>
+              <button onClick={() => setShowSdCardSync(false)} className="btn-modal-close" title="Close">
+                <span>✕</span>
+              </button>
+            </div>
+            <div className="video-modal-body" style={{ padding: '20px' }}>
+              <p style={{ marginBottom: '15px', color: 'var(--text-secondary)' }}>
+                This will scan your printer's SD card for gcode/3mf files and add any prints not already in your history.
+              </p>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 500 }}>Printer IP Address</label>
+                <input
+                  type="text"
+                  placeholder="192.168.1.100"
+                  value={printerIp}
+                  onChange={(e) => setPrinterIp(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                />
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 500 }}>Access Code</label>
+                <input
+                  type="password"
+                  placeholder="12345678"
+                  value={printerAccessCode}
+                  onChange={(e) => setPrinterAccessCode(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowSdCardSync(false)}
+                  style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'transparent' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSdCardSync}
+                  disabled={syncingSdCard || !printerIp || !printerAccessCode}
+                  style={{ 
+                    padding: '8px 16px', 
+                    borderRadius: '4px', 
+                    border: 'none', 
+                    background: 'var(--primary-color)', 
+                    color: 'white',
+                    cursor: syncingSdCard || !printerIp || !printerAccessCode ? 'not-allowed' : 'pointer',
+                    opacity: syncingSdCard || !printerIp || !printerAccessCode ? 0.5 : 1
+                  }}
+                >
+                  {syncingSdCard ? 'Syncing...' : 'Sync SD Card'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Video Modal */}
