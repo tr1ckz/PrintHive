@@ -1019,12 +1019,14 @@ app.get('/api/settings/printer-ftp', (req, res) => {
     const printerIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip');
     const accessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code');
     const cameraUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url');
+    const serialNumber = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number');
     
     res.json({ 
       success: true,
       printerIp: printerIp?.value || '',
       printerAccessCode: accessCode?.value || '',
-      cameraRtspUrl: cameraUrl?.value || ''
+      cameraRtspUrl: cameraUrl?.value || '',
+      serialNumber: serialNumber?.value || ''
     });
   } catch (error) {
     console.error('Failed to load printer settings:', error);
@@ -1044,8 +1046,8 @@ app.post('/api/settings/printer-ftp', (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const { printerIp, printerAccessCode, cameraRtspUrl } = req.body;
-  console.log('Parsed values:', { printerIp, printerAccessCode, cameraRtspUrl: cameraRtspUrl ? '***' : null });
+  const { printerIp, printerAccessCode, cameraRtspUrl, serialNumber } = req.body;
+  console.log('Parsed values:', { printerIp, printerAccessCode, cameraRtspUrl: cameraRtspUrl ? '***' : null, serialNumber });
   
   try {
     // Save to global config
@@ -1059,6 +1061,9 @@ app.post('/api/settings/printer-ftp', (req, res) => {
     upsert.run('printer_ip', printerIp || '', printerIp || '');
     upsert.run('printer_access_code', printerAccessCode || '', printerAccessCode || '');
     upsert.run('camera_rtsp_url', cameraRtspUrl || '', cameraRtspUrl || '');
+    if (serialNumber) {
+      upsert.run('printer_serial_number', serialNumber, serialNumber);
+    }
     
     console.log('SUCCESS: Settings saved');
     res.json({ success: true });
@@ -1654,19 +1659,44 @@ app.get('/api/printers', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
+  // Get camera URL and printer settings from global config
+  const cameraUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url')?.value || null;
+  const printerIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip')?.value;
+  const accessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value;
+  const serialNumber = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number')?.value;
+  
+  let printersData = { devices: [] };
+  
+  // Try to get printers from Bambu Cloud if user has linked account
+  if (req.session.token) {
+    try {
+      const response = await axios.get('https://api.bambulab.com/v1/iot-service/api/user/bind', {
+        headers: { 'Authorization': `Bearer ${req.session.token}` }
+      });
+      logger.debug('Printers response payload received from Bambu Cloud');
+      printersData = response.data || { devices: [] };
+    } catch (error) {
+      logger.warn('Could not fetch from Bambu Cloud (user may not have linked account):', error.message);
+      // Continue to fallback logic below
+    }
+  }
+  
+  // If no printers from cloud but we have local MQTT config, create a virtual device entry
+  if (printersData.devices.length === 0 && printerIp && accessCode && serialNumber) {
+    logger.info('No Bambu Cloud printers, but local MQTT config exists - creating virtual device');
+    // Create a virtual device for the locally configured printer
+    // We'll get the actual device info from MQTT
+    printersData.devices = [{
+      dev_id: serialNumber,
+      name: 'Local Printer (MQTT)',
+      dev_product_name: 'Unknown Model',
+      online: true,
+      print_status: 'IDLE'
+    }];
+  }
+  
   try {
-    const response = await axios.get('https://api.bambulab.com/v1/iot-service/api/user/bind', {
-      headers: { 'Authorization': `Bearer ${req.session.token}` }
-    });
-    logger.debug('Printers response payload received');
-    
-    // Get camera URL and printer settings from global config
-    const cameraUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url')?.value || null;
-    const printerIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip')?.value;
-    const accessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value;
-    
     // Add camera URL and fetch current task for each printer
-    const printersData = response.data || { devices: [] };
     if (printersData.devices) {
       const devicesWithExtras = await Promise.all(printersData.devices.map(async (device) => {
         const deviceData = { ...device };
@@ -1683,7 +1713,7 @@ app.get('/api/printers', async (req, res) => {
           // Create or get existing MQTT client for this printer
           if (!mqttClients.has(clientKey)) {
             try {
-              const mqttClient = new BambuMqttClient(printerIp, device.dev_id, accessCode, device.name);
+              const mqttClient = new BambuMqttClient(printerIp, device.dev_id, accessCode, device.name || 'Local Printer');
               
               // Handle connection errors gracefully
               mqttClient.on('error', (error) => {
@@ -1809,42 +1839,62 @@ app.get('/api/printers', async (req, res) => {
               }
             }
             
-            // Always include AMS info at device level if available
-            if (jobData && jobData.ams) {
-              deviceData.ams = jobData.ams;
-              logger.info(`✓ AMS data set for ${device.dev_id}: ${jobData.ams.trays?.length || 0} trays`);
-            } else if (jobData) {
-              logger.debug(`✗ No AMS data in jobData for ${device.dev_id}`);
-            }
-            
-            if (jobData && jobData.name) {
-              // Pass all MQTT job data to current_task (includes temps, speeds, AMS, etc.)
-              deviceData.current_task = { ...jobData };
-              logger.debug(`Current task set for ${device.dev_id}, includes AMS: ${!!deviceData.current_task.ams}`);
+            if (jobData) {
+              // Always include AMS info at device level if available
+              if (jobData.ams) {
+                deviceData.ams = jobData.ams;
+                logger.info(`✓ AMS data set for ${device.dev_id}: ${jobData.ams.trays?.length || 0} trays`);
+              } else {
+                logger.debug(`✗ No AMS data in jobData for ${device.dev_id}`);
+              }
               
-              // Check if there's a 3MF file for this print
-              if (jobData.name) {
-                const file3mf = db.prepare(`
-                  SELECT f.filepath, f.modelId
-                  FROM files f
-                  JOIN prints p ON f.modelId = p.modelId
-                  WHERE p.title = ? AND f.filetype = '3mf'
-                  ORDER BY p.startTime DESC
-                  LIMIT 1
-                `).get(jobData.name);
+              // Only include current_task if there's an actual job (not idle)
+              const gcodeState = jobData.gcode_state ? jobData.gcode_state.toUpperCase() : 'IDLE';
+              if (jobData.name && gcodeState !== 'IDLE') {
+                // Pass all MQTT job data to current_task (includes temps, speeds, AMS, etc.)
+                deviceData.current_task = { ...jobData };
+                logger.debug(`Current task set for ${device.dev_id}, includes AMS: ${!!deviceData.current_task.ams}`);
                 
-                if (file3mf) {
-                  deviceData.current_task.model_id = file3mf.modelId;
-                  deviceData.current_task.has_3mf = true;
-                  logger.debug(`Found 3MF for current job: ${file3mf.modelId}`);
+                // Derive print_status from gcode_state for more accurate status
+                if (gcodeState === 'RUNNING') {
+                  deviceData.print_status = 'RUNNING';
+                } else if (gcodeState === 'FINISH') {
+                  deviceData.print_status = 'SUCCESS';
+                } else if (gcodeState === 'FAILED') {
+                  deviceData.print_status = 'FAILED';
+                } else if (gcodeState === 'PAUSE') {
+                  deviceData.print_status = 'PAUSED';
                 }
+                logger.debug(`Updated print_status to ${deviceData.print_status} based on gcode_state ${gcodeState}`);
+                
+                // Check if there's a 3MF file for this print
+                if (jobData.name) {
+                  const file3mf = db.prepare(`
+                    SELECT f.filepath, f.modelId
+                    FROM files f
+                    JOIN prints p ON f.modelId = p.modelId
+                    WHERE p.title = ? AND f.filetype = '3mf'
+                    ORDER BY p.startTime DESC
+                    LIMIT 1
+                  `).get(jobData.name);
+                  
+                  if (file3mf) {
+                    deviceData.current_task.model_id = file3mf.modelId;
+                    deviceData.current_task.has_3mf = true;
+                    logger.debug(`Found 3MF for current job: ${file3mf.modelId}`);
+                  }
+                }
+                
+                // Use integrated P1S camera RTSP URL if available from MQTT
+                if (jobData.rtsp_url && !deviceData.camera_rtsp_url) {
+                  deviceData.camera_rtsp_url = jobData.rtsp_url;
+                }
+                logger.debug(`Got job data via MQTT for ${device.dev_id}`);
+              } else {
+                // Printer is idle - set status explicitly
+                deviceData.print_status = 'IDLE';
+                logger.debug(`Printer ${device.dev_id} is IDLE (gcode_state: ${gcodeState})`);
               }
-              
-              // Use integrated P1S camera RTSP URL if available from MQTT
-              if (jobData.rtsp_url && !deviceData.camera_rtsp_url) {
-                deviceData.camera_rtsp_url = jobData.rtsp_url;
-              }
-              logger.debug(`Got job data via MQTT for ${device.dev_id}`);
             }
           }
         }

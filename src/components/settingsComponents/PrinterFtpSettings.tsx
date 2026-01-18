@@ -8,6 +8,7 @@ export function PrinterFtpSettings() {
   const { setToast } = useSettingsContext();
   const [printerIp, setPrinterIp] = useState('');
   const [printerAccessCode, setPrinterAccessCode] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
   const [cameraRtspUrl, setCameraRtspUrl] = useState('');
   const [ftpLoading, setFtpLoading] = useState(false);
   const [ftpTesting, setFtpTesting] = useState(false);
@@ -23,6 +24,7 @@ export function PrinterFtpSettings() {
       if (data.success) {
         setPrinterIp(data.printerIp || '');
         setPrinterAccessCode(data.printerAccessCode || '');
+        setSerialNumber(data.serialNumber || '');
         setCameraRtspUrl(data.cameraRtspUrl || '');
       }
     } catch (error) {
@@ -38,7 +40,7 @@ export function PrinterFtpSettings() {
       const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.SAVE_PRINTER_FTP, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printerIp, printerAccessCode, cameraRtspUrl }),
+        body: JSON.stringify({ printerIp, printerAccessCode, serialNumber, cameraRtspUrl }),
         credentials: 'include'
       });
       
@@ -108,6 +110,20 @@ export function PrinterFtpSettings() {
             placeholder="12345678"
             disabled={ftpLoading || ftpTesting}
           />
+        </div>
+        
+        <div className="form-group">
+          <label>Serial Number</label>
+          <input
+            type="text"
+            value={serialNumber}
+            onChange={(e) => setSerialNumber(e.target.value)}
+            placeholder="01S00A123456789"
+            disabled={ftpLoading || ftpTesting}
+          />
+          <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
+            Required for OIDC users without Bambu Cloud account
+          </small>
         </div>
         
         <div className="form-group">
