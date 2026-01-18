@@ -705,89 +705,110 @@
 /* SD Card Sync Modal */
 .sd-card-modal {
   max-width: 500px !important;
+  width: 95vw;
 }
 
+.sd-card-modal .video-modal-body,
 .sd-card-modal-body {
-  padding: 24px;
+  padding: 24px !important;
+  background: rgba(30, 30, 30, 0.95) !important;
+  min-height: auto !important;
+  display: block !important;
 }
 
 .sd-card-description {
-  margin-bottom: 20px;
-  color: var(--text-secondary);
-  line-height: 1.5;
+  margin-bottom: 24px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+  font-size: 14px;
 }
 
 .sd-card-field {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .sd-card-field label {
   display: block;
   margin-bottom: 8px;
-  font-weight: 500;
-  color: var(--text-primary);
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 14px;
 }
 
 .sd-card-input {
   width: 100%;
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--card-bg);
-  color: var(--text-primary);
-  font-size: 14px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  font-size: 15px;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.sd-card-input:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .sd-card-input:focus {
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.1);
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.15);
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .sd-card-input::placeholder {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .sd-card-actions {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  margin-top: 24px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .sd-card-actions .btn-cancel {
-  padding: 10px 20px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   background: transparent;
-  color: var(--text-primary);
-  font-weight: 500;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 14px;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition: all 0.2s ease;
 }
 
 .sd-card-actions .btn-cancel:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .sd-card-actions .btn-primary {
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: 12px 24px;
+  border-radius: 10px;
   border: none;
-  background: var(--primary-color);
+  background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
   color: white;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 14px;
   cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
 }
 
 .sd-card-actions .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
 }
 
 .sd-card-actions .btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
