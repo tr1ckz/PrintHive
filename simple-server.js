@@ -782,13 +782,13 @@ app.get('/auth/oidc/callback', async (req, res) => {
       const groups = Array.isArray(claims.groups) ? claims.groups : [claims.groups];
       console.log('User groups from Authentik:', groups);
       
-      // Check for admin groups (case-insensitive)
-      if (groups.some(g => ['admin', 'admins'].includes(g.toLowerCase()))) {
+      // Check for admin groups (case-insensitive) - only Admin/Admins get superadmin
+      if (groups.some(g => g.toLowerCase().includes('admin'))) {
         role = 'superadmin';
-        console.log('User is in Admin/Admins group - assigning superadmin role');
-      } else if (groups.some(g => ['users', 'friends'].includes(g.toLowerCase()))) {
+        console.log('User is in Admin group - assigning superadmin role');
+      } else {
         role = 'user';
-        console.log('User is in Users/Friends group - assigning user role');
+        console.log('User is not in Admin group - assigning user role');
       }
     }
     
