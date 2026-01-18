@@ -715,71 +715,131 @@ function updatePrintVideoPath(modelId, videoLocal) {
 }
 
 // Migration: Move Bambu credentials from settings table to bambu_accounts table
-try {
-  // Check if settings table exists and has bambu data
-  const settingsTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'").get();
-  
-  if (settingsTableExists) {
-    console.log('Found old settings table - checking for Bambu credentials to migrate...');
+function migrateBambuAccounts() {
+  try {
+    // Check if settings table exists and has bambu data
+    const settingsTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'").get();
     
-    // Get all users with Bambu credentials in settings table
-    const bambuSettings = db.prepare('SELECT user_id, bambu_email, bambu_token, bambu_region FROM settings WHERE bambu_token IS NOT NULL AND bambu_token != ""').all();
-    
-    if (bambuSettings.length > 0) {
-      console.log(`Found ${bambuSettings.length} Bambu credentials to migrate`);
+    if (settingsTableExists) {
+      console.log('Found old settings table - checking for Bambu credentials to migrate...');
       
-      for (const setting of bambuSettings) {
-        try {
-          // Check if already migrated
-          const existing = db.prepare('SELECT id FROM bambu_accounts WHERE user_id = ? AND email = ?').get(setting.user_id, setting.bambu_email);
-          
-          if (!existing) {
-            // Migrate to new table as primary account
-            db.prepare(`
-              INSERT INTO bambu_accounts (user_id, email, region, token, is_primary)
-              VALUES (?, ?, ?, ?, 1)
-            `).run(setting.user_id, setting.bambu_email, setting.bambu_region || 'global', setting.bambu_token);
-            
-            console.log(`✓ Migrated Bambu account for user ${setting.user_id}`);
-          } else {
-            console.log(`✓ Bambu account for user ${setting.user_id} already migrated`);
-          }
-        } catch (err) {
-          console.error(`Failed to migrate Bambu account for user ${setting.user_id}:`, err.message);
-        }
+      // Check if bambu columns exist in settings table
+      const columns = db.prepare("PRAGMA table_info(settings)").all();
+      const hasBambuEmail = columns.some(col => col.name === 'bambu_email');
+      const hasBambuToken = columns.some(col => col.name === 'bambu_token');
+      const hasBambuRegion = columns.some(col => col.name === 'bambu_region');
+      
+      if (!hasBambuToken) {
+        console.log('No bambu_token column in settings table - migration not needed');
+        return { migrated: 0, message: 'No Bambu columns found in settings table' };
       }
       
-      // After successful migration, remove Bambu columns from settings table
-      console.log('Migration complete - cleaning up old settings table...');
-      try {
-        // SQLite doesn't support DROP COLUMN directly, so we need to recreate the table
-        db.exec(`
-          CREATE TABLE IF NOT EXISTS settings_new (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            printer_ip TEXT,
-            printer_access_code TEXT,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-          );
-          
-          INSERT INTO settings_new (id, user_id, printer_ip, printer_access_code, updated_at)
-          SELECT id, user_id, printer_ip, printer_access_code, updated_at FROM settings;
-          
-          DROP TABLE settings;
-          
-          ALTER TABLE settings_new RENAME TO settings;
-        `);
-        console.log('✓ Cleaned up old settings table');
-      } catch (err) {
-        console.error('Failed to cleanup settings table (non-critical):', err.message);
+      // Build SELECT query based on available columns
+      let selectQuery = 'SELECT user_id';
+      if (hasBambuEmail) selectQuery += ', bambu_email';
+      if (hasBambuToken) selectQuery += ', bambu_token';
+      if (hasBambuRegion) selectQuery += ', bambu_region';
+      selectQuery += ' FROM settings WHERE bambu_token IS NOT NULL AND bambu_token != ""';
+      
+      // Get all users with Bambu credentials in settings table
+      const bambuSettings = db.prepare(selectQuery).all();
+      
+      if (bambuSettings.length > 0) {
+        console.log(`Found ${bambuSettings.length} Bambu credentials to migrate`);
+        let migrated = 0;
+        
+        for (const setting of bambuSettings) {
+          try {
+            const email = setting.bambu_email || 'imported@bambulab.com';
+            const region = setting.bambu_region || 'global';
+            
+            // Check if already migrated
+            const existing = db.prepare('SELECT id FROM bambu_accounts WHERE user_id = ? AND token = ?').get(setting.user_id, setting.bambu_token);
+            
+            if (!existing) {
+              // Migrate to new table as primary account
+              db.prepare(`
+                INSERT INTO bambu_accounts (user_id, email, region, token, is_primary)
+                VALUES (?, ?, ?, ?, 1)
+              `).run(setting.user_id, email, region, setting.bambu_token);
+              
+              console.log(`✓ Migrated Bambu account for user ${setting.user_id}`);
+              migrated++;
+            } else {
+              console.log(`✓ Bambu account for user ${setting.user_id} already migrated`);
+            }
+          } catch (err) {
+            console.error(`Failed to migrate Bambu account for user ${setting.user_id}:`, err.message);
+          }
+        }
+        
+        // After successful migration, remove Bambu columns from settings table
+        if (migrated > 0) {
+          console.log('Migration complete - cleaning up old settings table...');
+          try {
+            // Check if we need to preserve other columns
+            const hasOtherColumns = columns.some(col => 
+              col.name !== 'bambu_email' && 
+              col.name !== 'bambu_token' && 
+              col.name !== 'bambu_region' &&
+              col.name !== 'id' &&
+              col.name !== 'user_id' &&
+              col.name !== 'updated_at'
+            );
+            
+            if (hasOtherColumns) {
+              // Build column list excluding bambu columns
+              const preservedColumns = columns
+                .filter(col => !['bambu_email', 'bambu_token', 'bambu_region'].includes(col.name))
+                .map(col => col.name)
+                .join(', ');
+              
+              // SQLite doesn't support DROP COLUMN directly, so we need to recreate the table
+              db.exec(`
+                CREATE TABLE IF NOT EXISTS settings_new (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id INTEGER NOT NULL,
+                  printer_ip TEXT,
+                  printer_access_code TEXT,
+                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  FOREIGN KEY (user_id) REFERENCES users(id)
+                );
+                
+                INSERT INTO settings_new (${preservedColumns})
+                SELECT ${preservedColumns} FROM settings;
+                
+                DROP TABLE settings;
+                
+                ALTER TABLE settings_new RENAME TO settings;
+              `);
+              console.log('✓ Cleaned up old settings table');
+            }
+          } catch (err) {
+            console.error('Failed to cleanup settings table (non-critical):', err.message);
+          }
+        }
+        
+        return { migrated, message: `Successfully migrated ${migrated} Bambu accounts` };
+      } else {
+        console.log('No Bambu credentials found in settings table to migrate');
+        return { migrated: 0, message: 'No Bambu credentials found to migrate' };
       }
     } else {
-      console.log('No Bambu credentials found in settings table to migrate');
+      console.log('Settings table does not exist - migration not needed');
+      return { migrated: 0, message: 'Settings table does not exist' };
     }
+  } catch (error) {
+    console.error('Bambu account migration check failed:', error.message);
+    return { migrated: 0, error: error.message };
   }
+}
+
+// Run migration on startup
+try {
+  const result = migrateBambuAccounts();
+  console.log('Bambu account migration result:', result);
 } catch (error) {
-  console.error('Bambu account migration check failed (non-critical):', error.message);
+  console.error('Bambu account migration failed:', error.message);
 }
 
 module.exports = {
@@ -796,5 +856,6 @@ module.exports = {
   downloadTimelapseVideo,
   updatePrintVideoPath,
   libraryDir,
-  videosDir
+  videosDir,
+  migrateBambuAccounts
 };

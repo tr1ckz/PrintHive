@@ -5841,6 +5841,18 @@ app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
   }
 });
 
+// Admin: Manually trigger Bambu account migration
+app.post('/api/admin/migrate-bambu-accounts', requireAdmin, (req, res) => {
+  try {
+    const { migrateBambuAccounts } = require('./database');
+    const result = migrateBambuAccounts();
+    res.json(result);
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Admin: Get OAuth settings
 app.get('/api/settings/oauth', requireAdmin, (req, res) => {
   try {
