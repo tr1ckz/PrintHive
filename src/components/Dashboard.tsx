@@ -6,7 +6,6 @@ import Settings from './Settings';
 import DashboardHome from './DashboardHome';
 import Maintenance from './Maintenance';
 import Printers from './Printers';
-import ThemeToggle from './ThemeToggle';
 import CommandPalette from './CommandPalette';
 import Statistics from './Statistics';
 import BackgroundJobTracker from './BackgroundJobTracker';
@@ -292,9 +291,6 @@ function Dashboard({ onLogout }: DashboardProps) {
       
       {/* Background Job Tracker */}
       <BackgroundJobTracker />
-      
-      {/* Theme Toggle */}
-      <ThemeToggle />
       
       {/* Command Palette */}
       <CommandPalette onNavigate={(tab) => handleTabChange(tab as Tab)} />

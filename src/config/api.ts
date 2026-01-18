@@ -25,6 +25,8 @@ export const API_ENDPOINTS = {
   
   PRINTERS: {
     LIST: `${API_BASE_URL}/api/printers`,
+    CONFIG: `${API_BASE_URL}/api/printers/config`,
+    CONFIG_DELETE: (devId: string) => `${API_BASE_URL}/api/printers/config/${devId}`,
     CAMERA_SNAPSHOT: `${API_BASE_URL}/api/camera-snapshot`,
     DOWNLOAD: (modelId: string) => `${API_BASE_URL}/api/printer/download/${modelId}`,
     JOB_COVER: (deviceId: string) => `${API_BASE_URL}/api/job-cover/${deviceId}`,

@@ -162,51 +162,36 @@ export function BambuSettings() {
 
       {/* Connected Accounts List */}
       {accounts.length > 0 && (
-        <div className="bambu-accounts-list" style={{ marginBottom: '20px' }}>
+        <div className="bambu-accounts-list">
           {accounts.map((account) => (
-            <div key={account.id} className="bambu-account-card" style={{ 
-              padding: '15px', 
-              background: 'var(--card-bg)', 
-              border: '1px solid var(--border)', 
-              borderRadius: '8px', 
-              marginBottom: '10px' 
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <strong>{account.email}</strong>
+            <div key={account.id} className="bambu-account-card">
+              <div className="account-card-content">
+                <div className="account-info">
+                  <div className="account-email-row">
+                    <span className="account-email">{account.email}</span>
                     {account.is_primary && (
-                      <span style={{ 
-                        fontSize: '12px', 
-                        padding: '2px 8px', 
-                        background: 'var(--accent-color)', 
-                        borderRadius: '4px' 
-                      }}>
-                        Primary
-                      </span>
+                      <span className="primary-badge">Primary</span>
                     )}
                   </div>
-                  <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
+                  <span className="account-meta">
                     Region: {account.region === 'china' ? 'China' : 'Global'} • 
                     Updated: {new Date(account.updated_at).toLocaleString()}
-                  </small>
+                  </span>
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="account-actions">
                   {!account.is_primary && (
                     <button 
-                      className="btn btn-secondary"
+                      className="btn btn-secondary btn-sm"
                       onClick={() => handleSetPrimary(account.id)}
                       disabled={loading}
-                      style={{ fontSize: '14px', padding: '6px 12px' }}
                     >
                       Set Primary
                     </button>
                   )}
                   <button 
-                    className="btn btn-danger"
+                    className="btn btn-danger btn-sm"
                     onClick={() => handleDisconnect(account.id)}
                     disabled={loading}
-                    style={{ fontSize: '14px', padding: '6px 12px' }}
                   >
                     Remove
                   </button>
