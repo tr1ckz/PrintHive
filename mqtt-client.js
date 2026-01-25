@@ -91,6 +91,53 @@ class BambuMqttClient extends EventEmitter {
         logger.debug('P1S Camera RTSP URL detected');
       }
       
+      // Capture fan status data
+      if (printData.cooling_fan_speed !== undefined || printData.big_fan1_speed !== undefined) {
+        const fanData = {
+          device_id: this.serialNumber,
+          device_name: this.printerName,
+          part_cooling_fan: printData.cooling_fan_speed || 0,
+          aux_fan: printData.big_fan1_speed || 0,
+          chamber_fan: printData.big_fan2_speed || 0,
+          mc_fan: printData.mc_percent || 0,
+          heatbreak_fan: printData.heatbreak_fan_speed || 0
+        };
+        
+        this.emit('fan_status', fanData);
+      }
+      
+      // Capture HMS (Health Management System) errors
+      if (printData.hms || printData.mc_print_error_code) {
+        const hmsData = printData.hms || [];
+        const errorCode = printData.mc_print_error_code || printData.print_error;
+        
+        // Emit HMS errors for logging
+        if (Array.isArray(hmsData) && hmsData.length > 0) {
+          hmsData.forEach(error => {
+            this.emit('hms_error', {
+              device_id: this.serialNumber,
+              device_name: this.printerName,
+              error_code: error.code || error.error_code,
+              error_attr: error.attr || 0,
+              error_message: error.msg || error.message || 'Unknown error',
+              severity: error.level === 'fatal' ? 'critical' : 'warning',
+              module: error.module || 'printer'
+            });
+          });
+        } else if (errorCode && errorCode > 0) {
+          // Legacy error code format
+          this.emit('hms_error', {
+            device_id: this.serialNumber,
+            device_name: this.printerName,
+            error_code: errorCode,
+            error_attr: printData.mc_print_error_attr || 0,
+            error_message: printData.mc_print_error_msg || `Error code: ${errorCode}`,
+            severity: 'warning',
+            module: 'printer'
+          });
+        }
+      }
+      
       // Initialize currentJobData if null
       if (!this.currentJobData) {
         this.currentJobData = {

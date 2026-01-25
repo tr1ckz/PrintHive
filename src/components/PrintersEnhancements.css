@@ -1,0 +1,284 @@
+/* Multi-viewer and card size support */
+.view-mode-selector {
+  display: flex;
+  gap: 0.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 0.25rem;
+  background: var(--bg-secondary);
+}
+
+.view-mode-selector .btn-icon {
+  padding: 0.5rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: all 0.2s;
+  color: var(--text-secondary);
+}
+
+.view-mode-selector .btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.view-mode-selector .btn-icon.active {
+  background: var(--accent-color);
+  color: white;
+}
+
+.size-selector {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.size-selector:hover {
+  border-color: var(--accent-color);
+}
+
+/* Grid layouts for different card sizes */
+.printers-grid.small {
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.printers-grid.medium {
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.printers-grid.large {
+  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+  gap: 2rem;
+}
+
+.printers-grid.xlarge {
+  grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
+  gap: 2rem;
+}
+
+/* List view */
+.printers-grid.list {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.printers-grid.list .printer-card {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 1.5rem;
+}
+
+/* Printer stats grid */
+.printer-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Fan status display */
+.fan-status {
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  margin-top: 0.75rem;
+}
+
+.fan-status .chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  background: var(--accent-color-10);
+  color: var(--accent-color);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* HMS errors display */
+.hms-errors {
+  padding: 0.75rem;
+  background: rgba(255, 69, 58, 0.1);
+  border-left: 3px solid var(--error);
+  border-radius: var(--radius);
+  margin-top: 0.75rem;
+}
+
+.hms-error-item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 69, 58, 0.2);
+}
+
+.hms-error-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.error-code {
+  flex-shrink: 0;
+  padding: 0.25rem 0.5rem;
+  background: var(--error);
+  color: white;
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.error-message {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+/* Small card adjustments */
+.printers-grid.small .printer-camera {
+  height: 150px;
+}
+
+.printers-grid.small .printer-details {
+  display: none;
+}
+
+.printers-grid.small .printer-stats-grid {
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+/* Medium card (default) */
+.printers-grid.medium .printer-camera {
+  height: 200px;
+}
+
+/* Large card */
+.printers-grid.large .printer-camera {
+  height: 280px;
+}
+
+/* XL card */
+.printers-grid.xlarge .printer-camera {
+  height: 350px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .printers-grid.small,
+  .printers-grid.medium,
+  .printers-grid.large,
+  .printers-grid.xlarge {
+    grid-template-columns: 1fr;
+  }
+  
+  .view-mode-selector,
+  .size-selector {
+    display: none;
+  }
+  
+  .printers-grid.list .printer-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Advanced search modal */
+.advanced-search-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.advanced-search-content {
+  background: var(--bg-primary);
+  border-radius: var(--radius);
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.advanced-search-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.advanced-search-body {
+  padding: 1.5rem;
+}
+
+.search-field {
+  margin-bottom: 1rem;
+}
+
+.search-field label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.search-field input,
+.search-field select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.search-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.advanced-search-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}

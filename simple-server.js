@@ -2227,6 +2227,38 @@ app.get('/api/printers', async (req, res) => {
                 });
               });
               
+              // Handle HMS errors
+              mqttClient.on('hms_error', async (errorData) => {
+                try {
+                  const { storeHmsError } = require('./database');
+                  storeHmsError(errorData);
+                  logger.warn(`HMS Error on ${errorData.device_name}: ${errorData.error_message} (code: ${errorData.error_code})`);
+                  
+                  // Send notification for critical errors
+                  if (errorData.severity === 'critical') {
+                    await sendNotification('printer', {
+                      status: 'error',
+                      printerName: errorData.device_name,
+                      message: `Critical HMS Error: ${errorData.error_message}`,
+                      errorCode: `HMS-${errorData.error_code}`
+                    });
+                  }
+                } catch (err) {
+                  logger.error('Failed to store HMS error:', err);
+                }
+              });
+              
+              // Handle fan status updates
+              mqttClient.on('fan_status', async (fanData) => {
+                try {
+                  const { storeFanStatus } = require('./database');
+                  storeFanStatus(fanData);
+                  logger.debug(`Fan status updated for ${fanData.device_name}`);
+                } catch (err) {
+                  logger.error('Failed to store fan status:', err);
+                }
+              });
+              
               await mqttClient.connect();
               mqttClients.set(clientKey, mqttClient);
               logger.info(`Created MQTT client for ${device.dev_id}`);
@@ -9243,6 +9275,599 @@ app.post('/api/settings/database/restore', async (req, res) => {
     if (!asyncMode) {
       res.status(500).json({ success: false, error: error.message });
     }
+  }
+});
+
+// ========== HMS ERROR MONITORING ENDPOINTS ==========
+
+// Get HMS errors for a specific printer or all printers
+app.get('/api/hms-errors', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { device_id, limit } = req.query;
+    const { getHmsErrors } = require('./database');
+    const errors = getHmsErrors(device_id, parseInt(limit) || 100);
+    res.json({ errors });
+  } catch (error) {
+    logger.error('Failed to fetch HMS errors:', error);
+    res.status(500).json({ error: 'Failed to fetch HMS errors' });
+  }
+});
+
+// Get HMS error statistics
+app.get('/api/hms-errors/stats', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { device_id, days } = req.query;
+    const { getHmsErrorStats } = require('./database');
+    const stats = getHmsErrorStats(device_id, parseInt(days) || 30);
+    res.json({ stats });
+  } catch (error) {
+    logger.error('Failed to fetch HMS error stats:', error);
+    res.status(500).json({ error: 'Failed to fetch HMS error stats' });
+  }
+});
+
+// Resolve an HMS error
+app.post('/api/hms-errors/:id/resolve', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { id } = req.params;
+    const { resolveHmsError } = require('./database');
+    resolveHmsError(parseInt(id));
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to resolve HMS error:', error);
+    res.status(500).json({ error: 'Failed to resolve HMS error' });
+  }
+});
+
+// ========== FAN STATUS MONITORING ENDPOINTS ==========
+
+// Get latest fan status for a printer
+app.get('/api/fan-status/:device_id', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { device_id } = req.params;
+    const { getLatestFanStatus } = require('./database');
+    const fanStatus = getLatestFanStatus(device_id);
+    res.json({ fanStatus });
+  } catch (error) {
+    logger.error('Failed to fetch fan status:', error);
+    res.status(500).json({ error: 'Failed to fetch fan status' });
+  }
+});
+
+// Get fan status history
+app.get('/api/fan-status/:device_id/history', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { device_id } = req.params;
+    const { hours } = req.query;
+    const { getFanStatusHistory } = require('./database');
+    const history = getFanStatusHistory(device_id, parseInt(hours) || 24);
+    res.json({ history });
+  } catch (error) {
+    logger.error('Failed to fetch fan status history:', error);
+    res.status(500).json({ error: 'Failed to fetch fan status history' });
+  }
+});
+
+// ========== 3MF METADATA ENDPOINTS ==========
+
+// Parse 3MF file and extract metadata
+app.post('/api/3mf/parse', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { file_path, model_id } = req.body;
+    const { parse3mfFile } = require('./threemf-parser');
+    const { store3mfMetadata } = require('./database');
+    
+    if (!file_path) {
+      return res.status(400).json({ error: 'file_path is required' });
+    }
+    
+    const metadata = parse3mfFile(file_path);
+    if (!metadata) {
+      return res.status(500).json({ error: 'Failed to parse 3MF file' });
+    }
+    
+    // Override model_id if provided
+    if (model_id) {
+      metadata.model_id = model_id;
+    }
+    
+    // Store in database
+    store3mfMetadata(metadata);
+    
+    res.json({ success: true, metadata });
+  } catch (error) {
+    logger.error('Failed to parse 3MF:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get 3MF metadata for a print
+app.get('/api/3mf/metadata/:model_id', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { model_id } = req.params;
+    const { get3mfMetadata } = require('./database');
+    const metadata = get3mfMetadata(model_id);
+    res.json({ metadata });
+  } catch (error) {
+    logger.error('Failed to fetch 3MF metadata:', error);
+    res.status(500).json({ error: 'Failed to fetch 3MF metadata' });
+  }
+});
+
+// ========== ADVANCED PRINTER CONTROL ENDPOINTS ==========
+
+// Send command to printer via MQTT
+app.post('/api/printers/:device_id/command', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { device_id } = req.params;
+    const { command, params } = req.body;
+    
+    // Get MQTT client for this printer
+    const mqttClient = mqttClients.get(device_id);
+    if (!mqttClient || !mqttClient.connected) {
+      return res.status(400).json({ error: 'Printer not connected via MQTT' });
+    }
+    
+    // Build command message
+    const message = {
+      [command]: {
+        sequence_id: Date.now().toString(),
+        command: command,
+        ...params
+      }
+    };
+    
+    // Send command
+    const topic = `device/${device_id}/request`;
+    mqttClient.client.publish(topic, JSON.stringify(message), (err) => {
+      if (err) {
+        logger.error('Error sending command:', err);
+        res.status(500).json({ error: 'Failed to send command' });
+      } else {
+        logger.info(`Sent command ${command} to ${device_id}`);
+        res.json({ success: true });
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to send printer command:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Skip objects during print
+app.post('/api/printers/:device_id/skip-objects', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { device_id } = req.params;
+    const { object_ids } = req.body;
+    
+    if (!Array.isArray(object_ids)) {
+      return res.status(400).json({ error: 'object_ids must be an array' });
+    }
+    
+    const mqttClient = mqttClients.get(device_id);
+    if (!mqttClient || !mqttClient.connected) {
+      return res.status(400).json({ error: 'Printer not connected via MQTT' });
+    }
+    
+    const message = {
+      print: {
+        sequence_id: Date.now().toString(),
+        command: 'gcode_line',
+        param: `EXCLUDE_OBJECT NAME=${object_ids.join(',')}`
+      }
+    };
+    
+    const topic = `device/${device_id}/request`;
+    mqttClient.client.publish(topic, JSON.stringify(message), (err) => {
+      if (err) {
+        logger.error('Error skipping objects:', err);
+        res.status(500).json({ error: 'Failed to skip objects' });
+      } else {
+        logger.info(`Skipped objects ${object_ids.join(',')} on ${device_id}`);
+        res.json({ success: true });
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to skip objects:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Re-read AMS slot RFID
+app.post('/api/printers/:device_id/ams/:tray_id/refresh', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { device_id, tray_id } = req.params;
+    
+    const mqttClient = mqttClients.get(device_id);
+    if (!mqttClient || !mqttClient.connected) {
+      return res.status(400).json({ error: 'Printer not connected via MQTT' });
+    }
+    
+    const message = {
+      print: {
+        sequence_id: Date.now().toString(),
+        command: 'ams_filament_setting',
+        ams_id: 0,
+        tray_id: parseInt(tray_id),
+        tray_info_idx: 'action',
+        tray_action: 'refresh'
+      }
+    };
+    
+    const topic = `device/${device_id}/request`;
+    mqttClient.client.publish(topic, JSON.stringify(message), (err) => {
+      if (err) {
+        logger.error('Error refreshing AMS slot:', err);
+        res.status(500).json({ error: 'Failed to refresh AMS slot' });
+      } else {
+        logger.info(`Refreshed AMS slot ${tray_id} on ${device_id}`);
+        res.json({ success: true });
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to refresh AMS slot:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Configure AMS slot
+app.post('/api/printers/:device_id/ams/:tray_id/config', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { device_id, tray_id } = req.params;
+    const { filament_type, color, k_value, nozzle_temp, bed_temp } = req.body;
+    
+    const mqttClient = mqttClients.get(device_id);
+    if (!mqttClient || !mqttClient.connected) {
+      return res.status(400).json({ error: 'Printer not connected via MQTT' });
+    }
+    
+    const message = {
+      print: {
+        sequence_id: Date.now().toString(),
+        command: 'ams_filament_setting',
+        ams_id: 0,
+        tray_id: parseInt(tray_id),
+        tray_info_idx: filament_type || color,
+        tray_type: filament_type,
+        tray_color: color,
+        k_value: k_value,
+        nozzle_temp_min: nozzle_temp?.min,
+        nozzle_temp_max: nozzle_temp?.max,
+        bed_temp: bed_temp
+      }
+    };
+    
+    const topic = `device/${device_id}/request`;
+    mqttClient.client.publish(topic, JSON.stringify(message), (err) => {
+      if (err) {
+        logger.error('Error configuring AMS slot:', err);
+        res.status(500).json({ error: 'Failed to configure AMS slot' });
+      } else {
+        logger.info(`Configured AMS slot ${tray_id} on ${device_id}`);
+        res.json({ success: true });
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to configure AMS slot:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Control chamber light
+app.post('/api/printers/:device_id/chamber-light', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { device_id } = req.params;
+    const { on } = req.body;
+    
+    const mqttClient = mqttClients.get(device_id);
+    if (!mqttClient || !mqttClient.connected) {
+      return res.status(400).json({ error: 'Printer not connected via MQTT' });
+    }
+    
+    const message = {
+      system: {
+        sequence_id: Date.now().toString(),
+        command: 'ledctrl',
+        led_node: 'chamber_light',
+        led_mode: on ? 'on' : 'off'
+      }
+    };
+    
+    const topic = `device/${device_id}/request`;
+    mqttClient.client.publish(topic, JSON.stringify(message), (err) => {
+      if (err) {
+        logger.error('Error controlling chamber light:', err);
+        res.status(500).json({ error: 'Failed to control chamber light' });
+      } else {
+        logger.info(`Set chamber light ${on ? 'on' : 'off'} on ${device_id}`);
+        res.json({ success: true });
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to control chamber light:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== RE-PRINT WITH AMS MAPPING ENDPOINT ==========
+
+// Re-print a previous print with AMS mapping
+app.post('/api/prints/:model_id/reprint', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { model_id } = req.params;
+    const { device_id, ams_mapping, plate_index } = req.body;
+    
+    // Get the 3MF file for this print
+    const { getPrintByModelIdFromDb, getFilesForPrint } = require('./database');
+    const print = getPrintByModelIdFromDb(model_id);
+    if (!print) {
+      return res.status(404).json({ error: 'Print not found' });
+    }
+    
+    const files = getFilesForPrint(model_id);
+    const file3mf = files.find(f => f.fileType === '3mf');
+    
+    if (!file3mf) {
+      return res.status(404).json({ error: '3MF file not found for this print' });
+    }
+    
+    // Check if file exists
+    if (!fs.existsSync(file3mf.filePath)) {
+      return res.status(404).json({ error: '3MF file no longer exists on disk' });
+    }
+    
+    // Get MQTT client for target printer
+    const mqttClient = mqttClients.get(device_id);
+    if (!mqttClient || !mqttClient.connected) {
+      return res.status(400).json({ error: 'Target printer not connected via MQTT' });
+    }
+    
+    // Get printer config for FTP upload
+    const printerConfig = db.prepare('SELECT ip_address, access_code FROM printers WHERE dev_id = ?').get(device_id);
+    if (!printerConfig || !printerConfig.ip_address) {
+      return res.status(400).json({ error: 'Printer IP address not configured' });
+    }
+    
+    // Upload file via FTP
+    const fileName = path.basename(file3mf.filePath);
+    const remotePath = `/cache/${fileName}`;
+    
+    try {
+      await bambuFtp.uploadFile(
+        printerConfig.ip_address,
+        printerConfig.access_code || 'bblp',
+        file3mf.filePath,
+        remotePath
+      );
+      
+      logger.info(`Uploaded ${fileName} to printer ${device_id}`);
+    } catch (ftpError) {
+      logger.error('FTP upload failed:', ftpError);
+      return res.status(500).json({ error: 'Failed to upload file to printer' });
+    }
+    
+    // Build print command with AMS mapping
+    const message = {
+      print: {
+        sequence_id: Date.now().toString(),
+        command: 'project_file',
+        param: remotePath,
+        subtask_name: print.title || 'Re-print',
+        url: `ftp://${remotePath}`,
+        bed_type: print.bedType || 'auto',
+        timelapse: true,
+        bed_leveling: true,
+        flow_cali: false,
+        vibration_cali: false,
+        layer_inspect: false,
+        use_ams: !!ams_mapping,
+        ams_mapping: ams_mapping || [],
+        profile_id: print.profileId || '0',
+        project_id: model_id,
+        subtask_id: model_id,
+        task_id: model_id,
+        plate_index: plate_index || 0
+      }
+    };
+    
+    const topic = `device/${device_id}/request`;
+    mqttClient.client.publish(topic, JSON.stringify(message), (err) => {
+      if (err) {
+        logger.error('Error starting print:', err);
+        res.status(500).json({ error: 'Failed to start print' });
+      } else {
+        logger.info(`Started re-print of ${model_id} on ${device_id}`);
+        res.json({ success: true, message: 'Print started successfully' });
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to re-print:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== ADVANCED SEARCH ENDPOINT ==========
+
+// Advanced search with full-text search across all fields
+app.get('/api/search/advanced', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  try {
+    const { 
+      query, 
+      device_id,
+      status,
+      date_from,
+      date_to,
+      has_video,
+      has_3mf,
+      filament_type,
+      min_weight,
+      max_weight,
+      limit,
+      offset
+    } = req.query;
+    
+    let sql = `
+      SELECT DISTINCT p.*, 
+             CASE WHEN f3mf.id IS NOT NULL THEN 1 ELSE 0 END as has_3mf_file,
+             CASE WHEN pv.id IS NOT NULL THEN 1 ELSE 0 END as has_video_file,
+             m.filament_type as metadata_filament_type
+      FROM prints p
+      LEFT JOIN files f3mf ON p.modelId = f3mf.modelId AND f3mf.fileType = '3mf'
+      LEFT JOIN (SELECT DISTINCT modelId, id FROM files WHERE fileType = 'mp4') pv ON p.modelId = pv.modelId
+      LEFT JOIN print_3mf_metadata m ON p.modelId = m.model_id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    // Full-text search across multiple fields
+    if (query) {
+      sql += ` AND (
+        p.title LIKE ? OR 
+        p.designTitle LIKE ? OR 
+        p.deviceName LIKE ? OR 
+        p.material LIKE ? OR
+        p.profileName LIKE ?
+      )`;
+      const searchPattern = `%${query}%`;
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+    }
+    
+    if (device_id) {
+      sql += ` AND p.deviceId = ?`;
+      params.push(device_id);
+    }
+    
+    if (status) {
+      sql += ` AND p.status = ?`;
+      params.push(status);
+    }
+    
+    if (date_from) {
+      sql += ` AND p.startTime >= ?`;
+      params.push(date_from);
+    }
+    
+    if (date_to) {
+      sql += ` AND p.startTime <= ?`;
+      params.push(date_to);
+    }
+    
+    if (has_video === 'true') {
+      sql += ` AND pv.id IS NOT NULL`;
+    } else if (has_video === 'false') {
+      sql += ` AND pv.id IS NULL`;
+    }
+    
+    if (has_3mf === 'true') {
+      sql += ` AND f3mf.id IS NOT NULL`;
+    } else if (has_3mf === 'false') {
+      sql += ` AND f3mf.id IS NULL`;
+    }
+    
+    if (filament_type) {
+      sql += ` AND (p.material LIKE ? OR m.filament_type LIKE ?)`;
+      const filamentPattern = `%${filament_type}%`;
+      params.push(filamentPattern, filamentPattern);
+    }
+    
+    if (min_weight) {
+      sql += ` AND p.weight >= ?`;
+      params.push(parseFloat(min_weight));
+    }
+    
+    if (max_weight) {
+      sql += ` AND p.weight <= ?`;
+      params.push(parseFloat(max_weight));
+    }
+    
+    sql += ` ORDER BY p.startTime DESC`;
+    
+    if (limit) {
+      sql += ` LIMIT ?`;
+      params.push(parseInt(limit));
+    }
+    
+    if (offset) {
+      sql += ` OFFSET ?`;
+      params.push(parseInt(offset));
+    }
+    
+    const results = db.prepare(sql).all(...params);
+    
+    // Get total count
+    let countSql = sql.replace(/SELECT DISTINCT.*FROM/, 'SELECT COUNT(DISTINCT p.id) as total FROM');
+    countSql = countSql.replace(/ORDER BY.*/, '');
+    countSql = countSql.replace(/LIMIT.*/, '');
+    countSql = countSql.replace(/OFFSET.*/, '');
+    
+    const countParams = params.filter((_, i) => {
+      // Remove LIMIT and OFFSET params
+      return i < params.length - (limit ? 1 : 0) - (offset ? 1 : 0);
+    });
+    
+    const { total } = db.prepare(countSql).get(...countParams);
+    
+    res.json({ results, total, count: results.length });
+  } catch (error) {
+    logger.error('Advanced search failed:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

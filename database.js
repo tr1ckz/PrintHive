@@ -251,6 +251,67 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_bambu_accounts_user ON bambu_accounts(user_id);
+
+  CREATE TABLE IF NOT EXISTS hms_errors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    device_name TEXT,
+    error_code INTEGER NOT NULL,
+    error_attr INTEGER,
+    error_message TEXT,
+    severity TEXT,
+    module TEXT,
+    occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at DATETIME,
+    status TEXT DEFAULT 'active'
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_hms_device_id ON hms_errors(device_id);
+  CREATE INDEX IF NOT EXISTS idx_hms_occurred_at ON hms_errors(occurred_at);
+  CREATE INDEX IF NOT EXISTS idx_hms_status ON hms_errors(status);
+
+  CREATE TABLE IF NOT EXISTS print_3mf_metadata (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id TEXT UNIQUE NOT NULL,
+    layer_height REAL,
+    initial_layer_height REAL,
+    wall_thickness REAL,
+    top_layers INTEGER,
+    bottom_layers INTEGER,
+    infill_density INTEGER,
+    infill_pattern TEXT,
+    support_type TEXT,
+    print_speed INTEGER,
+    travel_speed INTEGER,
+    nozzle_temp INTEGER,
+    bed_temp INTEGER,
+    filament_type TEXT,
+    filament_brand TEXT,
+    filament_color TEXT,
+    estimated_time INTEGER,
+    estimated_filament REAL,
+    thumbnail_data TEXT,
+    slicer_version TEXT,
+    metadata_json TEXT,
+    FOREIGN KEY (model_id) REFERENCES prints(modelId)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_3mf_model_id ON print_3mf_metadata(model_id);
+
+  CREATE TABLE IF NOT EXISTS fan_status_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    device_name TEXT,
+    part_cooling_fan INTEGER,
+    aux_fan INTEGER,
+    chamber_fan INTEGER,
+    mc_fan INTEGER,
+    heatbreak_fan INTEGER,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_fan_device_id ON fan_status_history(device_id);
+  CREATE INDEX IF NOT EXISTS idx_fan_timestamp ON fan_status_history(timestamp);
 `);
 
 // Migration: Move settings to global config table
@@ -889,6 +950,157 @@ try {
   console.error('Bambu account migration failed:', error.message);
 }
 
+// HMS Error functions
+function storeHmsError(errorData) {
+  const stmt = db.prepare(`
+    INSERT INTO hms_errors (device_id, device_name, error_code, error_attr, error_message, severity, module, occurred_at, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 'active')
+  `);
+  
+  return stmt.run(
+    errorData.device_id,
+    errorData.device_name,
+    errorData.error_code,
+    errorData.error_attr,
+    errorData.error_message,
+    errorData.severity || 'warning',
+    errorData.module || 'unknown'
+  );
+}
+
+function getHmsErrors(deviceId = null, limit = 100) {
+  let query = `
+    SELECT * FROM hms_errors 
+    WHERE 1=1
+  `;
+  const params = [];
+  
+  if (deviceId) {
+    query += ` AND device_id = ?`;
+    params.push(deviceId);
+  }
+  
+  query += ` ORDER BY occurred_at DESC LIMIT ?`;
+  params.push(limit);
+  
+  return db.prepare(query).all(...params);
+}
+
+function resolveHmsError(errorId) {
+  const stmt = db.prepare(`
+    UPDATE hms_errors 
+    SET status = 'resolved', resolved_at = datetime('now')
+    WHERE id = ?
+  `);
+  
+  return stmt.run(errorId);
+}
+
+function getHmsErrorStats(deviceId = null, days = 30) {
+  let query = `
+    SELECT 
+      COUNT(*) as total_errors,
+      COUNT(CASE WHEN status = 'active' THEN 1 END) as active_errors,
+      COUNT(CASE WHEN status = 'resolved' THEN 1 END) as resolved_errors,
+      COUNT(CASE WHEN severity = 'critical' THEN 1 END) as critical_errors,
+      COUNT(CASE WHEN severity = 'warning' THEN 1 END) as warning_errors
+    FROM hms_errors
+    WHERE occurred_at >= datetime('now', '-' || ? || ' days')
+  `;
+  const params = [days];
+  
+  if (deviceId) {
+    query += ` AND device_id = ?`;
+    params.push(deviceId);
+  }
+  
+  return db.prepare(query).get(...params);
+}
+
+// Fan status functions
+function storeFanStatus(fanData) {
+  const stmt = db.prepare(`
+    INSERT INTO fan_status_history 
+    (device_id, device_name, part_cooling_fan, aux_fan, chamber_fan, mc_fan, heatbreak_fan, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `);
+  
+  return stmt.run(
+    fanData.device_id,
+    fanData.device_name,
+    fanData.part_cooling_fan,
+    fanData.aux_fan,
+    fanData.chamber_fan,
+    fanData.mc_fan,
+    fanData.heatbreak_fan
+  );
+}
+
+function getLatestFanStatus(deviceId) {
+  const stmt = db.prepare(`
+    SELECT * FROM fan_status_history 
+    WHERE device_id = ?
+    ORDER BY timestamp DESC
+    LIMIT 1
+  `);
+  
+  return stmt.get(deviceId);
+}
+
+function getFanStatusHistory(deviceId, hours = 24) {
+  const stmt = db.prepare(`
+    SELECT * FROM fan_status_history 
+    WHERE device_id = ? AND timestamp >= datetime('now', '-' || ? || ' hours')
+    ORDER BY timestamp DESC
+  `);
+  
+  return stmt.all(deviceId, hours);
+}
+
+// 3MF Metadata functions
+function store3mfMetadata(metadata) {
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO print_3mf_metadata 
+    (model_id, layer_height, initial_layer_height, wall_thickness, top_layers, bottom_layers,
+     infill_density, infill_pattern, support_type, print_speed, travel_speed,
+     nozzle_temp, bed_temp, filament_type, filament_brand, filament_color,
+     estimated_time, estimated_filament, thumbnail_data, slicer_version, metadata_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  return stmt.run(
+    metadata.model_id,
+    metadata.layer_height,
+    metadata.initial_layer_height,
+    metadata.wall_thickness,
+    metadata.top_layers,
+    metadata.bottom_layers,
+    metadata.infill_density,
+    metadata.infill_pattern,
+    metadata.support_type,
+    metadata.print_speed,
+    metadata.travel_speed,
+    metadata.nozzle_temp,
+    metadata.bed_temp,
+    metadata.filament_type,
+    metadata.filament_brand,
+    metadata.filament_color,
+    metadata.estimated_time,
+    metadata.estimated_filament,
+    metadata.thumbnail_data,
+    metadata.slicer_version,
+    metadata.metadata_json
+  );
+}
+
+function get3mfMetadata(modelId) {
+  const stmt = db.prepare(`
+    SELECT * FROM print_3mf_metadata WHERE model_id = ?
+  `);
+  
+  return stmt.get(modelId);
+}
+
 module.exports = {
   db,
   storePrint,
@@ -904,5 +1116,14 @@ module.exports = {
   updatePrintVideoPath,
   libraryDir,
   videosDir,
-  migrateBambuAccounts
+  migrateBambuAccounts,
+  storeHmsError,
+  getHmsErrors,
+  resolveHmsError,
+  getHmsErrorStats,
+  storeFanStatus,
+  getLatestFanStatus,
+  getFanStatusHistory,
+  store3mfMetadata,
+  get3mfMetadata
 };

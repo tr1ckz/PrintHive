@@ -49,6 +49,11 @@ const PrintHistory: React.FC = () => {
   const [syncingSdCard, setSyncingSdCard] = useState(false);
   const [showPrinterSync, setShowPrinterSync] = useState(false);
   const [showSdCardSync, setShowSdCardSync] = useState(false);
+  const [showReprintModal, setShowReprintModal] = useState(false);
+  const [reprintModel, setReprintModel] = useState<string | null>(null);
+  const [reprintTitle, setReprintTitle] = useState<string | null>(null);
+  const [reprintDeviceId, setReprintDeviceId] = useState('');
+  const [reprintLoading, setReprintLoading] = useState(false);
   const [printerIp, setPrinterIp] = useState('');
   const [printerAccessCode, setPrinterAccessCode] = useState('');
   const [matching, setMatching] = useState(false);
@@ -349,6 +354,46 @@ const PrintHistory: React.FC = () => {
     }
   };
 
+  const handleOpenReprintModal = (modelId: string, title: string) => {
+    setReprintModel(modelId);
+    setReprintTitle(title);
+    setReprintDeviceId('');
+    setShowReprintModal(true);
+  };
+
+  const handleReprint = async () => {
+    if (!reprintModel || !reprintDeviceId) {
+      setToast({ message: 'Please select a printer', type: 'error' });
+      return;
+    }
+
+    setReprintLoading(true);
+    try {
+      const response = await fetchWithRetry(`${API_ENDPOINTS.REPRINT.EXECUTE(reprintModel)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          device_id: reprintDeviceId,
+          ams_mapping: undefined, // Let server auto-map
+          plate_index: 0
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setToast({ message: `✓ Print started on printer: ${reprintDeviceId}`, type: 'success' });
+        setShowReprintModal(false);
+      } else {
+        setToast({ message: `Error: ${data.error}`, type: 'error' });
+      }
+    } catch (err) {
+      setToast({ message: `Failed to start re-print: ${err instanceof Error ? err.message : 'Unknown error'}`, type: 'error' });
+    } finally {
+      setReprintLoading(false);
+    }
+  };
+
   // Filter prints in real-time based on search and status
   useEffect(() => {
     let filtered = [...allPrints];
@@ -577,6 +622,11 @@ const PrintHistory: React.FC = () => {
                         <span>⬇</span> Download 3MF
                       </button>
                     )}
+                    {print.has3mf && (
+                      <button onClick={() => handleOpenReprintModal(print.modelId, print.title)} className="btn-reprint">
+                        <span>🔄</span> Re-print
+                      </button>
+                    )}
                     {print.hasVideo && (
                       <button onClick={() => handleViewVideo(print.modelId, print.title)} className="btn-view-video">
                         <span>▶️</span> View Video
@@ -678,6 +728,52 @@ const PrintHistory: React.FC = () => {
                   className="btn-primary"
                 >
                   {syncingSdCard ? 'Syncing...' : 'Sync SD Card'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Re-print Modal */}
+      {showReprintModal && (
+        <div className="video-modal-overlay" onClick={() => setShowReprintModal(false)}>
+          <div className="video-modal-content sd-card-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="video-modal-header">
+              <h2>🔄 Re-print: {reprintTitle}</h2>
+              <button onClick={() => setShowReprintModal(false)} className="btn-modal-close" title="Close">
+                <span>✕</span>
+              </button>
+            </div>
+            <div className="video-modal-body sd-card-modal-body">
+              <p className="sd-card-description">
+                Select the printer where you want to send this print. The 3MF file will be uploaded automatically.
+              </p>
+              <div className="sd-card-field">
+                <label>Target Printer (Serial Number)</label>
+                <input
+                  type="text"
+                  placeholder="e.g., P1S12345678"
+                  value={reprintDeviceId}
+                  onChange={(e) => setReprintDeviceId(e.target.value)}
+                  className="sd-card-input"
+                  disabled={reprintLoading}
+                />
+              </div>
+              <div className="sd-card-actions">
+                <button 
+                  onClick={() => setShowReprintModal(false)} 
+                  className="btn-cancel"
+                  disabled={reprintLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReprint}
+                  disabled={reprintLoading || !reprintDeviceId}
+                  className="btn-primary"
+                >
+                  {reprintLoading ? '⏳ Starting Print...' : '✓ Start Print'}
                 </button>
               </div>
             </div>

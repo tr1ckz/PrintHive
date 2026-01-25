@@ -424,6 +424,7 @@
 
 .btn-download,
 .btn-view-video,
+.btn-reprint,
 .btn-share-video {
   flex: 1;
   display: flex;
@@ -448,6 +449,16 @@
 .btn-download:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 15px color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+
+.btn-reprint {
+  background: linear-gradient(135deg, #FF6B35 0%, #FF8C42 100%);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+.btn-reprint:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
 }
 
 .btn-view-video {

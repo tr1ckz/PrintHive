@@ -151,6 +151,36 @@ export const API_ENDPOINTS = {
   TAGS: {
     LIST: `${API_BASE_URL}/api/tags`,
   },
+  
+  HMS: {
+    ERRORS: `${API_BASE_URL}/api/hms-errors`,
+    STATS: `${API_BASE_URL}/api/hms-errors/stats`,
+    RESOLVE: (id: number) => `${API_BASE_URL}/api/hms-errors/${id}/resolve`,
+  },
+  
+  FAN: {
+    STATUS: (deviceId: string) => `${API_BASE_URL}/api/fan-status/${deviceId}`,
+    HISTORY: (deviceId: string) => `${API_BASE_URL}/api/fan-status/${deviceId}/history`,
+  },
+  
+  THREEMF: {
+    PARSE: `${API_BASE_URL}/api/3mf/parse`,
+    METADATA: (modelId: string) => `${API_BASE_URL}/api/3mf/metadata/${modelId}`,
+  },
+  
+  PRINTER_CONTROL: {
+    COMMAND: (deviceId: string) => `${API_BASE_URL}/api/printers/${deviceId}/command`,
+    SKIP_OBJECTS: (deviceId: string) => `${API_BASE_URL}/api/printers/${deviceId}/skip-objects`,
+    AMS_REFRESH: (deviceId: string, trayId: number) => `${API_BASE_URL}/api/printers/${deviceId}/ams/${trayId}/refresh`,
+    AMS_CONFIG: (deviceId: string, trayId: number) => `${API_BASE_URL}/api/printers/${deviceId}/ams/${trayId}/config`,
+    CHAMBER_LIGHT: (deviceId: string) => `${API_BASE_URL}/api/printers/${deviceId}/chamber-light`,
+  },
+  
+  REPRINT: {
+    EXECUTE: (modelId: string) => `${API_BASE_URL}/api/prints/${modelId}/reprint`,
+  },
+  
+  SEARCH_ADVANCED: `${API_BASE_URL}/api/search/advanced`,
 };
 
 // Helper function to get Bambu API URL based on region

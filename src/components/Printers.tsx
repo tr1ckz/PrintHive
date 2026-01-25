@@ -3,6 +3,7 @@ import { Printer } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
 import './Printers.css';
+import './PrintersEnhancements.css';
 import LoadingScreen from './LoadingScreen';
 
 function Printers() {
@@ -13,6 +14,10 @@ function Printers() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [cameraUrl, setCameraUrl] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
+  const [cardSize, setCardSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>('medium');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [hmsErrors, setHmsErrors] = useState<Record<string, any[]>>({});
+  const [fanStatus, setFanStatus] = useState<Record<string, any>>({});
   const cameraRefreshRef = useRef(0);
   const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
   const preloadRefs = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -43,10 +48,32 @@ function Printers() {
 
   useEffect(() => {
     fetchPrinters();
+    
+    // Load saved preferences
+    const savedSize = localStorage.getItem('printerCardSize');
+    if (savedSize) setCardSize(savedSize as any);
+    
+    const savedView = localStorage.getItem('printerViewMode');
+    if (savedView) setViewMode(savedView as any);
   }, []);
 
   useEffect(() => {
     if (printers.length === 0) return;
+    
+    // Fetch HMS errors and fan status for all printers
+    printers.forEach(async (printer) => {
+      try {
+        const hmsResponse = await fetchWithRetry(`${API_ENDPOINTS.BASE}/hms-errors?device_id=${printer.dev_id}&limit=5`, { credentials: 'include' });
+        const hmsData = await hmsResponse.json();
+        setHmsErrors(prev => ({ ...prev, [printer.dev_id]: hmsData.errors || [] }));
+        
+        const fanResponse = await fetchWithRetry(`${API_ENDPOINTS.BASE}/fan-status/${printer.dev_id}`, { credentials: 'include' });
+        const fanData = await fanResponse.json();
+        setFanStatus(prev => ({ ...prev, [printer.dev_id]: fanData.fanStatus }));
+      } catch (err) {
+        console.error(`Failed to fetch additional data for ${printer.dev_id}:`, err);
+      }
+    });
     
     // Refresh camera feeds every 2 seconds - without causing re-renders
     const interval = setInterval(refreshCameras, 2000);
@@ -192,12 +219,60 @@ function Printers() {
           <h1>Printers</h1>
           <p>Monitor your 3D printers</p>
         </div>
-        <button className="btn-refresh" onClick={fetchPrinters}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {/* View mode selector */}
+          <div className="view-mode-selector">
+            <button 
+              className={`btn-icon ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => { setViewMode('grid'); localStorage.setItem('printerViewMode', 'grid'); }}
+              title="Grid view"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="3" width="7" height="7" stroke="currentColor" strokeWidth="2"/>
+                <rect x="14" y="3" width="7" height="7" stroke="currentColor" strokeWidth="2"/>
+                <rect x="3" y="14" width="7" height="7" stroke="currentColor" strokeWidth="2"/>
+                <rect x="14" y="14" width="7" height="7" stroke="currentColor" strokeWidth="2"/>
+              </svg>
+            </button>
+            <button 
+              className={`btn-icon ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => { setViewMode('list'); localStorage.setItem('printerViewMode', 'list'); }}
+              title="List view"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <line x1="8" y1="6" x2="21" y2="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <line x1="8" y1="12" x2="21" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <line x1="8" y1="18" x2="21" y2="18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <line x1="3" y1="6" x2="4" y2="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <line x1="3" y1="12" x2="4" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <line x1="3" y1="18" x2="4" y2="18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
+          
+          {/* Card size selector */}
+          <select 
+            className="size-selector"
+            value={cardSize}
+            onChange={(e) => {
+              const size = e.target.value as any;
+              setCardSize(size);
+              localStorage.setItem('printerCardSize', size);
+            }}
+          >
+            <option value="small">Small Cards</option>
+            <option value="medium">Medium Cards</option>
+            <option value="large">Large Cards</option>
+            <option value="xlarge">XL Cards</option>
+          </select>
+          
+          <button className="btn-refresh" onClick={fetchPrinters}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
       </div>
 
       {printers.length === 0 ? (
