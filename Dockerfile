@@ -41,8 +41,7 @@ RUN npm pkg delete dependencies.canvas dependencies.gl 2>/dev/null || true && \
 # @napi-rs/canvas should install without compilation thanks to prebuilt binaries
 # Don't omit optional deps - rollup needs platform-specific binaries
 RUN rm -f package-lock.json && \
-    npm install --legacy-peer-deps && \
-    npm audit fix --force
+    npm install --legacy-peer-deps
 
 # Copy application files
 COPY . .
