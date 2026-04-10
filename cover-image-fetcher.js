@@ -14,6 +14,18 @@ if (!fs.existsSync(CACHE_DIR)) {
 class CoverImageFetcher {
   constructor() {
     this.cache = new Map();
+    this.pendingFetches = new Map();
+    this.maxCacheEntries = 100;
+  }
+
+  rememberCacheEntry(cacheKey, value) {
+    this.cache.set(cacheKey, value);
+    if (this.cache.size > this.maxCacheEntries) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+      }
+    }
   }
 
   async fetchCoverImage(printerIp, accessCode, gcodeFile, subtaskName) {
@@ -26,19 +38,23 @@ class CoverImageFetcher {
       return this.cache.get(cacheKey);
     }
 
+    // Deduplicate concurrent requests for the same cover
+    if (this.pendingFetches.has(cacheKey)) {
+      return this.pendingFetches.get(cacheKey);
+    }
+
     // Check disk cache
     const cacheFile = path.join(CACHE_DIR, `${Buffer.from(cacheKey).toString('base64').replace(/\//g, '_')}.jpg`);
     if (fs.existsSync(cacheFile)) {
       console.log('Found disk cached cover image for', cacheKey);
       const imageData = fs.readFileSync(cacheFile, 'base64');
-      this.cache.set(cacheKey, imageData);
+      this.rememberCacheEntry(cacheKey, imageData);
       return imageData;
     }
 
-    try {
-      // Determine the file to download
-      let fileToDownload = null;
-      const possibleNames = [];
+    const fetchPromise = (async () => {
+      try {
+        const possibleNames = [];
       
       if (subtaskName) {
         possibleNames.push(`${subtaskName}.3mf`);
@@ -51,10 +67,11 @@ class CoverImageFetcher {
 
       console.log('Attempting to fetch 3MF file from printer:', possibleNames);
 
-      const client = new ftp.Client();
-      client.ftp.verbose = false;
+        const client = new ftp.Client(10000);
+        client.ftp.verbose = false;
+        client.ftp.timeout = 10000;
 
-      await client.access({
+        await client.access({
         host: printerIp,
         port: 990,
         user: 'bblp',
@@ -103,7 +120,7 @@ class CoverImageFetcher {
               fs.writeFileSync(cacheFile, base64Image);
               
               // Save to memory cache
-              this.cache.set(cacheKey, base64Image);
+              this.rememberCacheEntry(cacheKey, base64Image);
               
               // Cleanup temp file
               fs.unlinkSync(tempFile);
@@ -122,13 +139,19 @@ class CoverImageFetcher {
         }
       }
 
-      client.close();
-      console.log('Could not find 3MF file on printer');
-      return null;
-    } catch (error) {
-      console.error('Error fetching cover image:', error.message);
-      return null;
-    }
+        client.close();
+        console.log('Could not find 3MF file on printer');
+        return null;
+      } catch (error) {
+        console.error('Error fetching cover image:', error.message);
+        return null;
+      } finally {
+        this.pendingFetches.delete(cacheKey);
+      }
+    })();
+
+    this.pendingFetches.set(cacheKey, fetchPromise);
+    return fetchPromise;
   }
 
   clearCache(cacheKey) {

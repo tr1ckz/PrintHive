@@ -22,183 +22,180 @@ interface SettingsProps {
   initialSection?: string;
 }
 
+type SettingsSection = 'hardware' | 'account' | 'preferences' | 'integrations' | 'advanced' | 'administration';
+
+const SETTINGS_SECTIONS: Record<SettingsSection, { label: string; icon: string; description: string; hint: string }> = {
+  hardware: {
+    label: 'Hardware',
+    icon: '🖨️',
+    description: 'Manage Bambu cloud accounts, LAN printers, FTP, and timelapse connectivity in one place.',
+    hint: 'Printers & connectivity'
+  },
+  account: {
+    label: 'Account',
+    icon: '👤',
+    description: 'Update your profile, login details, and personal account preferences.',
+    hint: 'Profile & security'
+  },
+  preferences: {
+    label: 'Preferences',
+    icon: '🎨',
+    description: 'Adjust UI appearance, cost settings, and the day-to-day dashboard experience.',
+    hint: 'UI & cost defaults'
+  },
+  integrations: {
+    label: 'Integrations',
+    icon: '🔌',
+    description: 'Configure notifications and external services without digging through nested cards.',
+    hint: 'Discord & alerts'
+  },
+  advanced: {
+    label: 'Advanced',
+    icon: '⚡',
+    description: 'Fine-tune OAuth, watchdog behavior, and system-level options.',
+    hint: 'System behavior'
+  },
+  administration: {
+    label: 'Administration',
+    icon: '🔐',
+    description: 'Manage users and permissions for shared PrintHive installs.',
+    hint: 'Admin-only controls'
+  }
+};
+
 function Settings({ userRole, initialSection }: SettingsProps) {
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const [toast, setToast] = useState<ToastState | null>(null);
-  
-  // Track which category sections are expanded
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
-    printer: true,
-    account: false,
-    preferences: false,
-    integrations: false,
-    advanced: false,
-    administration: false
-  });
-  
-  const toggleCategory = (category: string) => {
-    setExpandedCategories(prev => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
-  };
 
-  // When navigated with a hash (e.g., /settings#account), expand and scroll to that section
-  useEffect(() => {
-    if (!initialSection) return;
-
-    const sectionMap: Record<string, string> = {
-      printer: 'settings-printer',
-      account: 'settings-account',
-      preferences: 'settings-preferences',
-      integrations: 'settings-integrations',
-      advanced: 'settings-advanced',
-      administration: 'settings-administration'
+  const resolveSection = (section?: string | null): SettingsSection => {
+    const normalized = (section || '').toLowerCase();
+    const sectionMap: Record<string, SettingsSection> = {
+      printer: 'hardware',
+      hardware: 'hardware',
+      connectivity: 'hardware',
+      account: 'account',
+      preferences: 'preferences',
+      integrations: 'integrations',
+      advanced: 'advanced',
+      administration: 'administration'
     };
 
-    const targetId = sectionMap[initialSection] || `settings-${initialSection}`;
+    const nextSection = sectionMap[normalized] || 'hardware';
+    return nextSection === 'administration' && !isAdmin ? 'hardware' : nextSection;
+  };
 
-    setExpandedCategories(prev => ({
-      ...prev,
-      [initialSection]: true
-    }));
+  const [activeSection, setActiveSection] = useState<SettingsSection>(() => resolveSection(initialSection));
 
-    const targetEl = document.getElementById(targetId);
-    if (targetEl) {
-      targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  useEffect(() => {
+    setActiveSection(resolveSection(initialSection));
+  }, [initialSection, isAdmin]);
+
+  useEffect(() => {
+    const nextUrl = `/settings#${activeSection}`;
+    if (window.location.pathname === '/settings' && window.location.hash !== `#${activeSection}`) {
+      window.history.replaceState({ section: activeSection }, '', nextUrl);
     }
-  }, [initialSection]);
+  }, [activeSection]);
+
+  const availableSections = (Object.keys(SETTINGS_SECTIONS) as SettingsSection[]).filter((section) => {
+    return isAdmin || section !== 'administration';
+  });
+
+  const activeSectionMeta = SETTINGS_SECTIONS[activeSection];
+
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'hardware':
+        return (
+          <div className="settings-panel-stack">
+            <BambuSettings />
+            <PrinterFtpSettings />
+          </div>
+        );
+      case 'account':
+        return <AccountSettings />;
+      case 'preferences':
+        return (
+          <div className="settings-panel-stack">
+            <CostSettings />
+            <UISettings />
+          </div>
+        );
+      case 'integrations':
+        return <NotificationSettings />;
+      case 'advanced':
+        return (
+          <div className="settings-panel-stack">
+            <OAuthSettings />
+            <WatchdogSettings />
+            <SystemSettings />
+          </div>
+        );
+      case 'administration':
+        return isAdmin ? (
+          <CollapsibleSection title="User Management" icon="👥" defaultExpanded={true}>
+            <p className="form-description">
+              Manage user accounts and permissions.
+            </p>
+            <UserManagement />
+          </CollapsibleSection>
+        ) : null;
+      default:
+        return null;
+    }
+  };
 
   return (
     <SettingsContext.Provider value={{ toast, setToast, isAdmin }}>
-      <div className="settings-container">
+      <div className="settings-container settings-container-redesigned">
         <div className="settings-header">
           <h1>⚙️ Settings</h1>
           <p className="settings-description">
-            Configure your printers, account, and preferences
+            Configure printers, accounts, integrations, and system behavior without the accordion maze.
           </p>
         </div>
 
-        {/* PRINTER CONNECTION */}
-        <div className="settings-category">
-          <div 
-            id="settings-printer"
-            className={`category-header category-collapsible ${expandedCategories.printer ? 'expanded' : ''}`}
-            onClick={() => toggleCategory('printer')}
-          >
-            <span className="category-icon">🖨️</span>
-            <h2>Printer Connection</h2>
-            <span className="category-toggle-icon">{expandedCategories.printer ? '−' : '+'}</span>
-          </div>
+        <div className="settings-layout">
+          <aside className="settings-sidebar">
+            <div className="settings-sidebar-sticky">
+              <div className="settings-nav" aria-label="Settings sections">
+                {availableSections.map((section) => {
+                  const meta = SETTINGS_SECTIONS[section];
+                  return (
+                    <button
+                      key={section}
+                      type="button"
+                      className={`settings-nav-item ${activeSection === section ? 'active' : ''}`}
+                      onClick={() => setActiveSection(section)}
+                    >
+                      <span className="settings-nav-icon">{meta.icon}</span>
+                      <span className="settings-nav-copy">
+                        <span className="settings-nav-label">{meta.label}</span>
+                        <span className="settings-nav-hint">{meta.hint}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </aside>
 
-          {expandedCategories.printer && (
-            <>
-              <BambuSettings />
-              <PrinterFtpSettings />
-            </>
-          )}
-        </div>
-
-        {/* ACCOUNT */}
-        <div className="settings-category">
-          <div 
-            id="settings-account"
-            className={`category-header category-collapsible ${expandedCategories.account ? 'expanded' : ''}`}
-            onClick={() => toggleCategory('account')}
-          >
-            <span className="category-icon">👤</span>
-            <h2>Account</h2>
-            <span className="category-toggle-icon">{expandedCategories.account ? '−' : '+'}</span>
-          </div>
-
-          {expandedCategories.account && <AccountSettings />}
-        </div>
-
-        {/* PREFERENCES */}
-        <div className="settings-category">
-          <div 
-            id="settings-preferences"
-            className={`category-header category-collapsible ${expandedCategories.preferences ? 'expanded' : ''}`}
-            onClick={() => toggleCategory('preferences')}
-          >
-            <span className="category-icon">🎨</span>
-            <h2>Preferences</h2>
-            <span className="category-toggle-icon">{expandedCategories.preferences ? '−' : '+'}</span>
-          </div>
-
-          {expandedCategories.preferences && (
-            <>
-              <CostSettings />
-              <UISettings />
-            </>
-          )}
-        </div>
-
-        {/* INTEGRATIONS */}
-        <div className="settings-category">
-          <div 
-            id="settings-integrations"
-            className={`category-header category-collapsible ${expandedCategories.integrations ? 'expanded' : ''}`}
-            onClick={() => toggleCategory('integrations')}
-          >
-            <span className="category-icon">🔌</span>
-            <h2>Integrations</h2>
-            <span className="category-toggle-icon">{expandedCategories.integrations ? '−' : '+'}</span>
-          </div>
-
-          {expandedCategories.integrations && <NotificationSettings />}
-        </div>
-
-        {/* ADVANCED */}
-        <div className="settings-category">
-          <div 
-            id="settings-advanced"
-            className={`category-header category-collapsible ${expandedCategories.advanced ? 'expanded' : ''}`}
-            onClick={() => toggleCategory('advanced')}
-          >
-            <span className="category-icon">⚡</span>
-            <h2>Advanced</h2>
-            <span className="category-toggle-icon">{expandedCategories.advanced ? '−' : '+'}</span>
-          </div>
-
-          {expandedCategories.advanced && (
-            <>
-              <OAuthSettings />
-              <WatchdogSettings />
-              <SystemSettings />
-            </>
-          )}
-        </div>
-
-        {/* ADMIN */}
-        {isAdmin && (
-          <div className="settings-category">
-            <div 
-              id="settings-administration"
-              className={`category-header category-collapsible ${expandedCategories.administration ? 'expanded' : ''}`}
-              onClick={() => toggleCategory('administration')}
-            >
-              <span className="category-icon">🔐</span>
-              <h2>Administration</h2>
-              <span className="category-toggle-icon">{expandedCategories.administration ? '−' : '+'}</span>
+          <section className="settings-main">
+            <div className="settings-panel-hero">
+              <span className="settings-panel-kicker">{activeSectionMeta.icon} {activeSectionMeta.label}</span>
+              <h2>{activeSectionMeta.label}</h2>
+              <p>{activeSectionMeta.description}</p>
             </div>
 
-            {expandedCategories.administration && (
-              <CollapsibleSection title="User Management" icon="👥" defaultExpanded={true}>
-                <p className="form-description">
-                  Manage user accounts and permissions
-                </p>
-                <UserManagement />
-              </CollapsibleSection>
-            )}
-          </div>
-        )}
+            {renderActiveSection()}
+          </section>
+        </div>
 
         {toast && (
-          <Toast 
-            message={toast.message} 
-            type={toast.type} 
-            onClose={() => setToast(null)} 
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
           />
         )}
       </div>

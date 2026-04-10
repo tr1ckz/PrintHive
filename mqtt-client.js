@@ -14,6 +14,13 @@ class BambuMqttClient extends EventEmitter {
     this.currentJobData = null;
     this.lastGcodeState = null; // Track state changes
     this.lastPrintError = 0;
+    this.pendingRawMessage = null;
+    this.messageProcessingScheduled = false;
+    this.pendingJobUpdate = null;
+    this.pendingJobTimer = null;
+    this.lastEmittedJobData = null;
+    this.lastJobEmitAt = 0;
+    this.lastStatusRequestAt = 0;
   }
 
   connect() {
@@ -51,13 +58,15 @@ class BambuMqttClient extends EventEmitter {
         });
       });
 
-      this.client.on('message', (topic, message) => {
-        try {
-          const data = JSON.parse(message.toString());
-          this.handleMessage(data);
-        } catch (error) {
-          logger.error('Error parsing MQTT message:', error);
+      this.client.on('message', (_topic, message) => {
+        this.pendingRawMessage = message.toString();
+
+        if (this.messageProcessingScheduled) {
+          return;
         }
+
+        this.messageProcessingScheduled = true;
+        setImmediate(() => this.processLatestMessage());
       });
 
       this.client.on('error', (error) => {
@@ -188,9 +197,6 @@ class BambuMqttClient extends EventEmitter {
         const trays = Array.isArray(traysSource) ? traysSource : [];
         const activeTray = (amsRaw.active_tray ?? amsRaw.cur_tray ?? amsRaw.cur_tray_index ?? (amsRaw.tray_now ? parseInt(amsRaw.tray_now, 10) : null));
 
-        logger.debug('AMS data detected:', JSON.stringify(amsRaw, null, 2));
-        logger.debug(`Found ${trays.length} AMS trays`);
-
         newJobData.ams = {
           active_tray: activeTray,
           trays: trays.map((t, idx) => {
@@ -208,16 +214,10 @@ class BambuMqttClient extends EventEmitter {
           })
         };
 
-        logger.debug('Processed AMS data:', JSON.stringify(newJobData.ams, null, 2));
-      } else {
+        logger.debug(`AMS data updated for ${this.printerName}: ${trays.length} trays, active=${activeTray ?? 'none'}`);
+      } else if (this.currentJobData && this.currentJobData.ams) {
         // Preserve existing AMS data if we have it
-        if (this.currentJobData && this.currentJobData.ams) {
-          newJobData.ams = this.currentJobData.ams;
-          logger.debug('Preserving existing AMS data (no new AMS in this message)');
-        } else {
-          logger.debug('No AMS data in message. Keys in data:', Object.keys(data));
-          logger.debug('Keys in printData:', Object.keys(printData));
-        }
+        newJobData.ams = this.currentJobData.ams;
       }
 
       // Error message if available
@@ -276,23 +276,89 @@ class BambuMqttClient extends EventEmitter {
       
       this.lastGcodeState = newGcodeState;
       this.lastPrintError = newPrintError;
-      
       this.currentJobData = newJobData;
-      
-      // Log AMS status
-      if (this.currentJobData.ams) {
-        logger.info(`AMS data stored for ${this.printerName}: ${this.currentJobData.ams.trays?.length || 0} trays`);
-      }
-      
-      this.emit('job_update', this.currentJobData);
-      logger.debug('Job update received');
+      this.queueJobUpdate(this.currentJobData);
     }
+  }
+
+  processLatestMessage() {
+    const rawMessage = this.pendingRawMessage;
+    this.pendingRawMessage = null;
+    this.messageProcessingScheduled = false;
+
+    if (!rawMessage) {
+      return;
+    }
+
+    try {
+      const data = JSON.parse(rawMessage);
+      this.handleMessage(data);
+    } catch (error) {
+      logger.error('Error parsing MQTT message:', error);
+    }
+
+    if (this.pendingRawMessage && !this.messageProcessingScheduled) {
+      this.messageProcessingScheduled = true;
+      setImmediate(() => this.processLatestMessage());
+    }
+  }
+
+  hasMeaningfulUpdate(previousJobData, nextJobData) {
+    if (!previousJobData) {
+      return true;
+    }
+
+    return (
+      (previousJobData.gcode_state || 'IDLE') !== (nextJobData.gcode_state || 'IDLE') ||
+      (previousJobData.name || '') !== (nextJobData.name || '') ||
+      Math.floor(previousJobData.progress || 0) !== Math.floor(nextJobData.progress || 0) ||
+      (previousJobData.print_error || 0) !== (nextJobData.print_error || 0) ||
+      (previousJobData.remaining_time || 0) !== (nextJobData.remaining_time || 0) ||
+      (previousJobData.ams?.active_tray ?? null) !== (nextJobData.ams?.active_tray ?? null)
+    );
+  }
+
+  queueJobUpdate(jobData) {
+    this.pendingJobUpdate = { ...jobData };
+    const now = Date.now();
+    const shouldEmitNow = this.hasMeaningfulUpdate(this.lastEmittedJobData, jobData) || (now - this.lastJobEmitAt >= 2000);
+
+    if (shouldEmitNow) {
+      this.flushJobUpdate();
+      return;
+    }
+
+    if (!this.pendingJobTimer) {
+      this.pendingJobTimer = setTimeout(() => this.flushJobUpdate(), 500);
+    }
+  }
+
+  flushJobUpdate() {
+    if (!this.pendingJobUpdate) {
+      return;
+    }
+
+    if (this.pendingJobTimer) {
+      clearTimeout(this.pendingJobTimer);
+      this.pendingJobTimer = null;
+    }
+
+    this.lastEmittedJobData = { ...this.pendingJobUpdate };
+    this.lastJobEmitAt = Date.now();
+    this.emit('job_update', this.lastEmittedJobData);
+    logger.debug(`Emitted MQTT update for ${this.printerName} (${this.lastEmittedJobData.gcode_state || 'IDLE'} @ ${Math.floor(this.lastEmittedJobData.progress || 0)}%)`);
   }
 
   requestStatus() {
     if (!this.client || !this.connected) {
       return;
     }
+
+    const now = Date.now();
+    if (now - this.lastStatusRequestAt < 5000) {
+      return;
+    }
+    this.lastStatusRequestAt = now;
 
     // Request push_all to get current status
     const topic = `device/${this.serialNumber}/request`;
@@ -317,6 +383,16 @@ class BambuMqttClient extends EventEmitter {
   }
 
   disconnect() {
+    if (this.pendingJobTimer) {
+      clearTimeout(this.pendingJobTimer);
+      this.pendingJobTimer = null;
+    }
+
+    this.pendingRawMessage = null;
+    this.pendingJobUpdate = null;
+    this.messageProcessingScheduled = false;
+    this.lastEmittedJobData = null;
+
     if (this.client) {
       this.client.end();
       this.connected = false;

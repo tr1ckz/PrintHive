@@ -108,7 +108,9 @@ export function BambuSettings() {
 
   const handleDisconnect = async (accountId: number) => {
     if (!confirm('Are you sure you want to disconnect this Bambu Lab account?')) return;
+    const previousAccounts = accounts;
     setLoading(true);
+    setAccounts(prev => prev.filter(account => account.id !== accountId));
 
     try {
       const response = await fetchWithRetry(`/api/bambu/accounts/${accountId}`, {
@@ -122,9 +124,11 @@ export function BambuSettings() {
         setToast({ message: 'Disconnected Bambu Lab account', type: 'success' });
         await loadAccounts();
       } else {
+        setAccounts(previousAccounts);
         setToast({ message: 'Failed to disconnect', type: 'error' });
       }
     } catch (error) {
+      setAccounts(previousAccounts);
       setToast({ message: 'Failed to disconnect', type: 'error' });
     } finally {
       setLoading(false);
@@ -132,7 +136,10 @@ export function BambuSettings() {
   };
 
   const handleSetPrimary = async (accountId: number) => {
+    const previousAccounts = accounts;
     setLoading(true);
+    setAccounts(prev => prev.map(account => ({ ...account, is_primary: account.id === accountId })));
+
     try {
       const response = await fetchWithRetry(`/api/bambu/accounts/${accountId}/primary`, {
         method: 'POST',
@@ -145,9 +152,11 @@ export function BambuSettings() {
         setToast({ message: 'Primary account updated', type: 'success' });
         await loadAccounts();
       } else {
+        setAccounts(previousAccounts);
         setToast({ message: 'Failed to update primary account', type: 'error' });
       }
     } catch (error) {
+      setAccounts(previousAccounts);
       setToast({ message: 'Failed to update primary account', type: 'error' });
     } finally {
       setLoading(false);
@@ -155,32 +164,47 @@ export function BambuSettings() {
   };
 
   return (
-    <CollapsibleSection title="Bambu Lab Accounts" icon="🔗" defaultExpanded={accounts.length === 0}>
+    <CollapsibleSection title="Bambu Lab Accounts" icon="🔗" defaultExpanded={true}>
       <p className="form-description">
-        Connect multiple Bambu Lab accounts to manage all your printers in one place
+        Connect multiple Bambu Lab accounts to manage all your printers in one place.
       </p>
+
+      <div className="settings-inline-toolbar">
+        <span className="settings-inline-meta">
+          {accounts.length > 0 ? `${accounts.length} connected account${accounts.length > 1 ? 's' : ''}` : 'No accounts connected yet'}
+        </span>
+        {!showAddForm && (
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => setShowAddForm(true)}
+            disabled={loading}
+          >
+            + Add Account
+          </button>
+        )}
+      </div>
 
       {/* Connected Accounts List */}
       {accounts.length > 0 && (
         <div className="bambu-accounts-list">
           {accounts.map((account) => (
-            <div key={account.id} className="bambu-account-card">
+            <div key={account.id} className={`bambu-account-card ${account.is_primary ? 'is-primary' : ''}`}>
               <div className="account-card-content">
                 <div className="account-info">
                   <div className="account-email-row">
+                    {account.is_primary && <span className="account-primary-star">★</span>}
                     <span className="account-email">{account.email}</span>
                     {account.is_primary && (
                       <span className="primary-badge">Primary</span>
                     )}
                   </div>
                   <span className="account-meta">
-                    Region: {account.region === 'china' ? 'China' : 'Global'} • 
-                    Updated: {new Date(account.updated_at).toLocaleString()}
+                    {account.region === 'china' ? 'China' : 'Global'} • Updated {new Date(account.updated_at).toLocaleString()}
                   </span>
                 </div>
                 <div className="account-actions">
                   {!account.is_primary && (
-                    <button 
+                    <button
                       className="btn btn-secondary btn-sm"
                       onClick={() => handleSetPrimary(account.id)}
                       disabled={loading}
@@ -188,7 +212,7 @@ export function BambuSettings() {
                       Set Primary
                     </button>
                   )}
-                  <button 
+                  <button
                     className="btn btn-danger btn-sm"
                     onClick={() => handleDisconnect(account.id)}
                     disabled={loading}
@@ -202,19 +226,8 @@ export function BambuSettings() {
         </div>
       )}
 
-      {/* Add Account Button or Form */}
-      {!showAddForm ? (
-        <button 
-          className="btn btn-primary" 
-          onClick={() => setShowAddForm(true)}
-          disabled={loading}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
-            <path d="M12 4v16m8-8H4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Add Another Account
-        </button>
-      ) : (
+      {/* Add Account Form */}
+      {showAddForm && (
         <form onSubmit={codeSent ? handleConnect : handleRequestCode} className="bambu-connect-form">
           <p className="form-description">
             Connect a Bambu Lab account to access printers

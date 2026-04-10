@@ -6,10 +6,23 @@ const { createCanvas } = require('@napi-rs/canvas');
 const THUMB_DIR = path.join(__dirname, 'data', 'thumbnails');
 const THUMB_SIZE = 256;
 const PNG_OPTIONS = { compressionLevel: 9 };
+const MAX_MODEL_VERTICES = 18000;
 
 // Ensure thumbnail directory exists
 if (!fs.existsSync(THUMB_DIR)) {
   fs.mkdirSync(THUMB_DIR, { recursive: true });
+}
+
+/**
+ * Down-sample very large meshes so thumbnail generation stays responsive.
+ */
+function sampleVertices(vertices, maxVertices = MAX_MODEL_VERTICES) {
+  if (!Array.isArray(vertices) || vertices.length <= maxVertices) {
+    return vertices;
+  }
+
+  const step = Math.ceil(vertices.length / maxVertices);
+  return vertices.filter((_, index) => index % step === 0);
 }
 
 /**
@@ -45,24 +58,27 @@ function parseSTLBinary(buffer) {
   const vertices = [];
   
   let offset = 84;
+  const sampleStep = Math.max(1, Math.ceil((triangleCount * 3) / MAX_MODEL_VERTICES));
+
   for (let i = 0; i < triangleCount; i++) {
     // Skip normal (12 bytes)
     offset += 12;
-    
-    // Read 3 vertices (9 floats = 36 bytes)
+
     for (let j = 0; j < 3; j++) {
-      const x = buffer.readFloatLE(offset);
-      const y = buffer.readFloatLE(offset + 4);
-      const z = buffer.readFloatLE(offset + 8);
-      vertices.push([x, y, z]);
+      if (i % sampleStep === 0) {
+        const x = buffer.readFloatLE(offset);
+        const y = buffer.readFloatLE(offset + 4);
+        const z = buffer.readFloatLE(offset + 8);
+        vertices.push([x, y, z]);
+      }
       offset += 12;
     }
-    
+
     // Skip attribute byte count (2 bytes)
     offset += 2;
   }
-  
-  return vertices;
+
+  return sampleVertices(vertices);
 }
 
 /**
@@ -84,7 +100,7 @@ function parseSTLAscii(buffer) {
   }
   
   console.log('  Parsed', vertices.length, 'vertices from ASCII STL');
-  return vertices;
+  return sampleVertices(vertices);
 }
 
 /**
@@ -167,7 +183,7 @@ function parse3MF(filePath) {
         }
         
         console.log('  Extracted', vertices.length, 'vertices from XML');
-        return vertices;
+        return sampleVertices(vertices);
       });
     }).catch(err => {
       console.error('  3MF parse error:', err.message);

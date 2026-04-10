@@ -8,6 +8,7 @@ class BackgroundSyncService {
   constructor() {
     this.syncInterval = null;
     this.isRunning = false;
+    this.syncInProgress = false;
     this.syncIntervalMinutes = 30; // Sync every 30 minutes
   }
 
@@ -23,13 +24,21 @@ class BackgroundSyncService {
     console.log(`Starting background printer sync (every ${this.syncIntervalMinutes} minutes)...`);
     this.isRunning = true;
 
-    // Run immediately on start
-    this.runSync();
+    const runLoop = async () => {
+      if (!this.isRunning) {
+        return;
+      }
 
-    // Then run periodically
-    this.syncInterval = setInterval(() => {
-      this.runSync();
-    }, this.syncIntervalMinutes * 60 * 1000);
+      await this.runSync();
+
+      if (!this.isRunning) {
+        return;
+      }
+
+      this.syncInterval = setTimeout(runLoop, this.syncIntervalMinutes * 60 * 1000);
+    };
+
+    void runLoop();
   }
 
   /**
@@ -48,6 +57,12 @@ class BackgroundSyncService {
    * Run a sync cycle for all configured printers
    */
   async runSync() {
+    if (this.syncInProgress) {
+      console.log('Background printer sync already running. Skipping overlapping run.');
+      return;
+    }
+
+    this.syncInProgress = true;
     console.log(`\n[${new Date().toISOString()}] Running background printer sync...`);
 
     try {
@@ -79,6 +94,8 @@ class BackgroundSyncService {
       console.log('Background sync completed\n');
     } catch (error) {
       console.error('Background sync error:', error);
+    } finally {
+      this.syncInProgress = false;
     }
   }
 

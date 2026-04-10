@@ -759,6 +759,285 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* Redesigned settings layout overrides */
+.settings-container.settings-container-redesigned {
+  max-width: 1360px;
+  padding: 24px 20px 32px;
+}
+
+.settings-container-redesigned .settings-header {
+  margin-bottom: 20px;
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.settings-sidebar-sticky {
+  position: sticky;
+  top: 90px;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(8, 15, 30, 0.72);
+  border: 1px solid rgba(0, 212, 255, 0.14);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 10px;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.84);
+  transition: all 0.2s ease;
+}
+
+.settings-nav-item:hover {
+  background: rgba(0, 212, 255, 0.08);
+  border-color: rgba(0, 212, 255, 0.16);
+}
+
+.settings-nav-item.active {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.16) 0%, rgba(0, 153, 255, 0.18) 100%);
+  border-color: rgba(0, 212, 255, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(0, 212, 255, 0.12);
+}
+
+.settings-nav-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.settings-nav-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-nav-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.settings-nav-hint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.56);
+}
+
+.settings-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-panel-hero {
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 212, 255, 0.16);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(10, 18, 34, 0.92) 100%);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+.settings-panel-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary, #00d4ff);
+}
+
+.settings-panel-hero h2 {
+  margin: 6px 0 4px;
+  font-size: 1.35rem;
+  color: #fff;
+}
+
+.settings-panel-hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.45;
+}
+
+.settings-panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-container-redesigned .settings-section {
+  margin-bottom: 0;
+  padding: 16px 18px;
+  border-radius: 14px;
+}
+
+.settings-container-redesigned .settings-section.collapsible .section-header {
+  padding: 4px 0 10px;
+}
+
+.settings-inline-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 12px;
+  flex-wrap: wrap;
+}
+
+.settings-inline-meta {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.settings-container-redesigned .btn {
+  padding: 0.65rem 0.95rem;
+  border-radius: 9px;
+  font-size: 0.9rem;
+  box-shadow: none;
+}
+
+.settings-container-redesigned .btn-primary:hover:not(:disabled),
+.settings-container-redesigned .btn-secondary:hover:not(:disabled),
+.settings-container-redesigned .btn-danger:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.settings-container-redesigned .btn-danger {
+  background: rgba(239, 68, 68, 0.14);
+  color: #fecaca;
+  border: 1px solid rgba(239, 68, 68, 0.26);
+}
+
+.settings-container-redesigned .btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  box-shadow: none;
+}
+
+.settings-container-redesigned .btn-secondary {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+.settings-container-redesigned .btn-sm {
+  font-size: 12px !important;
+  padding: 6px 10px !important;
+  border-radius: 8px;
+}
+
+.bambu-account-card {
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+
+.bambu-account-card.is-primary {
+  border-color: rgba(249, 115, 22, 0.42);
+  box-shadow: inset 3px 0 0 rgba(249, 115, 22, 0.95);
+}
+
+.account-card-content {
+  gap: 12px;
+}
+
+.account-email-row {
+  gap: 8px;
+}
+
+.account-primary-star {
+  color: #fb923c;
+  font-size: 0.85rem;
+}
+
+.account-email {
+  font-size: 0.95rem;
+}
+
+.primary-badge {
+  padding: 2px 8px;
+  background: rgba(249, 115, 22, 0.14);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  color: #fdba74;
+}
+
+.account-meta {
+  margin-top: 4px;
+  font-size: 0.78rem;
+}
+
+.account-actions {
+  gap: 8px;
+}
+
+.printer-cards-list {
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.printer-ftp-card {
+  padding: 14px 16px;
+  border-radius: 10px;
+}
+
+.printer-ftp-card-details {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+@media (max-width: 980px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-sidebar-sticky {
+    position: static;
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .settings-nav-item {
+    min-width: 180px;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-container.settings-container-redesigned {
+    padding: 16px 12px 24px;
+  }
+
+  .account-card-content,
+  .printer-ftp-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .account-actions,
+  .printer-ftp-card-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
 .printer-ftp-card-details .printer-detail strong {
   color: rgba(255, 255, 255, 0.7);
 }

@@ -166,7 +166,7 @@ export function PrinterFtpSettings() {
   };
 
   return (
-    <CollapsibleSection title="Printer FTP Settings" icon="📡">
+    <CollapsibleSection title="Local Printer / FTP" icon="📡" defaultExpanded={true}>
       <p className="form-description">
         Configure your printers' local FTP connections to automatically download timelapse videos
       </p>
@@ -227,7 +227,7 @@ export function PrinterFtpSettings() {
       {!editingPrinter && (
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary btn-sm"
           onClick={startAdding}
           style={{ marginTop: printers.length > 0 ? '15px' : '0' }}
         >

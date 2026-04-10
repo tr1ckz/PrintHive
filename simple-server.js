@@ -118,9 +118,40 @@ function getConfiguredBambuAccounts(req = null) {
   return [];
 }
 
+function scheduleRecurringTask(taskName, taskFn, intervalMs, initialDelayMs = 0) {
+  let timer = null;
+  let running = false;
+
+  const runTask = async () => {
+    if (running) {
+      logger.warn(`[${taskName}] Previous run still active; skipping overlap.`);
+      timer = setTimeout(runTask, intervalMs);
+      return;
+    }
+
+    running = true;
+    try {
+      await taskFn();
+    } catch (error) {
+      logger.warn(`[${taskName}] Scheduled task error:`, error.message);
+    } finally {
+      running = false;
+      timer = setTimeout(runTask, intervalMs);
+    }
+  };
+
+  timer = setTimeout(runTask, Math.max(0, initialDelayMs));
+  return () => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  };
+}
+
 // Periodic cloud sync to keep DB fresh without manual action
 function setupCloudAutoSync() {
   const intervalMinutes = 60; // sync every 60 minutes
+
   async function runCloudSyncOnce() {
     try {
       const accounts = getConfiguredBambuAccounts();
@@ -130,35 +161,36 @@ function setupCloudAutoSync() {
         return;
       }
 
-      for (const account of accounts) {
+      const results = await Promise.allSettled(accounts.map(async (account) => {
         const apiBase = getBambuApiBase(account.region);
+        logger.info(`[CloudSync] Fetching tasks for ${account.email || `user ${account.user_id || 'unknown'}`}...`);
 
-        try {
-          logger.info(`[CloudSync] Fetching tasks for ${account.email || `user ${account.user_id || 'unknown'}`}...`);
-          const response = await axios.get(`${apiBase}/v1/user-service/my/tasks?limit=100`, {
-            headers: { Authorization: `Bearer ${account.token}` },
-            timeout: 20000
-          });
+        const response = await axios.get(`${apiBase}/v1/user-service/my/tasks?limit=100`, {
+          headers: { Authorization: `Bearer ${account.token}` },
+          timeout: 10000
+        });
 
-          const hits = response.data?.hits || [];
-          if (hits.length > 0) {
-            const result = storePrints(hits);
-            logger.info(`[CloudSync] Stored ${result.total} prints (${result.newPrints} new, ${result.updated} updated)`);
-          } else {
-            logger.info(`[CloudSync] No prints returned from ${account.email || 'configured account'}`);
-          }
-        } catch (err) {
-          logger.warn(`[CloudSync] Error syncing for ${account.email || `user ${account.user_id || 'unknown'}`}: ${err.message}`);
+        const hits = response.data?.hits || [];
+        if (hits.length > 0) {
+          const result = storePrints(hits);
+          logger.info(`[CloudSync] Stored ${result.total} prints (${result.newPrints} new, ${result.updated} updated)`);
+        } else {
+          logger.info(`[CloudSync] No prints returned from ${account.email || 'configured account'}`);
         }
-      }
+      }));
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const account = accounts[index];
+          logger.warn(`[CloudSync] Error syncing for ${account?.email || `user ${account?.user_id || 'unknown'}`}: ${result.reason?.message || result.reason}`);
+        }
+      });
     } catch (err) {
       logger.warn('[CloudSync] Unexpected error:', err.message);
     }
   }
 
-  // Run once on startup and then periodically
-  runCloudSyncOnce();
-  setInterval(runCloudSyncOnce, intervalMinutes * 60 * 1000);
+  scheduleRecurringTask('CloudSync', runCloudSyncOnce, intervalMinutes * 60 * 1000, 0);
 }
 
 // Periodic FTP sync for timelapses and SD card files (only when printer idle)
@@ -305,11 +337,8 @@ function setupFtpAutoSync() {
     }
   }
   
-  // Run first sync after 2 minutes (give time for MQTT to connect), then every 30 minutes
-  setTimeout(() => {
-    runFtpSyncOnce();
-    setInterval(runFtpSyncOnce, intervalMinutes * 60 * 1000);
-  }, 2 * 60 * 1000);
+  // Run first sync after 2 minutes (give time for MQTT to connect), then schedule each subsequent run after completion
+  scheduleRecurringTask('FtpSync', runFtpSyncOnce, intervalMinutes * 60 * 1000, 2 * 60 * 1000);
 }
 
 // Auto-scan library every 5 minutes in background
@@ -353,11 +382,8 @@ function setupAutoLibraryScan() {
     }
   }
   
-  // Start scanning after 30s delay, then every 5 minutes
-  setTimeout(() => {
-    scanLibraryOnce();
-    setInterval(scanLibraryOnce, intervalMinutes * 60 * 1000);
-  }, 30000);
+  // Start scanning after 30s delay, then schedule each subsequent run after completion
+  scheduleRecurringTask('LibraryScan', scanLibraryOnce, intervalMinutes * 60 * 1000, 30000);
 }
 
 // Auto-match videos every 10 minutes in background
@@ -449,11 +475,8 @@ function setupAutoVideoMatching() {
     }
   }
   
-  // Start matching after 60s delay, then every 10 minutes
-  setTimeout(() => {
-    matchVideosOnce();
-    setInterval(matchVideosOnce, intervalMinutes * 60 * 1000);
-  }, 60000);
+  // Start matching after 60s delay, then schedule each subsequent run after completion
+  scheduleRecurringTask('VideoMatch', matchVideosOnce, intervalMinutes * 60 * 1000, 60000);
 }
 
 const app = express();
@@ -3036,28 +3059,32 @@ app.post('/api/sync', async (req, res) => {
 
     console.log(`Fetching tasks from ${accounts.length} Bambu account(s)...`);
 
-    const allHits = [];
-    for (const account of accounts) {
+    const accountResults = await Promise.allSettled(accounts.map(async (account) => {
       const apiBase = getBambuApiBase(account.region);
-      try {
-        const response = await axios.get(`${apiBase}/v1/user-service/my/tasks?limit=100`, {
-          headers: { 'Authorization': `Bearer ${account.token}` },
-          timeout: 20000
-        });
+      const response = await axios.get(`${apiBase}/v1/user-service/my/tasks?limit=100`, {
+        headers: { 'Authorization': `Bearer ${account.token}` },
+        timeout: 10000
+      });
 
-        const hits = (response.data?.hits || []).map((print) => ({
-          ...print,
-          __accountToken: account.token,
-          __apiBase: apiBase,
-          __accountEmail: account.email || null
-        }));
+      const hits = (response.data?.hits || []).map((print) => ({
+        ...print,
+        __accountToken: account.token,
+        __apiBase: apiBase,
+        __accountEmail: account.email || null
+      }));
 
-        console.log(`Account ${account.email || 'session'} returned ${hits.length} task(s)`);
-        allHits.push(...hits);
-      } catch (accountError) {
-        console.log(`Failed to fetch tasks for ${account.email || 'session'}: ${accountError.message}`);
+      console.log(`Account ${account.email || 'session'} returned ${hits.length} task(s)`);
+      return hits;
+    }));
+
+    const allHits = [];
+    accountResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        allHits.push(...result.value);
+      } else {
+        console.log(`Failed to fetch tasks for ${accounts[index]?.email || 'session'}: ${result.reason?.message || result.reason}`);
       }
-    }
+    });
 
     const uniqueHits = Array.from(
       new Map(allHits.map((print) => [print.id || print.modelId, print])).values()
@@ -3110,6 +3137,7 @@ app.post('/api/sync', async (req, res) => {
             try {
               const videoResponse = await axios.get(videoEndpoint, {
                 headers: { 'Authorization': `Bearer ${token}` },
+                timeout: 10000,
                 maxRedirects: 0,
                 validateStatus: (status) => status < 400 || status === 302 || status === 301
               });
@@ -5932,6 +5960,8 @@ async function generateAllThumbnails() {
       } catch (err) {
         console.error(`✗ Failed to generate thumbnail for ${file.originalName}:`, err.message);
       }
+
+      await yieldToEventLoop();
     }
     
     console.log('\n=== Thumbnail generation complete ===\n');
