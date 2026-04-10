@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { shallow } from 'zustand/shallow';
+import { useShallow } from 'zustand/react/shallow';
 import { API_ENDPOINTS } from '../config/api';
 import FrigateCamera from './FrigateCamera';
 import { usePrinterStore } from '../stores/usePrinterStore';
@@ -92,7 +92,7 @@ function ReactiveStatusPanel({ printerId }: { printerId: string }) {
     totalLayers,
     modelId,
     has3mf,
-  } = usePrinterStore((state) => {
+  } = usePrinterStore(useShallow((state) => {
     const printer = state.printersById[printerId];
     const task = printer?.current_task;
 
@@ -111,7 +111,7 @@ function ReactiveStatusPanel({ printerId }: { printerId: string }) {
       modelId: task?.model_id || '',
       has3mf: Boolean(task?.has_3mf && task?.model_id),
     };
-  }, shallow);
+  }));
 
   return (
     <section className="printer-panel status-panel">
@@ -285,7 +285,7 @@ function ReactiveTelemetryPanel({ printerId }: { printerId: string }) {
 }
 
 function ReactiveAmsPanel({ printerId }: { printerId: string }) {
-  const { trays, activeTray } = usePrinterStore((state) => {
+  const { trays, activeTray } = usePrinterStore(useShallow((state) => {
     const printer = state.printersById[printerId];
     const taskAms = printer?.current_task?.ams;
     const ams = printer?.ams || taskAms;
@@ -294,7 +294,7 @@ function ReactiveAmsPanel({ printerId }: { printerId: string }) {
       trays: ams?.trays || [],
       activeTray: ams?.active_tray,
     };
-  }, shallow);
+  }));
 
   return (
     <section className="printer-panel ams-panel">
@@ -352,13 +352,13 @@ function ReactiveCameraPanel({
   go2rtcUrl?: string;
   frigateUrl?: string;
 }) {
-  const { ipcamStatus, ipcamBitrate } = usePrinterStore((state) => {
+  const { ipcamStatus, ipcamBitrate } = usePrinterStore(useShallow((state) => {
     const task = state.printersById[printerId]?.current_task;
     return {
       ipcamStatus: task?.ipcam_status ? String(task.ipcam_status) : '',
       ipcamBitrate: task?.ipcam_bitrate,
     };
-  }, shallow);
+  }));
 
   return (
     <section className="printer-panel camera-panel">
@@ -415,7 +415,7 @@ function ReactivePrinterCardComponent({
   onOpenHardware: (printerId: string) => void;
   onOpenConfig: (printerId: string) => void;
 }) {
-  const { name, online, productName, cameraSource } = usePrinterStore((state) => {
+  const { name, online, productName, cameraSource } = usePrinterStore(useShallow((state) => {
     const printer = state.printersById[printerId];
     return {
       name: printer?.name || 'Printer',
@@ -423,7 +423,7 @@ function ReactivePrinterCardComponent({
       productName: printer?.dev_product_name || printer?.dev_model_name || 'Bambu printer',
       cameraSource: (printer?.camera_rtsp_url || defaultCameraName || '').trim(),
     };
-  }, shallow);
+  }));
 
   return (
     <article className="printer-bento-card">

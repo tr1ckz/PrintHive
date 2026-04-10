@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { shallow } from 'zustand/shallow';
+import { useShallow } from 'zustand/react/shallow';
 import { Printer } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
@@ -21,7 +21,7 @@ function Printers() {
   const loadPrinters = usePrinterStore((state) => state.loadInitialPrinters);
   const selectedPrinter = usePrinterStore((state) => (selectedPrinterId ? state.printersById[selectedPrinterId] || null : null));
   const { printerIds, loading, error, onlineCount, activeJobs, cameraCount, totalPrinters, socketStatus } = usePrinterStore(
-    (state) => {
+    useShallow((state) => {
       const printers = state.printerOrder.map((id) => state.printersById[id]).filter(Boolean);
       return {
         printerIds: state.printerOrder,
@@ -36,8 +36,7 @@ function Printers() {
         totalPrinters: printers.length,
         socketStatus: state.socketStatus,
       };
-    },
-    shallow
+    })
   );
 
   const getCameraSource = useCallback((printer?: Printer | null) => {
