@@ -14,6 +14,8 @@ export function UISettings() {
     }
     return 'orange';
   });
+  const [frigateUrl, setFrigateUrl] = useState('');
+  const [frigateCameraName, setFrigateCameraName] = useState('');
   const [uiLoading, setUiLoading] = useState(false);
 
   useEffect(() => {
@@ -31,6 +33,8 @@ export function UISettings() {
       if (data.success) {
         setHideBmc(data.hideBmc || false);
         setColorScheme(data.colorScheme || document.documentElement.dataset.themeAccent || 'orange');
+        setFrigateUrl(data.frigateUrl || '');
+        setFrigateCameraName(data.frigateCameraName || '');
       }
     } catch (error) {
       console.error('Failed to load UI settings:', error);
@@ -43,7 +47,7 @@ export function UISettings() {
       const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hideBmc, colorScheme }),
+        body: JSON.stringify({ hideBmc, colorScheme, frigateUrl, frigateCameraName }),
         credentials: 'include'
       });
       const data = await response.json();
@@ -82,6 +86,42 @@ export function UISettings() {
         </select>
         <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>Choose your accent color throughout the app</small>
       </div>
+
+      <div className="form-group">
+        <label>Frigate Base URL</label>
+        <input
+          type="url"
+          value={frigateUrl}
+          onChange={(e) => setFrigateUrl(e.target.value)}
+          disabled={uiLoading}
+          className="form-control"
+          placeholder="http://frigate.local:5000"
+        />
+        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+          Used for direct HLS streaming via <code>/api/&lt;camera&gt;/hls.m3u8</code>.
+        </small>
+      </div>
+
+      <div className="form-group">
+        <label>Default Frigate Camera Name</label>
+        <input
+          type="text"
+          value={frigateCameraName}
+          onChange={(e) => setFrigateCameraName(e.target.value)}
+          disabled={uiLoading}
+          className="form-control"
+          placeholder="p1s_camera"
+        />
+        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+          This is used when a printer card does not override the stream source.
+        </small>
+      </div>
+
+      {frigateUrl && frigateCameraName ? (
+        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '1rem' }}>
+          Preview stream: {`${frigateUrl.replace(/\/+$/, '')}/api/${encodeURIComponent(frigateCameraName)}/hls.m3u8`}
+        </small>
+      ) : null}
 
       <div className="toggle-group">
         <label className="toggle-label">

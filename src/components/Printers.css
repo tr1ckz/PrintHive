@@ -296,9 +296,9 @@
 
 .panel-inline-chip.playing,
 .panel-inline-chip.active {
-  border-color: rgba(249, 115, 22, 0.28);
-  background: rgba(249, 115, 22, 0.14);
-  color: #fed7aa;
+  border-color: rgba(var(--theme-accent-rgb), 0.28);
+  background: rgba(var(--theme-accent-rgb), 0.14);
+  color: var(--theme-accent-strong);
 }
 
 .printer-camera-shell {
@@ -322,6 +322,10 @@
   left: 10px;
   bottom: 10px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .camera-bitrate {
@@ -332,6 +336,20 @@
   background: rgba(0, 0, 0, 0.62);
   color: #f8fafc;
   font-size: 0.75rem;
+}
+
+.camera-source-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(100%, 210px);
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .camera-error {

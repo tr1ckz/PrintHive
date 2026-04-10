@@ -1,13 +1,11 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Printer } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
 import { useModal } from './ModalProvider';
 import './Printers.css';
 import LoadingScreen from './LoadingScreen';
-
-const CAMERA_REFRESH_INTERVAL_MS = 5000;
-const CAMERA_VIEWPORT_BUFFER = 300;
+import FrigateCamera from './FrigateCamera';
 
 const normalizeProgress = (value: number | undefined | null) => {
   if (value === null || value === undefined || Number.isNaN(value)) return 0;
@@ -76,10 +74,8 @@ function Printers() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [cameraUrl, setCameraUrl] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
-  const cameraRefreshRef = useRef(0);
-  const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
-  const preloadRefs = useRef<Map<string, HTMLImageElement>>(new Map());
-  const printersById = useMemo(() => new Map(printers.map((printer) => [printer.dev_id, printer])), [printers]);
+  const [frigateUrl, setFrigateUrl] = useState('');
+  const [defaultFrigateCameraName, setDefaultFrigateCameraName] = useState('');
 
   const fetchPrinters = useCallback(async () => {
     try {
@@ -95,72 +91,27 @@ function Printers() {
     }
   }, []);
 
-  const refreshCameras = useCallback(() => {
-    if (document.hidden) return;
-
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    cameraRefreshRef.current += 1;
-
-    imageRefs.current.forEach((img, deviceId) => {
-      const printer = printersById.get(deviceId);
-      if (!printer?.camera_rtsp_url || !img || !img.isConnected) {
-        return;
+  const loadUiStreamSettings = useCallback(async () => {
+    try {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, { credentials: 'include' });
+      const data = await response.json();
+      if (data.success) {
+        setFrigateUrl(data.frigateUrl || '');
+        setDefaultFrigateCameraName(data.frigateCameraName || '');
       }
-
-      const rect = img.getBoundingClientRect();
-      const isNearViewport =
-        rect.bottom >= -CAMERA_VIEWPORT_BUFFER &&
-        rect.top <= viewportHeight + CAMERA_VIEWPORT_BUFFER;
-
-      if (!isNearViewport) {
-        return;
-      }
-
-      const newUrl = `${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=${cameraRefreshRef.current}`;
-
-      const preloadImg = new Image();
-      preloadImg.onload = () => {
-        if (imageRefs.current.has(deviceId)) {
-          img.src = newUrl;
-        }
-      };
-      preloadImg.onerror = () => {
-        // Keep the old image on error so the card stays stable.
-      };
-      preloadImg.src = newUrl;
-      preloadRefs.current.set(deviceId, preloadImg);
-    });
-  }, [printersById]);
+    } catch (err) {
+      console.error('Failed to load Frigate settings:', err);
+    }
+  }, []);
 
   useEffect(() => {
     void fetchPrinters();
-  }, [fetchPrinters]);
+    void loadUiStreamSettings();
+  }, [fetchPrinters, loadUiStreamSettings]);
 
-  const hasCameraFeed = useMemo(
-    () => printers.some((printer) => Boolean(printer.camera_rtsp_url)),
-    [printers]
-  );
-
-  useEffect(() => {
-    if (!hasCameraFeed) return;
-
-    refreshCameras();
-    const interval = window.setInterval(refreshCameras, CAMERA_REFRESH_INTERVAL_MS);
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        refreshCameras();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      imageRefs.current.clear();
-      preloadRefs.current.clear();
-    };
-  }, [hasCameraFeed, refreshCameras]);
+  const getCameraSource = useCallback((printer: Printer) => {
+    return (printer.camera_rtsp_url || defaultFrigateCameraName || '').trim();
+  }, [defaultFrigateCameraName]);
 
   const openConfigModal = (printer: Printer) => {
     setSelectedPrinter(printer);
@@ -202,17 +153,9 @@ function Printers() {
     }
   };
 
-  const setImageRef = useCallback((deviceId: string) => (el: HTMLImageElement | null) => {
-    if (el) {
-      imageRefs.current.set(deviceId, el);
-    } else {
-      imageRefs.current.delete(deviceId);
-    }
-  }, []);
-
   const onlineCount = printers.filter((printer) => printer.online).length;
   const activeJobs = printers.filter((printer) => printer.print_status === 'RUNNING').length;
-  const cameraCount = printers.filter((printer) => Boolean(printer.camera_rtsp_url)).length;
+  const cameraCount = printers.filter((printer) => Boolean(getCameraSource(printer))).length;
 
   const openHardwareModal = (printer: Printer) => {
     const details = [
@@ -222,7 +165,7 @@ function Printers() {
       { label: 'Nozzle', value: printer.nozzle_diameter ? `${printer.nozzle_diameter} mm` : '—' },
       { label: 'Structure', value: printer.dev_structure || '—' },
       { label: 'Access Code', value: printer.dev_access_code || 'Not available' },
-      { label: 'Camera Source', value: printer.camera_rtsp_url || 'Not configured' },
+      { label: 'Camera Source', value: getCameraSource(printer) || 'Not configured' },
     ];
 
     openModal({
@@ -302,6 +245,7 @@ function Printers() {
             const trays = (printer.ams || task?.ams)?.trays || [];
             const activeTray = (printer.ams || task?.ams)?.active_tray;
             const speedMode = getSpeedMode(task?.speed_profile, task?.speed_factor);
+            const cameraSource = getCameraSource(printer);
             const telemetryItems = [
               typeof task?.nozzle_temp === 'number'
                 ? { label: 'Nozzle', value: `${Math.round(task.nozzle_temp)}°${typeof task.nozzle_target === 'number' && task.nozzle_target > 0 ? ` / ${Math.round(task.nozzle_target)}°` : ''}` }
@@ -371,38 +315,24 @@ function Printers() {
                       ) : null}
                     </div>
 
-                    {printer.camera_rtsp_url ? (
+                    {cameraSource ? (
                       <div className="printer-camera-shell">
-                        <img
-                          ref={setImageRef(printer.dev_id)}
-                          src={`${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=0`}
-                          alt={`${printer.name} camera feed`}
-                          className="camera-feed"
-                          style={{ transition: 'none' }}
-                          loading="lazy"
-                          decoding="async"
-                          onError={(event) => {
-                            const target = event.currentTarget;
-                            target.style.display = 'none';
-                            const parent = target.parentElement;
-                            if (parent && !parent.querySelector('.camera-error')) {
-                              const errorDiv = document.createElement('div');
-                              errorDiv.className = 'camera-error';
-                              errorDiv.textContent = 'Camera feed unavailable';
-                              parent.appendChild(errorDiv);
-                            }
-                          }}
+                        <FrigateCamera
+                          frigateUrl={frigateUrl}
+                          cameraName={cameraSource}
+                          printerName={printer.name}
                         />
                         <div className="camera-meta">
                           {typeof printer.current_task?.ipcam_bitrate === 'number' && printer.current_task.ipcam_bitrate > 0 ? (
                             <span className="camera-bitrate">{formatBitrate(printer.current_task.ipcam_bitrate)}</span>
                           ) : null}
+                          <span className="camera-source-badge">{cameraSource}</span>
                         </div>
                       </div>
                     ) : (
                       <div className="panel-empty">
-                        <strong>No camera configured</strong>
-                        <span>Add an RTSP source to surface live snapshots here.</span>
+                        <strong>No Frigate stream configured</strong>
+                        <span>Add a Frigate URL and camera name to stream directly in the browser.</span>
                       </div>
                     )}
                   </section>
@@ -542,23 +472,23 @@ function Printers() {
             <div className="modal-header">
               <div>
                 <h2>Configure {selectedPrinter.name}</h2>
-                <p className="modal-subcopy">Update the RTSP source for the live camera tile.</p>
+                <p className="modal-subcopy">Set a printer-specific Frigate camera name or direct HLS URL for this live tile.</p>
               </div>
               <button className="close-btn" onClick={closeConfigModal} aria-label="Close modal">×</button>
             </div>
             <div className="modal-body">
               <label className="modal-field">
-                <span>Camera RTSP URL</span>
+                <span>Frigate Camera Name / HLS URL</span>
                 <input
                   type="text"
                   value={cameraUrl}
                   onChange={(event) => setCameraUrl(event.target.value)}
-                  placeholder="rtsps://192.168.x.x:322/streaming/live/1"
+                  placeholder="p1s_camera or http://frigate.local:5000/api/p1s_camera/hls.m3u8"
                   disabled={savingConfig}
                 />
               </label>
               <small className="modal-help">
-                Keep static device metadata off the dashboard and reserve this modal for feed configuration only.
+                For Frigate, enter the camera name here and keep the shared Frigate base URL in UI Settings.
               </small>
             </div>
             <div className="modal-footer">

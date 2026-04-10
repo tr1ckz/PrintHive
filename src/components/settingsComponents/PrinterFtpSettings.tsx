@@ -300,16 +300,16 @@ export function PrinterFtpSettings() {
           </div>
           
           <div className="form-group">
-            <label>Camera RTSP URL (Optional)</label>
+            <label>Frigate Camera Name / HLS URL (Optional)</label>
             <input
               type="text"
               value={editingPrinter.camera_rtsp_url}
               onChange={(e) => setEditingPrinter({ ...editingPrinter, camera_rtsp_url: e.target.value })}
-              placeholder="rtsp://192.168.x.x:554/stream"
+              placeholder="p1s_camera or http://frigate.local:5000/api/p1s_camera/hls.m3u8"
               disabled={loading}
             />
             <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>
-              Enter the RTSP URL for your printer's camera feed. The camera will be displayed on the Printers page.
+              Enter a Frigate camera name or direct HLS URL. The Printers page will stream it directly in the browser.
             </small>
           </div>
           

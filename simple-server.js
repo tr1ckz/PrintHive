@@ -1696,11 +1696,16 @@ app.get('/api/settings/ui', (req, res) => {
   try {
     const hideBmc = db.prepare('SELECT value FROM config WHERE key = ?').get('hide_bmc');
     const colorScheme = db.prepare('SELECT value FROM config WHERE key = ?').get('color_scheme');
+    const frigateUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_url');
+    const frigateCameraName = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_camera_name');
+    const canExposePrivateStreamSettings = Boolean(req.session?.authenticated);
     
     res.json({ 
       success: true,
       hideBmc: hideBmc?.value === 'true',
-      colorScheme: colorScheme?.value || 'cyan'
+      colorScheme: colorScheme?.value || 'cyan',
+      frigateUrl: canExposePrivateStreamSettings ? frigateUrl?.value || '' : '',
+      frigateCameraName: canExposePrivateStreamSettings ? frigateCameraName?.value || '' : ''
     });
   } catch (error) {
     console.error('Failed to load UI settings:', error);
@@ -1721,7 +1726,7 @@ app.post('/api/settings/ui', (req, res) => {
   }
   
   try {
-    const { hideBmc, colorScheme } = req.body;
+    const { hideBmc, colorScheme, frigateUrl, frigateCameraName } = req.body;
     
     const upsert = db.prepare(`
       INSERT INTO config (key, value, updated_at) 
@@ -1732,6 +1737,14 @@ app.post('/api/settings/ui', (req, res) => {
     upsert.run('hide_bmc', hideBmc ? 'true' : 'false', hideBmc ? 'true' : 'false');
     if (colorScheme) {
       upsert.run('color_scheme', colorScheme, colorScheme);
+    }
+    if (typeof frigateUrl === 'string') {
+      const trimmedFrigateUrl = frigateUrl.trim();
+      upsert.run('frigate_url', trimmedFrigateUrl, trimmedFrigateUrl);
+    }
+    if (typeof frigateCameraName === 'string') {
+      const trimmedCameraName = frigateCameraName.trim();
+      upsert.run('frigate_camera_name', trimmedCameraName, trimmedCameraName);
     }
     
     res.json({ success: true });
