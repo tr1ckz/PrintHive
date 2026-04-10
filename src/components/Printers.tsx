@@ -66,6 +66,20 @@ function Printers() {
   const preloadRefs = useRef<Map<string, HTMLImageElement>>(new Map());
   const printersById = useMemo(() => new Map(printers.map((printer) => [printer.dev_id, printer])), [printers]);
 
+  const fetchPrinters = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.LIST, { credentials: 'include' });
+      const data = await response.json();
+      setPrinters(data.devices || []);
+    } catch (err) {
+      setError('Failed to load printers');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const refreshCameras = useCallback(() => {
     if (document.hidden) return;
 
@@ -132,20 +146,6 @@ function Printers() {
       preloadRefs.current.clear();
     };
   }, [hasCameraFeed, refreshCameras]);
-
-  const fetchPrinters = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.LIST, { credentials: 'include' });
-      const data = await response.json();
-      setPrinters(data.devices || []);
-    } catch (err) {
-      setError('Failed to load printers');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const openConfigModal = (printer: Printer) => {
     setSelectedPrinter(printer);
