@@ -3,6 +3,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import LoadingScreen from './components/LoadingScreen';
 import ErrorBoundary from './components/ErrorBoundary';
+import Docs from './components/Docs';
 import { API_ENDPOINTS } from './config/api';
 import { fetchWithRetry } from './utils/fetchWithRetry';
 import packageInfo from '../package.json';
@@ -10,6 +11,7 @@ import './App.css';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const isDocsRoute = window.location.pathname.toLowerCase().startsWith('/docs');
 
   useEffect(() => {
     checkAuth();
@@ -86,7 +88,7 @@ function App() {
     }
   };
 
-  if (isAuthenticated === null) {
+  if (isAuthenticated === null && !isDocsRoute) {
     return <LoadingScreen message="Initializing..." />;
   }
 
@@ -94,7 +96,9 @@ function App() {
     <ErrorBoundary>
       <div className="app">
         <div className="app-content">
-          {isAuthenticated ? (
+          {isDocsRoute && !isAuthenticated ? (
+            <Docs standalone />
+          ) : isAuthenticated ? (
             <Dashboard onLogout={handleLogout} />
           ) : (
             <Login onLoginSuccess={handleLoginSuccess} />

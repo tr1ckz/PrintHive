@@ -8,6 +8,7 @@ import Maintenance from './Maintenance';
 import Printers from './Printers';
 import CommandPalette from './CommandPalette';
 import Statistics from './Statistics';
+import Docs from './Docs';
 import BackgroundJobTracker from './BackgroundJobTracker';
 import BuyMeACoffee from './BuyMeACoffee';
 import { API_ENDPOINTS } from '../config/api';
@@ -18,7 +19,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics';
+type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics' | 'docs';
 
 const tabPaths: Record<Tab, string> = {
   home: '/',
@@ -28,7 +29,8 @@ const tabPaths: Record<Tab, string> = {
   maintenance: '/maintenance',
   settings: '/settings',
   printers: '/printers',
-  statistics: '/statistics'
+  statistics: '/statistics',
+  docs: '/docs'
 };
 
 const getHashSection = () => {
@@ -45,6 +47,7 @@ const getTabFromLocation = (): Tab | null => {
   if (path.startsWith('/settings')) return 'settings';
   if (path.startsWith('/printers')) return 'printers';
   if (path.startsWith('/statistics')) return 'statistics';
+  if (path.startsWith('/docs')) return 'docs';
   if (path === '/' || path === '') return 'home';
   return null;
 };
@@ -146,6 +149,11 @@ function Dashboard({ onLogout }: DashboardProps) {
     { id: 'statistics' as Tab, label: 'Stats', icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M4 21V9m5 12V3m5 18v-8m5 8V13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    )},
+    { id: 'docs' as Tab, label: 'Docs', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7 4.5A2.5 2.5 0 019.5 2H20v16H9.5A2.5 2.5 0 007 20.5m0-16v16m0-16H5a2 2 0 00-2 2v12a2 2 0 002 2h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     )},
     { id: 'library' as Tab, label: 'Library', icon: (
@@ -287,6 +295,7 @@ function Dashboard({ onLogout }: DashboardProps) {
           {activeTab === 'maintenance' ? <Maintenance /> : null}
           {activeTab === 'settings' ? <Settings userRole={userInfo?.role} initialSection={settingsSection || undefined} /> : null}
           {activeTab === 'printers' ? <Printers /> : null}
+          {activeTab === 'docs' ? <Docs /> : null}
         </div>
       </main>
       
