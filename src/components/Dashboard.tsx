@@ -70,6 +70,7 @@ function Dashboard({ onLogout }: DashboardProps) {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hideBmc, setHideBmc] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
 
   useEffect(() => {
     fetchWithRetry(API_ENDPOINTS.AUTH.USER_ME, { credentials: 'include' })
@@ -91,6 +92,10 @@ function Dashboard({ onLogout }: DashboardProps) {
   useEffect(() => {
     localStorage.setItem('activeTab', activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   // Close mobile menu when clicking outside
   useEffect(() => {
@@ -186,7 +191,7 @@ function Dashboard({ onLogout }: DashboardProps) {
   const adminItems: { id: Tab; label: string; icon: JSX.Element }[] = [];
 
   return (
-    <div className="dashboard">
+    <div className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {/* Fixed Top Navbar */}
       <nav className="navbar">
         <div className="navbar-container">
@@ -194,6 +199,17 @@ function Dashboard({ onLogout }: DashboardProps) {
           <div className="navbar-brand" onClick={() => handleTabChange('home')} style={{ cursor: 'pointer' }}>
             <img src="/images/logo.png" alt="PrintHive" className="navbar-logo" />
             <span className="navbar-title">PrintHive</span>
+            <button
+              type="button"
+              className="sidebar-collapse-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSidebarCollapsed((prev) => !prev);
+              }}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? '→' : '←'}
+            </button>
           </div>
 
           {/* Desktop Navigation */}

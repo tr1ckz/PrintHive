@@ -1038,6 +1038,91 @@
   }
 }
 
+/* Premium settings polish */
+.settings-container.settings-container-redesigned {
+  max-width: 1480px;
+  padding: 24px 8px 36px;
+}
+
+.settings-container-redesigned .settings-header {
+  margin-bottom: 16px;
+}
+
+.settings-container-redesigned .settings-header h1 {
+  background: none;
+  -webkit-text-fill-color: var(--text-primary);
+  color: var(--text-primary);
+  font-size: clamp(2rem, 3vw, 2.4rem);
+  letter-spacing: -0.03em;
+}
+
+.settings-container-redesigned .settings-description {
+  max-width: 760px;
+  color: var(--text-muted);
+}
+
+.settings-layout {
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 24px;
+}
+
+.settings-nav {
+  background: rgba(14, 14, 18, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: none;
+}
+
+.settings-nav-item.active {
+  background: rgba(249, 115, 22, 0.12);
+  border-color: rgba(249, 115, 22, 0.22);
+  box-shadow: none;
+}
+
+.settings-panel-hero,
+.settings-container-redesigned .settings-section,
+.bambu-account-card,
+.printer-ftp-card {
+  background: rgba(17, 18, 21, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: none;
+}
+
+.settings-panel-hero {
+  padding: 18px 20px;
+}
+
+.settings-panel-kicker {
+  color: #fdba74;
+}
+
+.settings-container-redesigned .form-group input,
+.settings-container-redesigned .form-group select,
+.settings-container-redesigned .form-group textarea {
+  background: rgba(24, 24, 27, 0.92);
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+.settings-container-redesigned .form-group input:focus,
+.settings-container-redesigned .form-group select:focus,
+.settings-container-redesigned .form-group textarea:focus {
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.14);
+}
+
+.settings-container-redesigned .btn-primary {
+  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+}
+
+.settings-container-redesigned .btn-secondary {
+  background: rgba(39, 39, 42, 0.88);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 980px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .printer-ftp-card-details .printer-detail strong {
   color: rgba(255, 255, 255, 0.7);
 }

@@ -227,26 +227,36 @@ const Statistics: React.FC = () => {
 
   return (
     <div className="statistics-container">
-      <div className="page-header">
+      <div className="statistics-hero">
         <div>
+          <span className="statistics-kicker">Analytics</span>
           <h1>Statistics</h1>
-          <p>Overview of your 3D printing activity</p>
+          <p>Overview of print reliability, runtime, materials, and cost across your workflow.</p>
         </div>
         <button onClick={fetchStatistics} className="btn-refresh">
           <span>🔄</span> Refresh
         </button>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card gradient-purple">
-          <div className="stat-icon">📊</div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.totalPrints}</div>
-            <div className="stat-label">Total Prints</div>
+      <div className="stats-grid stats-bento-grid">
+        <div className="stat-card stat-card-hero gradient-purple">
+          <div className="stat-card-topline">PrintHive overview</div>
+          <div className="stat-card-hero-main">
+            <div className="stat-content">
+              <div className="stat-value">{formatNumber(stats.totalPrints)}</div>
+              <div className="stat-label">Total prints recorded</div>
+            </div>
+            <div className="stat-hero-aside">
+              <span className="stat-hero-pill success">{formatPercentage(stats.successRate, 1)} success</span>
+              <div className="stat-hero-meta">
+                <span>{formatNumber(stats.failedPrints)} failed</span>
+                <span>{formatDuration(stats.averagePrintTime)} avg</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="stat-card gradient-green">
+        <div className="stat-card stat-card-compact gradient-green">
           <div className="stat-icon">✓</div>
           <div className="stat-content">
             <div className="stat-value">{formatPercentage(stats.successRate, 1)}</div>
@@ -254,15 +264,15 @@ const Statistics: React.FC = () => {
           </div>
         </div>
 
-        <div className="stat-card gradient-red">
+        <div className="stat-card stat-card-compact gradient-red">
           <div className="stat-icon">✕</div>
           <div className="stat-content">
-            <div className="stat-value">{stats.failedPrints}</div>
+            <div className="stat-value">{formatNumber(stats.failedPrints)}</div>
             <div className="stat-label">Failed Prints</div>
           </div>
         </div>
 
-        <div className="stat-card gradient-blue">
+        <div className="stat-card stat-card-compact gradient-blue">
           <div className="stat-icon">⏱</div>
           <div className="stat-content">
             <div className="stat-value">{formatDuration(stats.totalTime)}</div>
@@ -270,7 +280,7 @@ const Statistics: React.FC = () => {
           </div>
         </div>
 
-        <div className="stat-card gradient-orange">
+        <div className="stat-card stat-card-compact gradient-orange">
           <div className="stat-icon">⚖</div>
           <div className="stat-content">
             <div className="stat-value">{formatWeight(stats.totalWeight, 2)}</div>
@@ -278,7 +288,7 @@ const Statistics: React.FC = () => {
           </div>
         </div>
 
-        <div className="stat-card gradient-teal">
+        <div className="stat-card stat-card-compact gradient-teal">
           <div className="stat-icon">⌚</div>
           <div className="stat-content">
             <div className="stat-value">{formatDuration(stats.averagePrintTime)}</div>
