@@ -128,17 +128,20 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
     switch (status) {
       case 2: return '#4ade80'; // Success - green
       case 3: return '#f87171'; // Failed - red
-      case 1: return '#fbbf24'; // In progress - yellow
+      case 1:
+      case 4:
+        return '#fbbf24'; // Printing / in progress - yellow
       default: return '#888';
     }
   };
 
   const getStatusText = (status: number) => {
     switch (status) {
-      case 1: return 'In Progress';
+      case 1:
+      case 4:
+        return 'Printing';
       case 2: return 'Success';
       case 3: return 'Failed';
-      case 4: return 'Cancelled';
       default: return 'Unknown';
     }
   };

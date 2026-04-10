@@ -1318,12 +1318,18 @@ app.delete('/api/bambu/accounts/:id', (req, res) => {
     // Delete account
     db.prepare('DELETE FROM bambu_accounts WHERE id = ?').run(accountId);
 
-    // If it was primary, make another one primary
+    // If it was primary, make another one primary and keep the session aligned
     if (account.is_primary) {
       const newPrimary = db.prepare('SELECT * FROM bambu_accounts ORDER BY id ASC LIMIT 1').get();
       if (newPrimary) {
         db.prepare('UPDATE bambu_accounts SET is_primary = 1 WHERE id = ?').run(newPrimary.id);
+        req.session.token = newPrimary.token;
+        req.session.region = newPrimary.region;
+      } else {
+        req.session.token = null;
+        req.session.region = null;
       }
+      req.session.save(() => {});
     }
 
     res.json({ success: true });
@@ -1603,8 +1609,46 @@ app.delete('/api/printers/config/:dev_id', (req, res) => {
   const { dev_id } = req.params;
   
   try {
-    db.prepare('DELETE FROM printers WHERE dev_id = ?').run(dev_id);
-    res.json({ success: true });
+    const printer = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id);
+
+    db.prepare(`
+      DELETE FROM printers
+      WHERE dev_id = ?
+         OR (? IS NOT NULL AND ? != '' AND serial_number = ?)
+         OR (? IS NOT NULL AND ? != '' AND ip_address = ?)
+    `).run(
+      dev_id,
+      printer?.serial_number || null,
+      printer?.serial_number || null,
+      printer?.serial_number || null,
+      printer?.ip_address || null,
+      printer?.ip_address || null,
+      printer?.ip_address || null
+    );
+
+    const legacyPrinterIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip')?.value || '';
+    const legacySerialNumber = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number')?.value || '';
+    const normalizedLegacyIp = normalizePrinterIp(legacyPrinterIp);
+    const normalizedDeletedIp = normalizePrinterIp(printer?.ip_address);
+
+    const matchesLegacyConfig = Boolean(
+      printer && (
+        (printer.serial_number && legacySerialNumber && printer.serial_number === legacySerialNumber) ||
+        (normalizedDeletedIp && normalizedLegacyIp && normalizedDeletedIp === normalizedLegacyIp) ||
+        dev_id === legacySerialNumber
+      )
+    );
+
+    if (matchesLegacyConfig) {
+      db.prepare('DELETE FROM config WHERE key IN (?, ?, ?, ?)').run(
+        'printer_ip',
+        'printer_access_code',
+        'printer_serial_number',
+        'camera_rtsp_url'
+      );
+    }
+
+    res.json({ success: true, clearedLegacyConfig: matchesLegacyConfig });
   } catch (error) {
     console.error('Failed to delete printer config:', error);
     res.status(500).json({ error: 'Failed to delete printer configuration' });
@@ -2149,6 +2193,10 @@ function buildConfiguredPrinterDevice(printer) {
   };
 }
 
+function normalizePrinterIp(ip) {
+  return String(ip || '').trim();
+}
+
 function mergeConfiguredPrinters(devices = []) {
   const mergedDevices = new Map();
 
@@ -2164,8 +2212,12 @@ function mergeConfiguredPrinters(devices = []) {
     for (const printer of configuredPrinters) {
       const matchingKey = Array.from(mergedDevices.keys()).find((key) => {
         const device = mergedDevices.get(key);
+        const normalizedConfiguredIp = normalizePrinterIp(printer.ip_address);
+        const normalizedDeviceIp = normalizePrinterIp(device?.ip_address);
+
         return key === printer.dev_id ||
-          (!!printer.serial_number && (key === printer.serial_number || device?.serial_number === printer.serial_number));
+          (!!printer.serial_number && (key === printer.serial_number || device?.serial_number === printer.serial_number)) ||
+          (!!normalizedConfiguredIp && normalizedDeviceIp === normalizedConfiguredIp);
       });
 
       const existingDevice = matchingKey ? mergedDevices.get(matchingKey) : null;
@@ -3521,7 +3573,7 @@ app.get('/api/statistics', (req, res) => {
       1: 'In Progress',
       2: 'Success',
       3: 'Failed',
-      4: 'Cancelled'
+      4: 'Printing'
     };
 
     prints.forEach(print => {

@@ -40,7 +40,7 @@ const getPrintStatus = (status: string | number) => {
   const statusClassName =
     statusNum === 2 ? 'success' :
     statusNum === 3 ? 'failed' :
-    statusNum === 1 ? 'running' : 'idle';
+    (statusNum === 1 || statusNum === 4) ? 'running' : 'idle';
 
   const statusDisplay =
     statusClassName === 'success' ? '✓ SUCCESS' :
