@@ -312,25 +312,35 @@ class BambuMqttClient extends EventEmitter {
       (previousJobData.gcode_state || 'IDLE') !== (nextJobData.gcode_state || 'IDLE') ||
       (previousJobData.name || '') !== (nextJobData.name || '') ||
       Math.floor(previousJobData.progress || 0) !== Math.floor(nextJobData.progress || 0) ||
-      (previousJobData.print_error || 0) !== (nextJobData.print_error || 0) ||
-      (previousJobData.remaining_time || 0) !== (nextJobData.remaining_time || 0) ||
-      (previousJobData.ams?.active_tray ?? null) !== (nextJobData.ams?.active_tray ?? null)
+      (previousJobData.print_error || 0) !== (nextJobData.print_error || 0)
     );
   }
 
   queueJobUpdate(jobData) {
     this.pendingJobUpdate = { ...jobData };
     const now = Date.now();
-    const shouldEmitNow = this.hasMeaningfulUpdate(this.lastEmittedJobData, jobData) || (now - this.lastJobEmitAt >= 2000);
+    const isMeaningfulUpdate = this.hasMeaningfulUpdate(this.lastEmittedJobData, jobData);
 
-    if (shouldEmitNow) {
+    if (!isMeaningfulUpdate) {
+      return;
+    }
+
+    const stateChanged = (this.lastEmittedJobData?.gcode_state || 'IDLE') !== (jobData.gcode_state || 'IDLE');
+    const timeSinceLastEmit = now - this.lastJobEmitAt;
+
+    if (stateChanged || timeSinceLastEmit >= 1500) {
       this.flushJobUpdate();
       return;
     }
 
-    if (!this.pendingJobTimer) {
-      this.pendingJobTimer = setTimeout(() => this.flushJobUpdate(), 500);
+    if (this.pendingJobTimer) {
+      clearTimeout(this.pendingJobTimer);
     }
+
+    this.pendingJobTimer = setTimeout(
+      () => this.flushJobUpdate(),
+      Math.max(150, 1500 - timeSinceLastEmit)
+    );
   }
 
   flushJobUpdate() {
@@ -343,7 +353,13 @@ class BambuMqttClient extends EventEmitter {
       this.pendingJobTimer = null;
     }
 
+    if (this.lastEmittedJobData && !this.hasMeaningfulUpdate(this.lastEmittedJobData, this.pendingJobUpdate)) {
+      this.pendingJobUpdate = null;
+      return;
+    }
+
     this.lastEmittedJobData = { ...this.pendingJobUpdate };
+    this.pendingJobUpdate = null;
     this.lastJobEmitAt = Date.now();
     this.emit('job_update', this.lastEmittedJobData);
     logger.debug(`Emitted MQTT update for ${this.printerName} (${this.lastEmittedJobData.gcode_state || 'IDLE'} @ ${Math.floor(this.lastEmittedJobData.progress || 0)}%)`);

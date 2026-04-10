@@ -7516,7 +7516,12 @@ let watchdogTimer = null;
 function setupWatchdog() {
   // Clear existing timer
   if (watchdogTimer) {
-    clearInterval(watchdogTimer);
+    if (typeof watchdogTimer === 'function') {
+      watchdogTimer();
+    } else {
+      clearInterval(watchdogTimer);
+      clearTimeout(watchdogTimer);
+    }
     watchdogTimer = null;
   }
   
@@ -7537,7 +7542,7 @@ function setupWatchdog() {
     
     console.log(`Watchdog enabled: ping every ${interval} seconds${endpoint ? ` to ${endpoint}` : ' (internal)'}`);
     
-    watchdogTimer = setInterval(async () => {
+    watchdogTimer = scheduleRecurringTask('Watchdog', async () => {
       try {
         if (endpoint) {
           // External health check endpoint (e.g., uptime robot, healthchecks.io)
@@ -7553,7 +7558,7 @@ function setupWatchdog() {
       } catch (error) {
         console.error('Watchdog error:', error.message);
       }
-    }, interval * 1000);
+    }, interval * 1000, interval * 1000);
   } catch (error) {
     console.error('Failed to setup watchdog:', error);
   }
@@ -7567,16 +7572,25 @@ let lastMaintenanceNotifications = new Map(); // Track what we've already notifi
 function setupMaintenanceNotifications() {
   // Clear existing timer
   if (maintenanceNotificationTimer) {
-    clearInterval(maintenanceNotificationTimer);
+    if (typeof maintenanceNotificationTimer === 'function') {
+      maintenanceNotificationTimer();
+    } else {
+      clearInterval(maintenanceNotificationTimer);
+      clearTimeout(maintenanceNotificationTimer);
+    }
     maintenanceNotificationTimer = null;
   }
   
   console.log('Setting up maintenance notification checker (every 1 hour)...');
   
-  // Check every hour
-  maintenanceNotificationTimer = setInterval(async () => {
-    await checkMaintenanceDueNotifications();
-  }, 60 * 60 * 1000);
+  maintenanceNotificationTimer = scheduleRecurringTask(
+    'MaintenanceNotifications',
+    async () => {
+      await checkMaintenanceDueNotifications();
+    },
+    60 * 60 * 1000,
+    60 * 60 * 1000
+  );
   
   // Also run immediately on startup (after a delay)
   setTimeout(() => {

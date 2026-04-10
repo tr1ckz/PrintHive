@@ -17,6 +17,8 @@
   z-index: 0;
   pointer-events: none;
   transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .dashboard::before {
@@ -38,10 +40,9 @@
   left: 0;
   right: 0;
   z-index: 1001;
-  background: rgba(15, 23, 42, 0.95);
-  backdrop-filter: blur(20px);
+  background: rgba(15, 23, 42, 0.98);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
 }
 
 .navbar-container {
@@ -211,8 +212,7 @@
   top: 64px;
   left: 0;
   right: 0;
-  background: rgba(15, 23, 42, 0.98);
-  backdrop-filter: blur(20px);
+  background: rgba(15, 23, 42, 0.99);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding: 12px;
   transform: translateY(-100%);

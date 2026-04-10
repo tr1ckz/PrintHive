@@ -46,7 +46,7 @@ class BackgroundSyncService {
    */
   stop() {
     if (this.syncInterval) {
-      clearInterval(this.syncInterval);
+      clearTimeout(this.syncInterval);
       this.syncInterval = null;
     }
     this.isRunning = false;
