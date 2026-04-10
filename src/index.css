@@ -1,13 +1,19 @@
 :root {
   color-scheme: dark;
 
+  /* Dynamic accent theme */
+  --theme-accent: #f97316;
+  --theme-accent-strong: #fb923c;
+  --theme-accent-rgb: 249, 115, 22;
+  --theme-accent-contrast: #ffffff;
+
   /* Brand */
-  --color-primary: #f97316;
-  --color-secondary: #fb923c;
-  --color-gradient-1: #f97316;
-  --color-gradient-2: #fb923c;
-  --color-accent: #22d3ee;
-  --color-accent-soft: rgba(34, 211, 238, 0.12);
+  --color-primary: var(--theme-accent);
+  --color-secondary: var(--theme-accent-strong);
+  --color-gradient-1: var(--theme-accent);
+  --color-gradient-2: var(--theme-accent-strong);
+  --color-accent: var(--theme-accent);
+  --color-accent-soft: rgba(var(--theme-accent-rgb), 0.12);
 
   /* Premium dark surfaces */
   --bg-base: #09090b;
@@ -17,8 +23,8 @@
   --bg-dark: rgba(17, 18, 21, 0.94);
   --bg-overlay: rgba(9, 9, 11, 0.88);
   --bg-card: rgba(24, 24, 27, 0.92);
-  --bg-hover: rgba(249, 115, 22, 0.10);
-  --bg-hover-intense: rgba(249, 115, 22, 0.16);
+  --bg-hover: rgba(var(--theme-accent-rgb), 0.10);
+  --bg-hover-intense: rgba(var(--theme-accent-rgb), 0.16);
   --bg-modal: rgba(0, 0, 0, 0.55);
 
   /* Typography */
@@ -32,8 +38,8 @@
   --border-primary: rgba(255, 255, 255, 0.08);
   --border-secondary: rgba(255, 255, 255, 0.12);
   --border-tertiary: rgba(255, 255, 255, 0.18);
-  --border-hover: rgba(249, 115, 22, 0.4);
-  --border-focus: #f97316;
+  --border-hover: rgba(var(--theme-accent-rgb), 0.4);
+  --border-focus: var(--theme-accent);
   --border-dark: #27272a;
 
   /* Status */
@@ -50,7 +56,7 @@
   --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.22);
   --shadow-xl: 0 18px 42px rgba(0, 0, 0, 0.28);
 
-  --gradient-primary: linear-gradient(135deg, rgba(249, 115, 22, 0.18) 0%, rgba(251, 146, 60, 0.08) 100%);
+  --gradient-primary: linear-gradient(135deg, rgba(var(--theme-accent-rgb), 0.18) 0%, color-mix(in srgb, var(--theme-accent-strong) 18%, transparent) 100%);
   --gradient-background: linear-gradient(180deg, #09090b 0%, #0f1014 100%);
   --gradient-dark: linear-gradient(180deg, rgba(18, 18, 22, 0.96) 0%, rgba(11, 11, 15, 0.98) 100%);
 }

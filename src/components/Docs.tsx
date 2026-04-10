@@ -98,11 +98,15 @@ function Docs({ standalone = false }: DocsProps) {
         <div className="docs-hero-copy">
           <div>
             <span className="docs-badge">/docs</span>
-            <h1>PrintHive Documentation</h1>
-            <p>
-              Everything you need to install, secure, connect, and run PrintHive — including Docker,
-              SSO, printer onboarding, sync, backups, and day-to-day workflows.
-            </p>
+            {standalone ? (
+              <>
+                <h1>PrintHive Documentation</h1>
+                <p>
+                  Everything you need to install, secure, connect, and run PrintHive — including Docker,
+                  SSO, printer onboarding, sync, backups, and day-to-day workflows.
+                </p>
+              </>
+            ) : null}
           </div>
 
           <div className="docs-hero-links">

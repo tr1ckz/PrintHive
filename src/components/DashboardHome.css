@@ -501,14 +501,18 @@
   box-shadow: var(--shadow-lg);
 }
 
+.dashboard-header--compact {
+  align-items: center;
+}
+
 .dashboard-kicker {
   display: inline-flex;
-  margin-bottom: 10px;
+  margin-bottom: 0;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(249, 115, 22, 0.14);
-  border: 1px solid rgba(249, 115, 22, 0.2);
-  color: #fdba74;
+  background: rgba(var(--theme-accent-rgb), 0.14);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.2);
+  color: var(--theme-accent-strong);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -557,8 +561,8 @@
 }
 
 .stat-card:hover {
-  border-color: rgba(249, 115, 22, 0.3);
-  box-shadow: var(--shadow-lg);
+  border-color: rgba(var(--theme-accent-rgb), 0.3);
+  box-shadow: 0 12px 28px rgba(var(--theme-accent-rgb), 0.12);
 }
 
 .stat-icon {
@@ -567,7 +571,7 @@
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: rgba(249, 115, 22, 0.12);
+  background: rgba(var(--theme-accent-rgb), 0.12);
 }
 
 .stat-label,
@@ -611,8 +615,8 @@
 .print-item:hover,
 .quick-action:hover,
 .active-print-card:hover {
-  background: rgba(249, 115, 22, 0.08);
-  border-color: rgba(249, 115, 22, 0.2);
+  background: rgba(var(--theme-accent-rgb), 0.08);
+  border-color: rgba(var(--theme-accent-rgb), 0.2);
 }
 
 .active-prints-grid {
@@ -631,8 +635,8 @@
   margin-bottom: 8px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(249, 115, 22, 0.14);
-  color: #fdba74;
+  background: rgba(var(--theme-accent-rgb), 0.14);
+  color: var(--theme-accent-strong);
   font-size: 0.75rem;
   font-weight: 700;
 }

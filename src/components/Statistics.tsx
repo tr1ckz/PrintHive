@@ -229,9 +229,7 @@ const Statistics: React.FC = () => {
     <div className="statistics-container">
       <div className="statistics-hero">
         <div>
-          <span className="statistics-kicker">Analytics</span>
-          <h1>Statistics</h1>
-          <p>Overview of print reliability, runtime, materials, and cost across your workflow.</p>
+          <span className="statistics-kicker">Analytics snapshot</span>
         </div>
         <button onClick={fetchStatistics} className="btn-refresh">
           <span>🔄</span> Refresh

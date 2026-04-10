@@ -242,11 +242,9 @@ function Duplicates() {
       )}
       
       <div className="duplicates-header">
-        <div>
-          <h1>Duplicate Files</h1>
-          <p className="duplicates-description">
-            Find and remove duplicate files to free up space
-          </p>
+        <div className="stats">
+          <span className="stat">{filteredDuplicates.length} group(s)</span>
+          <span className="stat">{selectedFiles.size} selected</span>
         </div>
         <div className="duplicates-search">
           <input

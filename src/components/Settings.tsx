@@ -257,14 +257,6 @@ function Settings({ userRole, initialSection }: SettingsProps) {
     <SettingsContext.Provider value={{ toast, setToast, isAdmin }}>
       <div className="settings-container settings-shell">
         <div className="settings-header settings-shell-header">
-          <div>
-            <span className="settings-kicker">Control Center</span>
-            <h1>⚙️ Settings</h1>
-            <p className="settings-description">
-              Configure PrintHive with category-driven navigation so you never have to scroll through an accordion wall again.
-            </p>
-          </div>
-
           <div className="settings-header-pills">
             <span className="settings-summary-pill">{availableCategories.length} categories</span>
             <span className="settings-summary-pill muted">{activeCategoryConfig.panels.length} focused panels</span>

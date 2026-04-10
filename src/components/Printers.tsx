@@ -254,9 +254,10 @@ function Printers() {
   return (
     <div className="printers-container">
       <div className="page-header printers-page-header">
-        <div>
-          <h1>Printers</h1>
-          <p>Monitor live jobs, camera feeds, AMS inventory, and telemetry without the endless vertical stack.</p>
+        <div className="printers-inline-summary">
+          <span>{onlineCount} online</span>
+          <span>{activeJobs} active jobs</span>
+          <span>{cameraCount} camera feeds</span>
         </div>
         <button className="btn-refresh" onClick={fetchPrinters}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

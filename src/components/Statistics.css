@@ -545,9 +545,9 @@
   margin-bottom: 8px;
   padding: 4px 9px;
   border-radius: 999px;
-  background: rgba(249, 115, 22, 0.10);
-  border: 1px solid rgba(249, 115, 22, 0.18);
-  color: #fdba74;
+  background: rgba(var(--theme-accent-rgb), 0.10);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.18);
+  color: var(--theme-accent-strong);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;

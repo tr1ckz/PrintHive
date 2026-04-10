@@ -1,6 +1,6 @@
 /* Dashboard Layout */
 .dashboard {
-  min-height: 100vh;
+  min-height: 100%;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   position: relative;
   isolation: isolate;
@@ -396,8 +396,8 @@
 .dashboard::after {
   opacity: 0.24;
   background:
-    radial-gradient(circle at 10% 8%, rgba(249, 115, 22, 0.22), transparent 0 22%),
-    radial-gradient(circle at 88% 12%, rgba(34, 211, 238, 0.14), transparent 0 20%),
+    radial-gradient(circle at 10% 8%, rgba(var(--theme-accent-rgb), 0.22), transparent 0 22%),
+    radial-gradient(circle at 88% 12%, rgba(var(--theme-accent-rgb), 0.12), transparent 0 20%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 40%),
     url('/images/splash.png') center top / min(1200px, 100vw) no-repeat;
   background-blend-mode: screen, screen, normal, normal;
@@ -424,8 +424,8 @@
 }
 
 .sidebar-collapse-btn:hover {
-  background: rgba(249, 115, 22, 0.12);
-  border-color: rgba(249, 115, 22, 0.24);
+  background: rgba(var(--theme-accent-rgb), 0.12);
+  border-color: rgba(var(--theme-accent-rgb), 0.24);
   color: #fff;
 }
 
@@ -492,9 +492,9 @@
   }
 
   .navbar-item.active {
-    background: rgba(249, 115, 22, 0.12);
+    background: rgba(var(--theme-accent-rgb), 0.12);
     color: #fff;
-    border-color: rgba(249, 115, 22, 0.24);
+    border-color: rgba(var(--theme-accent-rgb), 0.24);
     box-shadow: none;
     transform: none;
   }

@@ -118,13 +118,6 @@ export default function UserManagement() {
         />
       )}
       
-      <div className="page-header">
-        <div>
-          <h1>User Management</h1>
-          <p>Manage user accounts and permissions</p>
-        </div>
-      </div>
-
       <div className="users-table-container">
         <table className="users-table">
           <thead>

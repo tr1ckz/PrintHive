@@ -741,10 +741,6 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       <section className="library-hero">
         <div className="library-hero-copy">
           <span className="library-kicker">Model workspace</span>
-          <h1>Model Library</h1>
-          <p>
-            Upload, auto-tag, search, and share print-ready files without leaving the PrintHive control plane.
-          </p>
           <div className="library-chip-row">
             {(fileTypeBreakdown.length > 0 ? fileTypeBreakdown : ['3MF · STL · G-code support']).map((item) => (
               <span key={item}>{item}</span>

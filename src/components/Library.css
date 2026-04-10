@@ -804,13 +804,13 @@
 }
 
 .modal-actions .btn-primary {
-  background: linear-gradient(135deg, var(--color-primary, #00d4ff) 0%, var(--color-secondary, #0099ff) 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
   color: white;
 }
 
 .modal-actions .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 15px color-mix(in srgb, var(--color-primary, #00d4ff) 60%, transparent);
+  box-shadow: 0 6px 15px color-mix(in srgb, var(--color-primary) 60%, transparent);
 }
 
 .modal-actions button:disabled {
@@ -915,9 +915,9 @@
 }
 
 .btn-select-all:hover {
-  border-color: #00d4ff;
-  color: #00d4ff;
-  background: rgba(0, 212, 255, 0.1);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(var(--theme-accent-rgb), 0.1);
 }
 
 /* File Card Selection */
@@ -926,8 +926,8 @@
 }
 
 .file-card.selected {
-  border-color: #00d4ff;
-  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 20px rgba(var(--theme-accent-rgb), 0.3);
 }
 
 .file-select-checkbox {
@@ -959,14 +959,14 @@
   display: none;
   width: 6px;
   height: 10px;
-  border: solid #00d4ff;
+  border: solid var(--color-primary);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
 
 .file-select-checkbox input:checked + .checkmark {
-  background: #00d4ff;
-  border-color: #00d4ff;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .file-select-checkbox input:checked + .checkmark::after {
@@ -975,7 +975,7 @@
 }
 
 .file-card:hover .file-select-checkbox .checkmark {
-  border-color: #00d4ff;
+  border-color: var(--color-primary);
 }
 
 /* Advanced Filters */
@@ -993,9 +993,9 @@
 
 .btn-filter-toggle:hover,
 .btn-filter-toggle.active {
-  border-color: #00d4ff;
-  color: #00d4ff;
-  background: rgba(0, 212, 255, 0.1);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(var(--theme-accent-rgb), 0.1);
 }
 
 .filters-panel {

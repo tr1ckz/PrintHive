@@ -841,9 +841,9 @@ export function SystemSettings() {
                       gap: '0.5rem', 
                       alignItems: 'center',
                       padding: '0.75rem',
-                      background: selectedBackup === backup.name ? 'rgba(0, 212, 255, 0.1)' : 'rgba(255,255,255,0.05)',
+                      background: selectedBackup === backup.name ? 'rgba(var(--theme-accent-rgb), 0.1)' : 'rgba(255,255,255,0.05)',
                       borderRadius: '8px',
-                      border: selectedBackup === backup.name ? '1px solid rgba(0, 212, 255, 0.3)' : '1px solid transparent'
+                      border: selectedBackup === backup.name ? '1px solid rgba(var(--theme-accent-rgb), 0.3)' : '1px solid transparent'
                     }}>
                       <input 
                         type="radio" 
@@ -955,7 +955,7 @@ export function SystemSettings() {
                       style={{ 
                         width: `${restoreProgress}%`, 
                         height: '100%', 
-                        background: 'linear-gradient(90deg, #00d4ff, #0099cc)', 
+                        background: 'linear-gradient(90deg, var(--theme-accent), var(--theme-accent-strong))', 
                         transition: 'width 0.5s ease',
                         display: 'flex',
                         alignItems: 'center',

@@ -331,9 +331,9 @@ function Maintenance() {
   return (
     <div className="maintenance">
       <div className="maintenance-header">
-        <div>
-          <h1>Maintenance Scheduler</h1>
-          <p className="maintenance-subtitle">Track and schedule printer maintenance tasks</p>
+        <div className="maintenance-header-meta">
+          <span>{tasks.length} scheduled tasks</span>
+          <span>{overdueTasks.length} overdue</span>
         </div>
         <button className="btn btn-primary" onClick={() => { resetForm(); setEditingTask(null); setShowAddModal(true); }}>
           + Add Task

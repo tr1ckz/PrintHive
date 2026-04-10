@@ -12,6 +12,24 @@
   flex-wrap: wrap;
 }
 
+.printers-inline-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.printers-inline-summary span {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(24, 24, 27, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .page-header h1 {
   font-size: clamp(1.9rem, 2vw, 2.5rem);
   font-weight: 700;

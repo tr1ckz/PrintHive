@@ -447,9 +447,9 @@ const PrintHistory: React.FC = () => {
       )}
       
       <div className="page-header">
-        <div>
-          <h1>Print History</h1>
-          <p>{prints.length} prints in database</p>
+        <div className="history-inline-summary">
+          <span>{prints.length} prints in database</span>
+          {printerOptions.length > 0 ? <span>{printerOptions.length} printer{printerOptions.length === 1 ? '' : 's'}</span> : null}
         </div>
         <div className="header-actions">
           <button onClick={handleExportCSV} className="btn-export" disabled={prints.length === 0}>

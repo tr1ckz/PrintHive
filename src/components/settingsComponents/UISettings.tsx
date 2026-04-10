@@ -1,18 +1,28 @@
 import { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../../config/api';
 import fetchWithRetry from '../../utils/fetchWithRetry';
+import { applyThemeScheme } from '../../utils/theme';
 import { useSettingsContext } from './SettingsContext';
 import { CollapsibleSection } from './CollapsibleSection';
 
 export function UISettings() {
   const { setToast } = useSettingsContext();
   const [hideBmc, setHideBmc] = useState(false);
-  const [colorScheme, setColorScheme] = useState('cyan');
+  const [colorScheme, setColorScheme] = useState(() => {
+    if (typeof document !== 'undefined') {
+      return document.documentElement.dataset.themeAccent || 'orange';
+    }
+    return 'orange';
+  });
   const [uiLoading, setUiLoading] = useState(false);
 
   useEffect(() => {
     loadUiSettings();
   }, []);
+
+  useEffect(() => {
+    applyThemeScheme(colorScheme);
+  }, [colorScheme]);
 
   const loadUiSettings = async () => {
     try {
@@ -20,7 +30,7 @@ export function UISettings() {
       const data = await response.json();
       if (data.success) {
         setHideBmc(data.hideBmc || false);
-        setColorScheme(data.colorScheme || 'cyan');
+        setColorScheme(data.colorScheme || document.documentElement.dataset.themeAccent || 'orange');
       }
     } catch (error) {
       console.error('Failed to load UI settings:', error);
@@ -63,7 +73,7 @@ export function UISettings() {
           disabled={uiLoading}
           className="form-control"
         >
-          <option value="cyan">Cyan (Default)</option>
+          <option value="cyan">Cyan</option>
           <option value="purple">Purple</option>
           <option value="green">Green</option>
           <option value="orange">Orange</option>
