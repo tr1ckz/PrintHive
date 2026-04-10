@@ -65,31 +65,78 @@ const videoConverter = require('./video-converter');
 const BambuMqttClient = require('./mqtt-client');
 const coverImageFetcher = require('./cover-image-fetcher');
 
+function getBambuApiBase(region = 'global') {
+  return region === 'china' ? 'https://api.bambulab.cn' : 'https://api.bambulab.com';
+}
+
+function getConfiguredBambuAccounts(req = null) {
+  try {
+    const accounts = db.prepare(`
+      SELECT id, user_id, email, token, COALESCE(region, 'global') AS region, is_primary
+      FROM bambu_accounts
+      WHERE token IS NOT NULL AND token != ''
+      ORDER BY is_primary DESC, id ASC
+    `).all();
+
+    if (accounts.length > 0) {
+      return accounts;
+    }
+  } catch (error) {
+    logger.warn('[BambuAuth] Failed to load bambu_accounts:', error.message);
+  }
+
+  try {
+    const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+    const hasLegacyTokenColumn = settingsColumns.some((column) => column.name === 'bambu_token');
+
+    if (hasLegacyTokenColumn) {
+      const legacyAccounts = db.prepare(`
+        SELECT user_id, bambu_email AS email, bambu_token AS token, COALESCE(bambu_region, 'global') AS region, 1 AS is_primary
+        FROM settings
+        WHERE bambu_token IS NOT NULL AND bambu_token != ''
+      `).all();
+
+      if (legacyAccounts.length > 0) {
+        return legacyAccounts;
+      }
+    }
+  } catch (error) {
+    logger.warn('[BambuAuth] Failed to load legacy Bambu tokens:', error.message);
+  }
+
+  if (req?.session?.token) {
+    return [{
+      id: null,
+      user_id: req.session.userId || null,
+      email: req.session.email || 'session',
+      token: req.session.token,
+      region: req.session.region || 'global',
+      is_primary: 1
+    }];
+  }
+
+  return [];
+}
+
 // Periodic cloud sync to keep DB fresh without manual action
 function setupCloudAutoSync() {
   const intervalMinutes = 60; // sync every 60 minutes
   async function runCloudSyncOnce() {
     try {
-      const rows = db.prepare(`
-        SELECT user_id, bambu_token, bambu_region 
-        FROM settings 
-        WHERE bambu_token IS NOT NULL AND bambu_token != ''
-      `).all();
+      const accounts = getConfiguredBambuAccounts();
 
-      if (!rows || rows.length === 0) {
-        logger.info('[CloudSync] No cloud tokens configured; skipping.');
+      if (!accounts || accounts.length === 0) {
+        logger.info('[CloudSync] No Bambu accounts configured; skipping.');
         return;
       }
 
-      for (const row of rows) {
-        const apiBase = (row.bambu_region === 'china')
-          ? 'https://api.bambulab.cn'
-          : 'https://api.bambulab.com';
+      for (const account of accounts) {
+        const apiBase = getBambuApiBase(account.region);
 
         try {
-          logger.info(`[CloudSync] Fetching tasks for user ${row.user_id}...`);
+          logger.info(`[CloudSync] Fetching tasks for ${account.email || `user ${account.user_id || 'unknown'}`}...`);
           const response = await axios.get(`${apiBase}/v1/user-service/my/tasks?limit=100`, {
-            headers: { Authorization: `Bearer ${row.bambu_token}` },
+            headers: { Authorization: `Bearer ${account.token}` },
             timeout: 20000
           });
 
@@ -98,10 +145,10 @@ function setupCloudAutoSync() {
             const result = storePrints(hits);
             logger.info(`[CloudSync] Stored ${result.total} prints (${result.newPrints} new, ${result.updated} updated)`);
           } else {
-            logger.info('[CloudSync] No prints returned from API');
+            logger.info(`[CloudSync] No prints returned from ${account.email || 'configured account'}`);
           }
         } catch (err) {
-          logger.warn(`[CloudSync] Error syncing for user ${row.user_id}: ${err.message}`);
+          logger.warn(`[CloudSync] Error syncing for ${account.email || `user ${account.user_id || 'unknown'}`}: ${err.message}`);
         }
       }
     } catch (err) {
@@ -1385,6 +1432,30 @@ app.post('/api/settings/printer-ftp', (req, res) => {
     upsert.run('camera_rtsp_url', cameraRtspUrl || '', cameraRtspUrl || '');
     if (serialNumber) {
       upsert.run('printer_serial_number', serialNumber, serialNumber);
+    }
+
+    if (printerIp || serialNumber) {
+      const devId = serialNumber || `printer_${(printerIp || 'manual').replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const placeholderName = serialNumber ? `Printer ${serialNumber}` : `Printer at ${printerIp}`;
+      const upsertPrinter = db.prepare(`
+        INSERT INTO printers (dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(dev_id) DO UPDATE SET
+          ip_address = excluded.ip_address,
+          access_code = excluded.access_code,
+          serial_number = COALESCE(NULLIF(excluded.serial_number, ''), printers.serial_number),
+          camera_rtsp_url = excluded.camera_rtsp_url,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+
+      upsertPrinter.run(
+        devId,
+        placeholderName,
+        printerIp || '',
+        printerAccessCode || '',
+        serialNumber || null,
+        cameraRtspUrl || null
+      );
     }
     
     console.log('SUCCESS: Settings saved');
@@ -2914,11 +2985,19 @@ app.get('/api/timelapse/:modelId', async (req, res) => {
     
     // Fallback to fetching from Bambu API if no local video
     console.log('No local video, fetching from cloud API...');
-    const timelapseUrl = `https://api.bambulab.com/v1/iot-service/api/user/task/${print.id}/video`;
+    const [activeAccount] = getConfiguredBambuAccounts(req);
+    const token = activeAccount?.token || req.session.token;
+    const apiBase = getBambuApiBase(activeAccount?.region || req.session.region || 'global');
+
+    if (!token) {
+      return res.status(400).json({ error: 'No Bambu account connected for cloud video access' });
+    }
+
+    const timelapseUrl = `${apiBase}/v1/iot-service/api/user/task/${print.id}/video`;
     console.log('Fetching timelapse from:', timelapseUrl);
     
     const response = await axios.get(timelapseUrl, {
-      headers: { 'Authorization': `Bearer ${req.session.token}` }
+      headers: { 'Authorization': `Bearer ${token}` }
     });
     
     if (response.data && response.data.url) {
@@ -2949,29 +3028,56 @@ app.post('/api/sync', async (req, res) => {
   }
   
   try {
-    console.log('Fetching tasks from API...');
-    const response = await axios.get('https://api.bambulab.com/v1/user-service/my/tasks?limit=100', {
-      headers: { 'Authorization': `Bearer ${req.session.token}` }
-    });
-    
-    console.log('API Response received. Total hits:', response.data?.hits?.length || 0);
-    
-    // Log first task to see structure
-    if (response.data?.hits?.length > 0) {
-      console.log('Sample task structure:', JSON.stringify(response.data.hits[0], null, 2));
+    const accounts = getConfiguredBambuAccounts(req);
+
+    if (!accounts.length) {
+      return res.status(400).json({ error: 'No Bambu account connected for cloud sync' });
     }
+
+    console.log(`Fetching tasks from ${accounts.length} Bambu account(s)...`);
+
+    const allHits = [];
+    for (const account of accounts) {
+      const apiBase = getBambuApiBase(account.region);
+      try {
+        const response = await axios.get(`${apiBase}/v1/user-service/my/tasks?limit=100`, {
+          headers: { 'Authorization': `Bearer ${account.token}` },
+          timeout: 20000
+        });
+
+        const hits = (response.data?.hits || []).map((print) => ({
+          ...print,
+          __accountToken: account.token,
+          __apiBase: apiBase,
+          __accountEmail: account.email || null
+        }));
+
+        console.log(`Account ${account.email || 'session'} returned ${hits.length} task(s)`);
+        allHits.push(...hits);
+      } catch (accountError) {
+        console.log(`Failed to fetch tasks for ${account.email || 'session'}: ${accountError.message}`);
+      }
+    }
+
+    const uniqueHits = Array.from(
+      new Map(allHits.map((print) => [print.id || print.modelId, print])).values()
+    );
+    const storedHits = uniqueHits.map(({ __accountToken, __apiBase, __accountEmail, ...print }) => print);
+
+    console.log('API Response received. Total unique hits:', uniqueHits.length || 0);
     
-    if (response.data && response.data.hits && response.data.hits.length > 0) {
+    if (uniqueHits.length > 0) {
+      console.log('Sample task structure:', JSON.stringify(storedHits[0], null, 2));
       console.log('Storing prints in database...');
-      const result = storePrints(response.data.hits);
+      const result = storePrints(storedHits);
       console.log('Store result:', result);
       
       // Download covers and timelapses
       console.log('Starting downloads...');
       
       const downloadResults = await Promise.all(
-        response.data.hits.slice(0, 50).map(async (print) => {
-          const res = { cover: false, video: false };
+        uniqueHits.slice(0, 50).map(async (print) => {
+          const result = { cover: false, video: false };
           
           // Download cover - check both cover and coverUrl fields
           const coverUrl = print.cover || print.coverUrl || print.snapshot;
@@ -2981,7 +3087,7 @@ app.post('/api/sync', async (req, res) => {
               const localPath = await downloadCoverImage(coverUrl, print.modelId);
               if (localPath) {
                 console.log(`✓ Cover saved: ${localPath}`);
-                res.cover = true;
+                result.cover = true;
               } else {
                 console.log(`✗ Cover download returned null for ${print.modelId}`);
               }
@@ -2994,15 +3100,16 @@ app.post('/api/sync', async (req, res) => {
           
           // Try to download timelapse video
           try {
-            // Check if task has video URL or try to fetch it
             const taskId = print.id;
-            const videoEndpoint = `https://api.bambulab.com/v1/iot-service/api/user/task/${taskId}/video`;
+            const apiBase = print.__apiBase || getBambuApiBase(req.session.region || 'global');
+            const token = print.__accountToken || req.session.token;
+            const videoEndpoint = `${apiBase}/v1/iot-service/api/user/task/${taskId}/video`;
             
             console.log(`Checking timelapse for task ${taskId}...`);
             
             try {
               const videoResponse = await axios.get(videoEndpoint, {
-                headers: { 'Authorization': `Bearer ${req.session.token}` },
+                headers: { 'Authorization': `Bearer ${token}` },
                 maxRedirects: 0,
                 validateStatus: (status) => status < 400 || status === 302 || status === 301
               });
@@ -3014,7 +3121,6 @@ app.post('/api/sync', async (req, res) => {
               } else if (videoResponse.headers?.location) {
                 videoUrl = videoResponse.headers.location;
               } else if (videoResponse.status === 200) {
-                // The endpoint itself might be the video
                 videoUrl = videoEndpoint;
               }
               
@@ -3023,12 +3129,11 @@ app.post('/api/sync', async (req, res) => {
                 const videoPath = await downloadTimelapseVideo(videoUrl, print.modelId, taskId);
                 if (videoPath) {
                   updatePrintVideoPath(print.modelId, videoPath);
-                  res.video = true;
+                  result.video = true;
                   console.log(`✓ Downloaded timelapse for ${print.modelId}`);
                 }
               }
             } catch (videoErr) {
-              // 404 means no timelapse, which is normal
               if (videoErr.response?.status !== 404) {
                 console.log(`Video fetch error for ${print.modelId}:`, videoErr.message);
               }
@@ -3037,7 +3142,7 @@ app.post('/api/sync', async (req, res) => {
             // Silent fail for timelapses
           }
           
-          return res;
+          return result;
         })
       );
       
@@ -3051,10 +3156,10 @@ app.post('/api/sync', async (req, res) => {
         success: true, 
         newPrints: result.newPrints || 0,
         updated: result.updated || 0,
-        synced: response.data.hits.length,
+        synced: uniqueHits.length,
         downloadedCovers,
         downloadedVideos,
-        message: `Synced ${response.data.hits.length} prints (${result.newPrints} new, ${result.updated} updated)\nDownloaded ${downloadedCovers} covers and ${downloadedVideos} timelapses` 
+        message: `Synced ${uniqueHits.length} prints (${result.newPrints} new, ${result.updated} updated)\nDownloaded ${downloadedCovers} covers and ${downloadedVideos} timelapses` 
       });
     } else {
       console.log('No prints found in API response');

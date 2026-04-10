@@ -51,14 +51,14 @@ class BackgroundSyncService {
     console.log(`\n[${new Date().toISOString()}] Running background printer sync...`);
 
     try {
-      // Get all users with printer credentials
+      // Get all configured printers with FTP credentials from the printers table
       const users = db.prepare(`
-        SELECT user_id, printer_ip, printer_access_code 
-        FROM settings 
-        WHERE printer_ip IS NOT NULL 
-          AND printer_access_code IS NOT NULL
-          AND printer_ip != ''
-          AND printer_access_code != ''
+        SELECT dev_id AS user_id, name, ip_address AS printer_ip, access_code AS printer_access_code
+        FROM printers
+        WHERE ip_address IS NOT NULL
+          AND access_code IS NOT NULL
+          AND ip_address != ''
+          AND access_code != ''
       `).all();
 
       if (users.length === 0) {
@@ -66,13 +66,13 @@ class BackgroundSyncService {
         return;
       }
 
-      console.log(`Found ${users.length} user(s) with printer credentials`);
+      console.log(`Found ${users.length} printer(s) with FTP credentials`);
 
       for (const user of users) {
         try {
           await this.syncUserPrinter(user);
         } catch (error) {
-          console.error(`Failed to sync printer for user ${user.user_id}:`, error.message);
+          console.error(`Failed to sync printer ${user.name || user.user_id}:`, error.message);
         }
       }
 
