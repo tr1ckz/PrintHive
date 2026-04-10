@@ -5,7 +5,7 @@ import LoadingScreen from './components/LoadingScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import { API_ENDPOINTS } from './config/api';
 import { fetchWithRetry } from './utils/fetchWithRetry';
-import versionInfo from '../version.json';
+import packageInfo from '../package.json';
 import './App.css';
 
 function App() {
@@ -102,7 +102,7 @@ function App() {
         </div>
 
         <footer className="app-footer">
-          <span className="app-footer-version">v{versionInfo.version}</span>
+          <span className="app-footer-version">v{packageInfo.version}</span>
           <span className="app-footer-separator">•</span>
           <a
             className="app-footer-link"

@@ -1,5 +1,5 @@
-# Use Node.js LTS (Alpine) - Latest stable with security patches
-FROM node:25-alpine AS base
+# Use a stable Node.js LTS release for reproducible builds
+FROM node:22-alpine AS base
 
 # Use Alpine Edge repository for latest security patches
 RUN echo 'https://dl-cdn.alpinelinux.org/alpine/edge/main' > /etc/apk/repositories && \
@@ -41,8 +41,7 @@ RUN npm pkg delete dependencies.canvas dependencies.gl 2>/dev/null || true && \
 # @napi-rs/canvas should install without compilation thanks to prebuilt binaries
 # Don't omit optional deps - rollup needs platform-specific binaries
 RUN rm -f package-lock.json && \
-    npm install --legacy-peer-deps && \
-    npm audit fix --force
+    npm install --legacy-peer-deps
 
 # Copy application files
 COPY . .
