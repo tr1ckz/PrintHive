@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
 import './Statistics.css';
@@ -34,66 +34,73 @@ interface CostData {
   };
 }
 
+interface MaterialRowData {
+  key: string;
+  css: string;
+  name: string;
+  type: string;
+  count: number;
+  weight: number;
+  length: number;
+  percent: number;
+}
+
+interface StatusRowData {
+  key: string;
+  label: string;
+  count: number;
+  percent: number;
+  statusClass: string;
+}
+
+interface PrinterRowData {
+  printer: string;
+  prints: number;
+  percentOfTotal: number;
+}
+
+const formatColorHex = (colorHex: string) => {
+  if (!colorHex || colorHex === 'Unknown' || colorHex === 'undefined' || colorHex === 'null') {
+    return { css: '#94a3b8', name: 'Unknown' };
+  }
+
+  const rgb = colorHex.substring(0, 6);
+  const cssColor = `#${rgb}`;
+
+  const colorNames: { [key: string]: string } = {
+    '000000': 'Black',
+    'FFFFFF': 'White',
+    'F98C36': 'Orange',
+    'F99963': 'Light Orange',
+    'CBC6B8': 'Beige',
+    '898989': 'Gray',
+    '575757': 'Dark Gray',
+    'DE4343': 'Red',
+    'BC0900': 'Dark Red',
+    '61C680': 'Green',
+    '00AE42': 'Green',
+    '1F79E5': 'Blue',
+    '0078BF': 'Blue',
+    '002E96': 'Dark Blue',
+    '042F56': 'Navy',
+    'E8AFCF': 'Pink',
+    'AE96D4': 'Purple',
+    'A3D8E1': 'Light Blue',
+    'F4EE2A': 'Yellow',
+    '7D6556': 'Brown'
+  };
+
+  const name = colorNames[rgb.toUpperCase()] || cssColor;
+  return { css: cssColor, name };
+};
+
 const Statistics: React.FC = () => {
   const [stats, setStats] = useState<StatisticsData | null>(null);
   const [costs, setCosts] = useState<CostData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const handleExportMaterialsCSV = () => {
-    if (!stats) return;
-
-    const data = Object.entries(stats.materialsByColor)
-      .filter(([color, data]) => color && data && data.weight)
-      .map(([color, data]) => {
-        const { css, name } = formatColor(color);
-        return {
-          colorName: name,
-          colorHex: css,
-          materialType: data.type || 'Unknown',
-          prints: data.count,
-          weightGrams: Number(data.weight.toFixed(2)),
-          lengthMm: Number(data.length.toFixed(2))
-        };
-      });
-
-    exportToCSV(
-      data,
-      [
-        { header: 'Color', accessor: 'colorName' },
-        { header: 'Hex', accessor: 'colorHex' },
-        { header: 'Material', accessor: 'materialType' },
-        { header: 'Prints', accessor: 'prints' },
-        { header: 'Weight (g)', accessor: 'weightGrams' },
-        { header: 'Length (mm)', accessor: 'lengthMm' },
-      ],
-      'materials_by_color'
-    );
-  };
-
-  const handleExportPrintersCSV = () => {
-    if (!stats) return;
-
-    const data = Object.entries(stats.printsByPrinter)
-      .map(([printer, count]) => ({
-        printer,
-        prints: count,
-        percentOfTotal: stats.totalPrints ? Number(((count / stats.totalPrints) * 100).toFixed(2)) : 0
-      }))
-      .sort((a, b) => b.prints - a.prints);
-
-    exportToCSV(
-      data,
-      [
-        { header: 'Printer', accessor: 'printer' },
-        { header: 'Prints', accessor: 'prints' },
-        { header: 'Percent of Total', accessor: 'percentOfTotal' },
-      ],
-      'prints_by_printer'
-    );
-  };
-
-  const fetchStatistics = async () => {
+  const fetchStatistics = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -117,49 +124,98 @@ const Statistics: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchStatistics();
   }, []);
 
-  const formatColor = (colorHex: string) => {
-    if (!colorHex || colorHex === 'Unknown' || colorHex === 'undefined' || colorHex === 'null') {
-      return { css: '#94a3b8', name: 'Unknown' };
-    }
-    
-    // Convert hex like "000000FF" or "FFFFFFFF" to CSS format "#000000"
-    // Remove alpha channel (last 2 chars) and add # prefix
-    const rgb = colorHex.substring(0, 6);
-    const cssColor = `#${rgb}`;
-    
-    // Create a friendly name based on the color
-    const colorNames: { [key: string]: string } = {
-      '000000': 'Black',
-      'FFFFFF': 'White',
-      'F98C36': 'Orange',
-      'F99963': 'Light Orange',
-      'CBC6B8': 'Beige',
-      '898989': 'Gray',
-      '575757': 'Dark Gray',
-      'DE4343': 'Red',
-      'BC0900': 'Dark Red',
-      '61C680': 'Green',
-      '00AE42': 'Green',
-      '1F79E5': 'Blue',
-      '0078BF': 'Blue',
-      '002E96': 'Dark Blue',
-      '042F56': 'Navy',
-      'E8AFCF': 'Pink',
-      'AE96D4': 'Purple',
-      'A3D8E1': 'Light Blue',
-      'F4EE2A': 'Yellow',
-      '7D6556': 'Brown'
-    };
-    
-    const name = colorNames[rgb.toUpperCase()] || cssColor;
-    return { css: cssColor, name };
-  };
+  useEffect(() => {
+    void fetchStatistics();
+  }, [fetchStatistics]);
+
+  const materialRows = useMemo<MaterialRowData[]>(() => {
+    if (!stats) return [];
+
+    return Object.entries(stats.materialsByColor)
+      .filter(([color, data]) => color && data && data.weight)
+      .map(([color, data]) => {
+        const { css, name } = formatColorHex(color);
+        return {
+          key: color,
+          css,
+          name,
+          type: data.type || 'Unknown',
+          count: data.count,
+          weight: data.weight,
+          length: data.length,
+          percent: stats.totalWeight ? (data.weight / stats.totalWeight) * 100 : 0
+        };
+      })
+      .sort((a, b) => b.weight - a.weight);
+  }, [stats]);
+
+  const topMaterialRows = useMemo(() => materialRows.slice(0, 10), [materialRows]);
+
+  const statusRows = useMemo<StatusRowData[]>(() => {
+    if (!stats) return [];
+
+    return Object.entries(stats.printsByStatus)
+      .filter(([status]) => status && status !== 'undefined' && status !== 'null')
+      .map(([status, count]) => ({
+        key: status,
+        label: status.toUpperCase(),
+        count,
+        percent: stats.totalPrints ? (count / stats.totalPrints) * 100 : 0,
+        statusClass: status.toLowerCase().replace(/\s+/g, '-')
+      }));
+  }, [stats]);
+
+  const printerRows = useMemo<PrinterRowData[]>(() => {
+    if (!stats) return [];
+
+    return Object.entries(stats.printsByPrinter)
+      .map(([printer, count]) => ({
+        printer,
+        prints: count,
+        percentOfTotal: stats.totalPrints ? Number(((count / stats.totalPrints) * 100).toFixed(2)) : 0
+      }))
+      .sort((a, b) => b.prints - a.prints);
+  }, [stats]);
+
+  const handleExportMaterialsCSV = useCallback(() => {
+    if (!materialRows.length) return;
+
+    exportToCSV(
+      materialRows.map((row) => ({
+        colorName: row.name,
+        colorHex: row.css,
+        materialType: row.type,
+        prints: row.count,
+        weightGrams: Number(row.weight.toFixed(2)),
+        lengthMm: Number(row.length.toFixed(2))
+      })),
+      [
+        { header: 'Color', accessor: 'colorName' },
+        { header: 'Hex', accessor: 'colorHex' },
+        { header: 'Material', accessor: 'materialType' },
+        { header: 'Prints', accessor: 'prints' },
+        { header: 'Weight (g)', accessor: 'weightGrams' },
+        { header: 'Length (mm)', accessor: 'lengthMm' },
+      ],
+      'materials_by_color'
+    );
+  }, [materialRows]);
+
+  const handleExportPrintersCSV = useCallback(() => {
+    if (!printerRows.length) return;
+
+    exportToCSV(
+      printerRows,
+      [
+        { header: 'Printer', accessor: 'printer' },
+        { header: 'Prints', accessor: 'prints' },
+        { header: 'Percent of Total', accessor: 'percentOfTotal' },
+      ],
+      'prints_by_printer'
+    );
+  }, [printerRows]);
 
   if (loading) {
     return <LoadingScreen message="Loading statistics..." />;
@@ -292,58 +348,49 @@ const Statistics: React.FC = () => {
             </button>
           </div>
           <div className="material-list">
-            {Object.entries(stats.materialsByColor)
-              .filter(([color, data]) => color && data && data.weight)
-              .sort(([, a], [, b]) => b.weight - a.weight)
-              .slice(0, 10)
-              .map(([color, data]) => {
-                const { css, name } = formatColor(color);
-                return (
-                  <div key={color} className="material-item">
-                    <div className="material-info">
-                      <div 
-                        className="color-swatch" 
-                        style={{ background: css }}
-                      ></div>
-                      <div className="material-details">
-                        <div className="material-name">{name} ({data.type || 'Unknown'})</div>
-                        <div className="material-stats">
-                          {data.count} prints • {formatWeight(data.weight, 1)} • {formatNumber(data.length, 1)}mm
-                        </div>
-                      </div>
-                    </div>
-                    <div className="material-bar">
-                      <div 
-                        className="material-bar-fill" 
-                        style={{ 
-                          width: `${(data.weight / stats.totalWeight) * 100}%`,
-                          background: css
-                        }}
-                      ></div>
+            {topMaterialRows.map((row) => (
+              <div key={row.key} className="material-item">
+                <div className="material-info">
+                  <div
+                    className="color-swatch"
+                    style={{ background: row.css }}
+                  ></div>
+                  <div className="material-details">
+                    <div className="material-name">{row.name} ({row.type})</div>
+                    <div className="material-stats">
+                      {row.count} prints • {formatWeight(row.weight, 1)} • {formatNumber(row.length, 1)}mm
                     </div>
                   </div>
-                );
-              })}
+                </div>
+                <div className="material-bar">
+                  <div
+                    className="material-bar-fill"
+                    style={{
+                      width: `${row.percent}%`,
+                      background: row.css
+                    }}
+                  ></div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
         <div className="detail-card">
           <h3>Prints by Status</h3>
           <div className="status-chart">
-            {Object.entries(stats.printsByStatus)
-              .filter(([status]) => status && status !== 'undefined' && status !== 'null')
-              .map(([status, count]) => (
-              <div key={status} className="status-bar">
+            {statusRows.map((row) => (
+              <div key={row.key} className="status-bar">
                 <div className="status-info">
-                  <span className={`status-label status-${status?.toLowerCase() || 'unknown'}`}>
-                    {status?.toUpperCase() || 'UNKNOWN'}
+                  <span className={`status-label status-${row.statusClass || 'unknown'}`}>
+                    {row.label || 'UNKNOWN'}
                   </span>
-                  <span className="status-count">{count}</span>
+                  <span className="status-count">{row.count}</span>
                 </div>
                 <div className="progress-bar">
-                  <div 
-                    className={`progress-fill status-${status?.toLowerCase() || 'unknown'}`}
-                    style={{ width: `${(count / stats.totalPrints) * 100}%` }}
+                  <div
+                    className={`progress-fill status-${row.statusClass || 'unknown'}`}
+                    style={{ width: `${row.percent}%` }}
                   ></div>
                 </div>
               </div>
@@ -359,22 +406,20 @@ const Statistics: React.FC = () => {
             </button>
           </div>
           <div className="printer-chart">
-            {Object.entries(stats.printsByPrinter)
-              .sort(([, a], [, b]) => b - a)
-              .map(([printer, count]) => (
-                <div key={printer} className="printer-bar">
-                  <div className="printer-info">
-                    <span className="printer-name">{printer}</span>
-                    <span className="printer-count">{count}</span>
-                  </div>
-                  <div className="progress-bar">
-                    <div 
-                      className="progress-fill gradient-purple-fill"
-                      style={{ width: `${(count / stats.totalPrints) * 100}%` }}
-                    ></div>
-                  </div>
+            {printerRows.map((row) => (
+              <div key={row.printer} className="printer-bar">
+                <div className="printer-info">
+                  <span className="printer-name">{row.printer}</span>
+                  <span className="printer-count">{row.prints}</span>
                 </div>
-              ))}
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill gradient-purple-fill"
+                    style={{ width: `${row.percentOfTotal}%` }}
+                  ></div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

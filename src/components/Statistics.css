@@ -1,5 +1,5 @@
 .statistics-container {
-  animation: fadeInUp 0.5s ease-out;
+  contain: layout paint style;
 }
 
 @keyframes fadeInUp {
@@ -70,31 +70,31 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 20px;
-  background: var(--bg-overlay);
-  backdrop-filter: blur(20px);
-  border: none;
+  padding: 10px 16px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   color: var(--color-primary);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-md);
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
 .btn-refresh:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  border-color: rgba(0, 212, 255, 0.24);
+  background: rgba(15, 23, 42, 0.98);
 }
 
 .loading-container, .error-container {
-  background: var(--bg-overlay);
-  backdrop-filter: blur(20px);
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   padding: 64px 32px;
   text-align: center;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
 }
 
 .loading-container .spinner {
@@ -114,18 +114,18 @@
 }
 
 .stat-card {
-  background: var(--bg-overlay);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  padding: 28px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 22px;
   display: flex;
   align-items: center;
-  gap: 20px;
-  box-shadow: var(--shadow-lg);
-  transition: all 0.3s ease;
-  animation: scaleIn 0.5s ease-out;
+  gap: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
   position: relative;
+  contain: content;
 }
 
 @keyframes scaleIn {
@@ -176,8 +176,9 @@
 }
 
 .stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+  border-color: rgba(0, 212, 255, 0.22);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.2);
 }
 
 .stat-icon {
@@ -244,12 +245,13 @@
 }
 
 .detail-card {
-  background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  padding: 32px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  animation: scaleIn 0.5s ease-out;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  content-visibility: auto;
+  contain-intrinsic-size: 360px;
 }
 
 .detail-card h3 {
@@ -262,7 +264,7 @@
 .material-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .material-item {
@@ -312,7 +314,7 @@
 .material-bar-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 0.5s ease;
+  transition: width 0.2s ease-out;
 }
 
 .status-chart, .printer-chart {
@@ -378,7 +380,7 @@
 .progress-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 0.5s ease;
+  transition: width 0.2s ease-out;
 }
 
 .progress-fill.status-success {
@@ -400,6 +402,18 @@
 @media (max-width: 1024px) {
   .details-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statistics-container,
+  .stat-card,
+  .detail-card,
+  .btn-refresh,
+  .material-bar-fill,
+  .progress-fill {
+    animation: none !important;
+    transition: none !important;
   }
 }
 
@@ -428,6 +442,8 @@
   margin-top: 2rem;
   padding-top: 2rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  content-visibility: auto;
+  contain-intrinsic-size: 280px;
 }
 
 .cost-section h2 {

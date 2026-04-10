@@ -2,11 +2,21 @@
 .dashboard {
   min-height: 100vh;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  background-image: url('/images/splash.png');
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
   position: relative;
+  isolation: isolate;
+}
+
+.dashboard::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('/images/splash.png') center / cover no-repeat;
+  z-index: 0;
+  pointer-events: none;
+  transform: translateZ(0);
 }
 
 .dashboard::before {
