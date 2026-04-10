@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from '../../config/api';
 import fetchWithRetry from '../../utils/fetchWithRetry';
 import { useSettingsContext } from './SettingsContext';
 import { CollapsibleSection } from './CollapsibleSection';
+import { useModal } from '../ModalProvider';
 
 interface BambuAccount {
   id: number;
@@ -14,6 +15,7 @@ interface BambuAccount {
 
 export function BambuSettings() {
   const { setToast } = useSettingsContext();
+  const { confirm } = useModal();
   const [accounts, setAccounts] = useState<BambuAccount[]>([]);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -106,33 +108,40 @@ export function BambuSettings() {
     }
   };
 
-  const handleDisconnect = async (accountId: number) => {
-    if (!confirm('Are you sure you want to disconnect this Bambu Lab account?')) return;
-    const previousAccounts = accounts;
-    setLoading(true);
-    setAccounts(prev => prev.filter(account => account.id !== accountId));
+  const handleDisconnect = (accountId: number) => {
+    confirm({
+      title: 'Disconnect Bambu account?',
+      message: 'This removes the selected Bambu Lab account from PrintHive but does not delete the account itself.',
+      confirmText: 'Disconnect',
+      confirmVariant: 'danger',
+      onConfirm: async () => {
+        const previousAccounts = accounts;
+        setLoading(true);
+        setAccounts((prev) => prev.filter((account) => account.id !== accountId));
 
-    try {
-      const response = await fetchWithRetry(`/api/bambu/accounts/${accountId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+        try {
+          const response = await fetchWithRetry(`/api/bambu/accounts/${accountId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+          });
 
-      const data = await response.json();
+          const data = await response.json();
 
-      if (data.success) {
-        setToast({ message: 'Disconnected Bambu Lab account', type: 'success' });
-        await loadAccounts();
-      } else {
-        setAccounts(previousAccounts);
-        setToast({ message: 'Failed to disconnect', type: 'error' });
+          if (data.success) {
+            setToast({ message: 'Disconnected Bambu Lab account', type: 'success' });
+            await loadAccounts();
+          } else {
+            setAccounts(previousAccounts);
+            setToast({ message: 'Failed to disconnect', type: 'error' });
+          }
+        } catch (error) {
+          setAccounts(previousAccounts);
+          setToast({ message: 'Failed to disconnect', type: 'error' });
+        } finally {
+          setLoading(false);
+        }
       }
-    } catch (error) {
-      setAccounts(previousAccounts);
-      setToast({ message: 'Failed to disconnect', type: 'error' });
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const handleSetPrimary = async (accountId: number) => {

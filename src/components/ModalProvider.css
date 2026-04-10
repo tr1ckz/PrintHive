@@ -1,0 +1,100 @@
+.global-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(9, 9, 11, 0.74);
+  backdrop-filter: blur(8px);
+  z-index: 12000;
+}
+
+.global-modal {
+  width: min(100%, 680px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(24, 24, 27, 0.98) 0%, rgba(12, 12, 14, 0.98) 100%);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.global-modal-sm {
+  max-width: 460px;
+}
+
+.global-modal-md {
+  max-width: 680px;
+}
+
+.global-modal-lg {
+  max-width: 860px;
+}
+
+.global-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.global-modal-header h3 {
+  font-size: 1.2rem;
+  color: #fafafa;
+  margin: 0 0 4px;
+}
+
+.global-modal-header p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.5;
+}
+
+.global-modal-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  font-size: 1.3rem;
+}
+
+.global-modal-body {
+  padding: 18px 22px;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.global-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px 22px;
+}
+
+.global-modal-btn {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.global-modal-btn.primary {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  color: #fff;
+}
+
+.global-modal-btn.secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.global-modal-btn.danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+}

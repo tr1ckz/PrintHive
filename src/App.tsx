@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard';
 import LoadingScreen from './components/LoadingScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import Docs from './components/Docs';
+import { ModalProvider } from './components/ModalProvider';
 import { API_ENDPOINTS } from './config/api';
 import { fetchWithRetry } from './utils/fetchWithRetry';
 import packageInfo from '../package.json';
@@ -67,21 +68,18 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      const response = await fetchWithRetry(API_ENDPOINTS.AUTH.LOGOUT, { 
+      const response = await fetchWithRetry(API_ENDPOINTS.AUTH.LOGOUT, {
         method: 'POST',
         credentials: 'include'
       });
-      
+
       const data = await response.json();
-      
-      // If OIDC logout, redirect to provider's end-session endpoint FIRST
-      // Don't set authenticated to false yet - let the redirect happen
+
       if (data.oidcLogout && data.endSessionUrl) {
         window.location.href = data.endSessionUrl;
-        return; // Don't continue after redirect
+        return;
       }
-      
-      // Only set unauthenticated for non-OIDC logouts
+
       setIsAuthenticated(false);
     } catch (error) {
       setIsAuthenticated(false);
@@ -89,35 +87,37 @@ function App() {
   };
 
   if (isAuthenticated === null && !isDocsRoute) {
-    return <LoadingScreen message="Initializing..." />;
+    return <LoadingScreen message="Initializing your workspace..." title="PrintHive" />;
   }
 
   return (
     <ErrorBoundary>
-      <div className="app">
-        <div className="app-content">
-          {isDocsRoute && !isAuthenticated ? (
-            <Docs standalone />
-          ) : isAuthenticated ? (
-            <Dashboard onLogout={handleLogout} />
-          ) : (
-            <Login onLoginSuccess={handleLoginSuccess} />
-          )}
-        </div>
+      <ModalProvider>
+        <div className="app">
+          <div className="app-content">
+            {isDocsRoute && !isAuthenticated ? (
+              <Docs standalone />
+            ) : isAuthenticated ? (
+              <Dashboard onLogout={handleLogout} />
+            ) : (
+              <Login onLoginSuccess={handleLoginSuccess} />
+            )}
+          </div>
 
-        <footer className="app-footer">
-          <span className="app-footer-version">v{packageInfo.version}</span>
-          <span className="app-footer-separator">•</span>
-          <a
-            className="app-footer-link"
-            href="https://github.com/tr1ckz"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            by tr1ck
-          </a>
-        </footer>
-      </div>
+          <footer className="app-footer">
+            <span className="app-footer-version">v{packageInfo.version}</span>
+            <span className="app-footer-separator">•</span>
+            <a
+              className="app-footer-link"
+              href="https://github.com/tr1ckz"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              by tr1ck
+            </a>
+          </footer>
+        </div>
+      </ModalProvider>
     </ErrorBoundary>
   );
 }

@@ -10,6 +10,15 @@
   overflow: hidden;
 }
 
+.loading-screen.is-panel {
+  position: relative;
+  inset: auto;
+  min-height: 320px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-lg);
+}
+
 .loading-screen::before {
   content: '';
   position: absolute;
@@ -33,18 +42,26 @@
   position: relative;
   z-index: 2;
   text-align: center;
-  max-width: 400px;
-  width: 90%;
+  max-width: 420px;
+  width: min(90%, 420px);
   animation: slideUp 0.6s ease-out;
 }
 
-
+.loading-kicker {
+  display: inline-block;
+  margin-bottom: 14px;
+  color: var(--color-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
 
 .logo-container {
   position: relative;
   width: 120px;
   height: 120px;
-  margin: 0 auto 2rem;
+  margin: 0 auto 1.5rem;
   animation: logoFloat 3s ease-in-out infinite;
 }
 
@@ -55,7 +72,6 @@
   filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
   position: relative;
   z-index: 2;
-  animation: logoSpin 20s linear infinite;
 }
 
 .logo-glow {
@@ -65,7 +81,7 @@
   transform: translate(-50%, -50%);
   width: 140px;
   height: 140px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.28) 0%, transparent 70%);
   border-radius: 50%;
   animation: pulse 2s ease-in-out infinite;
   z-index: 1;
@@ -75,22 +91,19 @@
   font-size: 2rem;
   font-weight: 700;
   color: white;
-  margin-bottom: 0.5rem;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  animation: fadeInText 0.8s ease-out 0.3s both;
+  margin-bottom: 0.45rem;
 }
 
 .loading-message {
   font-size: 1rem;
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 2rem;
+  color: rgba(255, 255, 255, 0.86);
+  margin-bottom: 1.8rem;
   font-weight: 500;
-  animation: fadeInText 0.8s ease-out 0.5s both;
+  line-height: 1.5;
 }
 
 .loading-bar-container {
-  margin-bottom: 1.5rem;
-  animation: fadeInText 0.8s ease-out 0.7s both;
+  margin-bottom: 1.25rem;
 }
 
 .loading-bar-track {
@@ -100,7 +113,6 @@
   background: rgba(255, 255, 255, 0.10);
   border-radius: 10px;
   overflow: hidden;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   margin-bottom: 0.5rem;
 }
 
@@ -109,14 +121,9 @@
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(90deg, 
-    rgba(255, 255, 255, 0.8) 0%,
-    rgba(255, 255, 255, 1) 50%,
-    rgba(255, 255, 255, 0.8) 100%
-  );
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 100%);
   border-radius: 10px;
   transition: width 0.3s ease-out;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
 }
 
 .loading-bar-shine {
@@ -127,7 +134,7 @@
   height: 100%;
   background: linear-gradient(90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0.36) 50%,
     transparent 100%
   );
   animation: shine 2s ease-in-out infinite;
@@ -138,14 +145,12 @@
   font-size: 0.875rem;
   color: white;
   font-weight: 600;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .loading-dots {
   display: flex;
   justify-content: center;
   gap: 0.5rem;
-  animation: fadeInText 0.8s ease-out 0.9s both;
 }
 
 .loading-dots span {
@@ -154,7 +159,6 @@
   background: white;
   border-radius: 50%;
   animation: bounce 1.4s infinite ease-in-out;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .loading-dots span:nth-child(1) {
@@ -166,12 +170,8 @@
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
@@ -185,33 +185,9 @@
   }
 }
 
-@keyframes fadeInText {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @keyframes logoFloat {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-@keyframes logoSpin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
 @keyframes pulse {
@@ -220,18 +196,14 @@
     transform: translate(-50%, -50%) scale(1);
   }
   50% {
-    opacity: 0.8;
-    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(1.08);
   }
 }
 
 @keyframes shine {
-  0% {
-    left: -100%;
-  }
-  100% {
-    left: 200%;
-  }
+  0% { left: -100%; }
+  100% { left: 200%; }
 }
 
 @keyframes bounce {

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Printer } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
+import { useModal } from './ModalProvider';
 import './Printers.css';
 import LoadingScreen from './LoadingScreen';
 
@@ -53,7 +54,21 @@ const getSpeedMode = (mode?: string | number, factor?: number) => {
   return name;
 };
 
+const formatRemainingTime = (minutes?: number) => {
+  if (minutes === undefined || minutes === null || minutes <= 0) return '—';
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return `${minutes}m`;
+};
+
+const formatStatusLabel = (status?: string) => {
+  if (!status) return 'Unknown';
+  return status.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const fanToPercent = (speed: number) => Math.ceil((speed / 15) * 100 / 10) * 10;
+
 function Printers() {
+  const { openModal } = useModal();
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -110,7 +125,7 @@ function Printers() {
         }
       };
       preloadImg.onerror = () => {
-        // Keep the old image on error - don't flash black
+        // Keep the old image on error so the card stays stable.
       };
       preloadImg.src = newUrl;
       preloadRefs.current.set(deviceId, preloadImg);
@@ -161,10 +176,10 @@ function Printers() {
 
   const saveConfig = async () => {
     if (!selectedPrinter) return;
-    
+
     setSavingConfig(true);
     try {
-      const response = await fetchWithRetry('/api/printers/config', {
+      const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.CONFIG, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -174,11 +189,11 @@ function Printers() {
         }),
         credentials: 'include'
       });
-      
+
       const data = await response.json();
       if (data.success) {
         closeConfigModal();
-        await fetchPrinters(); // Reload printers to show updated camera
+        await fetchPrinters();
       }
     } catch (err) {
       console.error('Failed to save printer config:', err);
@@ -195,25 +210,41 @@ function Printers() {
     }
   }, []);
 
-  const [amsExpanded, setAmsExpanded] = useState<Record<string, boolean>>({});
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('amsExpanded');
-      if (raw) setAmsExpanded(JSON.parse(raw));
-    } catch {}
-  }, []);
+  const onlineCount = printers.filter((printer) => printer.online).length;
+  const activeJobs = printers.filter((printer) => printer.print_status === 'RUNNING').length;
+  const cameraCount = printers.filter((printer) => Boolean(printer.camera_rtsp_url)).length;
 
-  const toggleAms = (id: string) => {
-    setAmsExpanded(prev => {
-      const next = { ...prev, [id]: !prev[id] };
-      try { localStorage.setItem('amsExpanded', JSON.stringify(next)); } catch {}
-      return next;
+  const openHardwareModal = (printer: Printer) => {
+    const details = [
+      { label: 'Serial Number', value: printer.dev_id || '—' },
+      { label: 'Model', value: printer.dev_model_name || printer.dev_product_name || '—' },
+      { label: 'Product Name', value: printer.dev_product_name || '—' },
+      { label: 'Nozzle', value: printer.nozzle_diameter ? `${printer.nozzle_diameter} mm` : '—' },
+      { label: 'Structure', value: printer.dev_structure || '—' },
+      { label: 'Access Code', value: printer.dev_access_code || 'Not available' },
+      { label: 'Camera Source', value: printer.camera_rtsp_url || 'Not configured' },
+    ];
+
+    openModal({
+      title: `${printer.name} hardware info`,
+      description: 'Static identifiers are tucked into a modal so the live dashboard stays focused on what is changing right now.',
+      content: (
+        <div className="hardware-modal-grid">
+          {details.map((detail) => (
+            <div key={detail.label} className="hardware-modal-row">
+              <span>{detail.label}</span>
+              <strong>{detail.value}</strong>
+            </div>
+          ))}
+        </div>
+      ),
+      actions: [{ label: 'Close', variant: 'secondary' }],
+      size: 'md'
     });
   };
 
-
   if (loading) {
-    return <LoadingScreen message="Loading printers..." />;
+    return <LoadingScreen message="Building your printer overview..." variant="panel" />;
   }
 
   if (error) {
@@ -222,10 +253,10 @@ function Printers() {
 
   return (
     <div className="printers-container">
-      <div className="page-header">
+      <div className="page-header printers-page-header">
         <div>
           <h1>Printers</h1>
-          <p>Monitor your 3D printers</p>
+          <p>Monitor live jobs, camera feeds, AMS inventory, and telemetry without the endless vertical stack.</p>
         </div>
         <button className="btn-refresh" onClick={fetchPrinters}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -235,6 +266,24 @@ function Printers() {
         </button>
       </div>
 
+      <div className="printer-summary-grid">
+        <div className="printer-summary-card">
+          <span className="summary-label">Online printers</span>
+          <strong>{onlineCount}/{printers.length || 0}</strong>
+          <p>Live devices ready for monitoring.</p>
+        </div>
+        <div className="printer-summary-card">
+          <span className="summary-label">Active jobs</span>
+          <strong>{activeJobs}</strong>
+          <p>Current prints surfaced with ETA and progress.</p>
+        </div>
+        <div className="printer-summary-card">
+          <span className="summary-label">Camera feeds</span>
+          <strong>{cameraCount}</strong>
+          <p>Configured views visible from the new bento grid.</p>
+        </div>
+      </div>
+
       {printers.length === 0 ? (
         <div className="empty-state">
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -242,432 +291,286 @@ function Printers() {
             <path d="M8 20h8M12 16v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           <h3>No printers found</h3>
-          <p>Connect your printer to get started</p>
+          <p>Connect your printer to populate the new monitoring dashboard.</p>
         </div>
       ) : (
-        <div className="printers-grid">
-          {printers.map((printer) => (
-            <div key={printer.dev_id} className="printer-card">
-              <div className="printer-header">
-                <div>
-                  <h3>{printer.name}</h3>
-                  <p className="printer-model">{printer.dev_product_name}</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div className={`status-badge ${printer.online ? 'online' : 'offline'}`}>
-                    <span className="status-dot"></span>
-                    {printer.online ? 'Online' : 'Offline'}
-                  </div>
-                  <button 
-                    className="btn-icon" 
-                    onClick={() => openConfigModal(printer)}
-                    title="Configure Printer"
-                    style={{ padding: '8px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '6px' }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
+        <div className="printers-stack">
+          {printers.map((printer) => {
+            const task = printer.current_task;
+            const progress = normalizeProgress(task?.progress);
+            const trays = (printer.ams || task?.ams)?.trays || [];
+            const activeTray = (printer.ams || task?.ams)?.active_tray;
+            const speedMode = getSpeedMode(task?.speed_profile, task?.speed_factor);
+            const telemetryItems = [
+              typeof task?.nozzle_temp === 'number'
+                ? { label: 'Nozzle', value: `${Math.round(task.nozzle_temp)}°${typeof task.nozzle_target === 'number' && task.nozzle_target > 0 ? ` / ${Math.round(task.nozzle_target)}°` : ''}` }
+                : null,
+              typeof task?.bed_temp === 'number'
+                ? { label: 'Bed', value: `${Math.round(task.bed_temp)}°${typeof task.bed_target === 'number' && task.bed_target > 0 ? ` / ${Math.round(task.bed_target)}°` : ''}` }
+                : null,
+              typeof task?.chamber_temp === 'number'
+                ? { label: 'Chamber', value: `${Math.round(task.chamber_temp)}°C` }
+                : null,
+              typeof task?.wifi_signal === 'number'
+                ? { label: 'Wi‑Fi', value: `${task.wifi_signal} dBm` }
+                : null,
+              typeof task?.speed_factor === 'number'
+                ? { label: 'Speed', value: `${Math.round(task.speed_factor)}%` }
+                : null,
+              typeof task?.z_height === 'number'
+                ? { label: 'Z Height', value: `${task.z_height.toFixed(2)} mm` }
+                : null,
+              typeof task?.cooling_fan === 'number' || typeof task?.aux_fan === 'number' || typeof task?.chamber_fan === 'number'
+                ? {
+                    label: 'Fans',
+                    value: [
+                      typeof task?.cooling_fan === 'number' ? `Part ${fanToPercent(task.cooling_fan)}%` : null,
+                      typeof task?.aux_fan === 'number' ? `Aux ${fanToPercent(task.aux_fan)}%` : null,
+                      typeof task?.chamber_fan === 'number' ? `Chamber ${fanToPercent(task.chamber_fan)}%` : null,
+                    ].filter(Boolean).join(' • ')
+                  }
+                : null,
+            ].filter(Boolean) as Array<{ label: string; value: string }>;
 
-              {printer.camera_rtsp_url && (
-                <div className="printer-camera">
-                  <img
-                    ref={setImageRef(printer.dev_id)}
-                    src={`${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=0`}
-                    alt="Camera feed"
-                    className="camera-feed"
-                    style={{ transition: 'none' }}
-                    loading="lazy"
-                    decoding="async"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      const parent = target.parentElement;
-                      if (parent && !parent.querySelector('.camera-error')) {
-                        const errorDiv = document.createElement('div');
-                        errorDiv.className = 'camera-error';
-                        errorDiv.textContent = 'Camera feed unavailable';
-                        parent.appendChild(errorDiv);
-                      }
-                    }}
-                  />
-                  {(printer.current_task?.rtsp_url || printer.current_task?.ipcam_status || printer.current_task?.ipcam_bitrate !== undefined) && (
-                    <div className="camera-meta">
-                      {printer.current_task?.ipcam_status && (
-                        <span className={`camera-status ${String(printer.current_task.ipcam_status).toLowerCase()}`}>
-                          <span className="dot-live"></span>
+            return (
+              <article key={printer.dev_id} className="printer-bento-card">
+                <div className="printer-card-top">
+                  <div className="printer-card-heading">
+                    <div className="printer-title-row">
+                      <h3>{printer.name}</h3>
+                      <span className={`printer-connection-badge ${printer.online ? 'online' : 'offline'}`}>
+                        <span className="status-dot"></span>
+                        {printer.online ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                    <p>{printer.dev_product_name || printer.dev_model_name || 'Bambu printer'}</p>
+                  </div>
+
+                  <div className="printer-card-actions">
+                    <button type="button" className="printer-ghost-btn" onClick={() => openHardwareModal(printer)}>
+                      Hardware Info
+                    </button>
+                    <button type="button" className="printer-primary-btn" onClick={() => openConfigModal(printer)}>
+                      Configure
+                    </button>
+                  </div>
+                </div>
+
+                <div className="printer-bento-grid">
+                  <section className="printer-panel camera-panel">
+                    <div className="panel-header-inline">
+                      <div>
+                        <span className="panel-kicker">Live View</span>
+                        <h4>Camera Feed</h4>
+                      </div>
+                      {printer.current_task?.ipcam_status ? (
+                        <span className={`panel-inline-chip ${String(printer.current_task.ipcam_status).toLowerCase()}`}>
                           {String(printer.current_task.ipcam_status)}
                         </span>
-                      )}
-                      {typeof printer.current_task?.ipcam_bitrate === 'number' && (
-                        printer.current_task.ipcam_bitrate > 0 ? (
-                          <span className="camera-bitrate">{formatBitrate(printer.current_task.ipcam_bitrate)}</span>
-                        ) : (
-                          <span className="camera-status error"><span className="dot-live"></span>No bitrate</span>
-                        )
-                      )}
+                      ) : null}
                     </div>
-                  )}
-                </div>
-              )}
 
-              <div className="printer-body">
-                {/* Always show AMS section if available */}
-                {(printer.ams || printer.current_task?.ams) && (() => {
-                  const amsData = printer.ams || printer.current_task?.ams;
-                  const trays = amsData?.trays || [];
-                  const activeTray = amsData?.active_tray;
-                  const firstTray = trays[0];
-                  return (
-                    <div className="ams-container">
-                      <div className="ams-header">
-                        <span className="ams-header-icon">📦</span>
-                        <span className="ams-header-title">AMS Filament</span>
-                        <div className="ams-header-info">
-                          {typeof firstTray?.humidity === 'number' && (
-                            <span className="humidity" title="Humidity">
-                              💧 {Math.round(firstTray.humidity)}%
-                            </span>
-                          )}
-                          {typeof firstTray?.temp === 'number' && (
-                            <span className="temp" title="Temperature">
-                              🌡️ {Math.round(firstTray.temp)}°C
-                            </span>
-                          )}
+                    {printer.camera_rtsp_url ? (
+                      <div className="printer-camera-shell">
+                        <img
+                          ref={setImageRef(printer.dev_id)}
+                          src={`${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=0`}
+                          alt={`${printer.name} camera feed`}
+                          className="camera-feed"
+                          style={{ transition: 'none' }}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(event) => {
+                            const target = event.currentTarget;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent && !parent.querySelector('.camera-error')) {
+                              const errorDiv = document.createElement('div');
+                              errorDiv.className = 'camera-error';
+                              errorDiv.textContent = 'Camera feed unavailable';
+                              parent.appendChild(errorDiv);
+                            }
+                          }}
+                        />
+                        <div className="camera-meta">
+                          {typeof printer.current_task?.ipcam_bitrate === 'number' && printer.current_task.ipcam_bitrate > 0 ? (
+                            <span className="camera-bitrate">{formatBitrate(printer.current_task.ipcam_bitrate)}</span>
+                          ) : null}
                         </div>
                       </div>
-                      <div className="ams-trays-grid">
-                        {trays.map((t) => {
-                          const isActive = typeof activeTray === 'number' && activeTray !== 255 && Number(t.slot) === activeTray;
-                          const colorHex = t.color ? `#${t.color.substring(0, 6)}` : '#666';
-                          const remainPercent = t.remain != null && t.remain >= 0 ? t.remain : null;
-                          // Determine fill color based on remaining percentage
-                          const fillColor = remainPercent != null 
-                            ? remainPercent > 50 ? '#22c55e' : remainPercent > 20 ? '#eab308' : '#ef4444'
-                            : colorHex;
+                    ) : (
+                      <div className="panel-empty">
+                        <strong>No camera configured</strong>
+                        <span>Add an RTSP source to surface live snapshots here.</span>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="printer-panel status-panel">
+                    <div className="panel-header-inline">
+                      <div>
+                        <span className="panel-kicker">Current Print</span>
+                        <h4>Status & ETA</h4>
+                      </div>
+                      <span className={`printer-state-chip ${String(printer.print_status || '').toLowerCase()}`}>
+                        {formatStatusLabel(printer.print_status || (printer.online ? 'ONLINE' : 'OFFLINE'))}
+                      </span>
+                    </div>
+
+                    <div className="status-job-name">{task?.name || (printer.online ? 'No active print job' : 'Printer offline')}</div>
+                    {task?.layer_num && task?.total_layers ? (
+                      <div className="status-job-meta">Layer {task.layer_num} of {task.total_layers}</div>
+                    ) : (
+                      <div className="status-job-meta">State: {task?.gcode_state || formatStatusLabel(printer.print_status)}</div>
+                    )}
+
+                    <div className="progress-bar printer-progress-bar">
+                      <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+                    </div>
+
+                    <div className="status-metric-grid">
+                      <div className="status-metric-card">
+                        <span>Progress</span>
+                        <strong>{progress}%</strong>
+                      </div>
+                      <div className="status-metric-card">
+                        <span>Remaining</span>
+                        <strong>{formatRemainingTime(task?.remaining_time)}</strong>
+                      </div>
+                      <div className="status-metric-card">
+                        <span>Mode</span>
+                        <strong>{speedMode || 'Standard'}</strong>
+                      </div>
+                    </div>
+
+                    {task?.end_time || task?.error_message ? (
+                      <div className="status-detail-row">
+                        {task?.end_time ? (
+                          <span>ETA {new Date(task.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        ) : null}
+                        {task?.error_message ? <span title={task.error_message}>{task.error_message}</span> : null}
+                      </div>
+                    ) : null}
+
+                    {task?.has_3mf && task?.model_id ? (
+                      <a
+                        href={API_ENDPOINTS.MODELS.LOCAL_DOWNLOAD(task.model_id)}
+                        className="printer-ghost-btn printer-inline-link"
+                        title="Download 3MF file"
+                        download
+                      >
+                        Download 3MF
+                      </a>
+                    ) : null}
+                  </section>
+
+                  <section className="printer-panel telemetry-panel">
+                    <div className="panel-header-inline">
+                      <div>
+                        <span className="panel-kicker">Live Telemetry</span>
+                        <h4>Temps, Fans & Signals</h4>
+                      </div>
+                    </div>
+
+                    {telemetryItems.length > 0 ? (
+                      <div className="telemetry-mini-grid">
+                        {telemetryItems.map((item) => (
+                          <div key={`${printer.dev_id}-${item.label}`} className="telemetry-tile">
+                            <span>{item.label}</span>
+                            <strong>{item.value}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="panel-empty compact">
+                        <strong>Awaiting telemetry</strong>
+                        <span>Values will appear as soon as the printer publishes them.</span>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="printer-panel ams-panel">
+                    <div className="panel-header-inline">
+                      <div>
+                        <span className="panel-kicker">Filament</span>
+                        <h4>AMS Overview</h4>
+                      </div>
+                      {typeof activeTray === 'number' && activeTray !== 255 ? (
+                        <span className="panel-inline-chip active">Slot {activeTray}</span>
+                      ) : null}
+                    </div>
+
+                    {trays.length > 0 ? (
+                      <div className="ams-unified-grid">
+                        {trays.map((tray) => {
+                          const isActive = typeof activeTray === 'number' && activeTray !== 255 && Number(tray.slot) === activeTray;
+                          const colorHex = tray.color ? `#${tray.color.substring(0, 6)}` : '#71717a';
+                          const remainPercent = tray.remain != null && tray.remain >= 0 ? tray.remain : null;
                           return (
-                            <div key={t.slot} className={`ams-tray-card${isActive ? ' active' : ''}`} title={`Slot ${t.slot}: ${t.type || 'Unknown'}${t.sub_brands ? ` (${t.sub_brands})` : ''}`}>
-                              <div className="ams-tray-slot">Slot {t.slot}</div>
-                              <div className="ams-tray-color-bar" style={{ background: colorHex }} />
-                              <div className="ams-tray-type">{t.sub_brands || t.type || 'Empty'}</div>
-                              {remainPercent != null && (
-                                <div className="ams-tray-remain">
-                                  <div className="ams-tray-remain-bar">
-                                    <div className="ams-tray-remain-fill" style={{ width: `${remainPercent}%`, background: fillColor }} />
-                                  </div>
-                                  <span className="ams-tray-remain-text">{remainPercent}%</span>
-                                </div>
-                              )}
+                            <div key={`${printer.dev_id}-${tray.slot}`} className={`ams-slot-card ${isActive ? 'active' : ''}`}>
+                              <div className="ams-slot-header">
+                                <span>Slot {tray.slot}</span>
+                                {remainPercent != null ? <strong>{remainPercent}%</strong> : <strong>—</strong>}
+                              </div>
+                              <div className="ams-slot-color" style={{ background: colorHex }} />
+                              <div className="ams-slot-name">{tray.sub_brands || tray.type || 'Empty'}</div>
+                              <div className="ams-slot-meta">
+                                {typeof tray.humidity === 'number' ? `💧 ${Math.round(tray.humidity)}%` : 'Humidity —'}
+                              </div>
                             </div>
                           );
                         })}
                       </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Live Telemetry Section */}
-                {(printer.current_task || printer.ams) && (() => {
-                  const task = printer.current_task;
-                  const hasFans = task && (task.cooling_fan !== undefined || task.aux_fan !== undefined || task.chamber_fan !== undefined);
-                  const hasTemps = task && (task.nozzle_temp !== undefined || task.bed_temp !== undefined || task.chamber_temp !== undefined);
-                  const fanToPercent = (speed: number) => Math.ceil((speed / 15) * 100 / 10) * 10;
-                  
-                  if (!hasFans && !hasTemps && !task?.speed_factor && !task?.z_height) return null;
-                  
-                  return (
-                    <div className="telemetry-container">
-                      <div className="telemetry-header">
-                        <span className="telemetry-header-icon">📊</span>
-                        <span className="telemetry-header-title">Live Telemetry</span>
-                        {typeof task?.wifi_signal === 'number' && (
-                          <span className="telemetry-wifi" title="WiFi Signal">
-                            📶 {task.wifi_signal} dBm
-                          </span>
-                        )}
-                      </div>
-                      <div className="telemetry-grid">
-                        {/* Temperatures */}
-                        {hasTemps && (
-                          <div className="telemetry-section">
-                            <div className="telemetry-section-title">🌡️ Temps</div>
-                            <div className="telemetry-items">
-                              {typeof task?.nozzle_temp === 'number' && (
-                                <div className="telemetry-item">
-                                  <span className="telemetry-label">Nozzle</span>
-                                  <span className="telemetry-value">
-                                    {Math.round(task.nozzle_temp)}°C
-                                    {typeof task.nozzle_target === 'number' && task.nozzle_target > 0 && (
-                                      <span className="telemetry-target">/{task.nozzle_target}°</span>
-                                    )}
-                                  </span>
-                                </div>
-                              )}
-                              {typeof task?.bed_temp === 'number' && (
-                                <div className="telemetry-item">
-                                  <span className="telemetry-label">Bed</span>
-                                  <span className="telemetry-value">
-                                    {Math.round(task.bed_temp)}°C
-                                    {typeof task.bed_target === 'number' && task.bed_target > 0 && (
-                                      <span className="telemetry-target">/{task.bed_target}°</span>
-                                    )}
-                                  </span>
-                                </div>
-                              )}
-                              {typeof task?.chamber_temp === 'number' && (
-                                <div className="telemetry-item">
-                                  <span className="telemetry-label">Chamber</span>
-                                  <span className="telemetry-value">{Math.round(task.chamber_temp)}°C</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {/* Fans */}
-                        {hasFans && (
-                          <div className="telemetry-section">
-                            <div className="telemetry-section-title">🌀 Fans</div>
-                            <div className="telemetry-items">
-                              {typeof task?.cooling_fan === 'number' && (
-                                <div className="telemetry-item">
-                                  <span className="telemetry-label">Part</span>
-                                  <span className="telemetry-value fan-speed">
-                                    <span className={`fan-indicator ${task.cooling_fan > 0 ? 'active' : ''}`}>●</span>
-                                    {fanToPercent(task.cooling_fan)}%
-                                  </span>
-                                </div>
-                              )}
-                              {typeof task?.aux_fan === 'number' && (
-                                <div className="telemetry-item">
-                                  <span className="telemetry-label">Aux</span>
-                                  <span className="telemetry-value fan-speed">
-                                    <span className={`fan-indicator ${task.aux_fan > 0 ? 'active' : ''}`}>●</span>
-                                    {fanToPercent(task.aux_fan)}%
-                                  </span>
-                                </div>
-                              )}
-                              {typeof task?.chamber_fan === 'number' && (
-                                <div className="telemetry-item">
-                                  <span className="telemetry-label">Chamber</span>
-                                  <span className="telemetry-value fan-speed">
-                                    <span className={`fan-indicator ${task.chamber_fan > 0 ? 'active' : ''}`}>●</span>
-                                    {fanToPercent(task.chamber_fan)}%
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {/* Speed & Position */}
-                        {(task?.speed_factor !== undefined || task?.z_height !== undefined || task?.chamber_light !== undefined) && (
-                          <div className="telemetry-section">
-                            <div className="telemetry-section-title">⚡ Other</div>
-                            <div className="telemetry-items">
-                              {typeof task?.speed_factor === 'number' && (
-                                <div className="telemetry-item">
-                                  <span className="telemetry-label">Speed</span>
-                                  <span className="telemetry-value">{Math.round(task.speed_factor)}%</span>
-                                </div>
-                              )}
-                              {typeof task?.z_height === 'number' && (
-                                <div className="telemetry-item">
-                                  <span className="telemetry-label">Z</span>
-                                  <span className="telemetry-value">{task.z_height.toFixed(2)}mm</span>
-                                </div>
-                              )}
-                              {task?.chamber_light !== undefined && (
-                                <div className="telemetry-item">
-                                  <span className="telemetry-label">Light</span>
-                                  <span className="telemetry-value">
-                                    <span className={`light-indicator ${task.chamber_light === 'on' ? 'active' : ''}`}>💡</span>
-                                    {task.chamber_light === 'on' ? 'On' : 'Off'}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {printer.current_task && printer.print_status === 'RUNNING' && (
-                  <div className="current-job">
-                    <div className="job-header">
-                      <img 
-                        className="job-cover" 
-                        src={API_ENDPOINTS.PRINTERS.JOB_COVER(printer.dev_id)}
-                        alt="Print preview"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          const icon = e.currentTarget.nextElementSibling as HTMLElement;
-                          if (icon) icon.style.display = 'inline-block';
-                          // Prevent React from logging this error
-                          e.stopPropagation();
-                        }}
-                      />
-                      <span className="job-icon" style={{ display: 'none' }}>🖨️</span>
-                      <div className="job-info">
-                        <div className="job-name">{printer.current_task.name || 'Printing...'}</div>
-                        {printer.current_task.layer_num && printer.current_task.total_layers && (
-                          <div className="job-layers">Layer {printer.current_task.layer_num} / {printer.current_task.total_layers}</div>
-                        )}
-                      </div>
-                      {printer.current_task.has_3mf && printer.current_task.model_id && (
-                        <a 
-                          href={API_ENDPOINTS.MODELS.LOCAL_DOWNLOAD(printer.current_task.model_id)}
-                          className="download-3mf-btn"
-                          title="Download 3MF file"
-                          download
-                        >
-                          📦
-                        </a>
-                      )}
-                    </div>
-                    {typeof printer.current_task.progress === 'number' && (
-                      <div className="job-progress">
-                        <div className="progress-bar">
-                          <div className="progress-fill" style={{ width: `${normalizeProgress(printer.current_task.progress)}%` }}></div>
-                        </div>
-                        <div className="progress-info">
-                          <span className="progress-percent">{normalizeProgress(printer.current_task.progress)}%</span>
-                          {printer.current_task.remaining_time !== undefined && printer.current_task.remaining_time > 0 && (
-                            <span className="progress-time">
-                              {printer.current_task.remaining_time >= 60 
-                                ? `${Math.floor(printer.current_task.remaining_time / 60)}h ${printer.current_task.remaining_time % 60}m remaining`
-                                : `${printer.current_task.remaining_time}m remaining`
-                              }
-                            </span>
-                          )}
-                          {printer.current_task.end_time && (
-                            <span className="progress-eta">ETA: {new Date(printer.current_task.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          )}
-                        </div>
-                        {(printer.current_task.nozzle_temp !== undefined || printer.current_task.bed_temp !== undefined || printer.current_task.speed_profile || printer.current_task.speed_factor !== undefined || printer.current_task.z_height !== undefined) && (
-                          <div className="progress-extra" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem 1rem', marginTop: '0.5rem', color: 'rgba(255,255,255,0.8)' }}>
-                            {typeof printer.current_task.nozzle_temp === 'number' && <span>Hotend: {Math.round(printer.current_task.nozzle_temp)}°C{typeof printer.current_task.nozzle_target === 'number' ? `/${Math.round(printer.current_task.nozzle_target)}°` : ''}</span>}
-                            {typeof printer.current_task.bed_temp === 'number' && <span>Bed: {Math.round(printer.current_task.bed_temp)}°C{typeof printer.current_task.bed_target === 'number' ? `/${Math.round(printer.current_task.bed_target)}°` : ''}</span>}
-                            {typeof printer.current_task.chamber_temp === 'number' && <span>Chamber: {Math.round(printer.current_task.chamber_temp)}°C</span>}
-                            {typeof printer.current_task.env_temp === 'number' && <span>Env: {Math.round(printer.current_task.env_temp)}°C</span>}
-                            {typeof printer.current_task.env_humidity === 'number' && <span>Humidity: {Math.round(printer.current_task.env_humidity)}%</span>}
-                            {getSpeedMode(printer.current_task.speed_profile, printer.current_task.speed_factor) && (
-                              <span className={`mode-badge mode-${getSpeedMode(printer.current_task.speed_profile, printer.current_task.speed_factor)!.toLowerCase()}`}> 
-                                {getSpeedMode(printer.current_task.speed_profile, printer.current_task.speed_factor)}
-                              </span>
-                            )}
-                            {typeof printer.current_task.speed_factor === 'number' && <span>Speed: {Math.round(printer.current_task.speed_factor)}%</span>}
-                            {typeof printer.current_task.feedrate === 'number' && <span>Feedrate: {Math.round(printer.current_task.feedrate)}</span>}
-                            {typeof printer.current_task.z_height === 'number' && <span>Z: {printer.current_task.z_height.toFixed(2)}mm</span>}
-                          </div>
-                        )}
-                        {(printer.current_task.gcode_state || printer.current_task.error_message || typeof printer.current_task.print_error === 'number') && (
-                          <div className="progress-state" style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>
-                            {printer.current_task.gcode_state && <span>State: {printer.current_task.gcode_state}</span>}
-                            {typeof printer.current_task.print_error === 'number' && printer.current_task.print_error > 0 && (
-                              <span>Error: 0x{printer.current_task.print_error.toString(16).toUpperCase()}</span>
-                            )}
-                            {printer.current_task.error_message && <span title={printer.current_task.error_message}>Details: {printer.current_task.error_message}</span>}
-                          </div>
-                        )}
-                        {printer.current_task.ams && Array.isArray(printer.current_task.ams.trays) && printer.current_task.ams.trays.length > 0 ? (
-                          <div className="progress-ams" style={{ marginTop: '0.5rem' }}>
-                            <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>AMS (Current Print)</div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 0.75rem' }}>
-                              {typeof printer.current_task.ams.active_tray === 'number' && printer.current_task.ams.active_tray !== 255 && <span className="chip subtle">Active Slot: {printer.current_task.ams.active_tray}</span>}
-                              {(amsExpanded[`print-${printer.dev_id}`] ? printer.current_task.ams.trays : printer.current_task.ams.trays.slice(0,2)).map((t) => (
-                                <span key={`print-${t.slot}`} className="ams-chip" title={`Slot ${t.slot}: ${t.type || 'Unknown'}${t.sub_brands ? ` ${t.sub_brands}` : ''}${t.remain != null ? ` (${t.remain}% remaining)` : ''}`}>
-                                  <span className="color-dot" style={{ background: `#${t.color}` || '#999' }} />
-                                  S{t.slot}: {t.sub_brands || t.type || '—'} {typeof t.humidity === 'number' ? ` • ${Math.round(t.humidity)}%` : ''}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
+                    ) : (
+                      <div className="panel-empty compact">
+                        <strong>No AMS data</strong>
+                        <span>Static hardware details stay hidden until you need them.</span>
                       </div>
                     )}
-
-                  </div>
-                )}
-
-                <div className="printer-status">
-                  <div className="status-icon">
-                    {printer.print_status === 'SUCCESS' && '✓'}
-                    {printer.print_status === 'IDLE' && '⏸'}
-                    {printer.print_status === 'RUNNING' && '▶'}
-                    {printer.print_status === 'FAILED' && '✕'}
-                  </div>
-                  <div>
-                    <div className="status-label">Status</div>
-                    <div className="status-value">{printer.print_status}</div>
-                  </div>
+                  </section>
                 </div>
-
-                <div className="printer-details">
-                  <div className="detail-row">
-                    <span className="detail-label">Serial Number</span>
-                    <span className="detail-value mono">{printer.dev_id}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Model</span>
-                    <span className="detail-value">{printer.dev_model_name}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Nozzle</span>
-                    <span className="detail-value">{printer.nozzle_diameter}mm</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Structure</span>
-                    <span className="detail-value">{printer.dev_structure}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Access Code</span>
-                    <span className="detail-value mono">{printer.dev_access_code}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
 
-      {/* Printer Configuration Modal */}
-      {showConfigModal && selectedPrinter && (
+      {showConfigModal && selectedPrinter ? (
         <div className="modal-overlay" onClick={closeConfigModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+          <div className="modal-content" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
-              <h2>Configure {selectedPrinter.name}</h2>
-              <button className="close-btn" onClick={closeConfigModal}>×</button>
+              <div>
+                <h2>Configure {selectedPrinter.name}</h2>
+                <p className="modal-subcopy">Update the RTSP source for the live camera tile.</p>
+              </div>
+              <button className="close-btn" onClick={closeConfigModal} aria-label="Close modal">×</button>
             </div>
             <div className="modal-body">
-              <div className="form-group">
-                <label>Camera RTSP URL</label>
+              <label className="modal-field">
+                <span>Camera RTSP URL</span>
                 <input
                   type="text"
                   value={cameraUrl}
-                  onChange={(e) => setCameraUrl(e.target.value)}
+                  onChange={(event) => setCameraUrl(event.target.value)}
                   placeholder="rtsps://192.168.x.x:322/streaming/live/1"
                   disabled={savingConfig}
                 />
-                <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
-                  Configure a camera feed for this specific printer
-                </small>
-              </div>
+              </label>
+              <small className="modal-help">
+                Keep static device metadata off the dashboard and reserve this modal for feed configuration only.
+              </small>
             </div>
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={closeConfigModal} disabled={savingConfig}>
+              <button className="printer-ghost-btn" onClick={closeConfigModal} disabled={savingConfig}>
                 Cancel
               </button>
-              <button className="btn-primary" onClick={saveConfig} disabled={savingConfig}>
-                {savingConfig ? 'Saving...' : 'Save'}
+              <button className="printer-primary-btn" onClick={saveConfig} disabled={savingConfig}>
+                {savingConfig ? 'Saving…' : 'Save Feed'}
               </button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

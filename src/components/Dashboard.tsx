@@ -11,6 +11,7 @@ import Statistics from './Statistics';
 import Docs from './Docs';
 import BackgroundJobTracker from './BackgroundJobTracker';
 import BuyMeACoffee from './BuyMeACoffee';
+import GlobalLayout from './GlobalLayout';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import './Dashboard.css';
@@ -31,6 +32,63 @@ const tabPaths: Record<Tab, string> = {
   printers: '/printers',
   statistics: '/statistics',
   docs: '/docs'
+};
+
+const pageMeta: Record<Tab, { eyebrow: string; title: string; description: string; breadcrumbs: string[] }> = {
+  home: {
+    eyebrow: 'Command center',
+    title: 'Overview',
+    description: 'Your workshop at a glance with jobs, insights, and the next actions that matter.',
+    breadcrumbs: ['Workspace', 'Overview']
+  },
+  history: {
+    eyebrow: 'Operations',
+    title: 'Print History',
+    description: 'Audit completed jobs, timelapses, and outcomes without leaving the shared shell.',
+    breadcrumbs: ['Workspace', 'History']
+  },
+  library: {
+    eyebrow: 'Design library',
+    title: 'Model Library',
+    description: 'Browse, organize, and enrich your printable assets in one clean catalog.',
+    breadcrumbs: ['Workspace', 'Library']
+  },
+  duplicates: {
+    eyebrow: 'Library hygiene',
+    title: 'Duplicates',
+    description: 'Spot redundant files quickly and keep the collection lean.',
+    breadcrumbs: ['Workspace', 'Duplicates']
+  },
+  maintenance: {
+    eyebrow: 'Workshop care',
+    title: 'Maintenance',
+    description: 'Track recurring upkeep and keep every machine in top condition.',
+    breadcrumbs: ['Workspace', 'Maintenance']
+  },
+  settings: {
+    eyebrow: 'System preferences',
+    title: 'Settings',
+    description: 'Navigate every configuration area with scoped categories and focused panels.',
+    breadcrumbs: ['Workspace', 'Settings']
+  },
+  printers: {
+    eyebrow: 'Live monitoring',
+    title: 'Printers',
+    description: 'A unified bento dashboard for cameras, telemetry, AMS state, and print progress.',
+    breadcrumbs: ['Workspace', 'Printers']
+  },
+  statistics: {
+    eyebrow: 'Reporting',
+    title: 'Statistics',
+    description: 'See output, reliability, and material usage trends without digging around.',
+    breadcrumbs: ['Workspace', 'Statistics']
+  },
+  docs: {
+    eyebrow: 'Reference',
+    title: 'Documentation',
+    description: 'Read guides and integration notes from the same consistent workspace shell.',
+    breadcrumbs: ['Workspace', 'Docs']
+  }
 };
 
 const getHashSection = () => {
@@ -74,19 +132,18 @@ function Dashboard({ onLogout }: DashboardProps) {
 
   useEffect(() => {
     fetchWithRetry(API_ENDPOINTS.AUTH.USER_ME, { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => setUserInfo(data))
-      .catch(err => console.error('Failed to fetch user info:', err));
+      .then((res) => res.json())
+      .then((data) => setUserInfo(data))
+      .catch((err) => console.error('Failed to fetch user info:', err));
 
-    // Load UI settings for Buy Me A Coffee preference
     fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         if (data.success) {
           setHideBmc(data.hideBmc || false);
         }
       })
-      .catch(err => console.error('Failed to fetch UI settings:', err));
+      .catch((err) => console.error('Failed to fetch UI settings:', err));
   }, []);
 
   useEffect(() => {
@@ -97,19 +154,6 @@ function Dashboard({ onLogout }: DashboardProps) {
     localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
-  // Close mobile menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (mobileMenuOpen && !target.closest('.navbar') && !target.closest('.mobile-menu')) {
-        setMobileMenuOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [mobileMenuOpen]);
-
-  // Sync tab with browser history (supports back/forward navigation)
   useEffect(() => {
     const handleNavigation = () => {
       const tabFromPath = getTabFromLocation();
@@ -127,7 +171,6 @@ function Dashboard({ onLogout }: DashboardProps) {
     };
   }, []);
 
-  // Close mobile menu on tab change + push URL
   const handleTabChange = (tab: Tab, hashSection?: string) => {
     setActiveTab(tab);
     setMobileMenuOpen(false);
@@ -139,11 +182,17 @@ function Dashboard({ onLogout }: DashboardProps) {
   };
 
   const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'superadmin';
+  const currentMeta = pageMeta[activeTab];
 
-  const allNavItems = [
+  const navItems = [
     { id: 'home' as Tab, label: 'Home', icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    )},
+    { id: 'printers' as Tab, label: 'Printers', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7 17h10m-9-6h8m2 8H6a2 2 0 01-2-2V9a3 3 0 013-3h10a3 3 0 013 3v8a2 2 0 01-2 2zM8 5h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     )},
     { id: 'history' as Tab, label: 'History', icon: (
@@ -154,11 +203,6 @@ function Dashboard({ onLogout }: DashboardProps) {
     { id: 'statistics' as Tab, label: 'Stats', icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M4 21V9m5 12V3m5 18v-8m5 8V13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    )},
-    { id: 'docs' as Tab, label: 'Docs', icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M7 4.5A2.5 2.5 0 019.5 2H20v16H9.5A2.5 2.5 0 007 20.5m0-16v16m0-16H5a2 2 0 00-2 2v12a2 2 0 002 2h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     )},
     { id: 'library' as Tab, label: 'Library', icon: (
@@ -182,143 +226,70 @@ function Dashboard({ onLogout }: DashboardProps) {
         <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     )},
+    { id: 'docs' as Tab, label: 'Docs', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7 4.5A2.5 2.5 0 019.5 2H20v16H9.5A2.5 2.5 0 007 20.5m0-16v16m0-16H5a2 2 0 00-2 2v12a2 2 0 002 2h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    )},
   ];
 
-  // All authenticated users can access the main app navigation.
-  // Admin-only actions remain restricted within their respective screens/APIs.
-  const navItems = allNavItems;
+  const rightSlot = (
+    <div className="dashboard-status-pills">
+      <span className="dashboard-status-pill">{isAdmin ? 'Admin access' : 'Workspace member'}</span>
+      <span className="dashboard-status-pill subtle">⌘K Command palette</span>
+    </div>
+  );
 
-  const adminItems: { id: Tab; label: string; icon: JSX.Element }[] = [];
+  const renderActiveView = () => {
+    switch (activeTab) {
+      case 'home':
+        return <DashboardHome onNavigate={(tab) => handleTabChange(tab as Tab)} />;
+      case 'history':
+        return <PrintHistory />;
+      case 'statistics':
+        return <Statistics />;
+      case 'library':
+        return <Library userRole={userInfo?.role} />;
+      case 'duplicates':
+        return <Duplicates />;
+      case 'maintenance':
+        return <Maintenance />;
+      case 'settings':
+        return <Settings userRole={userInfo?.role} initialSection={settingsSection || undefined} />;
+      case 'printers':
+        return <Printers />;
+      case 'docs':
+        return <Docs />;
+      default:
+        return <DashboardHome onNavigate={(tab) => handleTabChange(tab as Tab)} />;
+    }
+  };
 
   return (
-    <div className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      {/* Fixed Top Navbar */}
-      <nav className="navbar">
-        <div className="navbar-container">
-          {/* Logo */}
-          <div className="navbar-brand" onClick={() => handleTabChange('home')} style={{ cursor: 'pointer' }}>
-            <img src="/images/logo.png" alt="PrintHive" className="navbar-logo" />
-            <span className="navbar-title">PrintHive</span>
-            <button
-              type="button"
-              className="sidebar-collapse-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSidebarCollapsed((prev) => !prev);
-              }}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {sidebarCollapsed ? '→' : '←'}
-            </button>
-          </div>
+    <div className="dashboard">
+      <GlobalLayout
+        navItems={navItems}
+        activeId={activeTab}
+        onSelect={(tab) => handleTabChange(tab as Tab)}
+        pageTitle={currentMeta.title}
+        pageDescription={currentMeta.description}
+        pageEyebrow={currentMeta.eyebrow}
+        breadcrumbs={currentMeta.breadcrumbs}
+        userName={userInfo?.display_name || userInfo?.username || 'User'}
+        userRole={userInfo?.role}
+        userAvatarText={(userInfo?.display_name || userInfo?.username)?.[0]?.toUpperCase() || 'U'}
+        onLogout={onLogout}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+        mobileMenuOpen={mobileMenuOpen}
+        onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
+        sidebarFooter={!hideBmc ? <BuyMeACoffee /> : null}
+        rightSlot={rightSlot}
+      >
+        {renderActiveView()}
+      </GlobalLayout>
 
-          {/* Desktop Navigation */}
-          <div className="navbar-nav">
-            {navItems.map(item => (
-              <button
-                key={item.id}
-                className={`navbar-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => handleTabChange(item.id)}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </button>
-            ))}
-            {isAdmin && adminItems.map(item => (
-              <button
-                key={item.id}
-                className={`navbar-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => handleTabChange(item.id)}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Right Section: User + Logout */}
-          <div className="navbar-right">
-            {/* Buy Me A Coffee */}
-            {!hideBmc && <BuyMeACoffee />}
-            
-            <div className="navbar-user">
-              <div className="user-avatar">{(userInfo?.display_name || userInfo?.username)?.[0]?.toUpperCase() || 'U'}</div>
-              <span className="user-name">{userInfo?.display_name || userInfo?.username || 'User'}</span>
-            </div>
-            <button className="logout-btn" onClick={onLogout} title="Logout">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-
-            {/* Mobile Menu Button */}
-            <button 
-              className="mobile-menu-btn"
-              onClick={(e) => { e.stopPropagation(); setMobileMenuOpen(!mobileMenuOpen); }}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Dropdown Menu */}
-        <div className={`mobile-menu ${mobileMenuOpen ? 'open' : ''}`}>
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              className={`mobile-menu-item ${activeTab === item.id ? 'active' : ''}`}
-              onClick={() => handleTabChange(item.id)}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          ))}
-          {isAdmin && (
-            <>
-              <div className="mobile-menu-divider"></div>
-              {adminItems.map(item => (
-                <button
-                  key={item.id}
-                  className={`mobile-menu-item ${activeTab === item.id ? 'active' : ''}`}
-                  onClick={() => handleTabChange(item.id)}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </>
-          )}
-        </div>
-      </nav>
-
-      {/* Main Content - Components are conditionally rendered to save memory */}
-      <main className="dashboard-content">
-        <div className="content-wrapper">
-          {activeTab === 'home' ? <DashboardHome onNavigate={(tab) => handleTabChange(tab as Tab)} /> : null}
-          {activeTab === 'history' ? <PrintHistory /> : null}
-          {activeTab === 'statistics' ? <Statistics /> : null}
-          {activeTab === 'library' ? <Library userRole={userInfo?.role} /> : null}
-          {activeTab === 'duplicates' ? <Duplicates /> : null}
-          {activeTab === 'maintenance' ? <Maintenance /> : null}
-          {activeTab === 'settings' ? <Settings userRole={userInfo?.role} initialSection={settingsSection || undefined} /> : null}
-          {activeTab === 'printers' ? <Printers /> : null}
-          {activeTab === 'docs' ? <Docs /> : null}
-        </div>
-      </main>
-      
-      {/* Background Job Tracker */}
       <BackgroundJobTracker />
-      
-      {/* Command Palette */}
       <CommandPalette onNavigate={(tab) => handleTabChange(tab as Tab)} />
     </div>
   );

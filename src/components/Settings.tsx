@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import './Settings.css';
 import Toast from './Toast';
 import UserManagement from './UserManagement';
@@ -22,182 +22,317 @@ interface SettingsProps {
   initialSection?: string;
 }
 
-type SettingsSection = 'hardware' | 'account' | 'preferences' | 'integrations' | 'advanced' | 'administration';
+type SettingsCategory = 'general' | 'account' | 'printers' | 'cloud' | 'advanced' | 'system';
+type SettingsPanel =
+  | 'appearance'
+  | 'costs'
+  | 'profile'
+  | 'users'
+  | 'bambu'
+  | 'local'
+  | 'notifications'
+  | 'oauth'
+  | 'watchdog'
+  | 'system-panel';
 
-const SETTINGS_SECTIONS: Record<SettingsSection, { label: string; icon: string; description: string; hint: string }> = {
-  hardware: {
-    label: 'Hardware',
-    icon: '🖨️',
-    description: 'Manage Bambu cloud accounts, LAN printers, FTP, and timelapse connectivity in one place.',
-    hint: 'Printers & connectivity'
-  },
-  account: {
-    label: 'Account',
-    icon: '👤',
-    description: 'Update your profile, login details, and personal account preferences.',
-    hint: 'Profile & security'
-  },
-  preferences: {
-    label: 'Preferences',
-    icon: '🎨',
-    description: 'Adjust UI appearance, cost settings, and the day-to-day dashboard experience.',
-    hint: 'UI & cost defaults'
-  },
-  integrations: {
-    label: 'Integrations',
-    icon: '🔌',
-    description: 'Configure notifications and external services without digging through nested cards.',
-    hint: 'Discord & alerts'
-  },
-  advanced: {
-    label: 'Advanced',
-    icon: '⚡',
-    description: 'Fine-tune OAuth, watchdog behavior, and system-level options.',
-    hint: 'System behavior'
-  },
-  administration: {
-    label: 'Administration',
-    icon: '🔐',
-    description: 'Manage users and permissions for shared PrintHive installs.',
-    hint: 'Admin-only controls'
-  }
-};
+interface PanelConfig {
+  id: SettingsPanel;
+  label: string;
+  hint: string;
+  description: string;
+  adminOnly?: boolean;
+  render: () => JSX.Element | null;
+}
+
+interface CategoryConfig {
+  id: SettingsCategory;
+  label: string;
+  icon: string;
+  description: string;
+  panels: PanelConfig[];
+}
 
 function Settings({ userRole, initialSection }: SettingsProps) {
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  const resolveSection = (section?: string | null): SettingsSection => {
-    const normalized = (section || '').toLowerCase();
-    const sectionMap: Record<string, SettingsSection> = {
-      printer: 'hardware',
-      hardware: 'hardware',
-      connectivity: 'hardware',
-      account: 'account',
-      preferences: 'preferences',
-      integrations: 'integrations',
-      advanced: 'advanced',
-      administration: 'administration'
+  const navigation = useMemo<CategoryConfig[]>(() => [
+    {
+      id: 'general',
+      label: 'General',
+      icon: '🎛️',
+      description: 'Keep the day-to-day experience tight by splitting UI defaults and cost preferences into focused panels.',
+      panels: [
+        {
+          id: 'appearance',
+          label: 'Appearance',
+          hint: 'Theme and layout',
+          description: 'Adjust the visual feel, density, and dashboard behavior for the unified interface.',
+          render: () => <UISettings />,
+        },
+        {
+          id: 'costs',
+          label: 'Costs',
+          hint: 'Materials and rates',
+          description: 'Tune the price and usage defaults that drive your print estimates.',
+          render: () => <CostSettings />,
+        },
+      ],
+    },
+    {
+      id: 'account',
+      label: 'Account',
+      icon: '👤',
+      description: 'Profile controls and user access live here, without being buried beneath unrelated toggles.',
+      panels: [
+        {
+          id: 'profile',
+          label: 'Profile',
+          hint: 'Identity and credentials',
+          description: 'Manage your personal account details and authentication settings.',
+          render: () => <AccountSettings />,
+        },
+        {
+          id: 'users',
+          label: 'Users',
+          hint: 'Shared access',
+          description: 'Add, review, and adjust shared workshop permissions.',
+          adminOnly: true,
+          render: () => (
+            <CollapsibleSection title="User Management" icon="👥" defaultExpanded={true}>
+              <p className="form-description">Manage user accounts and permissions for shared PrintHive installs.</p>
+              <UserManagement />
+            </CollapsibleSection>
+          ),
+        },
+      ],
+    },
+    {
+      id: 'printers',
+      label: 'Printers',
+      icon: '🖨️',
+      description: 'Separate cloud identity from local printer details so each task stays compact and obvious.',
+      panels: [
+        {
+          id: 'bambu',
+          label: 'Bambu Cloud',
+          hint: 'Accounts and pairing',
+          description: 'Connect or swap Bambu Lab accounts without scrolling past unrelated settings.',
+          render: () => <BambuSettings />,
+        },
+        {
+          id: 'local',
+          label: 'Local / FTP',
+          hint: 'LAN and timelapse access',
+          description: 'Manage local printer IPs, access codes, and timelapse download connectivity.',
+          render: () => <PrinterFtpSettings />,
+        },
+      ],
+    },
+    {
+      id: 'cloud',
+      label: 'Cloud Sync',
+      icon: '☁️',
+      description: 'Group notifications and auth integrations together so sync-related configuration is always easy to find.',
+      panels: [
+        {
+          id: 'notifications',
+          label: 'Notifications',
+          hint: 'Alerts and Discord',
+          description: 'Manage the messages that leave PrintHive and keep your team in the loop.',
+          render: () => <NotificationSettings />,
+        },
+        {
+          id: 'oauth',
+          label: 'OAuth',
+          hint: 'External sign-in',
+          description: 'Configure SSO and provider details in their own contained panel.',
+          render: () => <OAuthSettings />,
+        },
+      ],
+    },
+    {
+      id: 'advanced',
+      label: 'Advanced',
+      icon: '⚡',
+      description: 'Tuck the workshop automation and watchdog behavior into a single focused workspace.',
+      panels: [
+        {
+          id: 'watchdog',
+          label: 'Watchdog',
+          hint: 'Automation and recovery',
+          description: 'Adjust watchdog timing, monitoring, and recovery behavior without unrelated clutter.',
+          render: () => <WatchdogSettings />,
+        },
+      ],
+    },
+    {
+      id: 'system',
+      label: 'System',
+      icon: '🖥️',
+      description: 'Reserve heavy maintenance, backups, and service controls for a dedicated system area.',
+      panels: [
+        {
+          id: 'system-panel',
+          label: 'System Controls',
+          hint: 'Backups and service actions',
+          description: 'Handle database maintenance, backups, and runtime options from a single panel.',
+          render: () => <SystemSettings />,
+        },
+      ],
+    },
+  ], [isAdmin]);
+
+  const resolveSelection = (section?: string | null): { category: SettingsCategory; panel: SettingsPanel } => {
+    const normalized = (section || '').toLowerCase().replace('#', '');
+    const [candidateCategory, candidatePanel] = normalized.split(/[.:/]/);
+
+    const aliases: Record<string, { category: SettingsCategory; panel: SettingsPanel }> = {
+      general: { category: 'general', panel: 'appearance' },
+      preferences: { category: 'general', panel: 'appearance' },
+      ui: { category: 'general', panel: 'appearance' },
+      costs: { category: 'general', panel: 'costs' },
+      account: { category: 'account', panel: 'profile' },
+      profile: { category: 'account', panel: 'profile' },
+      administration: { category: 'account', panel: isAdmin ? 'users' : 'profile' },
+      printers: { category: 'printers', panel: 'bambu' },
+      printer: { category: 'printers', panel: 'bambu' },
+      hardware: { category: 'printers', panel: 'bambu' },
+      connectivity: { category: 'printers', panel: 'local' },
+      cloud: { category: 'cloud', panel: 'notifications' },
+      integrations: { category: 'cloud', panel: 'notifications' },
+      notifications: { category: 'cloud', panel: 'notifications' },
+      oauth: { category: 'cloud', panel: 'oauth' },
+      advanced: { category: 'advanced', panel: 'watchdog' },
+      watchdog: { category: 'advanced', panel: 'watchdog' },
+      system: { category: 'system', panel: 'system-panel' },
     };
 
-    const nextSection = sectionMap[normalized] || 'hardware';
-    return nextSection === 'administration' && !isAdmin ? 'hardware' : nextSection;
+    if (candidateCategory && candidatePanel) {
+      const foundCategory = navigation.find((entry) => entry.id === candidateCategory);
+      const foundPanel = foundCategory?.panels.find((panel) => panel.id === candidatePanel && (!panel.adminOnly || isAdmin));
+      if (foundCategory && foundPanel) {
+        return { category: foundCategory.id, panel: foundPanel.id };
+      }
+    }
+
+    return aliases[normalized] || { category: 'general', panel: 'appearance' };
   };
 
-  const [activeSection, setActiveSection] = useState<SettingsSection>(() => resolveSection(initialSection));
+  const [selection, setSelection] = useState<{ category: SettingsCategory; panel: SettingsPanel }>(() => resolveSelection(initialSection));
 
   useEffect(() => {
-    setActiveSection(resolveSection(initialSection));
+    setSelection(resolveSelection(initialSection));
   }, [initialSection, isAdmin]);
 
+  const availableCategories = navigation.map((category) => ({
+    ...category,
+    panels: category.panels.filter((panel) => !panel.adminOnly || isAdmin),
+  }));
+
+  const activeCategoryConfig = availableCategories.find((category) => category.id === selection.category) || availableCategories[0];
+  const activePanelConfig = activeCategoryConfig.panels.find((panel) => panel.id === selection.panel) || activeCategoryConfig.panels[0];
+
   useEffect(() => {
-    const nextUrl = `/settings#${activeSection}`;
-    if (window.location.pathname === '/settings' && window.location.hash !== `#${activeSection}`) {
-      window.history.replaceState({ section: activeSection }, '', nextUrl);
+    if (!activeCategoryConfig || !activePanelConfig) return;
+    const nextHash = `${activeCategoryConfig.id}.${activePanelConfig.id}`;
+    const nextUrl = `/settings#${nextHash}`;
+
+    if (window.location.pathname === '/settings' && window.location.hash !== `#${nextHash}`) {
+      window.history.replaceState({ section: nextHash }, '', nextUrl);
     }
-  }, [activeSection]);
+  }, [activeCategoryConfig, activePanelConfig]);
 
-  const availableSections = (Object.keys(SETTINGS_SECTIONS) as SettingsSection[]).filter((section) => {
-    return isAdmin || section !== 'administration';
-  });
+  const handleCategoryChange = (categoryId: SettingsCategory) => {
+    const nextCategory = availableCategories.find((category) => category.id === categoryId);
+    if (!nextCategory) return;
+    setSelection({ category: categoryId, panel: nextCategory.panels[0].id });
+  };
 
-  const activeSectionMeta = SETTINGS_SECTIONS[activeSection];
-
-  const renderActiveSection = () => {
-    switch (activeSection) {
-      case 'hardware':
-        return (
-          <div className="settings-panel-stack">
-            <BambuSettings />
-            <PrinterFtpSettings />
-          </div>
-        );
-      case 'account':
-        return <AccountSettings />;
-      case 'preferences':
-        return (
-          <div className="settings-panel-stack">
-            <CostSettings />
-            <UISettings />
-          </div>
-        );
-      case 'integrations':
-        return <NotificationSettings />;
-      case 'advanced':
-        return (
-          <div className="settings-panel-stack">
-            <OAuthSettings />
-            <WatchdogSettings />
-            <SystemSettings />
-          </div>
-        );
-      case 'administration':
-        return isAdmin ? (
-          <CollapsibleSection title="User Management" icon="👥" defaultExpanded={true}>
-            <p className="form-description">
-              Manage user accounts and permissions.
-            </p>
-            <UserManagement />
-          </CollapsibleSection>
-        ) : null;
-      default:
-        return null;
-    }
+  const handlePanelChange = (panelId: SettingsPanel) => {
+    setSelection((current) => ({ ...current, panel: panelId }));
   };
 
   return (
     <SettingsContext.Provider value={{ toast, setToast, isAdmin }}>
-      <div className="settings-container settings-container-redesigned">
-        <div className="settings-header">
-          <h1>⚙️ Settings</h1>
-          <p className="settings-description">
-            Configure printers, accounts, integrations, and system behavior without the accordion maze.
-          </p>
+      <div className="settings-container settings-shell">
+        <div className="settings-header settings-shell-header">
+          <div>
+            <span className="settings-kicker">Control Center</span>
+            <h1>⚙️ Settings</h1>
+            <p className="settings-description">
+              Configure PrintHive with category-driven navigation so you never have to scroll through an accordion wall again.
+            </p>
+          </div>
+
+          <div className="settings-header-pills">
+            <span className="settings-summary-pill">{availableCategories.length} categories</span>
+            <span className="settings-summary-pill muted">{activeCategoryConfig.panels.length} focused panels</span>
+          </div>
         </div>
 
-        <div className="settings-layout">
-          <aside className="settings-sidebar">
-            <div className="settings-sidebar-sticky">
+        <div className="settings-layout settings-layout-unified">
+          <aside className="settings-sidebar settings-sidebar-modern">
+            <div className="settings-sidebar-card">
+              <span className="settings-sidebar-title">Categories</span>
               <div className="settings-nav" aria-label="Settings sections">
-                {availableSections.map((section) => {
-                  const meta = SETTINGS_SECTIONS[section];
-                  return (
-                    <button
-                      key={section}
-                      type="button"
-                      className={`settings-nav-item ${activeSection === section ? 'active' : ''}`}
-                      onClick={() => setActiveSection(section)}
-                    >
-                      <span className="settings-nav-icon">{meta.icon}</span>
-                      <span className="settings-nav-copy">
-                        <span className="settings-nav-label">{meta.label}</span>
-                        <span className="settings-nav-hint">{meta.hint}</span>
-                      </span>
-                    </button>
-                  );
-                })}
+                {availableCategories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className={`settings-nav-item ${activeCategoryConfig.id === category.id ? 'active' : ''}`}
+                    onClick={() => handleCategoryChange(category.id)}
+                  >
+                    <span className="settings-nav-icon">{category.icon}</span>
+                    <span className="settings-nav-copy">
+                      <span className="settings-nav-label">{category.label}</span>
+                      <span className="settings-nav-hint">{category.panels.length} panel{category.panels.length > 1 ? 's' : ''}</span>
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
           </aside>
 
-          <section className="settings-main">
-            <div className="settings-panel-hero">
-              <span className="settings-panel-kicker">{activeSectionMeta.icon} {activeSectionMeta.label}</span>
-              <h2>{activeSectionMeta.label}</h2>
-              <p>{activeSectionMeta.description}</p>
+          <section className="settings-main settings-main-modern">
+            <div className="settings-panel-hero settings-panel-hero-modern">
+              <span className="settings-panel-kicker">{activeCategoryConfig.icon} {activeCategoryConfig.label}</span>
+              <h2>{activeCategoryConfig.label}</h2>
+              <p>{activeCategoryConfig.description}</p>
+
+              <div className="settings-panel-tabs" role="tablist" aria-label={`${activeCategoryConfig.label} sub-sections`}>
+                {activeCategoryConfig.panels.map((panel) => (
+                  <button
+                    key={panel.id}
+                    type="button"
+                    className={`settings-panel-tab ${activePanelConfig.id === panel.id ? 'active' : ''}`}
+                    onClick={() => handlePanelChange(panel.id)}
+                  >
+                    <strong>{panel.label}</strong>
+                    <span>{panel.hint}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {renderActiveSection()}
+            <div className="settings-panel-surface">
+              <div className="settings-panel-intro">
+                <h3>{activePanelConfig.label}</h3>
+                <p>{activePanelConfig.description}</p>
+              </div>
+
+              {activePanelConfig.render()}
+            </div>
           </section>
         </div>
 
-        {toast && (
+        {toast ? (
           <Toast
             message={toast.message}
             type={toast.type}
             onClose={() => setToast(null)}
           />
-        )}
+        ) : null}
       </div>
     </SettingsContext.Provider>
   );

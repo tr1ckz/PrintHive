@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from '../../config/api';
 import fetchWithRetry from '../../utils/fetchWithRetry';
 import { useSettingsContext } from './SettingsContext';
 import { CollapsibleSection } from './CollapsibleSection';
+import { useModal } from '../ModalProvider';
 
 interface Printer {
   dev_id: string;
@@ -33,6 +34,7 @@ const emptyPrinter: PrinterFormData = {
 
 export function PrinterFtpSettings() {
   const { setToast } = useSettingsContext();
+  const { confirm } = useModal();
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [editingPrinter, setEditingPrinter] = useState<PrinterFormData | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -93,26 +95,32 @@ export function PrinterFtpSettings() {
     }
   };
 
-  const handleDeletePrinter = async (devId: string) => {
-    if (!confirm('Are you sure you want to delete this printer?')) return;
-    
-    try {
-      const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.CONFIG_DELETE(devId), {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setToast({ message: 'Printer deleted successfully!', type: 'success' });
-        loadPrinters();
-      } else {
-        setToast({ message: data.error, type: 'error' });
+  const handleDeletePrinter = (devId: string) => {
+    confirm({
+      title: 'Delete printer configuration?',
+      message: 'This removes the saved local/FTP connection for the selected printer.',
+      confirmText: 'Delete',
+      confirmVariant: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.CONFIG_DELETE(devId), {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            setToast({ message: 'Printer deleted successfully!', type: 'success' });
+            loadPrinters();
+          } else {
+            setToast({ message: data.error, type: 'error' });
+          }
+        } catch (error) {
+          setToast({ message: 'Failed to delete printer', type: 'error' });
+        }
       }
-    } catch (error) {
-      setToast({ message: 'Failed to delete printer', type: 'error' });
-    }
+    });
   };
 
   const handleTestConnection = async (printer: Printer) => {

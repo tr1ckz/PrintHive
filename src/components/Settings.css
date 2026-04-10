@@ -884,6 +884,155 @@
   gap: 12px;
 }
 
+.settings-shell {
+  max-width: 1400px;
+  padding: 0;
+}
+
+.settings-shell-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.settings-kicker {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: var(--color-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.settings-header-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.settings-summary-pill.muted {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.settings-sidebar-card {
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(8, 15, 30, 0.72);
+  border: 1px solid rgba(0, 212, 255, 0.14);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.settings-sidebar-title {
+  display: block;
+  padding: 8px 10px 10px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.settings-main-modern {
+  min-width: 0;
+}
+
+.settings-panel-hero-modern {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-panel-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.settings-panel-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.82);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-panel-tab strong {
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.settings-panel-tab span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.78rem;
+}
+
+.settings-panel-tab:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.settings-panel-tab.active {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.16) 0%, rgba(34, 211, 238, 0.1) 100%);
+  border-color: rgba(249, 115, 22, 0.28);
+}
+
+.settings-panel-surface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-panel-intro {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(12, 12, 14, 0.74);
+}
+
+.settings-panel-intro h3 {
+  margin: 0 0 6px;
+  color: #fff;
+}
+
+.settings-panel-intro p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .settings-shell {
+    padding: 0;
+  }
+
+  .settings-layout-unified {
+    grid-template-columns: 1fr;
+  }
+}
+
 .settings-container-redesigned .settings-section {
   margin-bottom: 0;
   padding: 16px 18px;

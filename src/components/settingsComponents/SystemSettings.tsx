@@ -6,9 +6,11 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { BackupInfo, BackupStats, DbResultModal } from './types';
 import LoadingSplash from '../LoadingSplash';
 import ConfirmModal from '../ConfirmModal';
+import { useModal } from '../ModalProvider';
 
 export function SystemSettings() {
   const { setToast } = useSettingsContext();
+  const { confirm } = useModal();
   
   // System state
   const [restarting, setRestarting] = useState(false);
@@ -465,30 +467,34 @@ export function SystemSettings() {
     }
   };
 
-  const handleDeleteBackup = async (filename: string) => {
-    if (!confirm(`Are you sure you want to delete backup: ${filename}?`)) {
-      return;
-    }
-    
-    try {
-      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_BACKUP_FILE(filename), {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        setToast({ message: 'Backup deleted', type: 'success' });
-        if (selectedBackup === filename) {
-          setSelectedBackup('');
+  const handleDeleteBackup = (filename: string) => {
+    confirm({
+      title: 'Delete backup file?',
+      message: `Are you sure you want to delete backup: ${filename}?`,
+      confirmText: 'Delete backup',
+      confirmVariant: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DATABASE_BACKUP_FILE(filename), {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+          const data = await response.json();
+
+          if (data.success) {
+            setToast({ message: 'Backup deleted', type: 'success' });
+            if (selectedBackup === filename) {
+              setSelectedBackup('');
+            }
+            loadAvailableBackups();
+          } else {
+            setToast({ message: data.error || 'Failed to delete backup', type: 'error' });
+          }
+        } catch (error) {
+          setToast({ message: 'Failed to delete backup', type: 'error' });
         }
-        loadAvailableBackups();
-      } else {
-        setToast({ message: data.error || 'Failed to delete backup', type: 'error' });
       }
-    } catch (error) {
-      setToast({ message: 'Failed to delete backup', type: 'error' });
-    }
+    });
   };
 
   return (
