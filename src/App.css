@@ -1,5 +1,46 @@
 .app {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-content {
+  flex: 1;
+}
+
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(0, 212, 255, 0.12);
+  background: rgba(10, 15, 30, 0.7);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.app-footer-version {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.app-footer-separator {
+  opacity: 0.5;
+}
+
+.app-footer-link {
+  color: var(--color-primary, #00d4ff);
+  text-decoration: none;
+  font-weight: 600;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.app-footer-link:hover {
+  color: var(--color-secondary, #0099ff);
+  opacity: 1;
 }
 
 .app-loading {

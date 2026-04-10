@@ -5,6 +5,7 @@ import LoadingScreen from './components/LoadingScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import { API_ENDPOINTS } from './config/api';
 import { fetchWithRetry } from './utils/fetchWithRetry';
+import versionInfo from '../version.json';
 import './App.css';
 
 function App() {
@@ -92,11 +93,26 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="app">
-        {isAuthenticated ? (
-          <Dashboard onLogout={handleLogout} />
-        ) : (
-          <Login onLoginSuccess={handleLoginSuccess} />
-        )}
+        <div className="app-content">
+          {isAuthenticated ? (
+            <Dashboard onLogout={handleLogout} />
+          ) : (
+            <Login onLoginSuccess={handleLoginSuccess} />
+          )}
+        </div>
+
+        <footer className="app-footer">
+          <span className="app-footer-version">v{versionInfo.version}</span>
+          <span className="app-footer-separator">•</span>
+          <a
+            className="app-footer-link"
+            href="https://github.com/tr1ckz"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            by tr1ck
+          </a>
+        </footer>
       </div>
     </ErrorBoundary>
   );
