@@ -56,13 +56,20 @@ export function UISettings() {
   const handleSaveUiSettings = async () => {
     setUiLoading(true);
     try {
+      const trimmedGo2rtcUrl = go2rtcUrl.trim();
+      if (trimmedGo2rtcUrl && !/^https?:\/\//i.test(trimmedGo2rtcUrl)) {
+        setToast({ message: 'go2rtc Base URL must start with http:// or https://. Put rtsp:// camera feeds in the printer Camera Source field instead.', type: 'error' });
+        setUiLoading(false);
+        return;
+      }
+
       const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           hideBmc,
           colorScheme,
-          go2rtcUrl,
+          go2rtcUrl: trimmedGo2rtcUrl,
           go2rtcDefaultStream,
           tapoCameraHost,
           tapoCameraUsername,
@@ -118,7 +125,7 @@ export function UISettings() {
       </div>
 
       <div className="form-group">
-        <label>go2rtc Base URL</label>
+        <label>go2rtc Base URL (HTTP)</label>
         <input
           type="url"
           value={go2rtcUrl}
@@ -128,7 +135,7 @@ export function UISettings() {
           placeholder="http://localhost:1984"
         />
         <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
-          Used for low-latency browser playback via go2rtc WebRTC. The default sidecar runs on <code>http://localhost:1984</code>.
+          This must be the go2rtc service URL itself, usually <code>http://localhost:1984</code>. Do <strong>not</strong> paste a raw <code>rtsp://</code> camera feed here.
         </small>
       </div>
 
@@ -231,7 +238,7 @@ export function UISettings() {
         />
       </div>
 
-      {go2rtcUrl && go2rtcDefaultStream ? (
+      {/^https?:\/\//i.test(go2rtcUrl.trim()) && go2rtcDefaultStream ? (
         <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '1rem' }}>
           WebRTC preview: <code>{`${go2rtcUrl.replace(/\/+$/, '').replace(/^http/, 'ws')}/api/ws?src=${encodeURIComponent(go2rtcDefaultStream)}`}</code>
         </small>

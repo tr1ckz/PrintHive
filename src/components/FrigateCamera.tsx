@@ -29,12 +29,27 @@ const WEBRTC_ICE_SERVERS = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun
 
 const isDirectHlsUrl = (value: string) => /^https?:\/\/.*\.m3u8(?:\?.*)?$/i.test(value.trim());
 const isRtspUrl = (value: string) => /^rtsps?:\/\//i.test(value.trim());
+const isWebSocketUrl = (value: string) => /^wss?:\/\//i.test(value.trim());
+const isHttpRelayUrl = (value: string) => /^https?:\/\//i.test(value.trim());
 const normalizeBaseUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '');
 
 const toWebSocketUrl = (value: string) => {
   if (value.startsWith('https://')) return `wss://${value.slice('https://'.length)}`;
   if (value.startsWith('http://')) return `ws://${value.slice('http://'.length)}`;
   return value;
+};
+
+const getGo2RtcSocketBase = (value?: string) => {
+  const normalized = normalizeBaseUrl(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (isHttpRelayUrl(normalized) || isWebSocketUrl(normalized)) {
+    return toWebSocketUrl(normalized);
+  }
+
+  return null;
 };
 
 const sanitizeStreamName = (value: string, fallback = 'camera') => {
@@ -123,11 +138,10 @@ const buildStreamTarget = (
     };
   }
 
-  const relayBase = normalizeBaseUrl(go2rtcUrl);
-  if (relayBase) {
+  const relaySocketBase = getGo2RtcSocketBase(go2rtcUrl);
+  if (relaySocketBase) {
     const streamName = getRelayStreamName(source, printerName, printerId);
-    const wsBase = toWebSocketUrl(relayBase);
-    const wsUrl = `${wsBase}/api/ws?src=${encodeURIComponent(streamName)}`;
+    const wsUrl = `${relaySocketBase}/api/ws?src=${encodeURIComponent(streamName)}`;
 
     return {
       mode: 'webrtc',
@@ -135,6 +149,17 @@ const buildStreamTarget = (
       hlsUrl: null,
       statusHint: isRtspUrl(source) ? 'Opening low-latency go2rtc WebRTC relay…' : 'Opening live WebRTC stream…',
       label: streamName,
+    };
+  }
+
+  const normalizedRelayBase = normalizeBaseUrl(go2rtcUrl);
+  if (normalizedRelayBase && !relaySocketBase) {
+    return {
+      mode: 'none',
+      wsUrl: null,
+      hlsUrl: null,
+      statusHint: 'The go2rtc Base URL must be http://localhost:1984 or https://…, not an rtsp:// camera feed.',
+      label: '',
     };
   }
 
@@ -402,7 +427,15 @@ function FrigateCamera({
         }
       });
 
-      const socket = new WebSocket(wsUrl);
+      let socket: WebSocket;
+      try {
+        socket = new WebSocket(wsUrl);
+      } catch {
+        setStreamState('offline');
+        setStatusMessage('Invalid go2rtc relay URL. Set the go2rtc Base URL to http://localhost:1984 and keep raw rtsp:// feeds in the printer Camera Source field.');
+        return;
+      }
+
       socketRef.current = socket;
 
       socket.addEventListener('open', async () => {
