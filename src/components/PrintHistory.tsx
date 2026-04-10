@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import './PrintHistory.css';
 import Toast from './Toast';
 import LoadingScreen from './LoadingScreen';
@@ -35,9 +35,23 @@ interface Print {
 
 const ITEMS_PER_PAGE = 12;
 
+const getPrintStatus = (status: string | number) => {
+  const statusNum = typeof status === 'string' ? Number.parseInt(status, 10) : status;
+  const statusClassName =
+    statusNum === 2 ? 'success' :
+    statusNum === 3 ? 'failed' :
+    statusNum === 1 ? 'running' : 'idle';
+
+  const statusDisplay =
+    statusClassName === 'success' ? '✓ SUCCESS' :
+    statusClassName === 'failed' ? '✕ FAILED' :
+    statusClassName === 'running' ? '▶ RUNNING' : '⏸ IDLE';
+
+  return { statusClassName, statusDisplay };
+};
+
 const PrintHistory: React.FC = () => {
   const [allPrints, setAllPrints] = useState<Print[]>([]);
-  const [prints, setPrints] = useState<Print[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,7 +85,48 @@ const PrintHistory: React.FC = () => {
   useEscapeKey(showPrinterSync, () => setShowPrinterSync(false));
   useEscapeKey(showSdCardSync, () => setShowSdCardSync(false));
 
-  const handleExportCSV = () => {
+  const prints = useMemo(() => {
+    let filtered = allPrints;
+
+    if (printerFilter !== 'all') {
+      filtered = filtered.filter((print) => print.deviceId === printerFilter);
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((print) => {
+        const normalizedStatus = String(print.status).toLowerCase();
+        if (statusFilter === 'success') return normalizedStatus === 'success' || String(print.status) === '2';
+        if (statusFilter === 'failed') return normalizedStatus === 'failed' || String(print.status) === '3';
+        return true;
+      });
+    }
+
+    if (debouncedSearchTerm.trim()) {
+      const search = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter((print) =>
+        print.title?.toLowerCase().includes(search) ||
+        print.designTitle?.toLowerCase().includes(search) ||
+        print.deviceName?.toLowerCase().includes(search) ||
+        print.profileName?.toLowerCase().includes(search)
+      );
+    }
+
+    return filtered;
+  }, [allPrints, printerFilter, statusFilter, debouncedSearchTerm]);
+
+  const printerOptions = useMemo(() => {
+    const printerMap = new Map<string, string>();
+
+    allPrints.forEach((print) => {
+      if (print.deviceId && !printerMap.has(print.deviceId)) {
+        printerMap.set(print.deviceId, print.deviceName || print.deviceId);
+      }
+    });
+
+    return Array.from(printerMap.entries()).map(([id, label]) => ({ id, label }));
+  }, [allPrints]);
+
+  const handleExportCSV = useCallback(() => {
     exportToCSV(
       prints,
       [
@@ -91,9 +146,9 @@ const PrintHistory: React.FC = () => {
       'print-history'
     );
     setToast({ message: 'Print history exported to CSV', type: 'success' });
-  };
+  }, [prints]);
 
-  const fetchPrints = async () => {
+  const fetchPrints = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -108,13 +163,12 @@ const PrintHistory: React.FC = () => {
       const data = await response.json();
       const fetchedPrints = data.hits || data.models || [];
       setAllPrints(fetchedPrints);
-      setPrints(fetchedPrints);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load print history');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleSync = async () => {
     try {
@@ -124,7 +178,7 @@ const PrintHistory: React.FC = () => {
       
       const data = await response.json();
       setToast({ message: `Synced ${data.newPrints} new prints, ${data.updated} updated\nDownloaded ${data.downloadedCovers} covers and ${data.downloadedVideos} timelapses`, type: 'success' });
-      fetchPrints();
+      void fetchPrints();
     } catch (err) {
       setToast({ message: 'Sync failed: ' + (err instanceof Error ? err.message : 'Unknown error'), type: 'error' });
     } finally {
@@ -169,7 +223,7 @@ const PrintHistory: React.FC = () => {
               } else {
                 setToast({ message: `No matches found. ${status.unmatched} videos had no matching prints.`, type: 'error' });
               }
-              fetchPrints();
+              void fetchPrints();
             }
           } catch (err) {
             console.error('Error polling match status:', err);
@@ -258,7 +312,7 @@ const PrintHistory: React.FC = () => {
         type: 'success' 
       });
       setShowSdCardSync(false);
-      fetchPrints(); // Refresh the print list
+      void fetchPrints(); // Refresh the print list
     } catch (err) {
       setToast({ message: 'SD card sync failed: ' + (err instanceof Error ? err.message : 'Unknown error'), type: 'error' });
     } finally {
@@ -349,48 +403,30 @@ const PrintHistory: React.FC = () => {
     }
   };
 
-  // Filter prints in real-time based on search and status
   useEffect(() => {
-    let filtered = [...allPrints];
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, statusFilter, printerFilter]);
 
-    // Apply printer filter
-    if (printerFilter !== 'all') {
-      filtered = filtered.filter(p => p.deviceId === printerFilter);
+  useEffect(() => {
+    const nextTotalPages = Math.ceil(prints.length / ITEMS_PER_PAGE);
+    if (nextTotalPages === 0) {
+      setCurrentPage(1);
+      return;
     }
 
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(p => {
-        const status = p.status.toLowerCase();
-        if (statusFilter === 'success') return status === 'success' || p.status === '2';
-        if (statusFilter === 'failed') return status === 'failed' || p.status === '3';
-        return true;
-      });
-    }
+    setCurrentPage((prevPage) => Math.min(prevPage, nextTotalPages));
+  }, [prints.length]);
 
-    // Apply search filter
-    if (debouncedSearchTerm.trim()) {
-      const search = debouncedSearchTerm.toLowerCase();
-      filtered = filtered.filter(p => 
-        p.title?.toLowerCase().includes(search) ||
-        p.designTitle?.toLowerCase().includes(search) ||
-        p.deviceName?.toLowerCase().includes(search) ||
-        p.profileName?.toLowerCase().includes(search)
-      );
-    }
-
-    setPrints(filtered);
-    setCurrentPage(1); // Reset to page 1 when filters change
-  }, [debouncedSearchTerm, statusFilter, printerFilter, allPrints]);
-
-  // Pagination calculations
   const totalPages = Math.ceil(prints.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedPrints = prints.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedPrints = useMemo(
+    () => prints.slice(startIndex, startIndex + ITEMS_PER_PAGE),
+    [prints, startIndex]
+  );
 
   useEffect(() => {
-    fetchPrints();
-  }, []);
+    void fetchPrints();
+  }, [fetchPrints]);
 
   if (loading) {
     return <LoadingScreen message="Loading print history..." />;
@@ -472,28 +508,16 @@ const PrintHistory: React.FC = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="search-input"
         />
-        {(() => {
-          // Get unique printers from all prints
-          const uniquePrinters = Array.from(new Set(allPrints.map(p => p.deviceId).filter(Boolean)));
-          
-          // Only show printer filter if multiple printers exist
-          if (uniquePrinters.length > 1) {
-            return (
-              <select value={printerFilter} onChange={(e) => setPrinterFilter(e.target.value)} className="status-filter">
-                <option value="all">All Printers</option>
-                {uniquePrinters.map(deviceId => {
-                  const print = allPrints.find(p => p.deviceId === deviceId);
-                  return (
-                    <option key={deviceId} value={deviceId}>
-                      {print?.deviceName || deviceId}
-                    </option>
-                  );
-                })}
-              </select>
-            );
-          }
-          return null;
-        })()}
+        {printerOptions.length > 1 && (
+          <select value={printerFilter} onChange={(e) => setPrinterFilter(e.target.value)} className="status-filter">
+            <option value="all">All Printers</option>
+            {printerOptions.map((printer) => (
+              <option key={printer.id} value={printer.id}>
+                {printer.label}
+              </option>
+            ))}
+          </select>
+        )}
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="status-filter">
           <option value="all">All Status</option>
           <option value="success">Success</option>
@@ -515,16 +539,8 @@ const PrintHistory: React.FC = () => {
         <>
         <div className="prints-grid">
           {paginatedPrints.map((print) => {
-            // Map numeric status codes: 2=success, 3=failed, 1=running, others=idle
-            const statusNum = typeof print.status === 'string' ? parseInt(print.status) : print.status;
-            const statusStr = statusNum === 2 ? 'success' : 
-                             statusNum === 3 ? 'failed' : 
-                             statusNum === 1 ? 'running' : 'idle';
-            const statusDisplay = statusStr === 'success' ? '✓ SUCCESS' : 
-                                 statusStr === 'failed' ? '✕ FAILED' : 
-                                 statusStr === 'running' ? '▶ RUNNING' : 
-                                 statusStr === 'idle' ? '⏸ IDLE' : '⏸ IDLE';
-            
+            const { statusClassName, statusDisplay } = getPrintStatus(print.status);
+
             return (
               <div key={print.id} className="print-card">
                 <div className="print-image">
@@ -538,7 +554,7 @@ const PrintHistory: React.FC = () => {
                   ) : (
                     <div className="no-image">No Image</div>
                   )}
-                  <div className={`status-overlay status-${statusStr}`}>
+                  <div className={`status-overlay status-${statusClassName}`}>
                     {statusDisplay}
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 .printers-container {
-  animation: fadeInUp 0.5s ease-out;
+  content-visibility: auto;
 }
 
 @keyframes fadeInUp {
@@ -39,16 +39,15 @@
   align-items: center;
   gap: 8px;
   padding: 12px 20px;
-  background: rgba(30, 41, 59, 0.8);
-  backdrop-filter: blur(20px);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
   border-radius: 10px;
   color: var(--color-primary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
 .btn-refresh:hover {
@@ -59,13 +58,12 @@
 }
 
 .loading-container, .error-container, .empty-state {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(20px);
+  background: rgba(15, 23, 42, 0.86);
   border-radius: 16px;
   padding: 64px 32px;
   text-align: center;
   border: 1px solid rgba(0, 212, 255, 0.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
 }
 
 .loading-container .spinner {
@@ -105,14 +103,14 @@
 }
 
 .printer-card {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(20px);
+  background: rgba(15, 23, 42, 0.82);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(0, 212, 255, 0.1);
-  transition: all 0.3s ease;
-  animation: scaleIn 0.5s ease-out;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  content-visibility: auto;
+  contain-intrinsic-size: 680px;
 }
 
 @keyframes scaleIn {
@@ -127,9 +125,9 @@
 }
 
 .printer-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 212, 255, 0.2);
-  border-color: rgba(0, 212, 255, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0, 212, 255, 0.16);
+  border-color: rgba(0, 212, 255, 0.24);
 }
 
 .printer-header {
@@ -180,8 +178,7 @@
 
 .status-badge.online .status-dot {
   background: #10b981;
-  box-shadow: 0 0 8px #10b981;
-  animation: pulse 2s ease-in-out infinite;
+  box-shadow: 0 0 4px rgba(16, 185, 129, 0.45);
 }
 
 @keyframes pulse {
@@ -218,10 +215,11 @@
   position: absolute;
   width: 30px;
   height: 30px;
-  border: 3px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  border: 3px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
   border-top-color: var(--color-primary);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 1.4s linear infinite;
+  opacity: 0.55;
   z-index: 1;
 }
 
@@ -640,14 +638,14 @@
 }
 
 .ams-tray-card:hover {
-  border-color: rgba(0, 212, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-color: rgba(0, 212, 255, 0.24);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
 }
 
 .ams-tray-card.active {
-  border-color: rgba(0, 212, 255, 0.5);
-  box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+  border-color: rgba(0, 212, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.14);
 }
 
 .ams-tray-card.active::before {

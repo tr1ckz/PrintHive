@@ -1,5 +1,5 @@
 .print-history-container {
-  animation: fadeInUp 0.5s ease-out;
+  content-visibility: auto;
 }
 
 @keyframes fadeInUp {
@@ -114,15 +114,14 @@
   align-items: center;
   gap: 8px;
   padding: 12px 20px;
-  background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(20px);
-  border: none;
+  background: rgba(18, 24, 32, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
 }
 
 .btn-export {
@@ -154,12 +153,12 @@
 
 /* Background Job Progress Bar */
 .background-job-progress {
-  background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(10px);
-  border: 1px solid #404040;
+  background: rgba(18, 24, 32, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 1rem 1.5rem;
   margin-bottom: 1.5rem;
+  content-visibility: auto;
 }
 
 .background-job-progress .progress-header {
@@ -209,14 +208,13 @@
   flex: 1;
   min-width: 280px;
   padding: 14px 20px;
-  background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(20px);
-  border: 2px solid #404040;
+  background: rgba(18, 24, 32, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   font-size: 15px;
   color: #fff;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
 }
 
 .search-input:focus {
@@ -231,16 +229,15 @@
 
 .status-filter {
   padding: 14px 20px;
-  background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(20px);
-  border: 2px solid #404040;
+  background: rgba(18, 24, 32, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   font-size: 15px;
   font-weight: 600;
   color: #fff;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
 }
 
 .status-filter:focus {
@@ -250,12 +247,12 @@
 }
 
 .loading-container, .error-container, .empty-state {
-  background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(20px);
+  background: rgba(18, 24, 32, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   padding: 64px 32px;
   text-align: center;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
 }
 
 .loading-container .spinner {
@@ -289,14 +286,15 @@
 }
 
 .print-card {
-  background: var(--bg-dark);
-  backdrop-filter: blur(20px);
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: var(--shadow-lg);
-  transition: all 0.3s ease;
-  animation: scaleIn 0.5s ease-out;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: 460px;
 }
 
 @keyframes scaleIn {
@@ -311,8 +309,9 @@
 }
 
 .print-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .print-image {
@@ -350,8 +349,7 @@
   border-radius: 8px;
   font-size: 13px;
   font-weight: 700;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
 }
 
 .status-overlay.status-success {
@@ -361,6 +359,11 @@
 
 .status-overlay.status-failed {
   background: rgba(220, 38, 38, 0.95);
+  color: white;
+}
+
+.status-overlay.status-running {
+  background: rgba(37, 99, 235, 0.95);
   color: white;
 }
 
@@ -486,8 +489,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -607,9 +610,9 @@
   gap: 8px;
   margin-top: 32px;
   padding: 16px;
-  background: rgba(30, 30, 30, 0.6);
+  background: rgba(18, 24, 32, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  backdrop-filter: blur(10px);
 }
 
 .pagination-btn {

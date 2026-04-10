@@ -1,9 +1,57 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Printer } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
 import './Printers.css';
 import LoadingScreen from './LoadingScreen';
+
+const CAMERA_REFRESH_INTERVAL_MS = 5000;
+const CAMERA_VIEWPORT_BUFFER = 300;
+
+const normalizeProgress = (value: number | undefined | null) => {
+  if (value === null || value === undefined || Number.isNaN(value)) return 0;
+
+  let normalized = Number(value);
+  if (normalized <= 1) normalized *= 100;
+
+  normalized = Math.max(0, Math.min(100, normalized));
+  return Math.round(normalized);
+};
+
+const formatBitrate = (bps?: number) => {
+  if (!bps || Number.isNaN(bps)) return null;
+
+  const mbps = bps / (1024 * 1024);
+  if (mbps >= 1) return `${mbps.toFixed(1)} Mbps`;
+
+  const kbps = bps / 1024;
+  return `${Math.round(kbps)} Kbps`;
+};
+
+const getSpeedMode = (mode?: string | number, factor?: number) => {
+  let name: string | null = null;
+  let level = -1;
+
+  if (typeof mode === 'number') level = mode;
+  if (typeof mode === 'string') {
+    const normalizedMode = mode.toLowerCase();
+    if (normalizedMode.includes('lud')) level = 3, name = 'Ludicrous';
+    else if (normalizedMode.includes('sport')) level = 2, name = 'Sport';
+    else if (normalizedMode.includes('std') || normalizedMode.includes('standard')) level = 1, name = 'Standard';
+    else if (normalizedMode.includes('silent')) level = 0, name = 'Silent';
+  }
+
+  if (level >= 0 && !name) name = ['Silent', 'Standard', 'Sport', 'Ludicrous'][level] || 'Standard';
+
+  if (!name && typeof factor === 'number') {
+    if (factor >= 160) name = 'Ludicrous';
+    else if (factor >= 120) name = 'Sport';
+    else if (factor >= 90) name = 'Standard';
+    else name = 'Silent';
+  }
+
+  return name;
+};
 
 function Printers() {
   const [printers, setPrinters] = useState<Printer[]>([]);
@@ -16,50 +64,76 @@ function Printers() {
   const cameraRefreshRef = useRef(0);
   const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
   const preloadRefs = useRef<Map<string, HTMLImageElement>>(new Map());
+  const printersById = useMemo(() => new Map(printers.map((printer) => [printer.dev_id, printer])), [printers]);
 
   const refreshCameras = useCallback(() => {
+    if (document.hidden) return;
+
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
     cameraRefreshRef.current += 1;
+
     imageRefs.current.forEach((img, deviceId) => {
-      const printer = printers.find(p => p.dev_id === deviceId);
-      if (printer?.camera_rtsp_url && img) {
-        const newUrl = `${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=${cameraRefreshRef.current}`;
-        
-        // Preload the new image before swapping to prevent black flash
-        const preloadImg = new Image();
-        preloadImg.onload = () => {
-          // Only update if the image element still exists
-          if (imageRefs.current.has(deviceId)) {
-            img.src = newUrl;
-          }
-        };
-        preloadImg.onerror = () => {
-          // Keep the old image on error - don't flash black
-        };
-        preloadImg.src = newUrl;
-        preloadRefs.current.set(deviceId, preloadImg);
+      const printer = printersById.get(deviceId);
+      if (!printer?.camera_rtsp_url || !img || !img.isConnected) {
+        return;
       }
+
+      const rect = img.getBoundingClientRect();
+      const isNearViewport =
+        rect.bottom >= -CAMERA_VIEWPORT_BUFFER &&
+        rect.top <= viewportHeight + CAMERA_VIEWPORT_BUFFER;
+
+      if (!isNearViewport) {
+        return;
+      }
+
+      const newUrl = `${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}?url=${encodeURIComponent(printer.camera_rtsp_url)}&t=${cameraRefreshRef.current}`;
+
+      const preloadImg = new Image();
+      preloadImg.onload = () => {
+        if (imageRefs.current.has(deviceId)) {
+          img.src = newUrl;
+        }
+      };
+      preloadImg.onerror = () => {
+        // Keep the old image on error - don't flash black
+      };
+      preloadImg.src = newUrl;
+      preloadRefs.current.set(deviceId, preloadImg);
     });
-  }, [printers]);
+  }, [printersById]);
 
   useEffect(() => {
-    fetchPrinters();
-  }, []);
+    void fetchPrinters();
+  }, [fetchPrinters]);
+
+  const hasCameraFeed = useMemo(
+    () => printers.some((printer) => Boolean(printer.camera_rtsp_url)),
+    [printers]
+  );
 
   useEffect(() => {
-    if (printers.length === 0) return;
-    
-    // Refresh camera feeds every 2 seconds - without causing re-renders
-    const interval = setInterval(refreshCameras, 2000);
-    
+    if (!hasCameraFeed) return;
+
+    refreshCameras();
+    const interval = window.setInterval(refreshCameras, CAMERA_REFRESH_INTERVAL_MS);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refreshCameras();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
-      clearInterval(interval);
-      // Clear all image refs on unmount
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       imageRefs.current.clear();
       preloadRefs.current.clear();
     };
-  }, [printers, refreshCameras]);
+  }, [hasCameraFeed, refreshCameras]);
 
-  const fetchPrinters = async () => {
+  const fetchPrinters = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -71,7 +145,7 @@ function Printers() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const openConfigModal = (printer: Printer) => {
     setSelectedPrinter(printer);
@@ -137,45 +211,6 @@ function Printers() {
     });
   };
 
-  const normalizeProgress = (value: number | undefined | null) => {
-    if (value === null || value === undefined || isNaN(value as any)) return 0;
-    let v = Number(value);
-    // Some firmwares report 0-1; convert to percentage
-    if (v <= 1) v = v * 100;
-    // Clamp and round
-    v = Math.max(0, Math.min(100, v));
-    return Math.round(v);
-  };
-
-  const formatBitrate = (bps?: number) => {
-    if (!bps || isNaN(bps)) return null;
-    const mbps = bps / (1024 * 1024);
-    if (mbps >= 1) return `${mbps.toFixed(1)} Mbps`;
-    const kbps = bps / 1024;
-    return `${Math.round(kbps)} Kbps`;
-  };
-
-  const getSpeedMode = (mode?: string | number, factor?: number) => {
-    // Normalize common values from Bambu: spd_lv (0-3) or strings
-    let name: string | null = null;
-    let level = -1;
-    if (typeof mode === 'number') level = mode;
-    if (typeof mode === 'string') {
-      const m = mode.toLowerCase();
-      if (m.includes('lud')) level = 3, name = 'Ludicrous';
-      else if (m.includes('sport')) level = 2, name = 'Sport';
-      else if (m.includes('std') || m.includes('standard')) level = 1, name = 'Standard';
-      else if (m.includes('silent')) level = 0, name = 'Silent';
-    }
-    if (level >= 0 && !name) name = ['Silent','Standard','Sport','Ludicrous'][level] || 'Standard';
-    if (!name && typeof factor === 'number') {
-      if (factor >= 160) name = 'Ludicrous';
-      else if (factor >= 120) name = 'Sport';
-      else if (factor >= 90) name = 'Standard';
-      else name = 'Silent';
-    }
-    return name;
-  };
 
   if (loading) {
     return <LoadingScreen message="Loading printers..." />;
