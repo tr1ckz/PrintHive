@@ -8,6 +8,7 @@ const fs = require('fs');
 const multer = require('multer');
 const passport = require('passport');
 const oidc = require('openid-client');
+const { WebSocketServer, WebSocket } = require('ws');
 
 // Sync version on startup
 try {
@@ -632,8 +633,152 @@ function setupAutoVideoMatching() {
 
 const app = express();
 let httpServer = null; // Store reference for graceful shutdown
+let realtimeWss = null;
 const mqttClients = new Map(); // Store MQTT clients per printer
+const REALTIME_SOCKET_PATH = '/ws/printers';
 const PORT = process.env.PORT || 3000;
+
+function sendRealtimeMessage(socket, payload) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return;
+  }
+
+  try {
+    socket.send(JSON.stringify({
+      sentAt: new Date().toISOString(),
+      ...payload,
+    }));
+  } catch (error) {
+    logger.debug('[Realtime] Failed to send websocket message:', error.message);
+  }
+}
+
+function broadcastRealtimeMessage(payload) {
+  if (!realtimeWss) {
+    return;
+  }
+
+  realtimeWss.clients.forEach((client) => {
+    sendRealtimeMessage(client, payload);
+  });
+}
+
+function buildRealtimePrinterPayload(device, jobData = null, overrides = {}) {
+  const printerId = device?.dev_id || overrides.dev_id || null;
+  if (!printerId) {
+    return null;
+  }
+
+  let latestConfig = {};
+  try {
+    latestConfig = db.prepare(`
+      SELECT dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url
+      FROM printers
+      WHERE dev_id = ?
+    `).get(printerId) || {};
+  } catch (error) {
+    logger.debug('[Realtime] Failed to load printer config snapshot:', error.message);
+  }
+
+  const mergedTask = jobData
+    ? { ...(device?.current_task || {}), ...jobData, ...(overrides.current_task || {}) }
+    : overrides.current_task || device?.current_task;
+
+  return {
+    type: 'printer.telemetry',
+    printerId,
+    payload: {
+      ...device,
+      ...latestConfig,
+      ...overrides,
+      dev_id: printerId,
+      name: overrides.name || latestConfig.name || device?.name || printerId,
+      online: overrides.online ?? device?.online ?? true,
+      print_status: overrides.print_status || device?.print_status || mergedTask?.gcode_state || 'ONLINE',
+      camera_rtsp_url: overrides.camera_rtsp_url ?? latestConfig.camera_rtsp_url ?? device?.camera_rtsp_url ?? null,
+      ams: overrides.ams ?? mergedTask?.ams ?? device?.ams,
+      current_task: mergedTask || undefined,
+    },
+  };
+}
+
+function attachRealtimeBridgeToMqttClient(mqttClient, clientKey, device) {
+  mqttClient.realtimeDevice = {
+    ...(mqttClient.realtimeDevice || {}),
+    ...device,
+  };
+
+  if (mqttClient.__realtimeBridgeAttached) {
+    return;
+  }
+
+  mqttClient.__realtimeBridgeAttached = true;
+
+  mqttClient.on('job_update', (jobData) => {
+    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, jobData, {
+      online: true,
+      print_status: jobData?.gcode_state || mqttClient.realtimeDevice?.print_status || 'ONLINE',
+    });
+
+    if (payload) {
+      broadcastRealtimeMessage(payload);
+    }
+  });
+
+  mqttClient.on('disconnected', () => {
+    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
+      online: false,
+      print_status: 'OFFLINE',
+    });
+
+    if (payload) {
+      broadcastRealtimeMessage(payload);
+    }
+  });
+
+  mqttClient.on('error', () => {
+    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
+      online: false,
+      print_status: 'OFFLINE',
+    });
+
+    if (payload) {
+      broadcastRealtimeMessage(payload);
+    }
+  });
+}
+
+function setupRealtimeServer(server) {
+  if (!server || realtimeWss) {
+    return;
+  }
+
+  realtimeWss = new WebSocketServer({
+    server,
+    path: REALTIME_SOCKET_PATH,
+  });
+
+  realtimeWss.on('connection', (socket) => {
+    sendRealtimeMessage(socket, {
+      type: 'realtime.welcome',
+      payload: { status: 'connected' },
+    });
+
+    for (const mqttClient of mqttClients.values()) {
+      const payload = buildRealtimePrinterPayload(
+        mqttClient.realtimeDevice || {},
+        mqttClient.getCurrentJob(),
+        { online: mqttClient.connected }
+      );
+
+      if (payload) {
+        sendRealtimeMessage(socket, payload);
+      }
+    }
+  });
+
+  logger.info(`[Realtime] WebSocket bridge ready at ${REALTIME_SOCKET_PATH}`);
+}
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -700,7 +845,7 @@ app.use((req, res, next) => {
   // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   // Content Security Policy - allow inline scripts for viewer but restrict external resources
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' blob: https://cdn.jsdelivr.net https://cloudflareinsights.com");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' ws: wss: blob: https://cdn.jsdelivr.net https://cloudflareinsights.com");
   // Permissions Policy (formerly Feature Policy)
   res.setHeader('Permissions-Policy', 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()');
   next();
@@ -2588,6 +2733,8 @@ app.get('/api/printers', async (req, res) => {
                 logger.info(`MQTT disconnected for ${device.dev_id}`);
                 mqttClients.delete(clientKey);
               });
+
+              attachRealtimeBridgeToMqttClient(mqttClient, clientKey, deviceData);
               
               // Handle print state changes for Discord notifications
               mqttClient.on('print_completed', async (data) => {
@@ -2673,6 +2820,10 @@ app.get('/api/printers', async (req, res) => {
           
           // Get current job data from MQTT client
           const mqttClient = mqttClients.get(clientKey);
+          if (mqttClient) {
+            attachRealtimeBridgeToMqttClient(mqttClient, clientKey, deviceData);
+          }
+
           if (mqttClient && mqttClient.connected) {
             const jobData = mqttClient.getCurrentJob();
             const debugMqttLogging = logger.isLevelEnabled('DEBUG');
@@ -8589,6 +8740,7 @@ httpServer = app.listen(PORT, async () => {
   console.log('  - GET  /api/local/download/:modelId');
   console.log('  - GET  /api/printer/download/:modelId');
   console.log('  - POST /api/sync');
+  console.log(`  - WS   ${REALTIME_SOCKET_PATH} (live printer telemetry)`);
   
   // Configure OIDC after server starts
   console.log('\n=== Configuring OIDC ===');
@@ -8698,6 +8850,8 @@ httpServer = app.listen(PORT, async () => {
   await generateAllThumbnails();
 });
 
+setupRealtimeServer(httpServer);
+
 // Graceful shutdown handler
 let shuttingDown = false;
 const gracefulShutdown = (signal) => {
@@ -8729,6 +8883,14 @@ const gracefulShutdown = (signal) => {
     } catch (e) {}
   }
   
+  if (realtimeWss) {
+    try {
+      realtimeWss.clients.forEach((client) => client.close());
+      realtimeWss.close();
+      console.log('Realtime websocket server closed');
+    } catch (e) {}
+  }
+
   // Close HTTP server
   if (httpServer) {
     httpServer.close(() => {

@@ -7,18 +7,33 @@ import Docs from './components/Docs';
 import { ModalProvider } from './components/ModalProvider';
 import { API_ENDPOINTS } from './config/api';
 import { fetchWithRetry } from './utils/fetchWithRetry';
+import { usePrinterStore } from './stores/usePrinterStore';
 import { applyThemeScheme } from './utils/theme';
 import packageInfo from '../package.json';
 import './App.css';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const connectPrinterRealtime = usePrinterStore((state) => state.connect);
+  const disconnectPrinterRealtime = usePrinterStore((state) => state.disconnect);
+  const loadInitialPrinters = usePrinterStore((state) => state.loadInitialPrinters);
   const isDocsRoute = window.location.pathname.toLowerCase().startsWith('/docs');
 
   useEffect(() => {
     checkAuth();
     loadColorScheme();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      void loadInitialPrinters();
+      connectPrinterRealtime();
+      return () => disconnectPrinterRealtime();
+    }
+
+    disconnectPrinterRealtime();
+    return undefined;
+  }, [connectPrinterRealtime, disconnectPrinterRealtime, isAuthenticated, loadInitialPrinters]);
 
   const loadColorScheme = async () => {
     try {

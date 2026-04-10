@@ -22,7 +22,8 @@ class BambuMqttClient extends EventEmitter {
     this.lastJobEmitAt = 0;
     this.lastStatusRequestAt = 0;
     this.progressGranularity = 1; // only emit when whole-number percentage changes
-    this.minJobEmitIntervalMs = 2000;
+    this.temperatureGranularity = 1; // only emit when temp changes by at least 1°C
+    this.minJobEmitIntervalMs = 750;
     this.statusRequestThrottleMs = 5000;
   }
 
@@ -308,16 +309,44 @@ class BambuMqttClient extends EventEmitter {
     }
   }
 
+  normalizeComparableNumber(value, granularity = 1) {
+    if (value === undefined || value === null || Number.isNaN(Number(value))) {
+      return null;
+    }
+
+    return Math.round(Number(value) / granularity);
+  }
+
   hasMeaningfulUpdate(previousJobData, nextJobData) {
     if (!previousJobData) {
       return true;
     }
 
+    const telemetryChanged = [
+      ['nozzle_temp', this.temperatureGranularity],
+      ['bed_temp', this.temperatureGranularity],
+      ['chamber_temp', this.temperatureGranularity],
+      ['nozzle_target', this.temperatureGranularity],
+      ['bed_target', this.temperatureGranularity],
+      ['speed_factor', 5],
+      ['remaining_time', 1],
+      ['layer_num', 1],
+      ['total_layers', 1],
+      ['wifi_signal', 1],
+      ['ipcam_bitrate', 50000],
+      ['z_height', 0.05]
+    ].some(([key, granularity]) => (
+      this.normalizeComparableNumber(previousJobData[key], granularity) !== this.normalizeComparableNumber(nextJobData[key], granularity)
+    ));
+
     return (
       (previousJobData.gcode_state || 'IDLE') !== (nextJobData.gcode_state || 'IDLE') ||
       (previousJobData.name || '') !== (nextJobData.name || '') ||
       Math.floor((previousJobData.progress || 0) / this.progressGranularity) !== Math.floor((nextJobData.progress || 0) / this.progressGranularity) ||
-      (previousJobData.print_error || 0) !== (nextJobData.print_error || 0)
+      (previousJobData.print_error || 0) !== (nextJobData.print_error || 0) ||
+      (previousJobData.error_message || '') !== (nextJobData.error_message || '') ||
+      (previousJobData.ipcam_status || '') !== (nextJobData.ipcam_status || '') ||
+      telemetryChanged
     );
   }
 
