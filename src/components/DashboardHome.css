@@ -53,8 +53,8 @@
 }
 
 .stat-card {
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 153, 255, 0.1) 100%);
-  border: 1px solid rgba(0, 212, 255, 0.2);
+  background: linear-gradient(180deg, rgba(24, 24, 27, 0.96) 0%, rgba(14, 14, 18, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   padding: 1.5rem;
   display: flex;
@@ -433,8 +433,8 @@
 }
 
 .quick-action:hover {
-  background: rgba(0, 212, 255, 0.1);
-  border-color: rgba(0, 212, 255, 0.3);
+  background: rgba(var(--theme-accent-rgb), 0.08);
+  border-color: rgba(var(--theme-accent-rgb), 0.22);
   transform: translateY(-2px);
 }
 
@@ -571,7 +571,9 @@
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: rgba(var(--theme-accent-rgb), 0.12);
+  background: linear-gradient(180deg, rgba(30, 30, 35, 0.98) 0%, rgba(18, 18, 22, 0.96) 100%);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.24);
+  box-shadow: inset 0 0 0 1px rgba(var(--theme-accent-rgb), 0.08);
 }
 
 .stat-label,

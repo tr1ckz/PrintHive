@@ -2,7 +2,7 @@
 .dashboard {
   min-height: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(180deg, #09090b 0%, #0f1014 100%);
   position: relative;
   isolation: isolate;
 }
@@ -29,7 +29,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.85) 100%);
+  background: linear-gradient(180deg, rgba(9, 9, 11, 0.88) 0%, rgba(9, 9, 11, 0.95) 42%, rgba(9, 9, 11, 0.985) 100%);
   z-index: 1;
   pointer-events: none;
 }
@@ -41,7 +41,7 @@
   left: 0;
   right: 0;
   z-index: 1001;
-  background: rgba(15, 23, 42, 0.98);
+  background: rgba(12, 12, 16, 0.98);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
 }
@@ -68,7 +68,7 @@
   width: 56px;
   height: 56px;
   object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(0, 212, 255, 0.3));
+  filter: drop-shadow(0 2px 8px rgba(var(--theme-accent-rgb), 0.18));
 }
 
 .navbar-title {
@@ -213,7 +213,7 @@
   top: 64px;
   left: 0;
   right: 0;
-  background: rgba(15, 23, 42, 0.99);
+  background: rgba(12, 12, 16, 0.99);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding: 12px;
   transform: translateY(-100%);
