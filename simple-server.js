@@ -118,6 +118,35 @@ function getConfiguredBambuAccounts(req = null) {
   return [];
 }
 
+function findRecentPrintByJobName(jobName) {
+  if (!jobName) {
+    return null;
+  }
+
+  const normalizedJobName = String(jobName).trim();
+  const fuzzyMatch = `%${normalizedJobName}%`;
+
+  return db.prepare(`
+    SELECT designTitle, title, plateName
+    FROM prints
+    WHERE title = ?
+       OR designTitle = ?
+       OR plateName = ?
+       OR title LIKE ?
+       OR designTitle LIKE ?
+       OR plateName LIKE ?
+    ORDER BY datetime(startTime) DESC
+    LIMIT 1
+  `).get(
+    normalizedJobName,
+    normalizedJobName,
+    normalizedJobName,
+    fuzzyMatch,
+    fuzzyMatch,
+    fuzzyMatch
+  );
+}
+
 function scheduleRecurringTask(taskName, taskFn, intervalMs, initialDelayMs = 0) {
   let timer = null;
   let running = false;
@@ -2376,14 +2405,10 @@ app.get('/api/printers', async (req, res) => {
               
               // Handle print state changes for Discord notifications
               mqttClient.on('print_completed', async (data) => {
-                // Look up actual design title from database
-                const print = db.prepare(`
-                  SELECT designTitle, title FROM prints 
-                  WHERE (title = ? OR gcode_file LIKE ?)
-                  ORDER BY startTime DESC LIMIT 1
-                `).get(data.jobName, `%${data.jobName}%`);
+                // Look up actual design title from database using existing print columns
+                const print = findRecentPrintByJobName(data.jobName);
                 
-                const designName = print?.designTitle || print?.title || data.jobName;
+                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
                 
                 logger.info(`Print completed on ${data.printerName}: ${data.jobName} (${designName})`);
                 await sendNotification('printer', {
@@ -2397,14 +2422,10 @@ app.get('/api/printers', async (req, res) => {
               });
               
               mqttClient.on('print_failed', async (data) => {
-                // Look up actual design title from database
-                const print = db.prepare(`
-                  SELECT designTitle, title FROM prints 
-                  WHERE (title = ? OR gcode_file LIKE ?)
-                  ORDER BY startTime DESC LIMIT 1
-                `).get(data.jobName, `%${data.jobName}%`);
+                // Look up actual design title from database using existing print columns
+                const print = findRecentPrintByJobName(data.jobName);
                 
-                const designName = print?.designTitle || print?.title || data.jobName;
+                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
                 
                 logger.warn(`Print FAILED on ${data.printerName}: ${data.jobName} (${designName})`);
                 await sendNotification('printer', {
@@ -2419,14 +2440,10 @@ app.get('/api/printers', async (req, res) => {
               });
               
               mqttClient.on('print_error', async (data) => {
-                // Look up actual design title from database
-                const print = db.prepare(`
-                  SELECT designTitle, title FROM prints 
-                  WHERE (title = ? OR gcode_file LIKE ?)
-                  ORDER BY startTime DESC LIMIT 1
-                `).get(data.jobName, `%${data.jobName}%`);
+                // Look up actual design title from database using existing print columns
+                const print = findRecentPrintByJobName(data.jobName);
                 
-                const designName = print?.designTitle || print?.title || data.jobName;
+                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
                 
                 logger.warn(`Print ERROR on ${data.printerName}: ${data.jobName} (${designName})`);
                 await sendNotification('printer', {
@@ -2441,14 +2458,10 @@ app.get('/api/printers', async (req, res) => {
               });
               
               mqttClient.on('print_paused', async (data) => {
-                // Look up actual design title from database
-                const print = db.prepare(`
-                  SELECT designTitle, title FROM prints 
-                  WHERE (title = ? OR gcode_file LIKE ?)
-                  ORDER BY startTime DESC LIMIT 1
-                `).get(data.jobName, `%${data.jobName}%`);
+                // Look up actual design title from database using existing print columns
+                const print = findRecentPrintByJobName(data.jobName);
                 
-                const designName = print?.designTitle || print?.title || data.jobName;
+                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
                 
                 logger.info(`Print paused on ${data.printerName}: ${data.jobName} (${designName})`);
                 await sendNotification('printer', {
