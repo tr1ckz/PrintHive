@@ -2040,6 +2040,60 @@ app.post('/auth/request-code', async (req, res) => {
   }
 });
 
+function buildConfiguredPrinterDevice(printer) {
+  return {
+    dev_id: printer.dev_id,
+    name: printer.name || printer.serial_number || printer.ip_address || 'Configured Printer',
+    dev_product_name: 'Configured Printer',
+    online: false,
+    print_status: 'CONFIGURED',
+    ip_address: printer.ip_address || null,
+    access_code: printer.access_code || null,
+    serial_number: printer.serial_number || null,
+    camera_rtsp_url: printer.camera_rtsp_url || null,
+    current_task: null
+  };
+}
+
+function mergeConfiguredPrinters(devices = []) {
+  const mergedDevices = new Map();
+
+  for (const device of Array.isArray(devices) ? devices : []) {
+    if (device?.dev_id) {
+      mergedDevices.set(device.dev_id, { ...device });
+    }
+  }
+
+  try {
+    const configuredPrinters = db.prepare('SELECT * FROM printers ORDER BY name').all();
+
+    for (const printer of configuredPrinters) {
+      const matchingKey = Array.from(mergedDevices.keys()).find((key) => {
+        const device = mergedDevices.get(key);
+        return key === printer.dev_id ||
+          (!!printer.serial_number && (key === printer.serial_number || device?.serial_number === printer.serial_number));
+      });
+
+      const existingDevice = matchingKey ? mergedDevices.get(matchingKey) : null;
+      const mergedDevice = {
+        ...buildConfiguredPrinterDevice(printer),
+        ...existingDevice,
+        name: existingDevice?.name || printer.name || existingDevice?.serial_number || printer.serial_number || printer.ip_address || 'Configured Printer',
+        ip_address: printer.ip_address || existingDevice?.ip_address || null,
+        access_code: printer.access_code || existingDevice?.access_code || null,
+        serial_number: printer.serial_number || existingDevice?.serial_number || null,
+        camera_rtsp_url: printer.camera_rtsp_url || existingDevice?.camera_rtsp_url || null
+      };
+
+      mergedDevices.set(matchingKey || printer.dev_id, mergedDevice);
+    }
+  } catch (error) {
+    logger.warn('Could not load configured printers:', error.message);
+  }
+
+  return Array.from(mergedDevices.values());
+}
+
 // API routes
 app.get('/api/printers', async (req, res) => {
   logger.info('Printers request');
@@ -2083,17 +2137,23 @@ app.get('/api/printers', async (req, res) => {
     }
   }
   
-  // If no printers from cloud but we have local MQTT config, create a virtual device entry
+  // Merge in locally configured printers so manually added printers always appear in the UI
+  printersData.devices = mergeConfiguredPrinters(printersData.devices);
+
+  // Legacy fallback for older single-printer MQTT config
   if (printersData.devices.length === 0 && printerIp && accessCode && serialNumber) {
-    logger.info('No Bambu Cloud printers, but local MQTT config exists - creating virtual device');
-    // Create a virtual device for the locally configured printer
-    // We'll get the actual device info from MQTT
+    logger.info('No Bambu Cloud printers, but legacy local MQTT config exists - creating virtual device');
     printersData.devices = [{
       dev_id: serialNumber,
       name: 'Local Printer (MQTT)',
       dev_product_name: 'Unknown Model',
-      online: true,
-      print_status: 'IDLE'
+      online: false,
+      print_status: 'CONFIGURED',
+      ip_address: printerIp,
+      access_code: accessCode,
+      serial_number: serialNumber,
+      camera_rtsp_url: cameraUrl || null,
+      current_task: null
     }];
   }
   
@@ -2120,14 +2180,18 @@ app.get('/api/printers', async (req, res) => {
         if (!deviceData.ip_address && printerIp) deviceData.ip_address = printerIp;
         if (!deviceData.access_code && accessCode) deviceData.access_code = accessCode;
         
-        // Try to get current job from MQTT client - always connect if credentials available
-        if (printerIp && accessCode) {
-          const clientKey = device.dev_id;
+        // Try to get current job from MQTT client using per-printer credentials when available
+        const deviceIp = deviceData.ip_address || printerIp;
+        const deviceAccessCode = deviceData.access_code || accessCode;
+        const deviceSerial = deviceData.serial_number || device.dev_id;
+
+        if (deviceIp && deviceAccessCode && deviceSerial) {
+          const clientKey = `${deviceIp}:${device.dev_id}`;
           
           // Create or get existing MQTT client for this printer
           if (!mqttClients.has(clientKey)) {
             try {
-              const mqttClient = new BambuMqttClient(printerIp, device.dev_id, accessCode, device.name || 'Local Printer');
+              const mqttClient = new BambuMqttClient(deviceIp, deviceSerial, deviceAccessCode, device.name || 'Local Printer');
               
               // Handle connection errors gracefully
               mqttClient.on('error', (error) => {
@@ -2344,21 +2408,63 @@ app.get('/api/printers/status', async (req, res) => {
   }
   
   try {
-    const response = await axios.get('https://api.bambulab.com/v1/iot-service/api/user/bind', {
-      headers: { 'Authorization': `Bearer ${req.session.token}` }
-    });
-    
-    const devices = response.data?.devices || [];
+    let devices = [];
+
+    const bambuAccounts = db.prepare(`
+      SELECT email, token, region
+      FROM bambu_accounts
+      WHERE token IS NOT NULL AND token != ''
+    `).all();
+
+    for (const account of bambuAccounts) {
+      try {
+        const apiUrl = account.region === 'china'
+          ? 'https://api.bambulab.cn/v1/iot-service/api/user/bind'
+          : 'https://api.bambulab.com/v1/iot-service/api/user/bind';
+
+        const response = await axios.get(apiUrl, {
+          headers: { 'Authorization': `Bearer ${account.token}` },
+          timeout: 15000
+        });
+
+        if (response.data?.devices) {
+          devices = [...devices, ...response.data.devices];
+        }
+      } catch (error) {
+        logger.warn(`Could not fetch dashboard printer status from account ${account.email}: ${error.message}`);
+      }
+    }
+
+    devices = mergeConfiguredPrinters(devices);
+
+    const legacyPrinterIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip')?.value;
+    const legacyAccessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value;
+    const legacySerialNumber = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number')?.value;
+
+    if (devices.length === 0 && legacyPrinterIp && legacyAccessCode && legacySerialNumber) {
+      devices = [{
+        dev_id: legacySerialNumber,
+        name: 'Local Printer (MQTT)',
+        dev_product_name: 'Unknown Model',
+        online: false,
+        print_status: 'CONFIGURED',
+        ip_address: legacyPrinterIp,
+        access_code: legacyAccessCode,
+        serial_number: legacySerialNumber,
+        current_task: null
+      }];
+    }
+
     const printers = devices.map(device => ({
       id: device.dev_id,
       name: device.name || 'Printer',
-      model: device.dev_product_name || 'Unknown',
-      status: device.print_status || 'IDLE',
-      progress: device.print_progress || 0,
-      online: device.online || false,
+      model: device.dev_product_name || (device.serial_number ? 'Local Printer' : 'Configured Printer'),
+      status: device.print_status || device.current_task?.gcode_state || 'CONFIGURED',
+      progress: device.print_progress || device.current_task?.progress || 0,
+      online: Boolean(device.online),
       currentPrint: device.current_task?.name || null,
-      nozzleTemp: device.nozzle_temper || 0,
-      bedTemp: device.bed_temper || 0
+      nozzleTemp: device.nozzle_temper || device.current_task?.nozzle_temp || 0,
+      bedTemp: device.bed_temper || device.current_task?.bed_temp || 0
     }));
     
     const online = printers.filter(p => p.online).length;
@@ -2370,8 +2476,24 @@ app.get('/api/printers/status', async (req, res) => {
     });
   } catch (error) {
     console.error('Printer status error:', error.message);
-    // Return empty printers on error instead of 500
-    res.json({ printers: [], online: 0, total: 0 });
+
+    const fallbackPrinters = mergeConfiguredPrinters([]).map(device => ({
+      id: device.dev_id,
+      name: device.name || 'Printer',
+      model: device.dev_product_name || 'Configured Printer',
+      status: device.print_status || 'CONFIGURED',
+      progress: 0,
+      online: false,
+      currentPrint: null,
+      nozzleTemp: 0,
+      bedTemp: 0
+    }));
+
+    res.json({
+      printers: fallbackPrinters,
+      online: 0,
+      total: fallbackPrinters.length
+    });
   }
 });
 

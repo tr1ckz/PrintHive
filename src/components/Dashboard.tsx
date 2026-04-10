@@ -171,8 +171,9 @@ function Dashboard({ onLogout }: DashboardProps) {
     )},
   ];
 
-  // Non-admin users only see Settings tab
-  const navItems = isAdmin ? allNavItems : allNavItems.filter(item => item.id === 'settings');
+  // All authenticated users can access the main app navigation.
+  // Admin-only actions remain restricted within their respective screens/APIs.
+  const navItems = allNavItems;
 
   const adminItems: { id: Tab; label: string; icon: JSX.Element }[] = [];
 
