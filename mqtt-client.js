@@ -21,6 +21,9 @@ class BambuMqttClient extends EventEmitter {
     this.lastEmittedJobData = null;
     this.lastJobEmitAt = 0;
     this.lastStatusRequestAt = 0;
+    this.progressGranularity = 1; // only emit when whole-number percentage changes
+    this.minJobEmitIntervalMs = 2000;
+    this.statusRequestThrottleMs = 5000;
   }
 
   connect() {
@@ -214,7 +217,9 @@ class BambuMqttClient extends EventEmitter {
           })
         };
 
+        if (logger.isLevelEnabled('DEBUG')) {
         logger.debug(`AMS data updated for ${this.printerName}: ${trays.length} trays, active=${activeTray ?? 'none'}`);
+      }
       } else if (this.currentJobData && this.currentJobData.ams) {
         // Preserve existing AMS data if we have it
         newJobData.ams = this.currentJobData.ams;
@@ -311,7 +316,7 @@ class BambuMqttClient extends EventEmitter {
     return (
       (previousJobData.gcode_state || 'IDLE') !== (nextJobData.gcode_state || 'IDLE') ||
       (previousJobData.name || '') !== (nextJobData.name || '') ||
-      Math.floor(previousJobData.progress || 0) !== Math.floor(nextJobData.progress || 0) ||
+      Math.floor((previousJobData.progress || 0) / this.progressGranularity) !== Math.floor((nextJobData.progress || 0) / this.progressGranularity) ||
       (previousJobData.print_error || 0) !== (nextJobData.print_error || 0)
     );
   }
@@ -328,7 +333,7 @@ class BambuMqttClient extends EventEmitter {
     const stateChanged = (this.lastEmittedJobData?.gcode_state || 'IDLE') !== (jobData.gcode_state || 'IDLE');
     const timeSinceLastEmit = now - this.lastJobEmitAt;
 
-    if (stateChanged || timeSinceLastEmit >= 1500) {
+    if (stateChanged || timeSinceLastEmit >= this.minJobEmitIntervalMs) {
       this.flushJobUpdate();
       return;
     }
@@ -339,7 +344,7 @@ class BambuMqttClient extends EventEmitter {
 
     this.pendingJobTimer = setTimeout(
       () => this.flushJobUpdate(),
-      Math.max(150, 1500 - timeSinceLastEmit)
+      Math.max(200, this.minJobEmitIntervalMs - timeSinceLastEmit)
     );
   }
 
@@ -362,7 +367,9 @@ class BambuMqttClient extends EventEmitter {
     this.pendingJobUpdate = null;
     this.lastJobEmitAt = Date.now();
     this.emit('job_update', this.lastEmittedJobData);
-    logger.debug(`Emitted MQTT update for ${this.printerName} (${this.lastEmittedJobData.gcode_state || 'IDLE'} @ ${Math.floor(this.lastEmittedJobData.progress || 0)}%)`);
+    if (logger.isLevelEnabled('DEBUG')) {
+      logger.debug(`Emitted MQTT update for ${this.printerName} (${this.lastEmittedJobData.gcode_state || 'IDLE'} @ ${Math.floor(this.lastEmittedJobData.progress || 0)}%)`);
+    }
   }
 
   requestStatus() {
@@ -371,7 +378,7 @@ class BambuMqttClient extends EventEmitter {
     }
 
     const now = Date.now();
-    if (now - this.lastStatusRequestAt < 5000) {
+    if (now - this.lastStatusRequestAt < this.statusRequestThrottleMs) {
       return;
     }
     this.lastStatusRequestAt = now;
@@ -388,7 +395,7 @@ class BambuMqttClient extends EventEmitter {
     this.client.publish(topic, JSON.stringify(message), (err) => {
       if (err) {
         logger.error('Error requesting status:', err);
-      } else {
+      } else if (logger.isLevelEnabled('DEBUG')) {
         logger.debug('Requested printer status');
       }
     });

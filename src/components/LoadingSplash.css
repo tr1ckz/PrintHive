@@ -1,23 +1,39 @@
 .loading-splash {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: url(/images/splash.png);
-  background-size: cover;
-  background-position: center;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #09090b;
   z-index: 10000;
   pointer-events: all;
+  overflow: hidden;
+}
+
+.loading-splash::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(9, 9, 11, 0.90) 0%, rgba(9, 9, 11, 0.96) 100%);
+  z-index: 0;
+}
+
+.loading-splash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/images/splash.png') center / cover no-repeat;
+  opacity: 0.15;
+  transform: translateZ(0);
+  will-change: transform;
+  z-index: 0;
 }
 
 .loading-content {
   text-align: center;
   padding: 2rem;
   position: relative;
+  z-index: 1;
 }
 
 .loading-countdown {
@@ -25,9 +41,10 @@
   color: var(--text-primary);
   font-weight: 600;
   padding: 1rem 2rem;
-  background: var(--bg-card);
-  border-radius: 8px;
-  border: 1px solid var(--border-secondary);
+  background: rgba(24, 24, 27, 0.92);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
   animation: pulse 1s ease-in-out infinite;
 }
 
@@ -37,6 +54,8 @@
 }
 
 .loading-progress-container {
+  position: relative;
+  z-index: 1;
   max-width: 400px;
   margin: 2rem auto 0;
 }

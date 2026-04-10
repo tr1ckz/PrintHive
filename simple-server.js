@@ -2489,14 +2489,17 @@ app.get('/api/printers', async (req, res) => {
           const mqttClient = mqttClients.get(clientKey);
           if (mqttClient && mqttClient.connected) {
             const jobData = mqttClient.getCurrentJob();
+            const debugMqttLogging = logger.isLevelEnabled('DEBUG');
             
-            logger.debug(`=== MQTT Job Data for ${device.dev_id} ===`);
-            logger.debug(`Job data exists: ${!!jobData}`);
-            if (jobData) {
-              logger.debug(`Job keys: ${Object.keys(jobData).join(', ')}`);
-              logger.debug(`Has AMS: ${!!jobData.ams}`);
-              if (jobData.ams) {
-                logger.debug(`AMS structure: ${JSON.stringify(jobData.ams, null, 2)}`);
+            if (debugMqttLogging) {
+              logger.debug(`=== MQTT Job Data for ${device.dev_id} ===`);
+              logger.debug(`Job data exists: ${!!jobData}`);
+              if (jobData) {
+                logger.debug(`Job keys: ${Object.keys(jobData).join(', ')}`);
+                logger.debug(`Has AMS: ${!!jobData.ams}`);
+                if (jobData.ams) {
+                  logger.debug(`AMS structure: ${JSON.stringify(jobData.ams, null, 2)}`);
+                }
               }
             }
             

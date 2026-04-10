@@ -20,12 +20,12 @@ function LoadingSplash({
   const [countdown, setCountdown] = useState(10);
   const [showRefreshButton, setShowRefreshButton] = useState(false);
 
-  // 10-second countdown fallback
+  // 10-second countdown fallback using recursive timeouts
   useEffect(() => {
-    if (!checkServerHealth || serverReady) return;
+    if (!checkServerHealth || serverReady || countdown <= 0) return;
 
-    const timer = setInterval(() => {
-      setCountdown(prev => {
+    const timer = window.setTimeout(() => {
+      setCountdown((prev) => {
         if (prev <= 1) {
           setShowRefreshButton(true);
           return 0;
@@ -34,8 +34,8 @@ function LoadingSplash({
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [checkServerHealth, serverReady]);
+    return () => window.clearTimeout(timer);
+  }, [checkServerHealth, serverReady, countdown]);
 
   // Auto-refresh when server comes back up
   useEffect(() => {
