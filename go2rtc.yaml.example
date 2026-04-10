@@ -1,0 +1,12 @@
+# Example go2rtc configuration for a raw Tapo RTSP feed.
+# PrintHive will also auto-generate `data/go2rtc/go2rtc.yaml` when you save camera settings.
+api:
+  listen: ":1984"
+rtsp:
+  listen: ":8554"
+webrtc:
+  listen: ":8555"
+streams:
+  garage_cam: 'rtsp://username:password@192.168.4.54/stream1'
+  # The printer cards use deterministic aliases like `<printer-dev-id>-camera`
+  # when you paste a raw RTSP URL into the printer camera source field.

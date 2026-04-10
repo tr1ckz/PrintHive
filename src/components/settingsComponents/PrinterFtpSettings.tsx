@@ -300,16 +300,16 @@ export function PrinterFtpSettings() {
           </div>
           
           <div className="form-group">
-            <label>Frigate Camera Name / HLS URL (Optional)</label>
+            <label>Camera Source (RTSP / go2rtc / HLS)</label>
             <input
               type="text"
               value={editingPrinter.camera_rtsp_url}
               onChange={(e) => setEditingPrinter({ ...editingPrinter, camera_rtsp_url: e.target.value })}
-              placeholder="p1s_camera or http://frigate.local:5000/api/p1s_camera/hls.m3u8"
+              placeholder="rtsp://user:pass@192.168.4.54/stream1 or garage_cam"
               disabled={loading}
             />
             <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>
-              Enter a Frigate camera name or direct HLS URL. The Printers page will stream it directly in the browser.
+              Paste the raw Tapo RTSP URL, a go2rtc stream name, or a direct HLS URL. When go2rtc is configured, PrintHive will bridge raw RTSP feeds into low-latency WebRTC automatically.
             </small>
           </div>
           

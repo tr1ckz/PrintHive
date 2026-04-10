@@ -74,8 +74,9 @@ function Printers() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [cameraUrl, setCameraUrl] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
+  const [go2rtcUrl, setGo2rtcUrl] = useState('');
   const [frigateUrl, setFrigateUrl] = useState('');
-  const [defaultFrigateCameraName, setDefaultFrigateCameraName] = useState('');
+  const [defaultCameraName, setDefaultCameraName] = useState('');
 
   const fetchPrinters = useCallback(async () => {
     try {
@@ -96,11 +97,12 @@ function Printers() {
       const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, { credentials: 'include' });
       const data = await response.json();
       if (data.success) {
+        setGo2rtcUrl(data.go2rtcUrl || '');
         setFrigateUrl(data.frigateUrl || '');
-        setDefaultFrigateCameraName(data.frigateCameraName || '');
+        setDefaultCameraName(data.go2rtcDefaultStream || data.frigateCameraName || '');
       }
     } catch (err) {
-      console.error('Failed to load Frigate settings:', err);
+      console.error('Failed to load stream settings:', err);
     }
   }, []);
 
@@ -110,8 +112,8 @@ function Printers() {
   }, [fetchPrinters, loadUiStreamSettings]);
 
   const getCameraSource = useCallback((printer: Printer) => {
-    return (printer.camera_rtsp_url || defaultFrigateCameraName || '').trim();
-  }, [defaultFrigateCameraName]);
+    return (printer.camera_rtsp_url || defaultCameraName || '').trim();
+  }, [defaultCameraName]);
 
   const openConfigModal = (printer: Printer) => {
     setSelectedPrinter(printer);
@@ -318,9 +320,11 @@ function Printers() {
                     {cameraSource ? (
                       <div className="printer-camera-shell">
                         <FrigateCamera
+                          go2rtcUrl={go2rtcUrl}
                           frigateUrl={frigateUrl}
                           cameraName={cameraSource}
                           printerName={printer.name}
+                          printerId={printer.dev_id}
                         />
                         <div className="camera-meta">
                           {typeof printer.current_task?.ipcam_bitrate === 'number' && printer.current_task.ipcam_bitrate > 0 ? (
@@ -331,8 +335,8 @@ function Printers() {
                       </div>
                     ) : (
                       <div className="panel-empty">
-                        <strong>No Frigate stream configured</strong>
-                        <span>Add a Frigate URL and camera name to stream directly in the browser.</span>
+                        <strong>No camera stream configured</strong>
+                        <span>Add a raw RTSP URL, go2rtc stream name, or HLS URL to stream directly in the browser.</span>
                       </div>
                     )}
                   </section>

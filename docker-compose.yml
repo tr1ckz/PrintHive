@@ -1,10 +1,20 @@
 version: '3.8'
 
 services:
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: go2rtc
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./data/go2rtc:/config
+
   bambu-web:
     build: .
     image: tr1ckz/printhive:latest
     container_name: printhive
+    depends_on:
+      - go2rtc
     # Use host network to access local network devices (RTSP cameras, printers)
     network_mode: host
     environment:

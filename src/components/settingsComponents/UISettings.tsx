@@ -14,6 +14,12 @@ export function UISettings() {
     }
     return 'orange';
   });
+  const [go2rtcUrl, setGo2rtcUrl] = useState('');
+  const [go2rtcDefaultStream, setGo2rtcDefaultStream] = useState('');
+  const [tapoCameraHost, setTapoCameraHost] = useState('');
+  const [tapoCameraUsername, setTapoCameraUsername] = useState('');
+  const [tapoCameraPassword, setTapoCameraPassword] = useState('');
+  const [tapoCameraPath, setTapoCameraPath] = useState('stream1');
   const [frigateUrl, setFrigateUrl] = useState('');
   const [frigateCameraName, setFrigateCameraName] = useState('');
   const [uiLoading, setUiLoading] = useState(false);
@@ -33,6 +39,12 @@ export function UISettings() {
       if (data.success) {
         setHideBmc(data.hideBmc || false);
         setColorScheme(data.colorScheme || document.documentElement.dataset.themeAccent || 'orange');
+        setGo2rtcUrl(data.go2rtcUrl || '');
+        setGo2rtcDefaultStream(data.go2rtcDefaultStream || data.frigateCameraName || '');
+        setTapoCameraHost(data.tapoCameraHost || '');
+        setTapoCameraUsername(data.tapoCameraUsername || '');
+        setTapoCameraPassword(data.tapoCameraPassword || '');
+        setTapoCameraPath(data.tapoCameraPath || 'stream1');
         setFrigateUrl(data.frigateUrl || '');
         setFrigateCameraName(data.frigateCameraName || '');
       }
@@ -47,12 +59,26 @@ export function UISettings() {
       const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hideBmc, colorScheme, frigateUrl, frigateCameraName }),
+        body: JSON.stringify({
+          hideBmc,
+          colorScheme,
+          go2rtcUrl,
+          go2rtcDefaultStream,
+          tapoCameraHost,
+          tapoCameraUsername,
+          tapoCameraPassword,
+          tapoCameraPath,
+          frigateUrl,
+          frigateCameraName
+        }),
         credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
-        setToast({ message: 'UI settings saved!', type: 'success' });
+        const streamMessage = data.streamCount
+          ? ` go2rtc config updated with ${data.streamCount} stream${data.streamCount === 1 ? '' : 's'}.`
+          : '';
+        setToast({ message: `UI settings saved!${streamMessage}`, type: 'success' });
       } else {
         setToast({ message: 'Failed to save UI settings', type: 'error' });
       }
@@ -63,12 +89,16 @@ export function UISettings() {
     }
   };
 
+  const maskedRtspPreview = tapoCameraHost
+    ? `rtsp://${tapoCameraUsername || 'user'}:${tapoCameraPassword ? '••••••' : 'password'}@${tapoCameraHost}/${(tapoCameraPath || 'stream1').replace(/^\/+/, '')}`
+    : '';
+
   return (
     <CollapsibleSection title="UI Settings" icon="🖥️">
       <p className="form-description">
-        Customize the interface appearance
+        Customize the interface appearance and low-latency camera playback
       </p>
-      
+
       <div className="form-group">
         <label>Color Scheme</label>
         <select
@@ -88,7 +118,94 @@ export function UISettings() {
       </div>
 
       <div className="form-group">
-        <label>Frigate Base URL</label>
+        <label>go2rtc Base URL</label>
+        <input
+          type="url"
+          value={go2rtcUrl}
+          onChange={(e) => setGo2rtcUrl(e.target.value)}
+          disabled={uiLoading}
+          className="form-control"
+          placeholder="http://localhost:1984"
+        />
+        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+          Used for low-latency browser playback via go2rtc WebRTC. The default sidecar runs on <code>http://localhost:1984</code>.
+        </small>
+      </div>
+
+      <div className="form-group">
+        <label>Default go2rtc Stream Name</label>
+        <input
+          type="text"
+          value={go2rtcDefaultStream}
+          onChange={(e) => setGo2rtcDefaultStream(e.target.value)}
+          disabled={uiLoading}
+          className="form-control"
+          placeholder="garage_cam"
+        />
+        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+          Used when a printer card does not override the stream source. This should match a stream name in <code>data/go2rtc/go2rtc.yaml</code>.
+        </small>
+      </div>
+
+      <div className="form-group">
+        <label>Tapo Camera IP / Host (Optional)</label>
+        <input
+          type="text"
+          value={tapoCameraHost}
+          onChange={(e) => setTapoCameraHost(e.target.value)}
+          disabled={uiLoading}
+          className="form-control"
+          placeholder="192.168.4.54"
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Tapo Username (Optional)</label>
+        <input
+          type="text"
+          value={tapoCameraUsername}
+          onChange={(e) => setTapoCameraUsername(e.target.value)}
+          disabled={uiLoading}
+          className="form-control"
+          placeholder="pdhacam"
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Tapo Password (Optional)</label>
+        <input
+          type="password"
+          value={tapoCameraPassword}
+          onChange={(e) => setTapoCameraPassword(e.target.value)}
+          disabled={uiLoading}
+          className="form-control"
+          placeholder="camera password"
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Tapo RTSP Path</label>
+        <input
+          type="text"
+          value={tapoCameraPath}
+          onChange={(e) => setTapoCameraPath(e.target.value)}
+          disabled={uiLoading}
+          className="form-control"
+          placeholder="stream1"
+        />
+        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+          When the optional Tapo fields are filled in, PrintHive writes <code>data/go2rtc/go2rtc.yaml</code> for you using this RTSP path.
+        </small>
+      </div>
+
+      {maskedRtspPreview ? (
+        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '1rem' }}>
+          Generated RTSP preview: <code>{maskedRtspPreview}</code>
+        </small>
+      ) : null}
+
+      <div className="form-group">
+        <label>Frigate Base URL (Optional legacy fallback)</label>
         <input
           type="url"
           value={frigateUrl}
@@ -98,12 +215,12 @@ export function UISettings() {
           placeholder="http://frigate.local:5000"
         />
         <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
-          Used for direct HLS streaming via <code>/api/&lt;camera&gt;/hls.m3u8</code>.
+          Keep this only if you still want the older Frigate HLS fallback path. go2rtc/WebRTC is now the preferred low-latency option.
         </small>
       </div>
 
       <div className="form-group">
-        <label>Default Frigate Camera Name</label>
+        <label>Default Frigate Camera Name (Optional)</label>
         <input
           type="text"
           value={frigateCameraName}
@@ -112,14 +229,11 @@ export function UISettings() {
           className="form-control"
           placeholder="p1s_camera"
         />
-        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
-          This is used when a printer card does not override the stream source.
-        </small>
       </div>
 
-      {frigateUrl && frigateCameraName ? (
+      {go2rtcUrl && go2rtcDefaultStream ? (
         <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '1rem' }}>
-          Preview stream: {`${frigateUrl.replace(/\/+$/, '')}/api/${encodeURIComponent(frigateCameraName)}/hls.m3u8`}
+          WebRTC preview: <code>{`${go2rtcUrl.replace(/\/+$/, '').replace(/^http/, 'ws')}/api/ws?src=${encodeURIComponent(go2rtcDefaultStream)}`}</code>
         </small>
       ) : null}
 
@@ -134,10 +248,10 @@ export function UISettings() {
           <span className="toggle-text">Hide "Buy Me a Coffee" button</span>
         </label>
       </div>
-      
-      <button 
-        type="button" 
-        className="btn btn-primary" 
+
+      <button
+        type="button"
+        className="btn btn-primary"
         onClick={handleSaveUiSettings}
         disabled={uiLoading}
       >
