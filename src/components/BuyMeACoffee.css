@@ -3,32 +3,35 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 5px 8px;
-  width: 60%;
-  background: linear-gradient(135deg, #FFDD00 0%, #FDB813 100%);
-  border: none;
-  border-radius: 8px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #ffdd00 0%, #fdb813 100%);
+  border: 1px solid rgba(255, 221, 0, 0.35);
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(255, 221, 0, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 221, 0, 0.22);
 }
 
 .bmc-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 221, 0, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(255, 221, 0, 0.28);
+  filter: saturate(1.02);
 }
 
 .bmc-button .bmc-logo {
   width: 100%;
   height: auto;
-  max-height: 24px;
+  max-width: 132px;
+  max-height: 22px;
   object-fit: contain;
 }
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
   .bmc-button {
+    min-height: 44px;
     padding: 10px 14px;
-    font-size: 13px;
   }
 }

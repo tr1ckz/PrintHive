@@ -88,16 +88,21 @@ function App() {
           </div>
 
           <footer className="app-footer">
-            <span className="app-footer-version">v{packageInfo.version}</span>
-            <span className="app-footer-separator">•</span>
-            <a
-              className="app-footer-link"
-              href="https://github.com/tr1ckz"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              by tr1ck
-            </a>
+            <div className="app-footer-inner">
+              <span className="app-footer-version">PrintHive v{packageInfo.version}</span>
+              <div className="app-footer-meta">
+                <span className="app-footer-caption">3D print ops workspace</span>
+                <span className="app-footer-separator">•</span>
+                <a
+                  className="app-footer-link"
+                  href="https://github.com/tr1ckz"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  by tr1ck
+                </a>
+              </div>
+            </div>
           </footer>
         </div>
       </ModalProvider>
