@@ -5,6 +5,7 @@ import TagsInput from './TagsInput';
 import Toast from './Toast';
 import LoadingScreen from './LoadingScreen';
 import Spinner from './Spinner';
+import ConfirmModal from './ConfirmModal';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useDebounce } from '../hooks/useDebounce';
@@ -152,6 +153,17 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
     const paginatedFiles = filteredFiles.slice(startIndex, endIndex);
     return { totalPages, paginatedFiles };
   }, [filteredFiles, currentPage, itemsPerPage]);
+
+  const fileTypeBreakdown = useMemo(() => {
+    const counts = files.reduce<Record<string, number>>((acc, file) => {
+      acc[file.fileType] = (acc[file.fileType] || 0) + 1;
+      return acc;
+    }, {});
+
+    return ['3mf', 'stl', 'gcode']
+      .filter((type) => (counts[type] || 0) > 0)
+      .map((type) => `${counts[type] || 0} ${type.toUpperCase()}`);
+  }, [files]);
 
   // Reset to page 1 when search changes
   useEffect(() => {
@@ -726,12 +738,40 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
         </div>
       )}
 
-      <div className="page-header">
-        <div>
+      <section className="library-hero">
+        <div className="library-hero-copy">
+          <span className="library-kicker">Model workspace</span>
           <h1>Model Library</h1>
-          <p>{filteredFiles.length} of {files.length} files</p>
+          <p>
+            Upload, auto-tag, search, and share print-ready files without leaving the PrintHive control plane.
+          </p>
+          <div className="library-chip-row">
+            {(fileTypeBreakdown.length > 0 ? fileTypeBreakdown : ['3MF · STL · G-code support']).map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+            <span>{filteredFiles.length} visible results</span>
+            {isAdmin && <span>Admin tools enabled</span>}
+          </div>
         </div>
-      </div>
+
+        <div className="library-summary-grid">
+          <article className="library-summary-card">
+            <span className="library-summary-label">Total files</span>
+            <strong>{files.length}</strong>
+            <small>Uploads plus auto-imported models</small>
+          </article>
+          <article className="library-summary-card">
+            <span className="library-summary-label">Selected</span>
+            <strong>{selectedFiles.size}</strong>
+            <small>Ready for bulk tags or delete</small>
+          </article>
+          <article className="library-summary-card">
+            <span className="library-summary-label">Page</span>
+            <strong>{Math.max(totalPages, 1) === 0 ? 1 : currentPage}/{Math.max(totalPages, 1)}</strong>
+            <small>Current filtered view</small>
+          </article>
+        </div>
+      </section>
 
       {/* Bulk Action Bar */}
       {selectedFiles.size > 0 && (

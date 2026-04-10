@@ -157,6 +157,19 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
 
   return (
     <div className="dashboard-home">
+      <header className="dashboard-header">
+        <div>
+          <span className="dashboard-kicker">Operations overview</span>
+          <h1>Farm Command Center</h1>
+          <p>Monitor online printers, recent jobs, and library activity from one premium dark workspace.</p>
+        </div>
+        <div className="dashboard-header-meta">
+          <span>{printers.filter(p => p.online).length} online now</span>
+          <span>{recentPrints.length} recent jobs</span>
+          <span>{libraryCount} library assets</span>
+        </div>
+      </header>
+
       {/* Quick Stats Row */}
       <div className="stats-row">
         <div className="stat-card">

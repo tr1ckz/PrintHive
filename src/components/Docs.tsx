@@ -58,6 +58,12 @@ const pageGuide = [
   ['Docs', 'This page: full deployment, setup, usage, and troubleshooting guide.'],
 ] as const;
 
+const overviewStats = [
+  { value: '10 min', label: 'Typical Docker deploy' },
+  { value: 'Live', label: 'MQTT printer telemetry' },
+  { value: 'Cloud + LAN', label: 'Hybrid sync coverage' },
+] as const;
+
 const envVars = [
   ['SESSION_SECRET', 'Required', 'Random secret used to sign sessions.'],
   ['PUBLIC_URL', 'Required', 'External URL users visit, such as `https://printhive.example.com`.'],
@@ -89,26 +95,56 @@ function Docs({ standalone = false }: DocsProps) {
   return (
     <div className={`docs-page ${standalone ? 'standalone' : ''}`}>
       <header className="docs-hero">
-        <div>
-          <span className="docs-badge">/docs</span>
-          <h1>PrintHive Documentation</h1>
-          <p>
-            Everything you need to install, secure, connect, and run PrintHive — including Docker,
-            SSO, printer onboarding, sync, backups, and day-to-day workflows.
-          </p>
+        <div className="docs-hero-copy">
+          <div>
+            <span className="docs-badge">/docs</span>
+            <h1>PrintHive Documentation</h1>
+            <p>
+              Everything you need to install, secure, connect, and run PrintHive — including Docker,
+              SSO, printer onboarding, sync, backups, and day-to-day workflows.
+            </p>
+          </div>
+
+          <div className="docs-hero-links">
+            {tocItems.slice(0, 6).map((item) => (
+              <a key={item.id} href={`#${item.id}`} className="docs-anchor-link">
+                {item.label}
+              </a>
+            ))}
+            {standalone && (
+              <a href="/" className="docs-anchor-link docs-anchor-link-primary">
+                Open App
+              </a>
+            )}
+          </div>
+
+          <div className="docs-chip-list docs-chip-list-hero">
+            <span>Docker-ready</span>
+            <span>OIDC / SSO</span>
+            <span>MQTT live status</span>
+            <span>Backups + restore</span>
+            <span>Cloud + local sync</span>
+          </div>
         </div>
 
-        <div className="docs-hero-links">
-          {tocItems.slice(0, 6).map((item) => (
-            <a key={item.id} href={`#${item.id}`} className="docs-anchor-link">
-              {item.label}
-            </a>
-          ))}
-          {standalone && (
-            <a href="/" className="docs-anchor-link docs-anchor-link-primary">
-              Open App
-            </a>
-          )}
+        <div className="docs-hero-panel">
+          <div className="docs-stack-card">
+            <span className="docs-stack-label">Recommended rollout</span>
+            <ol className="docs-steps docs-hero-steps">
+              <li>Deploy with Docker and mount persistent data volumes.</li>
+              <li>Connect Bambu cloud or LAN printers from Settings.</li>
+              <li>Enable SSO, backups, and notifications for day-two ops.</li>
+            </ol>
+          </div>
+
+          <div className="docs-stat-grid">
+            {overviewStats.map((item) => (
+              <article key={item.label} className="docs-stat-card">
+                <strong>{item.value}</strong>
+                <span>{item.label}</span>
+              </article>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -150,7 +186,7 @@ function Docs({ standalone = false }: DocsProps) {
 
           <section id="features" className="docs-section">
             <h2>Features</h2>
-            <div className="docs-grid docs-grid-3">
+            <div className="docs-grid docs-grid-3 docs-feature-grid">
               {featureGroups.map((group) => (
                 <article key={group.title} className="docs-card">
                   <h3>{group.title}</h3>
@@ -166,23 +202,13 @@ function Docs({ standalone = false }: DocsProps) {
 
           <section id="pages" className="docs-section">
             <h2>Pages & workflows</h2>
-            <div className="docs-table-wrap">
-              <table className="docs-table">
-                <thead>
-                  <tr>
-                    <th>Page</th>
-                    <th>What it does</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageGuide.map(([page, description]) => (
-                    <tr key={page}>
-                      <td>{page}</td>
-                      <td>{description}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="docs-grid docs-grid-3 docs-page-grid">
+              {pageGuide.map(([page, description]) => (
+                <article key={page} className="docs-card docs-page-tile">
+                  <span className="docs-page-label">{page}</span>
+                  <p>{description}</p>
+                </article>
+              ))}
             </div>
           </section>
 

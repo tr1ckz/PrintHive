@@ -394,14 +394,18 @@
 }
 
 .dashboard::after {
+  opacity: 0.24;
   background:
-    radial-gradient(circle at top left, rgba(249, 115, 22, 0.14), transparent 0 28%),
-    radial-gradient(circle at top right, rgba(34, 211, 238, 0.10), transparent 0 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 40%);
+    radial-gradient(circle at 10% 8%, rgba(249, 115, 22, 0.22), transparent 0 22%),
+    radial-gradient(circle at 88% 12%, rgba(34, 211, 238, 0.14), transparent 0 20%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 40%),
+    url('/images/splash.png') center top / min(1200px, 100vw) no-repeat;
+  background-blend-mode: screen, screen, normal, normal;
+  filter: saturate(0.92) contrast(1.04);
 }
 
 .dashboard::before {
-  background: linear-gradient(180deg, rgba(9, 9, 11, 0.92) 0%, rgba(9, 9, 11, 0.97) 100%);
+  background: linear-gradient(180deg, rgba(9, 9, 11, 0.88) 0%, rgba(9, 9, 11, 0.95) 36%, rgba(9, 9, 11, 0.985) 100%);
 }
 
 .sidebar-collapse-btn {
@@ -521,7 +525,7 @@
 
   .content-wrapper {
     max-width: none;
-    padding: 24px 28px;
+    padding: 28px 32px 40px;
   }
 
   .dashboard.sidebar-collapsed .navbar {
