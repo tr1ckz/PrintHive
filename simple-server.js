@@ -1463,9 +1463,9 @@ app.post('/api/settings/printer-ftp', (req, res) => {
       upsert.run('printer_serial_number', serialNumber, serialNumber);
     }
 
-    if (printerIp || serialNumber) {
-      const devId = serialNumber || `printer_${(printerIp || 'manual').replace(/[^a-zA-Z0-9]/g, '_')}`;
-      const placeholderName = serialNumber ? `Printer ${serialNumber}` : `Printer at ${printerIp}`;
+    if (serialNumber) {
+      const devId = serialNumber;
+      const placeholderName = `Printer ${serialNumber}`;
       const upsertPrinter = db.prepare(`
         INSERT INTO printers (dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -1485,6 +1485,13 @@ app.post('/api/settings/printer-ftp', (req, res) => {
         serialNumber || null,
         cameraRtspUrl || null
       );
+    } else if (printerIp) {
+      const legacyDevId = `printer_${(printerIp || 'manual').replace(/[^a-zA-Z0-9]/g, '_')}`;
+      db.prepare(`
+        DELETE FROM printers
+        WHERE dev_id = ?
+           OR ((serial_number IS NULL OR serial_number = '') AND ip_address = ? AND name LIKE 'Printer at %')
+      `).run(legacyDevId, printerIp);
     }
     
     console.log('SUCCESS: Settings saved');
@@ -2197,6 +2204,16 @@ function normalizePrinterIp(ip) {
   return String(ip || '').trim();
 }
 
+function isLegacyPlaceholderPrinter(printer) {
+  const devId = String(printer?.dev_id || '').trim().toLowerCase();
+  const name = String(printer?.name || '').trim();
+  const serialNumber = String(printer?.serial_number || '').trim();
+
+  return !serialNumber &&
+    (devId.startsWith('printer_') || devId.startsWith('manual_')) &&
+    (!name || /^printer at\s+/i.test(name) || /^printer\s+\d/i.test(name));
+}
+
 function mergeConfiguredPrinters(devices = []) {
   const mergedDevices = new Map();
 
@@ -2208,8 +2225,15 @@ function mergeConfiguredPrinters(devices = []) {
 
   try {
     const configuredPrinters = db.prepare('SELECT * FROM printers ORDER BY name').all();
+    const hasRealCloudPrinters = Array.from(mergedDevices.values()).some((device) => {
+      return device?.dev_product_name && device.dev_product_name !== 'Configured Printer';
+    });
 
     for (const printer of configuredPrinters) {
+      if (hasRealCloudPrinters && isLegacyPlaceholderPrinter(printer)) {
+        continue;
+      }
+
       const matchingKey = Array.from(mergedDevices.keys()).find((key) => {
         const device = mergedDevices.get(key);
         const normalizedConfiguredIp = normalizePrinterIp(printer.ip_address);
