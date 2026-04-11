@@ -4,6 +4,7 @@ export type CameraStreamType = 'frigate-hls' | 'frigate-webrtc';
 export interface CameraStreamSettings {
   cameraMode: CameraMode;
   cameraStreamType: CameraStreamType;
+  cameraFps: number;
   frigateStreamUrl: string;
   rtspUrl: string;
 }

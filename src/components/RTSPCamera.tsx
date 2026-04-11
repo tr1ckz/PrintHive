@@ -7,12 +7,14 @@ const SNAPSHOT_REFRESH_MS = 5000;
 
 interface RTSPCameraProps {
   rtspUrl?: string;
+  printerId?: string;
   printerName?: string;
   className?: string;
 }
 
 function RTSPCamera({
   rtspUrl,
+  printerId,
   printerName = 'Printer',
   className = '',
 }: RTSPCameraProps) {
@@ -27,8 +29,9 @@ function RTSPCamera({
     }
 
     const separator = API_ENDPOINTS.PRINTERS.CAMERA_STREAM.includes('?') ? '&' : '?';
-    return `${API_ENDPOINTS.PRINTERS.CAMERA_STREAM}${separator}t=${reloadToken}`;
-  }, [reloadToken, rtspUrl]);
+    const printerQuery = printerId ? `&printerId=${encodeURIComponent(printerId)}` : '';
+    return `${API_ENDPOINTS.PRINTERS.CAMERA_STREAM}${separator}t=${reloadToken}${printerQuery}`;
+  }, [printerId, reloadToken, rtspUrl]);
 
   const snapshotSrc = useMemo(() => {
     if (!rtspUrl?.trim()) {
@@ -36,8 +39,9 @@ function RTSPCamera({
     }
 
     const separator = API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT.includes('?') ? '&' : '?';
-    return `${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}${separator}url=${encodeURIComponent(rtspUrl)}&t=${reloadToken}-${snapshotToken}`;
-  }, [reloadToken, rtspUrl, snapshotToken]);
+    const printerQuery = printerId ? `&printerId=${encodeURIComponent(printerId)}` : `&url=${encodeURIComponent(rtspUrl)}`;
+    return `${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}${separator}t=${reloadToken}-${snapshotToken}${printerQuery}`;
+  }, [printerId, reloadToken, rtspUrl, snapshotToken]);
 
   useEffect(() => {
     setDisplayMode('stream');
@@ -63,7 +67,10 @@ function RTSPCamera({
     return () => {
       if (navigator.sendBeacon) {
         try {
-          navigator.sendBeacon(API_ENDPOINTS.PRINTERS.CAMERA_STOP, new Blob([], { type: 'application/json' }));
+          navigator.sendBeacon(
+            API_ENDPOINTS.PRINTERS.CAMERA_STOP,
+            new Blob([JSON.stringify({ printerId })], { type: 'application/json' })
+          );
           return;
         } catch {
           // Fall back to fetch keepalive below.
@@ -74,9 +81,11 @@ function RTSPCamera({
         method: 'POST',
         credentials: 'include',
         keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ printerId }),
       }).catch(() => undefined);
     };
-  }, []);
+  }, [printerId]);
 
   if (!rtspUrl?.trim()) {
     return (
@@ -84,7 +93,7 @@ function RTSPCamera({
         <div className="frigate-camera-overlay offline">
           <div className="frigate-camera-state">
             <strong>RTSP not configured</strong>
-            <span>Add an RTSP URL in Settings → Camera Stream Integration.</span>
+            <span>Add an RTSP URL in Settings → Camera Stream Integration, or assign one directly to this printer in Local Printer / FTP.</span>
             <small>{printerName} · Native RTSP</small>
           </div>
         </div>

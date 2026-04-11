@@ -15,6 +15,7 @@ class RtspCameraProxy {
     this.startupTimeoutMs = options.startupTimeoutMs || 30000;
 
     this.clients = new Set();
+    this.currentFrameRate = null;
     this.ffmpeg = null;
     this.currentRtspUrl = '';
     this.frameBuffer = Buffer.alloc(0);
@@ -24,12 +25,13 @@ class RtspCameraProxy {
     this.hasDeliveredFrame = false;
   }
 
-  addClient(res, rtspUrl) {
+  addClient(res, rtspUrl, frameRate = this.frameRate) {
     const trimmedUrl = String(rtspUrl || '').trim();
     if (!trimmedUrl) {
       throw new Error('RTSP URL is required to start the proxy');
     }
 
+    const normalizedFps = Math.max(1, Math.min(30, Math.round(Number(frameRate) || this.frameRate || 5)));
     this.clearStopTimer();
 
     res.writeHead(200, {
@@ -51,7 +53,7 @@ class RtspCameraProxy {
 
     this.clients.add(res);
     this.ensureKeepAlive();
-    this.ensureProcess(trimmedUrl);
+    this.ensureProcess(trimmedUrl, normalizedFps);
 
     const cleanup = () => {
       this.removeClient(res);
@@ -62,17 +64,18 @@ class RtspCameraProxy {
     res.on('error', cleanup);
   }
 
-  ensureProcess(rtspUrl) {
-    if (this.ffmpeg && this.currentRtspUrl === rtspUrl && !this.ffmpeg.killed) {
+  ensureProcess(rtspUrl, frameRate = this.frameRate) {
+    if (this.ffmpeg && this.currentRtspUrl === rtspUrl && this.currentFrameRate === frameRate && !this.ffmpeg.killed) {
       return;
     }
 
     this.stopProcess();
     this.currentRtspUrl = rtspUrl;
-    this.startProcess(rtspUrl);
+    this.currentFrameRate = frameRate;
+    this.startProcess(rtspUrl, frameRate);
   }
 
-  startProcess(rtspUrl) {
+  startProcess(rtspUrl, frameRate = this.frameRate) {
     this.hasDeliveredFrame = false;
     this.clearStartupTimer();
 
@@ -88,7 +91,7 @@ class RtspCameraProxy {
       '-rw_timeout', '10000000',
       '-i', rtspUrl,
       '-an',
-      '-vf', `fps=${this.frameRate},scale=${this.width}:-1`,
+      '-vf', `fps=${frameRate},scale=${this.width}:-1`,
       '-q:v', String(this.quality),
       '-f', 'mjpeg',
       'pipe:1',
@@ -286,6 +289,7 @@ class RtspCameraProxy {
     this.ffmpeg = null;
     this.frameBuffer = Buffer.alloc(0);
     this.currentRtspUrl = '';
+    this.currentFrameRate = null;
   }
 
   stopAll() {

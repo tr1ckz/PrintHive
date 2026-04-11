@@ -11,6 +11,7 @@ interface Printer {
   ip_address: string;
   access_code: string;
   serial_number: string;
+  camera_rtsp_url?: string;
 }
 
 interface PrinterFormData {
@@ -19,6 +20,7 @@ interface PrinterFormData {
   ip_address: string;
   access_code: string;
   serial_number: string;
+  camera_rtsp_url: string;
 }
 
 const emptyPrinter: PrinterFormData = {
@@ -26,7 +28,8 @@ const emptyPrinter: PrinterFormData = {
   name: '',
   ip_address: '',
   access_code: '',
-  serial_number: ''
+  serial_number: '',
+  camera_rtsp_url: ''
 };
 
 export function PrinterFtpSettings() {
@@ -69,7 +72,8 @@ export function PrinterFtpSettings() {
           name: editingPrinter.name,
           ip_address: editingPrinter.ip_address,
           access_code: editingPrinter.access_code,
-          serial_number: editingPrinter.serial_number
+          serial_number: editingPrinter.serial_number,
+          camera_rtsp_url: editingPrinter.camera_rtsp_url.trim()
         }),
         credentials: 'include'
       });
@@ -94,7 +98,7 @@ export function PrinterFtpSettings() {
   const handleDeletePrinter = (devId: string) => {
     confirm({
       title: 'Delete printer configuration?',
-      message: 'This removes the saved local/FTP connection for the selected printer.',
+      message: 'This removes the saved local/FTP connection and any dedicated camera assignment for the selected printer.',
       confirmText: 'Delete',
       confirmVariant: 'danger',
       onConfirm: async () => {
@@ -153,7 +157,8 @@ export function PrinterFtpSettings() {
       name: printer.name || '',
       ip_address: printer.ip_address || '',
       access_code: printer.access_code || '',
-      serial_number: printer.serial_number || ''
+      serial_number: printer.serial_number || '',
+      camera_rtsp_url: printer.camera_rtsp_url || ''
     });
     setIsAdding(false);
   };
@@ -171,7 +176,7 @@ export function PrinterFtpSettings() {
   return (
     <CollapsibleSection title="Local Printer / FTP" icon="📡" defaultExpanded={true}>
       <p className="form-description">
-        Configure your printers' local FTP connections to automatically download timelapse videos
+        Configure your printers' local FTP connections and optionally assign a dedicated RTSP camera to each printer.
       </p>
 
       {/* Printer Cards List */}
@@ -215,6 +220,9 @@ export function PrinterFtpSettings() {
                     <strong>Serial:</strong> {printer.serial_number}
                   </span>
                 )}
+                <span className="printer-detail">
+                  <strong>Camera:</strong> {printer.camera_rtsp_url ? 'Assigned RTSP camera' : 'Uses global camera fallback'}
+                </span>
               </div>
             </div>
           ))}
@@ -285,6 +293,20 @@ export function PrinterFtpSettings() {
               />
               <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
                 Required for OIDC users without Bambu Cloud account
+              </small>
+            </div>
+
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Assigned Camera RTSP URL (optional)</label>
+              <input
+                type="text"
+                value={editingPrinter.camera_rtsp_url}
+                onChange={(e) => setEditingPrinter({ ...editingPrinter, camera_rtsp_url: e.target.value })}
+                placeholder="rtsp://user:pass@camera-ip/stream1"
+                disabled={loading}
+              />
+              <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
+                Set a dedicated RTSP camera for this printer. If left blank, this printer falls back to the global camera integration.
               </small>
             </div>
           </div>

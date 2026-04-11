@@ -365,16 +365,19 @@ function ReactiveCameraPanel({
   frigateStreamUrl?: string;
   rtspUrl?: string;
 }) {
-  const { ipcamStatus, ipcamBitrate } = usePrinterStore(useShallow((state) => {
-    const task = state.printersById[printerId]?.current_task;
+  const { ipcamStatus, ipcamBitrate, printerCameraRtspUrl } = usePrinterStore(useShallow((state) => {
+    const printer = state.printersById[printerId];
+    const task = printer?.current_task;
     return {
       ipcamStatus: task?.ipcam_status ? String(task.ipcam_status) : '',
       ipcamBitrate: task?.ipcam_bitrate,
+      printerCameraRtspUrl: printer?.camera_rtsp_url || '',
     };
   }));
 
+  const effectiveRtspUrl = printerCameraRtspUrl?.trim() || rtspUrl;
   const streamConfigured = cameraMode === 'native-rtsp'
-    ? Boolean(rtspUrl?.trim())
+    ? Boolean(effectiveRtspUrl?.trim())
     : Boolean(frigateStreamUrl?.trim());
 
   return (
@@ -395,7 +398,8 @@ function ReactiveCameraPanel({
         <div className="printer-camera-shell">
           {cameraMode === 'native-rtsp' ? (
             <RTSPCamera
-              rtspUrl={rtspUrl}
+              rtspUrl={effectiveRtspUrl}
+              printerId={printerId}
               printerName={printerName}
             />
           ) : (
@@ -411,7 +415,7 @@ function ReactiveCameraPanel({
             ) : null}
             <span className="camera-source-badge">
               {cameraMode === 'native-rtsp'
-                ? 'Native RTSP'
+                ? (printerCameraRtspUrl?.trim() ? 'Assigned RTSP' : 'Native RTSP')
                 : cameraStreamType === 'frigate-webrtc'
                   ? 'Frigate WebRTC'
                   : 'Frigate HLS'}
@@ -421,7 +425,7 @@ function ReactiveCameraPanel({
       ) : (
         <div className="panel-empty">
           <strong>No camera stream configured</strong>
-          <span>Add a Frigate or RTSP source in Settings → Camera Stream Integration.</span>
+          <span>Add a global camera in Settings → Camera Stream Integration, or assign an RTSP camera directly to this printer in Local Printer / FTP.</span>
         </div>
       )}
     </section>
