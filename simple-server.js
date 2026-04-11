@@ -9,6 +9,7 @@ const multer = require('multer');
 const passport = require('passport');
 const oidc = require('openid-client');
 const { WebSocketServer, WebSocket } = require('ws');
+const RtspCameraProxy = require('./rtsp-camera-proxy');
 
 // Sync version on startup
 try {
@@ -135,7 +136,8 @@ function writeGo2RtcConfigFromDatabase() {
   const tapoPassword = getConfigValue('tapo_camera_password');
   const tapoStreamPath = getConfigValue('tapo_camera_path') || 'stream1';
   const defaultRtspUrl = buildTapoRtspUrl(tapoHost, tapoUsername, tapoPassword, tapoStreamPath);
-  const unifiedCameraStreamUrl = getConfigValue('camera_stream_url');
+  const explicitRtspUrl = getConfigValue('rtsp_url');
+  const unifiedCameraStreamUrl = explicitRtspUrl || getConfigValue('camera_stream_url');
 
   const lines = [];
   const seen = new Set();
@@ -208,6 +210,36 @@ function syncGo2RtcConfigSafe() {
     return null;
   }
 }
+
+function getConfiguredRtspUrl() {
+  const rtspUrl = String(db.prepare('SELECT value FROM config WHERE key = ?').get('rtsp_url')?.value || '').trim();
+  if (/^rtsps?:\/\//i.test(rtspUrl)) {
+    return rtspUrl;
+  }
+
+  const legacyStreamUrl = normalizeStreamRelayUrl(db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url')?.value || '');
+  if (/^rtsps?:\/\//i.test(legacyStreamUrl)) {
+    return legacyStreamUrl;
+  }
+
+  return '';
+}
+
+const rtspCameraProxy = new RtspCameraProxy({
+  logger,
+  ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg',
+  idleShutdownMs: 5000,
+});
+
+['SIGINT', 'SIGTERM', 'exit'].forEach((eventName) => {
+  process.on(eventName, () => {
+    try {
+      rtspCameraProxy.stopAll();
+    } catch (_error) {
+      // Ignore cleanup issues during shutdown.
+    }
+  });
+});
 
 function getConfiguredBambuAccounts(req = null) {
   try {
@@ -2078,19 +2110,31 @@ app.get('/api/settings/ui', (req, res) => {
   try {
     const hideBmc = db.prepare('SELECT value FROM config WHERE key = ?').get('hide_bmc');
     const colorScheme = db.prepare('SELECT value FROM config WHERE key = ?').get('color_scheme');
+    const cameraMode = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_mode');
     const cameraStreamType = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_type');
     const cameraStreamUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url');
+    const frigateStreamUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_stream_url');
+    const rtspUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('rtsp_url');
     const legacyFrigateUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_url');
     const canExposePrivateStreamSettings = Boolean(req.session?.authenticated);
+
+    const normalizedCameraMode = cameraMode?.value === 'native-rtsp' ? 'native-rtsp' : 'frigate';
+    const normalizedStreamType = cameraStreamType?.value === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls';
+    const resolvedFrigateStreamUrl = normalizeStreamRelayUrl(
+      frigateStreamUrl?.value || (normalizedCameraMode === 'frigate' ? cameraStreamUrl?.value || legacyFrigateUrl?.value || '' : legacyFrigateUrl?.value || '')
+    );
+    const resolvedRtspUrl = String(rtspUrl?.value || (normalizedCameraMode === 'native-rtsp' ? cameraStreamUrl?.value || '' : '')).trim();
+    const activeCameraStreamUrl = normalizedCameraMode === 'native-rtsp' ? resolvedRtspUrl : resolvedFrigateStreamUrl;
 
     res.json({
       success: true,
       hideBmc: hideBmc?.value === 'true',
       colorScheme: colorScheme?.value || 'cyan',
-      cameraStreamType: canExposePrivateStreamSettings && cameraStreamType?.value === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls',
-      cameraStreamUrl: canExposePrivateStreamSettings
-        ? normalizeStreamRelayUrl(cameraStreamUrl?.value || legacyFrigateUrl?.value || '')
-        : '',
+      cameraMode: normalizedCameraMode,
+      cameraStreamType: normalizedStreamType,
+      frigateStreamUrl: canExposePrivateStreamSettings ? resolvedFrigateStreamUrl : '',
+      rtspUrl: canExposePrivateStreamSettings ? resolvedRtspUrl : '',
+      cameraStreamUrl: canExposePrivateStreamSettings ? activeCameraStreamUrl : '',
     });
   } catch (error) {
     console.error('Failed to load UI settings:', error);
@@ -2114,7 +2158,10 @@ app.post('/api/settings/ui', (req, res) => {
     const {
       hideBmc,
       colorScheme,
+      cameraMode,
       cameraStreamType,
+      frigateStreamUrl,
+      rtspUrl,
       cameraStreamUrl,
     } = req.body;
 
@@ -2129,23 +2176,74 @@ app.post('/api/settings/ui', (req, res) => {
       upsert.run('color_scheme', colorScheme, colorScheme);
     }
 
+    const normalizedCameraMode = cameraMode === 'native-rtsp' ? 'native-rtsp' : 'frigate';
     const normalizedStreamType = cameraStreamType === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls';
-    const normalizedStreamUrl = typeof cameraStreamUrl === 'string' ? normalizeStreamRelayUrl(cameraStreamUrl) : '';
+    const normalizedFrigateStreamUrl = typeof frigateStreamUrl === 'string'
+      ? normalizeStreamRelayUrl(frigateStreamUrl)
+      : (typeof cameraStreamUrl === 'string' ? normalizeStreamRelayUrl(cameraStreamUrl) : '');
+    const normalizedRtspUrl = typeof rtspUrl === 'string' ? String(rtspUrl).trim() : '';
+    const normalizedActiveStreamUrl = normalizedCameraMode === 'native-rtsp' ? normalizedRtspUrl : normalizedFrigateStreamUrl;
 
+    upsert.run('camera_mode', normalizedCameraMode, normalizedCameraMode);
     upsert.run('camera_stream_type', normalizedStreamType, normalizedStreamType);
-    upsert.run('camera_stream_url', normalizedStreamUrl, normalizedStreamUrl);
+    upsert.run('frigate_stream_url', normalizedFrigateStreamUrl, normalizedFrigateStreamUrl);
+    upsert.run('rtsp_url', normalizedRtspUrl, normalizedRtspUrl);
+    upsert.run('camera_stream_url', normalizedActiveStreamUrl, normalizedActiveStreamUrl);
 
     const go2rtcInfo = syncGo2RtcConfigSafe();
     res.json({
       success: true,
+      cameraMode: normalizedCameraMode,
       cameraStreamType: normalizedStreamType,
-      cameraStreamUrl: normalizedStreamUrl,
+      frigateStreamUrl: normalizedFrigateStreamUrl,
+      rtspUrl: normalizedRtspUrl,
+      cameraStreamUrl: normalizedActiveStreamUrl,
       go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath,
       streamCount: go2rtcInfo?.streamCount || 0,
     });
   } catch (error) {
     console.error('Failed to save UI settings:', error);
     res.status(500).json({ error: 'Failed to save UI settings' });
+  }
+});
+
+app.get('/api/camera/stream', (req, res) => {
+  if (!req.session?.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    if (typeof ffmpegAvailable !== 'undefined' && !ffmpegAvailable) {
+      return res.status(503).json({ error: 'FFmpeg is not available on the PrintHive host' });
+    }
+
+    const rtspUrl = getConfiguredRtspUrl();
+    if (!rtspUrl) {
+      return res.status(404).json({ error: 'No RTSP URL configured for Native RTSP mode' });
+    }
+
+    rtspCameraProxy.addClient(res, rtspUrl);
+  } catch (error) {
+    logger.error('[RTSP proxy] Failed to start camera stream:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to start Native RTSP camera stream' });
+    } else {
+      res.end();
+    }
+  }
+});
+
+app.post('/api/camera/stop', (req, res) => {
+  if (!req.session?.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    rtspCameraProxy.stopAll();
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[RTSP proxy] Failed to stop camera stream:', error);
+    res.status(500).json({ error: 'Failed to stop Native RTSP camera stream' });
   }
 });
 

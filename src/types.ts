@@ -1,8 +1,11 @@
+export type CameraMode = 'frigate' | 'native-rtsp';
 export type CameraStreamType = 'frigate-hls' | 'frigate-webrtc';
 
 export interface CameraStreamSettings {
+  cameraMode: CameraMode;
   cameraStreamType: CameraStreamType;
-  cameraStreamUrl: string;
+  frigateStreamUrl: string;
+  rtspUrl: string;
 }
 
 export interface Printer {

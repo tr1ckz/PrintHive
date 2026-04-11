@@ -1,8 +1,9 @@
 import { memo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import type { CameraStreamType } from '../types';
+import type { CameraMode, CameraStreamType } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 import FrigateCamera from './FrigateCamera';
+import RTSPCamera from './RTSPCamera';
 import { usePrinterStore } from '../stores/usePrinterStore';
 
 const normalizeProgress = (value: number | undefined | null) => {
@@ -65,8 +66,10 @@ const fanToPercent = (speed: number) => Math.ceil((speed / 15) * 100 / 10) * 10;
 
 interface ReactivePrinterCardProps {
   printerId: string;
+  cameraMode?: CameraMode;
   cameraStreamType?: CameraStreamType;
-  cameraStreamUrl?: string;
+  frigateStreamUrl?: string;
+  rtspUrl?: string;
   onOpenHardware: (printerId: string) => void;
 }
 
@@ -350,13 +353,17 @@ function ReactiveAmsPanel({ printerId }: { printerId: string }) {
 function ReactiveCameraPanel({
   printerId,
   printerName,
+  cameraMode = 'frigate',
   cameraStreamType,
-  cameraStreamUrl,
+  frigateStreamUrl,
+  rtspUrl,
 }: {
   printerId: string;
   printerName: string;
+  cameraMode?: CameraMode;
   cameraStreamType?: CameraStreamType;
-  cameraStreamUrl?: string;
+  frigateStreamUrl?: string;
+  rtspUrl?: string;
 }) {
   const { ipcamStatus, ipcamBitrate } = usePrinterStore(useShallow((state) => {
     const task = state.printersById[printerId]?.current_task;
@@ -366,7 +373,9 @@ function ReactiveCameraPanel({
     };
   }));
 
-  const streamConfigured = Boolean(cameraStreamUrl?.trim());
+  const streamConfigured = cameraMode === 'native-rtsp'
+    ? Boolean(rtspUrl?.trim())
+    : Boolean(frigateStreamUrl?.trim());
 
   return (
     <section className="printer-panel camera-panel">
@@ -384,24 +393,35 @@ function ReactiveCameraPanel({
 
       {streamConfigured ? (
         <div className="printer-camera-shell">
-          <FrigateCamera
-            streamType={cameraStreamType}
-            streamUrl={cameraStreamUrl}
-            printerName={printerName}
-          />
+          {cameraMode === 'native-rtsp' ? (
+            <RTSPCamera
+              rtspUrl={rtspUrl}
+              printerName={printerName}
+            />
+          ) : (
+            <FrigateCamera
+              streamType={cameraStreamType}
+              streamUrl={frigateStreamUrl}
+              printerName={printerName}
+            />
+          )}
           <div className="camera-meta">
             {typeof ipcamBitrate === 'number' && ipcamBitrate > 0 ? (
               <span className="camera-bitrate">{formatBitrate(ipcamBitrate)}</span>
             ) : null}
             <span className="camera-source-badge">
-              {cameraStreamType === 'frigate-webrtc' ? 'Frigate WebRTC' : 'Frigate HLS'}
+              {cameraMode === 'native-rtsp'
+                ? 'Native RTSP'
+                : cameraStreamType === 'frigate-webrtc'
+                  ? 'Frigate WebRTC'
+                  : 'Frigate HLS'}
             </span>
           </div>
         </div>
       ) : (
         <div className="panel-empty">
           <strong>No camera stream configured</strong>
-          <span>Add one Frigate stream URL in Settings → Camera Stream Integration.</span>
+          <span>Add a Frigate or RTSP source in Settings → Camera Stream Integration.</span>
         </div>
       )}
     </section>
@@ -410,8 +430,10 @@ function ReactiveCameraPanel({
 
 function ReactivePrinterCardComponent({
   printerId,
+  cameraMode,
   cameraStreamType,
-  cameraStreamUrl,
+  frigateStreamUrl,
+  rtspUrl,
   onOpenHardware,
 }: ReactivePrinterCardProps) {
   const { name, online, productName } = usePrinterStore(useShallow((state) => {
@@ -448,8 +470,10 @@ function ReactivePrinterCardComponent({
         <ReactiveCameraPanel
           printerId={printerId}
           printerName={name}
+          cameraMode={cameraMode}
           cameraStreamType={cameraStreamType}
-          cameraStreamUrl={cameraStreamUrl}
+          frigateStreamUrl={frigateStreamUrl}
+          rtspUrl={rtspUrl}
         />
         <ReactiveStatusPanel printerId={printerId} />
         <ReactiveTelemetryPanel printerId={printerId} />
