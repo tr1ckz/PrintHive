@@ -17,7 +17,6 @@ export function UISettings() {
   });
   const [cameraMode, setCameraMode] = useState<CameraMode>('frigate');
   const [cameraStreamType, setCameraStreamType] = useState<CameraStreamType>('frigate-hls');
-  const [cameraFps, setCameraFps] = useState(5);
   const [frigateStreamUrl, setFrigateStreamUrl] = useState('');
   const [rtspUrl, setRtspUrl] = useState('');
   const [uiLoading, setUiLoading] = useState(false);
@@ -39,7 +38,6 @@ export function UISettings() {
         setColorScheme(data.colorScheme || document.documentElement.dataset.themeAccent || 'orange');
         setCameraMode(data.cameraMode === 'native-rtsp' ? 'native-rtsp' : 'frigate');
         setCameraStreamType(data.cameraStreamType === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls');
-        setCameraFps(Math.max(1, Math.min(30, Number(data.cameraFps) || 5)));
         setFrigateStreamUrl(data.frigateStreamUrl || (data.cameraMode === 'frigate' ? data.cameraStreamUrl || '' : ''));
         setRtspUrl(data.rtspUrl || (data.cameraMode === 'native-rtsp' ? data.cameraStreamUrl || '' : ''));
       }
@@ -53,7 +51,6 @@ export function UISettings() {
     try {
       const trimmedFrigateUrl = frigateStreamUrl.trim();
       const trimmedRtspUrl = rtspUrl.trim();
-      const normalizedCameraFps = Math.max(1, Math.min(30, Number(cameraFps) || 5));
 
       if (cameraMode === 'frigate' && trimmedFrigateUrl && !/^(https?:\/\/|wss?:\/\/)/i.test(trimmedFrigateUrl)) {
         setToast({ message: 'Frigate Stream URL must be an absolute http(s) or ws(s) URL.', type: 'error' });
@@ -73,7 +70,6 @@ export function UISettings() {
           colorScheme,
           cameraMode,
           cameraStreamType,
-          cameraFps: normalizedCameraFps,
           frigateStreamUrl: trimmedFrigateUrl,
           rtspUrl: trimmedRtspUrl,
         }),
@@ -161,23 +157,6 @@ export function UISettings() {
             <option value="frigate">Frigate (WebRTC/HLS)</option>
             <option value="native-rtsp">Native RTSP</option>
           </select>
-        </div>
-
-        <div className="form-group">
-          <label>Native RTSP FPS</label>
-          <input
-            type="number"
-            min="1"
-            max="30"
-            step="1"
-            value={cameraFps}
-            onChange={(e) => setCameraFps(Math.max(1, Math.min(30, Number(e.target.value) || 5)))}
-            disabled={uiLoading}
-            className="form-control"
-          />
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
-            Sets the default frame rate for the backend RTSP relay. Lower values use less CPU and bandwidth; `5–10 FPS` is usually ideal.
-          </small>
         </div>
 
         {cameraMode === 'frigate' ? (

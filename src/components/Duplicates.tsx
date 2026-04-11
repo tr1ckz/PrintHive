@@ -333,9 +333,9 @@ function Duplicates() {
             <span>{deleteProgress.processed} / {deleteProgress.total} files</span>
             <span>{deleteProgress.deleted} deleted, {deleteProgress.failed} failed</span>
           </div>
-          <div className="progress-bar">
+          <div className="duplicates-progress-bar">
             <div 
-              className="progress-fill" 
+              className="duplicates-progress-fill" 
               style={{ width: `${Math.round((deleteProgress.processed / deleteProgress.total) * 100)}%` }}
             ></div>
           </div>

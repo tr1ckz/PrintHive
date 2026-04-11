@@ -1,6 +1,6 @@
 # PrintHive - 3D Printer Management
 
-**Version: 1.1.0** | [View Changelog](#changelog)
+**Version: 1.3.27** | [View Changelog](#changelog)
 
 A comprehensive web application for managing 3D printers, including print history tracking, model library management, real-time printer monitoring via MQTT, cloud synchronization with Bambu MakerWorld, and complete database backup & maintenance tools.
 
@@ -11,7 +11,7 @@ A comprehensive web application for managing 3D printers, including print histor
 - **Print History**: Track all your prints with cover images from MakerWorld, paginated display, per-device filtering
 - **SD Card Sync**: Automatically import print history from printer SD card for locally sliced files
 - **Model Library**: Upload and manage your 3D model files (.3mf, .stl, .gcode)
-- **Printer Monitoring**: Real-time status updates via MQTT including AMS data
+- **Printer Monitoring**: Real-time status updates via MQTT including AMS data and live camera feeds
 - **Cloud Sync**: Automatic synchronization with Bambu Cloud
 - **Timelapse Videos**: Download and convert print timelapses
 - **Statistics**: View print success rates and analytics
@@ -24,7 +24,7 @@ A comprehensive web application for managing 3D printers, including print histor
 - **Automatic Backups**: Schedule automatic database backups (local storage)
 - **Remote Backups**: Upload backups to SFTP or FTP servers
 - **Backup Retention**: Automatic cleanup of old backups based on retention policy
-- **Settings Management**: Organized settings with collapsible categories
+- **Settings Management**: Organized settings with collapsible categories and per-printer camera assignment
 
 ### Printer Maintenance
 - **Maintenance Tracking**: Track scheduled printer maintenance tasks with history logs

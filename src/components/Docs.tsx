@@ -31,7 +31,7 @@ const featureGroups = [
     items: [
       'Real-time printer state via MQTT',
       'AMS status, trays, temperatures, fans, speed mode, and progress details',
-      'Optional camera snapshots / RTSP configuration per printer',
+      'Frigate or Native RTSP camera feeds with optional per-printer assignment',
       'Background job tracking for sync and media processing tasks',
     ],
   },
@@ -327,7 +327,7 @@ function Docs({ standalone = false }: DocsProps) {
                   <li>Open <strong>Settings → Local Printer / FTP</strong>.</li>
                   <li>Enter the printer IP, serial number, and access code from the printer screen.</li>
                   <li>Save the printer so it appears in the <strong>Printers</strong> page and sync jobs.</li>
-                  <li>Optional: add a camera RTSP URL for snapshots.</li>
+                  <li>Optional: assign a camera RTSP URL per printer if you use multiple feeds.</li>
                 </ol>
               </article>
 

@@ -402,18 +402,19 @@
 }
 
 .printer-progress-bar {
-  margin: 14px 0;
+  margin: 12px 0;
 }
 
-.progress-bar {
+.printer-progress-track {
   width: 100%;
-  height: 8px;
+  height: 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
 
-.progress-fill {
+.printer-progress-fill {
+  display: block;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 100%);

@@ -143,8 +143,8 @@ function ReactiveStatusPanel({ printerId }: { printerId: string }) {
         <div className="status-job-meta">State: {gcodeState || formatStatusLabel(printStatus)}</div>
       )}
 
-      <div className="progress-bar printer-progress-bar">
-        <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+      <div className="printer-progress-track printer-progress-bar">
+        <div className="printer-progress-fill" style={{ width: `${progress}%` }}></div>
       </div>
 
       <div className="status-metric-grid">

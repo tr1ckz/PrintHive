@@ -220,11 +220,6 @@ function normalizeCameraFps(value, fallback = 5) {
   return Math.max(1, Math.min(30, parsed));
 }
 
-function getConfiguredCameraFps() {
-  const configuredValue = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_fps')?.value;
-  return normalizeCameraFps(configuredValue, 5);
-}
-
 function getConfiguredRtspSource(printerId = '') {
   const normalizedPrinterId = String(printerId || '').trim();
   if (normalizedPrinterId) {
@@ -2174,7 +2169,6 @@ app.get('/api/settings/ui', (req, res) => {
     const cameraStreamUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url');
     const frigateStreamUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_stream_url');
     const rtspUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('rtsp_url');
-    const cameraFps = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_fps');
     const legacyFrigateUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_url');
     const canExposePrivateStreamSettings = Boolean(req.session?.authenticated);
 
@@ -2192,7 +2186,6 @@ app.get('/api/settings/ui', (req, res) => {
       colorScheme: colorScheme?.value || 'cyan',
       cameraMode: normalizedCameraMode,
       cameraStreamType: normalizedStreamType,
-      cameraFps: normalizeCameraFps(cameraFps?.value, 5),
       frigateStreamUrl: canExposePrivateStreamSettings ? resolvedFrigateStreamUrl : '',
       rtspUrl: canExposePrivateStreamSettings ? resolvedRtspUrl : '',
       cameraStreamUrl: canExposePrivateStreamSettings ? activeCameraStreamUrl : '',
@@ -2221,7 +2214,6 @@ app.post('/api/settings/ui', (req, res) => {
       colorScheme,
       cameraMode,
       cameraStreamType,
-      cameraFps,
       frigateStreamUrl,
       rtspUrl,
       cameraStreamUrl,
@@ -2240,7 +2232,6 @@ app.post('/api/settings/ui', (req, res) => {
 
     const normalizedCameraMode = cameraMode === 'native-rtsp' ? 'native-rtsp' : 'frigate';
     const normalizedStreamType = cameraStreamType === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls';
-    const normalizedCameraFps = normalizeCameraFps(cameraFps, 5);
     const normalizedFrigateStreamUrl = typeof frigateStreamUrl === 'string'
       ? normalizeStreamRelayUrl(frigateStreamUrl)
       : (typeof cameraStreamUrl === 'string' ? normalizeStreamRelayUrl(cameraStreamUrl) : '');
@@ -2249,17 +2240,17 @@ app.post('/api/settings/ui', (req, res) => {
 
     upsert.run('camera_mode', normalizedCameraMode, normalizedCameraMode);
     upsert.run('camera_stream_type', normalizedStreamType, normalizedStreamType);
-    upsert.run('camera_fps', String(normalizedCameraFps), String(normalizedCameraFps));
     upsert.run('frigate_stream_url', normalizedFrigateStreamUrl, normalizedFrigateStreamUrl);
     upsert.run('rtsp_url', normalizedRtspUrl, normalizedRtspUrl);
     upsert.run('camera_stream_url', normalizedActiveStreamUrl, normalizedActiveStreamUrl);
+
+    db.prepare('DELETE FROM config WHERE key = ?').run('camera_fps');
 
     const go2rtcInfo = syncGo2RtcConfigSafe();
     res.json({
       success: true,
       cameraMode: normalizedCameraMode,
       cameraStreamType: normalizedStreamType,
-      cameraFps: normalizedCameraFps,
       frigateStreamUrl: normalizedFrigateStreamUrl,
       rtspUrl: normalizedRtspUrl,
       cameraStreamUrl: normalizedActiveStreamUrl,
@@ -2288,8 +2279,7 @@ app.get('/api/camera/stream', (req, res) => {
       return res.status(404).json({ error: 'No RTSP URL configured for this printer or the global Native RTSP mode' });
     }
 
-    const cameraFps = getConfiguredCameraFps();
-    getRtspCameraProxy(proxyKey, cameraFps).addClient(res, rtspUrl, cameraFps);
+    getRtspCameraProxy(proxyKey).addClient(res, rtspUrl);
   } catch (error) {
     logger.error('[RTSP proxy] Failed to start camera stream:', error);
     if (!res.headersSent) {
