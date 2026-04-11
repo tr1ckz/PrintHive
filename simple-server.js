@@ -1966,29 +1966,19 @@ app.get('/api/settings/ui', (req, res) => {
   try {
     const hideBmc = db.prepare('SELECT value FROM config WHERE key = ?').get('hide_bmc');
     const colorScheme = db.prepare('SELECT value FROM config WHERE key = ?').get('color_scheme');
-    const go2rtcUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('go2rtc_url');
-    const go2rtcDefaultStream = db.prepare('SELECT value FROM config WHERE key = ?').get('go2rtc_default_stream');
-    const tapoCameraHost = db.prepare('SELECT value FROM config WHERE key = ?').get('tapo_camera_host');
-    const tapoCameraUsername = db.prepare('SELECT value FROM config WHERE key = ?').get('tapo_camera_username');
-    const tapoCameraPassword = db.prepare('SELECT value FROM config WHERE key = ?').get('tapo_camera_password');
-    const tapoCameraPath = db.prepare('SELECT value FROM config WHERE key = ?').get('tapo_camera_path');
-    const frigateUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_url');
-    const frigateCameraName = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_camera_name');
+    const cameraStreamType = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_type');
+    const cameraStreamUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url');
+    const legacyFrigateUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_url');
     const canExposePrivateStreamSettings = Boolean(req.session?.authenticated);
-    
-    res.json({ 
+
+    res.json({
       success: true,
       hideBmc: hideBmc?.value === 'true',
       colorScheme: colorScheme?.value || 'cyan',
-      go2rtcUrl: canExposePrivateStreamSettings ? normalizeStreamRelayUrl(go2rtcUrl?.value || '') : '',
-      go2rtcDefaultStream: canExposePrivateStreamSettings ? go2rtcDefaultStream?.value || frigateCameraName?.value || '' : '',
-      tapoCameraHost: canExposePrivateStreamSettings ? tapoCameraHost?.value || '' : '',
-      tapoCameraUsername: canExposePrivateStreamSettings ? tapoCameraUsername?.value || '' : '',
-      tapoCameraPassword: canExposePrivateStreamSettings ? tapoCameraPassword?.value || '' : '',
-      tapoCameraPath: canExposePrivateStreamSettings ? tapoCameraPath?.value || 'stream1' : 'stream1',
-      frigateUrl: canExposePrivateStreamSettings ? frigateUrl?.value || '' : '',
-      frigateCameraName: canExposePrivateStreamSettings ? frigateCameraName?.value || '' : '',
-      go2rtcConfigPath: canExposePrivateStreamSettings ? go2rtcConfigPath : ''
+      cameraStreamType: canExposePrivateStreamSettings && cameraStreamType?.value === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls',
+      cameraStreamUrl: canExposePrivateStreamSettings
+        ? normalizeStreamRelayUrl(cameraStreamUrl?.value || legacyFrigateUrl?.value || '')
+        : '',
     });
   } catch (error) {
     console.error('Failed to load UI settings:', error);
@@ -2012,60 +2002,28 @@ app.post('/api/settings/ui', (req, res) => {
     const {
       hideBmc,
       colorScheme,
-      go2rtcUrl,
-      go2rtcDefaultStream,
-      tapoCameraHost,
-      tapoCameraUsername,
-      tapoCameraPassword,
-      tapoCameraPath,
-      frigateUrl,
-      frigateCameraName
+      cameraStreamType,
+      cameraStreamUrl,
     } = req.body;
-    
+
     const upsert = db.prepare(`
-      INSERT INTO config (key, value, updated_at) 
+      INSERT INTO config (key, value, updated_at)
       VALUES (?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
     `);
-    
+
     upsert.run('hide_bmc', hideBmc ? 'true' : 'false', hideBmc ? 'true' : 'false');
     if (colorScheme) {
       upsert.run('color_scheme', colorScheme, colorScheme);
     }
-    if (typeof go2rtcUrl === 'string') {
-      const normalizedGo2rtcUrl = normalizeStreamRelayUrl(go2rtcUrl);
-      upsert.run('go2rtc_url', normalizedGo2rtcUrl, normalizedGo2rtcUrl);
-    }
-    if (typeof go2rtcDefaultStream === 'string') {
-      const normalizedDefaultStream = go2rtcDefaultStream.trim();
-      upsert.run('go2rtc_default_stream', normalizedDefaultStream, normalizedDefaultStream);
-    }
-    if (typeof tapoCameraHost === 'string') {
-      const trimmedTapoHost = tapoCameraHost.trim();
-      upsert.run('tapo_camera_host', trimmedTapoHost, trimmedTapoHost);
-    }
-    if (typeof tapoCameraUsername === 'string') {
-      const trimmedTapoUsername = tapoCameraUsername.trim();
-      upsert.run('tapo_camera_username', trimmedTapoUsername, trimmedTapoUsername);
-    }
-    if (typeof tapoCameraPassword === 'string') {
-      upsert.run('tapo_camera_password', tapoCameraPassword, tapoCameraPassword);
-    }
-    if (typeof tapoCameraPath === 'string') {
-      const normalizedPath = tapoCameraPath.trim().replace(/^\/+/, '') || 'stream1';
-      upsert.run('tapo_camera_path', normalizedPath, normalizedPath);
-    }
-    if (typeof frigateUrl === 'string') {
-      const trimmedFrigateUrl = normalizeStreamRelayUrl(frigateUrl);
-      upsert.run('frigate_url', trimmedFrigateUrl, trimmedFrigateUrl);
-    }
-    if (typeof frigateCameraName === 'string') {
-      const trimmedCameraName = frigateCameraName.trim();
-      upsert.run('frigate_camera_name', trimmedCameraName, trimmedCameraName);
-    }
 
-    const go2rtcInfo = syncGo2RtcConfigSafe();
-    res.json({ success: true, go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath, streamCount: go2rtcInfo?.streamCount || 0 });
+    const normalizedStreamType = cameraStreamType === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls';
+    const normalizedStreamUrl = typeof cameraStreamUrl === 'string' ? normalizeStreamRelayUrl(cameraStreamUrl) : '';
+
+    upsert.run('camera_stream_type', normalizedStreamType, normalizedStreamType);
+    upsert.run('camera_stream_url', normalizedStreamUrl, normalizedStreamUrl);
+
+    res.json({ success: true, cameraStreamType: normalizedStreamType, cameraStreamUrl: normalizedStreamUrl });
   } catch (error) {
     console.error('Failed to save UI settings:', error);
     res.status(500).json({ error: 'Failed to save UI settings' });

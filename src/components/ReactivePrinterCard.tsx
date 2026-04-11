@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import type { CameraStreamType } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 import FrigateCamera from './FrigateCamera';
 import { usePrinterStore } from '../stores/usePrinterStore';
@@ -61,6 +62,13 @@ const formatStatusLabel = (status?: string) => {
 };
 
 const fanToPercent = (speed: number) => Math.ceil((speed / 15) * 100 / 10) * 10;
+
+interface ReactivePrinterCardProps {
+  printerId: string;
+  cameraStreamType?: CameraStreamType;
+  cameraStreamUrl?: string;
+  onOpenHardware: (printerId: string) => void;
+}
 
 function TelemetryTile({ printerId, label, valueSelector }: { printerId: string; label: string; valueSelector: (printer: ReturnType<typeof usePrinterStore.getState>['printersById'][string] | undefined) => string | null; }) {
   const value = usePrinterStore((state) => valueSelector(state.printersById[printerId]));
@@ -342,15 +350,13 @@ function ReactiveAmsPanel({ printerId }: { printerId: string }) {
 function ReactiveCameraPanel({
   printerId,
   printerName,
-  cameraSource,
-  go2rtcUrl,
-  frigateUrl,
+  cameraStreamType,
+  cameraStreamUrl,
 }: {
   printerId: string;
   printerName: string;
-  cameraSource: string;
-  go2rtcUrl?: string;
-  frigateUrl?: string;
+  cameraStreamType?: CameraStreamType;
+  cameraStreamUrl?: string;
 }) {
   const { ipcamStatus, ipcamBitrate } = usePrinterStore(useShallow((state) => {
     const task = state.printersById[printerId]?.current_task;
@@ -359,6 +365,8 @@ function ReactiveCameraPanel({
       ipcamBitrate: task?.ipcam_bitrate,
     };
   }));
+
+  const streamConfigured = Boolean(cameraStreamUrl?.trim());
 
   return (
     <section className="printer-panel camera-panel">
@@ -374,26 +382,26 @@ function ReactiveCameraPanel({
         ) : null}
       </div>
 
-      {cameraSource ? (
+      {streamConfigured ? (
         <div className="printer-camera-shell">
           <FrigateCamera
-            go2rtcUrl={go2rtcUrl}
-            frigateUrl={frigateUrl}
-            cameraName={cameraSource}
+            streamType={cameraStreamType}
+            streamUrl={cameraStreamUrl}
             printerName={printerName}
-            printerId={printerId}
           />
           <div className="camera-meta">
             {typeof ipcamBitrate === 'number' && ipcamBitrate > 0 ? (
               <span className="camera-bitrate">{formatBitrate(ipcamBitrate)}</span>
             ) : null}
-            <span className="camera-source-badge">{cameraSource}</span>
+            <span className="camera-source-badge">
+              {cameraStreamType === 'frigate-webrtc' ? 'Frigate WebRTC' : 'Frigate HLS'}
+            </span>
           </div>
         </div>
       ) : (
         <div className="panel-empty">
           <strong>No camera stream configured</strong>
-          <span>Add a raw RTSP URL, go2rtc stream name, or HLS URL to stream directly in the browser.</span>
+          <span>Add one Frigate stream URL in Settings → Camera Stream Integration.</span>
         </div>
       )}
     </section>
@@ -402,26 +410,16 @@ function ReactiveCameraPanel({
 
 function ReactivePrinterCardComponent({
   printerId,
-  go2rtcUrl,
-  frigateUrl,
-  defaultCameraName,
+  cameraStreamType,
+  cameraStreamUrl,
   onOpenHardware,
-  onOpenConfig,
-}: {
-  printerId: string;
-  go2rtcUrl?: string;
-  frigateUrl?: string;
-  defaultCameraName?: string;
-  onOpenHardware: (printerId: string) => void;
-  onOpenConfig: (printerId: string) => void;
-}) {
-  const { name, online, productName, cameraSource } = usePrinterStore(useShallow((state) => {
+}: ReactivePrinterCardProps) {
+  const { name, online, productName } = usePrinterStore(useShallow((state) => {
     const printer = state.printersById[printerId];
     return {
       name: printer?.name || 'Printer',
       online: Boolean(printer?.online),
       productName: printer?.dev_product_name || printer?.dev_model_name || 'Bambu printer',
-      cameraSource: (printer?.camera_rtsp_url || defaultCameraName || '').trim(),
     };
   }));
 
@@ -443,9 +441,6 @@ function ReactivePrinterCardComponent({
           <button type="button" className="printer-ghost-btn" onClick={() => onOpenHardware(printerId)}>
             Hardware Info
           </button>
-          <button type="button" className="printer-primary-btn" onClick={() => onOpenConfig(printerId)}>
-            Configure
-          </button>
         </div>
       </div>
 
@@ -453,9 +448,8 @@ function ReactivePrinterCardComponent({
         <ReactiveCameraPanel
           printerId={printerId}
           printerName={name}
-          cameraSource={cameraSource}
-          go2rtcUrl={go2rtcUrl}
-          frigateUrl={frigateUrl}
+          cameraStreamType={cameraStreamType}
+          cameraStreamUrl={cameraStreamUrl}
         />
         <ReactiveStatusPanel printerId={printerId} />
         <ReactiveTelemetryPanel printerId={printerId} />

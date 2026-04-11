@@ -11,7 +11,6 @@ interface Printer {
   ip_address: string;
   access_code: string;
   serial_number: string;
-  camera_rtsp_url: string;
 }
 
 interface PrinterFormData {
@@ -20,7 +19,6 @@ interface PrinterFormData {
   ip_address: string;
   access_code: string;
   serial_number: string;
-  camera_rtsp_url: string;
 }
 
 const emptyPrinter: PrinterFormData = {
@@ -28,8 +26,7 @@ const emptyPrinter: PrinterFormData = {
   name: '',
   ip_address: '',
   access_code: '',
-  serial_number: '',
-  camera_rtsp_url: ''
+  serial_number: ''
 };
 
 export function PrinterFtpSettings() {
@@ -72,8 +69,7 @@ export function PrinterFtpSettings() {
           name: editingPrinter.name,
           ip_address: editingPrinter.ip_address,
           access_code: editingPrinter.access_code,
-          serial_number: editingPrinter.serial_number,
-          camera_rtsp_url: editingPrinter.camera_rtsp_url
+          serial_number: editingPrinter.serial_number
         }),
         credentials: 'include'
       });
@@ -157,8 +153,7 @@ export function PrinterFtpSettings() {
       name: printer.name || '',
       ip_address: printer.ip_address || '',
       access_code: printer.access_code || '',
-      serial_number: printer.serial_number || '',
-      camera_rtsp_url: printer.camera_rtsp_url || ''
+      serial_number: printer.serial_number || ''
     });
     setIsAdding(false);
   };
@@ -218,11 +213,6 @@ export function PrinterFtpSettings() {
                 {printer.serial_number && (
                   <span className="printer-detail">
                     <strong>Serial:</strong> {printer.serial_number}
-                  </span>
-                )}
-                {printer.camera_rtsp_url && (
-                  <span className="printer-detail">
-                    <strong>Camera:</strong> Configured
                   </span>
                 )}
               </div>
@@ -297,20 +287,6 @@ export function PrinterFtpSettings() {
                 Required for OIDC users without Bambu Cloud account
               </small>
             </div>
-          </div>
-          
-          <div className="form-group">
-            <label>Camera Source (RTSP / go2rtc / HLS)</label>
-            <input
-              type="text"
-              value={editingPrinter.camera_rtsp_url}
-              onChange={(e) => setEditingPrinter({ ...editingPrinter, camera_rtsp_url: e.target.value })}
-              placeholder="rtsp://user:pass@192.168.4.54/stream1 or garage_cam"
-              disabled={loading}
-            />
-            <small style={{ color: 'var(--text-secondary)', marginTop: '5px', display: 'block' }}>
-              Paste the raw Tapo RTSP URL, a go2rtc stream name, or a direct HLS URL. When go2rtc is configured, PrintHive will bridge raw RTSP feeds into low-latency WebRTC automatically.
-            </small>
           </div>
           
           <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>

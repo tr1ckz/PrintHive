@@ -1,3 +1,10 @@
+export type CameraStreamType = 'frigate-hls' | 'frigate-webrtc';
+
+export interface CameraStreamSettings {
+  cameraStreamType: CameraStreamType;
+  cameraStreamUrl: string;
+}
+
 export interface Printer {
   dev_id: string;
   name: string;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CameraStreamType } from '../types';
 import './FrigateCamera.css';
 
 type HlsModule = typeof import('hls.js');
@@ -8,11 +9,9 @@ type StreamState = 'loading' | 'playing' | 'offline';
 type StreamMode = 'webrtc' | 'hls' | 'none';
 
 interface FrigateCameraProps {
-  go2rtcUrl?: string;
-  frigateUrl?: string;
-  cameraName?: string;
+  streamType?: CameraStreamType;
+  streamUrl?: string;
   printerName?: string;
-  printerId?: string;
   className?: string;
 }
 
@@ -27,11 +26,9 @@ interface StreamTarget {
 const RETRY_DELAYS_MS = [2000, 5000, 10000, 15000, 30000];
 const WEBRTC_ICE_SERVERS = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
 
-const isDirectHlsUrl = (value: string) => /^https?:\/\/.*\.m3u8(?:\?.*)?$/i.test(value.trim());
-const isRtspUrl = (value: string) => /^rtsps?:\/\//i.test(value.trim());
 const isWebSocketUrl = (value: string) => /^wss?:\/\//i.test(value.trim());
-const isHttpRelayUrl = (value: string) => /^https?:\/\//i.test(value.trim());
-const normalizeBaseUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '');
+const isHttpUrl = (value: string) => /^https?:\/\//i.test(value.trim());
+const normalizeUrl = (value?: string) => (value || '').trim();
 
 const toWebSocketUrl = (value: string) => {
   if (value.startsWith('https://')) return `wss://${value.slice('https://'.length)}`;
@@ -39,85 +36,8 @@ const toWebSocketUrl = (value: string) => {
   return value;
 };
 
-const getGo2RtcSocketBase = (value?: string) => {
-  const normalized = normalizeBaseUrl(value);
-  if (!normalized) {
-    return null;
-  }
-
-  if (isHttpRelayUrl(normalized) || isWebSocketUrl(normalized)) {
-    return toWebSocketUrl(normalized);
-  }
-
-  return null;
-};
-
-const sanitizeStreamName = (value: string, fallback = 'camera') => {
-  const normalized = value
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
-
-  return normalized || fallback;
-};
-
-const parseRtspStream = (value: string) => {
-  try {
-    const parsed = new URL(value);
-    const path = parsed.pathname.replace(/^\/+|\/+$/g, '');
-    const streamName = path.split('/').filter(Boolean).pop() || '';
-    return {
-      host: parsed.hostname,
-      streamName,
-    };
-  } catch {
-    return {
-      host: '',
-      streamName: '',
-    };
-  }
-};
-
-const getRelayStreamName = (source: string, printerName?: string, printerId?: string) => {
-  if (!isRtspUrl(source)) {
-    return source.trim();
-  }
-
-  return sanitizeStreamName(`${printerId || printerName || parseRtspStream(source).streamName || 'camera'}-camera`, 'camera');
-};
-
-const buildFrigateHlsUrl = (frigateUrl?: string, source?: string) => {
-  const trimmedSource = (source || '').trim();
-  const baseUrl = normalizeBaseUrl(frigateUrl);
-  if (!trimmedSource || !baseUrl) {
-    return null;
-  }
-
-  if (isDirectHlsUrl(trimmedSource)) {
-    return trimmedSource;
-  }
-
-  if (isRtspUrl(trimmedSource)) {
-    const { streamName } = parseRtspStream(trimmedSource);
-    if (!streamName) {
-      return null;
-    }
-
-    return `${baseUrl}/api/${encodeURIComponent(streamName)}/hls.m3u8`;
-  }
-
-  return `${baseUrl}/api/${encodeURIComponent(trimmedSource)}/hls.m3u8`;
-};
-
-const buildStreamTarget = (
-  go2rtcUrl?: string,
-  frigateUrl?: string,
-  cameraName?: string,
-  printerName?: string,
-  printerId?: string
-): StreamTarget => {
-  const source = (cameraName || '').trim();
+const buildStreamTarget = (streamType: CameraStreamType = 'frigate-hls', streamUrl?: string): StreamTarget => {
+  const source = normalizeUrl(streamUrl);
   if (!source) {
     return {
       mode: 'none',
@@ -128,69 +48,49 @@ const buildStreamTarget = (
     };
   }
 
-  if (isDirectHlsUrl(source)) {
-    return {
-      mode: 'hls',
-      wsUrl: null,
-      hlsUrl: source,
-      statusHint: 'Opening direct HLS stream…',
-      label: 'Direct HLS',
-    };
-  }
-
-  const relaySocketBase = getGo2RtcSocketBase(go2rtcUrl);
-  if (relaySocketBase) {
-    const streamName = getRelayStreamName(source, printerName, printerId);
-    const wsUrl = `${relaySocketBase}/api/ws?src=${encodeURIComponent(streamName)}`;
+  if (streamType === 'frigate-webrtc') {
+    if (!isHttpUrl(source) && !isWebSocketUrl(source)) {
+      return {
+        mode: 'none',
+        wsUrl: null,
+        hlsUrl: null,
+        statusHint: 'Frigate WebRTC needs an absolute http(s) or ws(s) URL.',
+        label: 'Frigate WebRTC',
+      };
+    }
 
     return {
       mode: 'webrtc',
-      wsUrl,
+      wsUrl: toWebSocketUrl(source),
       hlsUrl: null,
-      statusHint: isRtspUrl(source) ? 'Opening low-latency go2rtc WebRTC relay…' : 'Opening live WebRTC stream…',
-      label: streamName,
+      statusHint: 'Opening Frigate WebRTC stream…',
+      label: 'Frigate WebRTC',
     };
   }
 
-  const normalizedRelayBase = normalizeBaseUrl(go2rtcUrl);
-  if (normalizedRelayBase && !relaySocketBase) {
+  if (!isHttpUrl(source)) {
     return {
       mode: 'none',
       wsUrl: null,
       hlsUrl: null,
-      statusHint: 'The go2rtc Base URL must be http://localhost:1984 or https://…, not an rtsp:// camera feed.',
-      label: '',
-    };
-  }
-
-  const fallbackHlsUrl = buildFrigateHlsUrl(frigateUrl, source);
-  if (fallbackHlsUrl) {
-    return {
-      mode: 'hls',
-      wsUrl: null,
-      hlsUrl: fallbackHlsUrl,
-      statusHint: isRtspUrl(source) ? 'Opening Frigate HLS fallback…' : 'Opening HLS fallback…',
-      label: source,
+      statusHint: 'Frigate HLS needs an absolute http(s) .m3u8 URL.',
+      label: 'Frigate HLS',
     };
   }
 
   return {
-    mode: 'none',
+    mode: 'hls',
     wsUrl: null,
-    hlsUrl: null,
-    statusHint: isRtspUrl(source)
-      ? 'This RTSP feed needs a go2rtc relay URL in UI Settings (usually http://localhost:1984).'
-      : 'Add a go2rtc or Frigate relay URL in UI Settings to enable browser playback.',
-    label: '',
+    hlsUrl: source,
+    statusHint: 'Opening Frigate HLS stream…',
+    label: 'Frigate HLS',
   };
 };
 
 function FrigateCamera({
-  go2rtcUrl,
-  frigateUrl,
-  cameraName,
+  streamType = 'frigate-hls',
+  streamUrl,
   printerName = 'Printer',
-  printerId,
   className = ''
 }: FrigateCameraProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -204,8 +104,8 @@ function FrigateCamera({
   const [reloadToken, setReloadToken] = useState(0);
 
   const streamTarget = useMemo(
-    () => buildStreamTarget(go2rtcUrl, frigateUrl, cameraName, printerName, printerId),
-    [go2rtcUrl, frigateUrl, cameraName, printerName, printerId]
+    () => buildStreamTarget(streamType, streamUrl),
+    [streamType, streamUrl]
   );
   const canRetry = streamTarget.mode !== 'none';
 
@@ -432,7 +332,7 @@ function FrigateCamera({
         socket = new WebSocket(wsUrl);
       } catch {
         setStreamState('offline');
-        setStatusMessage('Invalid go2rtc relay URL. Set the go2rtc Base URL to http://localhost:1984 and keep raw rtsp:// feeds in the printer Camera Source field.');
+        setStatusMessage('Invalid Frigate WebRTC URL. Paste the absolute Frigate/go2rtc WebRTC endpoint from Camera Stream Integration.');
         return;
       }
 
@@ -465,7 +365,7 @@ function FrigateCamera({
           }
 
           if (message.type === 'error') {
-            scheduleRetry(`Stream Offline · ${message.value || 'go2rtc returned an error'}`);
+            scheduleRetry(`Stream Offline · ${message.value || 'Frigate WebRTC returned an error'}`);
           }
         } catch {
           scheduleRetry('Stream Offline · unexpected relay response');
@@ -474,7 +374,7 @@ function FrigateCamera({
 
       socket.addEventListener('error', () => {
         if (!cancelled) {
-          scheduleRetry('Stream Offline · unable to reach go2rtc');
+          scheduleRetry('Stream Offline · unable to reach the Frigate WebRTC endpoint');
         }
       });
 

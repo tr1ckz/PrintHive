@@ -18,6 +18,13 @@ export interface MaterialCosts {
   [material: string]: number;
 }
 
+export type CameraStreamType = 'frigate-hls' | 'frigate-webrtc';
+
+export interface CameraStreamSettings {
+  cameraStreamType: CameraStreamType;
+  cameraStreamUrl: string;
+}
+
 export interface BackupInfo {
   name: string;
   date: string;
