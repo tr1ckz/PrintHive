@@ -25,15 +25,50 @@ interface StreamTarget {
 
 const RETRY_DELAYS_MS = [2000, 5000, 10000, 15000, 30000];
 const WEBRTC_ICE_SERVERS = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
+const UNIFIED_GO2RTC_STREAM_NAME = 'printhive_camera';
 
 const isWebSocketUrl = (value: string) => /^wss?:\/\//i.test(value.trim());
 const isHttpUrl = (value: string) => /^https?:\/\//i.test(value.trim());
+const isRtspUrl = (value: string) => /^rtsps?:\/\//i.test(value.trim());
 const normalizeUrl = (value?: string) => (value || '').trim();
 
 const toWebSocketUrl = (value: string) => {
   if (value.startsWith('https://')) return `wss://${value.slice('https://'.length)}`;
   if (value.startsWith('http://')) return `ws://${value.slice('http://'.length)}`;
   return value;
+};
+
+const getLocalGo2RtcBaseUrl = () => {
+  if (typeof window === 'undefined') {
+    return 'http://localhost:1984';
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+  return `${protocol}//${window.location.hostname}:1984`;
+};
+
+const buildGo2RtcRelayTarget = (streamType: CameraStreamType, streamUrl: string): StreamTarget => {
+  const relayBaseUrl = getLocalGo2RtcBaseUrl();
+  const relayWsBaseUrl = toWebSocketUrl(relayBaseUrl);
+  const sourceParam = encodeURIComponent(UNIFIED_GO2RTC_STREAM_NAME);
+
+  if (streamType === 'frigate-webrtc') {
+    return {
+      mode: 'webrtc',
+      wsUrl: `${relayWsBaseUrl}/api/ws?src=${sourceParam}`,
+      hlsUrl: null,
+      statusHint: 'Opening RTSP relay through go2rtc WebRTC…',
+      label: 'RTSP Relay · WebRTC',
+    };
+  }
+
+  return {
+    mode: 'hls',
+    wsUrl: null,
+    hlsUrl: `${relayBaseUrl}/api/stream.m3u8?src=${sourceParam}`,
+    statusHint: 'Opening RTSP relay through go2rtc HLS…',
+    label: 'RTSP Relay · HLS',
+  };
 };
 
 const buildStreamTarget = (streamType: CameraStreamType = 'frigate-hls', streamUrl?: string): StreamTarget => {
@@ -48,13 +83,17 @@ const buildStreamTarget = (streamType: CameraStreamType = 'frigate-hls', streamU
     };
   }
 
+  if (isRtspUrl(source)) {
+    return buildGo2RtcRelayTarget(streamType, source);
+  }
+
   if (streamType === 'frigate-webrtc') {
     if (!isHttpUrl(source) && !isWebSocketUrl(source)) {
       return {
         mode: 'none',
         wsUrl: null,
         hlsUrl: null,
-        statusHint: 'Frigate WebRTC needs an absolute http(s) or ws(s) URL.',
+        statusHint: 'WebRTC needs an absolute http(s), ws(s), or RTSP camera URL.',
         label: 'Frigate WebRTC',
       };
     }
@@ -73,7 +112,7 @@ const buildStreamTarget = (streamType: CameraStreamType = 'frigate-hls', streamU
       mode: 'none',
       wsUrl: null,
       hlsUrl: null,
-      statusHint: 'Frigate HLS needs an absolute http(s) .m3u8 URL.',
+      statusHint: 'HLS needs an absolute http(s) .m3u8 URL, or you can paste a raw RTSP camera URL.',
       label: 'Frigate HLS',
     };
   }
@@ -332,7 +371,7 @@ function FrigateCamera({
         socket = new WebSocket(wsUrl);
       } catch {
         setStreamState('offline');
-        setStatusMessage('Invalid Frigate WebRTC URL. Paste the absolute Frigate/go2rtc WebRTC endpoint from Camera Stream Integration.');
+        setStatusMessage('Invalid camera stream URL. Paste a Frigate/go2rtc endpoint or a raw RTSP camera URL in Camera Stream Integration.');
         return;
       }
 
@@ -374,7 +413,7 @@ function FrigateCamera({
 
       socket.addEventListener('error', () => {
         if (!cancelled) {
-          scheduleRetry('Stream Offline · unable to reach the Frigate WebRTC endpoint');
+          scheduleRetry('Stream Offline · unable to reach the go2rtc / WebRTC relay endpoint');
         }
       });
 

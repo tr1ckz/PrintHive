@@ -46,8 +46,8 @@ export function UISettings() {
     setUiLoading(true);
     try {
       const trimmedStreamUrl = cameraStreamUrl.trim();
-      if (trimmedStreamUrl && !/^(https?:\/\/|wss?:\/\/)/i.test(trimmedStreamUrl)) {
-        setToast({ message: 'Stream URL must be an absolute http(s) or ws(s) URL from Frigate.', type: 'error' });
+      if (trimmedStreamUrl && !/^(https?:\/\/|wss?:\/\/|rtsps?:\/\/)/i.test(trimmedStreamUrl)) {
+        setToast({ message: 'Stream URL must be an absolute http(s), ws(s), or rtsp(s) camera URL.', type: 'error' });
         return;
       }
 
@@ -76,8 +76,8 @@ export function UISettings() {
   };
 
   const streamPlaceholder = cameraStreamType === 'frigate-webrtc'
-    ? 'http://frigate-ip:1984/api/ws?src=camera_name'
-    : 'http://frigate-ip:5000/api/camera_name/hls.m3u8';
+    ? 'rtsp://user:pass@192.168.4.54/stream1 or http://frigate-ip:1984/api/ws?src=camera_name'
+    : 'rtsp://user:pass@192.168.4.54/stream1 or http://frigate-ip:5000/api/camera_name/hls.m3u8';
 
   return (
     <>
@@ -130,7 +130,7 @@ export function UISettings() {
 
       <CollapsibleSection title="Camera Stream Integration" icon="🎥">
         <p className="form-description">
-          Use one Frigate restream URL across PrintHive. All legacy camera options have been retired.
+          Use one camera URL across PrintHive. You can paste a Frigate endpoint or a raw RTSP feed and PrintHive will relay it through go2rtc automatically.
         </p>
 
         <div className="form-group">
@@ -158,8 +158,8 @@ export function UISettings() {
           />
           <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
             {cameraStreamType === 'frigate-webrtc'
-              ? 'Paste the absolute Frigate/go2rtc WebRTC endpoint URL. PrintHive will mount it directly in the browser.'
-              : 'Paste the absolute Frigate HLS playlist URL ending in .m3u8. This becomes the single source of truth for the camera feed.'}
+              ? 'Paste a Frigate/go2rtc WebRTC URL, or paste your raw RTSP camera URL and PrintHive will relay it over WebRTC automatically.'
+              : 'Paste a Frigate HLS .m3u8 URL, or paste your raw RTSP camera URL and PrintHive will expose it as an HLS feed automatically.'}
           </small>
         </div>
 

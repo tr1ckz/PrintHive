@@ -72,6 +72,7 @@ function getBambuApiBase(region = 'global') {
 
 const go2rtcConfigDir = path.join(__dirname, 'data', 'go2rtc');
 const go2rtcConfigPath = path.join(go2rtcConfigDir, 'go2rtc.yaml');
+const unifiedCameraRelayStreamName = 'printhive_camera';
 
 function normalizeStreamRelayUrl(value = '') {
   return String(value || '').trim().replace(/\/+$/, '');
@@ -121,6 +122,7 @@ function writeGo2RtcConfigFromDatabase() {
   const tapoPassword = getConfigValue('tapo_camera_password');
   const tapoStreamPath = getConfigValue('tapo_camera_path') || 'stream1';
   const defaultRtspUrl = buildTapoRtspUrl(tapoHost, tapoUsername, tapoPassword, tapoStreamPath);
+  const unifiedCameraStreamUrl = getConfigValue('camera_stream_url');
 
   const lines = [];
   const seen = new Set();
@@ -138,6 +140,10 @@ function writeGo2RtcConfigFromDatabase() {
     lines.push(`  ${streamName}: ${escapeYamlString(streamSource)}`);
     seen.add(streamName);
   };
+
+  if (/^rtsps?:\/\//i.test(unifiedCameraStreamUrl)) {
+    addStream(unifiedCameraRelayStreamName, unifiedCameraStreamUrl, 'Unified camera stream from Camera Stream Integration');
+  }
 
   if (defaultRtspUrl) {
     addStream(defaultStreamName, defaultRtspUrl, 'Optional default Tapo camera from UI settings');
@@ -2023,7 +2029,14 @@ app.post('/api/settings/ui', (req, res) => {
     upsert.run('camera_stream_type', normalizedStreamType, normalizedStreamType);
     upsert.run('camera_stream_url', normalizedStreamUrl, normalizedStreamUrl);
 
-    res.json({ success: true, cameraStreamType: normalizedStreamType, cameraStreamUrl: normalizedStreamUrl });
+    const go2rtcInfo = syncGo2RtcConfigSafe();
+    res.json({
+      success: true,
+      cameraStreamType: normalizedStreamType,
+      cameraStreamUrl: normalizedStreamUrl,
+      go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath,
+      streamCount: go2rtcInfo?.streamCount || 0,
+    });
   } catch (error) {
     console.error('Failed to save UI settings:', error);
     res.status(500).json({ error: 'Failed to save UI settings' });
