@@ -144,10 +144,10 @@
 .global-topbar {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
-  align-items: flex-start;
-  margin-bottom: 24px;
-  padding: 20px 22px;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 16px 20px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 22px;
   background: linear-gradient(135deg, rgba(24, 24, 27, 0.94) 0%, rgba(12, 12, 14, 0.96) 100%);
@@ -186,7 +186,7 @@
 
 .global-topbar h1 {
   font-size: clamp(1.8rem, 2vw, 2.5rem);
-  margin-bottom: 6px;
+  margin: 0;
   color: #fff;
 }
 
@@ -345,9 +345,10 @@
   }
 
   .global-topbar {
-    padding: 16px;
+    padding: 14px 16px;
     border-radius: 18px;
     flex-direction: column;
+    align-items: flex-start;
     margin-bottom: 16px;
   }
 

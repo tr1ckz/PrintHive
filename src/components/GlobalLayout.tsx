@@ -10,7 +10,7 @@ export interface GlobalLayoutNavItem {
 interface GlobalLayoutProps {
   appName?: string;
   pageTitle: string;
-  pageDescription: string;
+  pageDescription?: string;
   pageEyebrow?: string;
   breadcrumbs?: string[];
   navItems: GlobalLayoutNavItem[];
@@ -37,9 +37,6 @@ const formatRole = (role?: string) => {
 function GlobalLayout({
   appName = 'PrintHive',
   pageTitle,
-  pageDescription,
-  pageEyebrow = 'Unified workspace',
-  breadcrumbs = ['Workspace', pageTitle],
   navItems,
   activeId,
   onSelect,
@@ -60,9 +57,6 @@ function GlobalLayout({
 
   const handleMobileSelect = (id: string) => {
     onSelect(id);
-    if (mobileMenuOpen) {
-      onToggleMobileMenu();
-    }
   };
 
   return (
@@ -112,16 +106,7 @@ function GlobalLayout({
       <div className="global-main-shell p-4 md:p-5 lg:p-6">
         <header className="global-topbar rounded-2xl p-4 md:p-5 lg:p-6">
           <div className="global-topbar-copy min-w-0">
-            <span className="global-topbar-kicker">{pageEyebrow}</span>
-            <div className="global-breadcrumbs" aria-label="Breadcrumb">
-              {breadcrumbs.map((crumb, index) => (
-                <span key={`${crumb}-${index}`} className="global-breadcrumb-item">
-                  {crumb}
-                </span>
-              ))}
-            </div>
             <h1 className="text-2xl md:text-3xl lg:text-4xl">{pageTitle}</h1>
-            <p className="text-sm md:text-base">{pageDescription}</p>
           </div>
 
           <div className="global-topbar-actions">
