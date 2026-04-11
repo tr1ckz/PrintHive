@@ -142,20 +142,28 @@
 }
 
 .global-topbar {
+  --topbar-scroll-progress: 0;
+  --topbar-meta-opacity: 1;
+  --topbar-title-scale: 1;
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  align-items: center;
-  margin-bottom: 20px;
-  padding: 16px 20px;
+  align-items: flex-start;
+  margin-bottom: calc(20px - 8px * var(--topbar-scroll-progress));
+  padding: calc(16px - 4px * var(--topbar-scroll-progress)) 20px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 22px;
   background: linear-gradient(135deg, rgba(24, 24, 27, 0.94) 0%, rgba(12, 12, 14, 0.96) 100%);
   box-shadow: var(--shadow-lg);
+  position: sticky;
+  top: 12px;
+  z-index: 10;
+  backdrop-filter: blur(14px);
 }
 
 .global-topbar-copy {
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .global-topbar-kicker {
@@ -176,6 +184,12 @@
   color: rgba(255, 255, 255, 0.55);
   font-size: 0.82rem;
   margin-bottom: 8px;
+  opacity: var(--topbar-meta-opacity);
+  transform: translateY(calc(-6px * var(--topbar-scroll-progress)));
+  transform-origin: left top;
+  max-height: calc(24px * (1 - var(--topbar-scroll-progress)) + 2px);
+  overflow: hidden;
+  transition: opacity 0.18s ease, transform 0.18s ease, max-height 0.18s ease, margin 0.18s ease;
 }
 
 .global-breadcrumb-item:not(:last-child)::after {
@@ -188,6 +202,9 @@
   font-size: clamp(1.8rem, 2vw, 2.5rem);
   margin: 0;
   color: #fff;
+  transform: scale(var(--topbar-title-scale));
+  transform-origin: left top;
+  transition: transform 0.18s ease;
 }
 
 .global-topbar p {
@@ -196,12 +213,23 @@
   line-height: 1.55;
 }
 
+.global-topbar-description {
+  margin-top: 8px;
+  opacity: var(--topbar-meta-opacity);
+  transform: translateY(calc(-8px * var(--topbar-scroll-progress)));
+  transform-origin: left top;
+  max-height: calc(76px * (1 - var(--topbar-scroll-progress)) + 8px);
+  overflow: hidden;
+  transition: opacity 0.18s ease, transform 0.18s ease, max-height 0.18s ease, margin 0.18s ease;
+}
+
 .global-topbar-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-self: center;
 }
 
 .global-topbar-slot {
@@ -350,11 +378,17 @@
     flex-direction: column;
     align-items: flex-start;
     margin-bottom: 16px;
+    top: 8px;
+  }
+
+  .global-topbar-copy {
+    width: 100%;
   }
 
   .global-topbar-actions {
     width: 100%;
-    justify-content: flex-end;
+    justify-content: space-between;
+    gap: 10px;
   }
 
   .global-topbar-slot {
@@ -403,7 +437,13 @@
 
   .global-topbar-actions {
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+  }
+
+  .global-logout-btn,
+  .global-mobile-menu-btn {
+    margin: 0;
   }
 
   .global-user-chip {

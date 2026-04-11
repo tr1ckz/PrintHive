@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import './GlobalLayout.css';
 
 export interface GlobalLayoutNavItem {
@@ -37,6 +37,8 @@ const formatRole = (role?: string) => {
 function GlobalLayout({
   appName = 'PrintHive',
   pageTitle,
+  pageDescription,
+  breadcrumbs = ['Workspace', pageTitle],
   navItems,
   activeId,
   onSelect,
@@ -53,7 +55,46 @@ function GlobalLayout({
   children,
 }: GlobalLayoutProps) {
   const avatarText = userAvatarText || userName?.slice(0, 1)?.toUpperCase() || 'U';
+  const mainContentRef = useRef<HTMLElement | null>(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const mobilePrimaryItems = navItems.filter((item) => ['home', 'printers', 'statistics', 'settings'].includes(item.id));
+
+  useEffect(() => {
+    const contentEl = mainContentRef.current;
+    if (!contentEl) {
+      return;
+    }
+
+    let frameId = 0;
+    const updateProgress = () => {
+      const nextProgress = Math.max(0, Math.min(contentEl.scrollTop / 140, 1));
+      setScrollProgress((current) => (Math.abs(current - nextProgress) > 0.01 ? nextProgress : current));
+    };
+
+    const handleScroll = () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+
+      frameId = window.requestAnimationFrame(updateProgress);
+    };
+
+    updateProgress();
+    contentEl.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+      contentEl.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  const topbarStyle = useMemo(() => ({
+    ['--topbar-scroll-progress' as string]: scrollProgress.toFixed(3),
+    ['--topbar-meta-opacity' as string]: Math.max(0, 1 - scrollProgress * 1.35).toFixed(3),
+    ['--topbar-title-scale' as string]: (1 - scrollProgress * 0.16).toFixed(3),
+  }) as CSSProperties, [scrollProgress]);
 
   const handleMobileSelect = (id: string) => {
     onSelect(id);
@@ -104,9 +145,19 @@ function GlobalLayout({
       </aside>
 
       <div className="global-main-shell p-4 md:p-5 lg:p-6">
-        <header className="global-topbar rounded-2xl p-4 md:p-5 lg:p-6">
+        <header className="global-topbar rounded-2xl p-4 md:p-5 lg:p-6" style={topbarStyle}>
           <div className="global-topbar-copy min-w-0">
+            {breadcrumbs.length ? (
+              <div className="global-breadcrumbs" aria-label="Breadcrumb">
+                {breadcrumbs.map((crumb, index) => (
+                  <span key={`${crumb}-${index}`} className="global-breadcrumb-item">
+                    {crumb}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             <h1 className="text-2xl md:text-3xl lg:text-4xl">{pageTitle}</h1>
+            {pageDescription ? <p className="global-topbar-description text-sm md:text-base">{pageDescription}</p> : null}
           </div>
 
           <div className="global-topbar-actions">
@@ -182,7 +233,7 @@ function GlobalLayout({
           </nav>
         </aside>
 
-        <main className="global-page-content pb-24 md:pb-4">{children}</main>
+        <main ref={mainContentRef} className="global-page-content pb-24 md:pb-4">{children}</main>
 
         <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl backdrop-blur-xl md:hidden" aria-label="Quick mobile navigation">
           {mobilePrimaryItems.map((item) => (
