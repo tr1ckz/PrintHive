@@ -73,6 +73,9 @@ function getBambuApiBase(region = 'global') {
 const go2rtcConfigDir = path.join(__dirname, 'data', 'go2rtc');
 const go2rtcConfigPath = path.join(go2rtcConfigDir, 'go2rtc.yaml');
 const unifiedCameraRelayStreamName = 'printhive_camera';
+const go2rtcInternalBaseUrl = process.env.GO2RTC_INTERNAL_URL || 'http://127.0.0.1:1984';
+const go2rtcProxyPath = '/api/go2rtc';
+const go2rtcWebSocketProxyPath = `${go2rtcProxyPath}/ws`;
 
 function normalizeStreamRelayUrl(value = '') {
   return String(value || '').trim().replace(/\/+$/, '');
@@ -86,6 +89,16 @@ function sanitizeGo2RtcStreamName(value, fallback = 'camera') {
     .slice(0, 64);
 
   return normalized || fallback;
+}
+
+function getGo2RtcInternalBaseUrl() {
+  return normalizeStreamRelayUrl(go2rtcInternalBaseUrl);
+}
+
+function toWebSocketProxyUrl(value = '') {
+  if (value.startsWith('https://')) return `wss://${value.slice('https://'.length)}`;
+  if (value.startsWith('http://')) return `ws://${value.slice('http://'.length)}`;
+  return value;
 }
 
 function buildPrinterRelayStreamName(printer) {
@@ -786,6 +799,62 @@ function setupRealtimeServer(server) {
   logger.info(`[Realtime] WebSocket bridge ready at ${REALTIME_SOCKET_PATH}`);
 }
 
+function setupGo2RtcWebSocketProxy(server) {
+  if (!server) {
+    return;
+  }
+
+  const go2rtcProxyWss = new WebSocketServer({ noServer: true });
+
+  go2rtcProxyWss.on('connection', (clientSocket, request) => {
+    const requestUrl = new URL(request.url || go2rtcWebSocketProxyPath, 'http://localhost');
+    const upstreamUrl = `${toWebSocketProxyUrl(getGo2RtcInternalBaseUrl())}/api/ws${requestUrl.search || ''}`;
+    const upstreamSocket = new WebSocket(upstreamUrl);
+
+    const closeBothSockets = () => {
+      if (clientSocket.readyState === WebSocket.OPEN || clientSocket.readyState === WebSocket.CONNECTING) {
+        clientSocket.close();
+      }
+      if (upstreamSocket.readyState === WebSocket.OPEN || upstreamSocket.readyState === WebSocket.CONNECTING) {
+        upstreamSocket.close();
+      }
+    };
+
+    clientSocket.on('message', (data, isBinary) => {
+      if (upstreamSocket.readyState === WebSocket.OPEN) {
+        upstreamSocket.send(data, { binary: isBinary });
+      }
+    });
+
+    upstreamSocket.on('message', (data, isBinary) => {
+      if (clientSocket.readyState === WebSocket.OPEN) {
+        clientSocket.send(data, { binary: isBinary });
+      }
+    });
+
+    clientSocket.on('close', closeBothSockets);
+    clientSocket.on('error', closeBothSockets);
+    upstreamSocket.on('close', closeBothSockets);
+    upstreamSocket.on('error', (error) => {
+      logger.warn('[go2rtc] WebSocket proxy failed:', error.message);
+      closeBothSockets();
+    });
+  });
+
+  server.on('upgrade', (request, socket, head) => {
+    const pathname = new URL(request.url || go2rtcWebSocketProxyPath, 'http://localhost').pathname;
+    if (pathname !== go2rtcWebSocketProxyPath) {
+      return;
+    }
+
+    go2rtcProxyWss.handleUpgrade(request, socket, head, (ws) => {
+      go2rtcProxyWss.emit('connection', ws, request);
+    });
+  });
+
+  logger.info(`[go2rtc] WebSocket proxy ready at ${go2rtcWebSocketProxyPath}`);
+}
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -851,7 +920,7 @@ app.use((req, res, next) => {
   // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   // Content Security Policy - allow inline scripts for viewer but restrict external resources
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' ws: wss: blob: https://cdn.jsdelivr.net https://cloudflareinsights.com");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self'; media-src 'self' http: https: blob: data:; connect-src 'self' http: https: ws: wss: blob: https://cdn.jsdelivr.net https://cloudflareinsights.com");
   // Permissions Policy (formerly Feature Policy)
   res.setHeader('Permissions-Policy', 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()');
   next();
@@ -916,6 +985,43 @@ passport.deserializeUser((id, done) => {
     done(null, user);
   } catch (error) {
     done(error);
+  }
+});
+
+app.get(`${go2rtcProxyPath}/*`, async (req, res) => {
+  if (!req.session?.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const upstreamPath = req.originalUrl.replace(go2rtcProxyPath, '/api');
+    const upstreamUrl = `${getGo2RtcInternalBaseUrl()}${upstreamPath}`;
+    const upstreamResponse = await axios.get(upstreamUrl, {
+      responseType: 'stream',
+      validateStatus: () => true,
+      timeout: 15000,
+    });
+
+    res.status(upstreamResponse.status);
+
+    ['content-type', 'cache-control', 'content-length', 'content-range', 'accept-ranges'].forEach((headerName) => {
+      const headerValue = upstreamResponse.headers[headerName];
+      if (headerValue) {
+        res.setHeader(headerName, headerValue);
+      }
+    });
+
+    upstreamResponse.data.on('error', (error) => {
+      logger.warn('[go2rtc] HTTP proxy stream failed:', error.message);
+      if (!res.headersSent) {
+        res.status(502).end('Unable to read go2rtc relay stream');
+      }
+    });
+
+    upstreamResponse.data.pipe(res);
+  } catch (error) {
+    logger.warn('[go2rtc] HTTP proxy request failed:', error.message);
+    res.status(502).json({ error: 'Unable to reach go2rtc camera relay' });
   }
 });
 
@@ -8822,6 +8928,7 @@ httpServer = app.listen(PORT, async () => {
 });
 
 setupRealtimeServer(httpServer);
+setupGo2RtcWebSocketProxy(httpServer);
 
 // Graceful shutdown handler
 let shuttingDown = false;

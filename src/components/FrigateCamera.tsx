@@ -38,26 +38,33 @@ const toWebSocketUrl = (value: string) => {
   return value;
 };
 
-const getLocalGo2RtcBaseUrl = () => {
+const getLocalGo2RtcProxyUrls = () => {
   if (typeof window === 'undefined') {
-    return 'http://localhost:1984';
+    return {
+      httpBaseUrl: 'http://localhost:3000/api/go2rtc',
+      wsBaseUrl: 'ws://localhost:3000/api/go2rtc',
+    };
   }
 
-  const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-  return `${protocol}//${window.location.hostname}:1984`;
+  const httpProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+  return {
+    httpBaseUrl: `${httpProtocol}//${window.location.host}/api/go2rtc`,
+    wsBaseUrl: `${wsProtocol}//${window.location.host}/api/go2rtc`,
+  };
 };
 
 const buildGo2RtcRelayTarget = (streamType: CameraStreamType, streamUrl: string): StreamTarget => {
-  const relayBaseUrl = getLocalGo2RtcBaseUrl();
-  const relayWsBaseUrl = toWebSocketUrl(relayBaseUrl);
+  const { httpBaseUrl, wsBaseUrl } = getLocalGo2RtcProxyUrls();
   const sourceParam = encodeURIComponent(UNIFIED_GO2RTC_STREAM_NAME);
 
   if (streamType === 'frigate-webrtc') {
     return {
       mode: 'webrtc',
-      wsUrl: `${relayWsBaseUrl}/api/ws?src=${sourceParam}`,
+      wsUrl: `${wsBaseUrl}/ws?src=${sourceParam}`,
       hlsUrl: null,
-      statusHint: 'Opening RTSP relay through go2rtc WebRTC…',
+      statusHint: 'Opening RTSP relay through the secure PrintHive proxy…',
       label: 'RTSP Relay · WebRTC',
     };
   }
@@ -65,8 +72,8 @@ const buildGo2RtcRelayTarget = (streamType: CameraStreamType, streamUrl: string)
   return {
     mode: 'hls',
     wsUrl: null,
-    hlsUrl: `${relayBaseUrl}/api/stream.m3u8?src=${sourceParam}`,
-    statusHint: 'Opening RTSP relay through go2rtc HLS…',
+    hlsUrl: `${httpBaseUrl}/stream.m3u8?src=${sourceParam}`,
+    statusHint: 'Opening RTSP relay through the secure PrintHive proxy…',
     label: 'RTSP Relay · HLS',
   };
 };
