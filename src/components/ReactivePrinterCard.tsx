@@ -171,6 +171,14 @@ function ReactiveStatusPanel({ printerId }: { printerId: string }) {
         </div>
       ) : null}
 
+      <div className="status-telemetry-section">
+        <div className="status-subsection-header">
+          <span className="panel-kicker">Telemetry</span>
+          <h5>Temps, Fans & Signals</h5>
+        </div>
+        <ReactiveTelemetryPanel printerId={printerId} embedded />
+      </div>
+
       {has3mf && modelId ? (
         <a
           href={API_ENDPOINTS.MODELS.LOCAL_DOWNLOAD(modelId)}
@@ -185,7 +193,7 @@ function ReactiveStatusPanel({ printerId }: { printerId: string }) {
   );
 }
 
-function ReactiveTelemetryPanel({ printerId }: { printerId: string }) {
+function ReactiveTelemetryPanel({ printerId, embedded = false }: { printerId: string; embedded?: boolean }) {
   const hasAnyTelemetry = usePrinterStore((state) => {
     const task = state.printersById[printerId]?.current_task;
     return Boolean(
@@ -201,17 +209,8 @@ function ReactiveTelemetryPanel({ printerId }: { printerId: string }) {
     );
   });
 
-  return (
-    <section className="printer-panel telemetry-panel">
-      <div className="panel-header-inline">
-        <div>
-          <span className="panel-kicker">Live Telemetry</span>
-          <h4>Temps, Fans & Signals</h4>
-        </div>
-      </div>
-
-      {hasAnyTelemetry ? (
-        <div className="telemetry-mini-grid">
+  const content = hasAnyTelemetry ? (
+        <div className={`telemetry-mini-grid ${embedded ? 'status-telemetry-grid' : ''}`.trim()}>
           <TelemetryTile
             printerId={printerId}
             label="Nozzle"
@@ -286,11 +285,26 @@ function ReactiveTelemetryPanel({ printerId }: { printerId: string }) {
           />
         </div>
       ) : (
-        <div className="panel-empty compact">
+        <div className={`panel-empty compact ${embedded ? 'telemetry-inline-empty' : ''}`.trim()}>
           <strong>Awaiting telemetry</strong>
           <span>Values will appear as soon as the printer publishes them.</span>
         </div>
-      )}
+      );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <section className="printer-panel telemetry-panel">
+      <div className="panel-header-inline">
+        <div>
+          <span className="panel-kicker">Live Telemetry</span>
+          <h4>Temps, Fans & Signals</h4>
+        </div>
+      </div>
+
+      {content}
     </section>
   );
 }
@@ -331,7 +345,15 @@ function ReactiveAmsPanel({ printerId }: { printerId: string }) {
                   <span>Slot {tray.slot}</span>
                   {remainPercent != null ? <strong>{remainPercent}%</strong> : <strong>—</strong>}
                 </div>
-                <div className="ams-slot-color" style={{ background: colorHex }} />
+                <div className="ams-slot-color-track">
+                  <div
+                    className="ams-slot-color-fill"
+                    style={{
+                      background: colorHex,
+                      width: remainPercent != null ? `${remainPercent <= 0 ? 0 : Math.max(remainPercent, 6)}%` : '100%',
+                    }}
+                  />
+                </div>
                 <div className="ams-slot-name">{tray.sub_brands || tray.type || 'Empty'}</div>
                 <div className="ams-slot-meta">
                   {typeof tray.humidity === 'number' ? `💧 ${Math.round(tray.humidity)}%` : 'Humidity —'}
@@ -480,7 +502,6 @@ function ReactivePrinterCardComponent({
           rtspUrl={rtspUrl}
         />
         <ReactiveStatusPanel printerId={printerId} />
-        <ReactiveTelemetryPanel printerId={printerId} />
         <ReactiveAmsPanel printerId={printerId} />
       </div>
     </article>

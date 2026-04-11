@@ -255,6 +255,11 @@
   min-width: 0;
 }
 
+.status-panel {
+  display: flex;
+  flex-direction: column;
+}
+
 .camera-panel {
   min-height: 320px;
 }
@@ -480,6 +485,25 @@
   margin-top: 10px;
 }
 
+.status-telemetry-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.status-subsection-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.status-subsection-header h5 {
+  color: #fff;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
 .telemetry-mini-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -505,6 +529,15 @@
 .telemetry-tile strong {
   color: #fff;
   line-height: 1.4;
+}
+
+.status-telemetry-grid {
+  margin-top: 0;
+}
+
+.telemetry-inline-empty {
+  min-height: 110px;
+  padding: 14px;
 }
 
 .ams-unified-grid {
@@ -534,10 +567,18 @@
   font-size: 0.82rem;
 }
 
-.ams-slot-color {
+.ams-slot-color-track {
   height: 8px;
   border-radius: 999px;
   margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.ams-slot-color-fill {
+  height: 100%;
+  border-radius: inherit;
+  min-width: 0;
 }
 
 .ams-slot-name {
