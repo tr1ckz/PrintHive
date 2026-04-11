@@ -12,7 +12,7 @@ class RtspCameraProxy {
     this.quality = options.quality || 5;
     this.width = options.width || 960;
     this.keepAliveIntervalMs = options.keepAliveIntervalMs || 10000;
-    this.startupTimeoutMs = options.startupTimeoutMs || 15000;
+    this.startupTimeoutMs = options.startupTimeoutMs || 30000;
 
     this.clients = new Set();
     this.ffmpeg = null;
@@ -83,9 +83,9 @@ class RtspCameraProxy {
       '-rtsp_transport', 'tcp',
       '-fflags', 'nobuffer',
       '-flags', 'low_delay',
-      '-analyzeduration', '1000000',
-      '-probesize', '32768',
-      '-rw_timeout', '5000000',
+      '-analyzeduration', '5000000',
+      '-probesize', '1000000',
+      '-rw_timeout', '10000000',
       '-i', rtspUrl,
       '-an',
       '-vf', `fps=${this.frameRate},scale=${this.width}:-1`,

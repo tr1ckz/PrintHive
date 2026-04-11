@@ -632,6 +632,21 @@
     flex-direction: column;
   }
 
+  .page-header {
+    gap: 10px;
+  }
+
+  .page-header h1 {
+    font-size: 1.35rem;
+    line-height: 1.15;
+    margin-bottom: 4px;
+  }
+
+  .page-header p {
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
   .printers-inline-summary span {
     font-size: 0.74rem;
     padding: 7px 9px;

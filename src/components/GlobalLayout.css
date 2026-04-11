@@ -374,15 +374,30 @@
 @media (max-width: 640px) {
   .global-topbar {
     padding: 14px;
-    gap: 14px;
+    gap: 12px;
+  }
+
+  .global-topbar-kicker {
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  .global-breadcrumbs {
+    font-size: 0.74rem;
+    gap: 6px;
+    margin-bottom: 6px;
   }
 
   .global-topbar h1 {
-    font-size: 1.6rem;
+    font-size: 1.3rem;
+    line-height: 1.15;
+    margin-bottom: 4px;
   }
 
   .global-topbar p {
-    font-size: 0.92rem;
+    font-size: 0.88rem;
+    line-height: 1.45;
   }
 
   .global-topbar-actions {

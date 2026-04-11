@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import './FrigateCamera.css';
 
+type DisplayMode = 'stream' | 'snapshot' | 'offline';
+const SNAPSHOT_REFRESH_MS = 5000;
+
 interface RTSPCameraProps {
   rtspUrl?: string;
   printerName?: string;
@@ -13,8 +16,10 @@ function RTSPCamera({
   printerName = 'Printer',
   className = '',
 }: RTSPCameraProps) {
-  const [hasError, setHasError] = useState(false);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('stream');
+  const [hasSnapshotError, setHasSnapshotError] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const [snapshotToken, setSnapshotToken] = useState(0);
 
   const streamSrc = useMemo(() => {
     if (!rtspUrl?.trim()) {
@@ -25,9 +30,34 @@ function RTSPCamera({
     return `${API_ENDPOINTS.PRINTERS.CAMERA_STREAM}${separator}t=${reloadToken}`;
   }, [reloadToken, rtspUrl]);
 
+  const snapshotSrc = useMemo(() => {
+    if (!rtspUrl?.trim()) {
+      return '';
+    }
+
+    const separator = API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT.includes('?') ? '&' : '?';
+    return `${API_ENDPOINTS.PRINTERS.CAMERA_SNAPSHOT}${separator}url=${encodeURIComponent(rtspUrl)}&t=${reloadToken}-${snapshotToken}`;
+  }, [reloadToken, rtspUrl, snapshotToken]);
+
   useEffect(() => {
-    setHasError(false);
-  }, [streamSrc]);
+    setDisplayMode('stream');
+    setHasSnapshotError(false);
+    setSnapshotToken(0);
+  }, [streamSrc, rtspUrl]);
+
+  useEffect(() => {
+    if (displayMode !== 'snapshot' || !rtspUrl?.trim()) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setSnapshotToken((value) => value + 1);
+    }, SNAPSHOT_REFRESH_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [displayMode, rtspUrl]);
 
   useEffect(() => {
     return () => {
@@ -62,24 +92,44 @@ function RTSPCamera({
     );
   }
 
+  const usingSnapshotFallback = displayMode === 'snapshot' && !hasSnapshotError;
+
   return (
     <div className={`frigate-camera ${className}`.trim()}>
-      {!hasError && streamSrc ? (
+      {displayMode === 'stream' && streamSrc ? (
         <img
           src={streamSrc}
           alt={`${printerName} live RTSP stream`}
           className="frigate-camera-video is-live"
           loading="eager"
-          onLoad={() => setHasError(false)}
-          onError={() => setHasError(true)}
+          onLoad={() => setHasSnapshotError(false)}
+          onError={() => {
+            setDisplayMode('snapshot');
+            setSnapshotToken(0);
+          }}
         />
       ) : null}
 
-      {hasError ? (
+      {usingSnapshotFallback && snapshotSrc ? (
+        <img
+          src={snapshotSrc}
+          alt={`${printerName} live RTSP snapshot`}
+          className="frigate-camera-video is-live"
+          loading="eager"
+          title="Snapshot fallback active"
+          onLoad={() => setHasSnapshotError(false)}
+          onError={() => {
+            setHasSnapshotError(true);
+            setDisplayMode('offline');
+          }}
+        />
+      ) : null}
+
+      {displayMode === 'offline' ? (
         <div className="frigate-camera-overlay offline">
           <div className="frigate-camera-state">
             <strong>RTSP stream offline</strong>
-            <span>PrintHive could not relay the FFmpeg MJPEG stream from the configured RTSP source.</span>
+            <span>PrintHive could not open the live MJPEG relay, and the snapshot fallback also failed for this RTSP source.</span>
             <small>{printerName} · Native RTSP</small>
             <button
               type="button"

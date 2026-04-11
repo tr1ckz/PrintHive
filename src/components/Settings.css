@@ -216,6 +216,30 @@
   cursor: not-allowed;
 }
 
+@media (max-width: 640px) {
+  .settings-container {
+    padding: 1rem;
+  }
+
+  .settings-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .settings-header h1 {
+    font-size: 1.35rem;
+    line-height: 1.15;
+  }
+
+  .settings-description {
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .settings-section {
+    padding: 1rem;
+  }
+}
+
 .message {
   padding: 1rem;
   border-radius: 8px;
