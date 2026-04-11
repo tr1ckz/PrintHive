@@ -11,12 +11,17 @@ class RtspCameraProxy {
     this.frameRate = options.frameRate || 5;
     this.quality = options.quality || 5;
     this.width = options.width || 960;
+    this.keepAliveIntervalMs = options.keepAliveIntervalMs || 10000;
+    this.startupTimeoutMs = options.startupTimeoutMs || 15000;
 
     this.clients = new Set();
     this.ffmpeg = null;
     this.currentRtspUrl = '';
     this.frameBuffer = Buffer.alloc(0);
     this.stopTimer = null;
+    this.keepAliveTimer = null;
+    this.startupTimer = null;
+    this.hasDeliveredFrame = false;
   }
 
   addClient(res, rtspUrl) {
@@ -36,7 +41,16 @@ class RtspCameraProxy {
       'X-Accel-Buffering': 'no',
     });
 
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
+
+    res.socket?.setNoDelay?.(true);
+    res.socket?.setKeepAlive?.(true, this.keepAliveIntervalMs);
+    res.write('\r\n');
+
     this.clients.add(res);
+    this.ensureKeepAlive();
     this.ensureProcess(trimmedUrl);
 
     const cleanup = () => {
@@ -59,6 +73,9 @@ class RtspCameraProxy {
   }
 
   startProcess(rtspUrl) {
+    this.hasDeliveredFrame = false;
+    this.clearStartupTimer();
+
     const ffmpegArgs = [
       '-hide_banner',
       '-loglevel', 'error',
@@ -66,6 +83,8 @@ class RtspCameraProxy {
       '-rtsp_transport', 'tcp',
       '-fflags', 'nobuffer',
       '-flags', 'low_delay',
+      '-analyzeduration', '1000000',
+      '-probesize', '32768',
       '-rw_timeout', '5000000',
       '-i', rtspUrl,
       '-an',
@@ -84,6 +103,16 @@ class RtspCameraProxy {
       this.handleChunk(chunk);
     });
 
+    this.startupTimer = setTimeout(() => {
+      this.startupTimer = null;
+
+      if (!this.hasDeliveredFrame && this.clients.size > 0 && this.currentRtspUrl === rtspUrl) {
+        this.logger.warn?.('[RTSP proxy] Timed out waiting for the first MJPEG frame from FFmpeg');
+        this.closeClients();
+        this.stopProcess();
+      }
+    }, this.startupTimeoutMs);
+
     this.ffmpeg.stderr.on('data', (chunk) => {
       const message = String(chunk || '').trim();
       if (message) {
@@ -93,6 +122,7 @@ class RtspCameraProxy {
 
     this.ffmpeg.on('error', (error) => {
       this.logger.error?.('[RTSP proxy] Failed to spawn FFmpeg:', error.message);
+      this.closeClients();
       this.stopProcess();
     });
 
@@ -101,10 +131,15 @@ class RtspCameraProxy {
         this.logger.warn?.(`[RTSP proxy] FFmpeg exited with code ${code}${signal ? ` (${signal})` : ''}`);
       }
 
+      this.clearStartupTimer();
       this.ffmpeg = null;
       this.frameBuffer = Buffer.alloc(0);
 
-      if (this.clients.size > 0 && this.currentRtspUrl) {
+      if (this.clients.size > 0) {
+        this.closeClients();
+      }
+
+      if (this.clients.size === 0 && this.currentRtspUrl) {
         this.scheduleStop();
       }
     });
@@ -134,6 +169,9 @@ class RtspCameraProxy {
   }
 
   broadcastFrame(frame) {
+    this.hasDeliveredFrame = true;
+    this.clearStartupTimer();
+
     for (const client of Array.from(this.clients)) {
       if (client.writableEnded || client.destroyed) {
         this.clients.delete(client);
@@ -158,8 +196,62 @@ class RtspCameraProxy {
     this.clients.delete(res);
 
     if (this.clients.size === 0) {
+      this.clearKeepAlive();
       this.scheduleStop();
     }
+  }
+
+  ensureKeepAlive() {
+    if (this.keepAliveTimer) {
+      return;
+    }
+
+    this.keepAliveTimer = setInterval(() => {
+      if (this.clients.size === 0) {
+        this.clearKeepAlive();
+        return;
+      }
+
+      for (const client of Array.from(this.clients)) {
+        if (client.writableEnded || client.destroyed) {
+          this.clients.delete(client);
+          continue;
+        }
+
+        try {
+          client.write('\r\n');
+        } catch (_error) {
+          this.clients.delete(client);
+        }
+      }
+    }, this.keepAliveIntervalMs);
+  }
+
+  clearKeepAlive() {
+    if (this.keepAliveTimer) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
+    }
+  }
+
+  clearStartupTimer() {
+    if (this.startupTimer) {
+      clearTimeout(this.startupTimer);
+      this.startupTimer = null;
+    }
+  }
+
+  closeClients() {
+    for (const client of Array.from(this.clients)) {
+      try {
+        client.end();
+      } catch (_error) {
+        // Ignore close errors while shutting down the stream.
+      }
+    }
+
+    this.clients.clear();
+    this.clearKeepAlive();
   }
 
   scheduleStop() {
@@ -184,6 +276,8 @@ class RtspCameraProxy {
 
   stopProcess() {
     this.clearStopTimer();
+    this.clearStartupTimer();
+    this.hasDeliveredFrame = false;
 
     if (this.ffmpeg && !this.ffmpeg.killed) {
       this.ffmpeg.kill('SIGKILL');
@@ -195,15 +289,7 @@ class RtspCameraProxy {
   }
 
   stopAll() {
-    for (const client of Array.from(this.clients)) {
-      try {
-        client.end();
-      } catch (_error) {
-        // Ignore close errors during cleanup.
-      }
-    }
-
-    this.clients.clear();
+    this.closeClients();
     this.stopProcess();
   }
 }
