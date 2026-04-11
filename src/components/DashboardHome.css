@@ -47,7 +47,7 @@
 /* Stats Row */
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: 1fr;
   gap: 1rem;
   margin-bottom: 2rem;
 }
@@ -80,7 +80,7 @@
 }
 
 .stat-value {
-  font-size: 1.75rem;
+  font-size: clamp(1.25rem, 4.5vw, 1.75rem);
   font-weight: 700;
   color: white;
 }
@@ -93,7 +93,7 @@
 /* Widgets Grid */
 .widgets-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 1.5rem;
 }
 
@@ -307,7 +307,7 @@
 /* Recent Prints Grid - Small Icons */
 .recent-prints-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: 1fr;
   gap: 0.75rem;
 }
 
@@ -381,7 +381,7 @@
 /* Quick Stats Widget */
 .quick-stats-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 1rem;
 }
 
@@ -414,7 +414,7 @@
 /* Quick Actions Widget */
 .quick-actions-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 0.75rem;
 }
 
@@ -482,7 +482,7 @@
 
 /* Premium home refresh */
 .dashboard-home {
-  padding: 0;
+  padding: 0 0 12px;
   max-width: 1480px;
   display: grid;
   gap: 20px;
@@ -493,9 +493,9 @@
   justify-content: space-between;
   gap: 18px;
   flex-wrap: wrap;
-  padding: 24px;
+  padding: 16px;
   margin-bottom: 0;
-  border-radius: 24px;
+  border-radius: 20px;
   background: linear-gradient(135deg, rgba(24, 24, 27, 0.95) 0%, rgba(12, 12, 16, 0.98) 100%);
   border: 1px solid var(--border-primary);
   box-shadow: var(--shadow-lg);
@@ -666,6 +666,29 @@
 
 .recent-print-cover {
   background: rgba(255, 255, 255, 0.04);
+}
+
+@media (min-width: 640px) {
+  .stats-row,
+  .quick-stats-grid,
+  .quick-actions-grid,
+  .recent-prints-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .stats-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .widgets-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .recent-prints-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {

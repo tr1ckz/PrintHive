@@ -156,7 +156,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
   }
 
   return (
-    <div className="dashboard-home">
+    <div className="dashboard-home px-0 sm:px-1">
       <header className="dashboard-header dashboard-header--compact">
         <span className="dashboard-kicker">Operations overview</span>
         <div className="dashboard-header-meta">
@@ -167,7 +167,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
       </header>
 
       {/* Quick Stats Row */}
-      <div className="stats-row">
+      <div className="stats-row grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="stat-card">
           <div className="stat-icon">🖨️</div>
           <div className="stat-content">
@@ -202,10 +202,10 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
       </div>
 
       {/* Main Widgets Grid */}
-      <div className="widgets-grid">
+      <div className="widgets-grid grid grid-cols-1 gap-4 xl:grid-cols-2 xl:gap-6">
         {/* Active Printers Widget - Show Currently Printing */}
         {printers.some(p => p.online && p.currentPrint) && (
-          <div className="widget active-prints-widget" style={{ gridColumn: '1 / -1' }}>
+          <div className="widget active-prints-widget xl:col-span-2">
             <div className="widget-header">
               <h3>🔥 Currently Printing</h3>
             </div>
@@ -283,7 +283,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                 <button onClick={() => onNavigate('history')}>Sync Print History</button>
               </div>
             ) : (
-              <div className="recent-prints-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', maxWidth: '900px', margin: '0 auto' }}>
+              <div className="recent-prints-grid mx-auto grid max-w-[900px] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {recentPrints.slice(0, 3).map(print => (
                   <div key={print.id} className="recent-print-card" onClick={() => onNavigate('history')}>
                     <div className="recent-print-cover">

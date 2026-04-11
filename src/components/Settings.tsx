@@ -255,7 +255,7 @@ function Settings({ userRole, initialSection }: SettingsProps) {
 
   return (
     <SettingsContext.Provider value={{ toast, setToast, isAdmin }}>
-      <div className="settings-container settings-shell">
+      <div className="settings-container settings-shell px-0 sm:px-1">
         <div className="settings-header settings-shell-header">
           <div className="settings-header-pills">
             <span className="settings-summary-pill">{availableCategories.length} categories</span>
@@ -263,8 +263,42 @@ function Settings({ userRole, initialSection }: SettingsProps) {
           </div>
         </div>
 
-        <div className="settings-layout settings-layout-unified">
-          <aside className="settings-sidebar settings-sidebar-modern">
+        <div className="settings-mobile-controls xl:hidden">
+          <div className="form-group">
+            <label htmlFor="settings-category-select">Category</label>
+            <select
+              id="settings-category-select"
+              value={selection.category}
+              onChange={(event) => handleCategoryChange(event.target.value as SettingsCategory)}
+              className="form-control"
+            >
+              {availableCategories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="settings-panel-select">Section</label>
+            <select
+              id="settings-panel-select"
+              value={activePanelConfig.id}
+              onChange={(event) => handlePanelChange(event.target.value as SettingsPanel)}
+              className="form-control"
+            >
+              {activeCategoryConfig.panels.map((panel) => (
+                <option key={panel.id} value={panel.id}>
+                  {panel.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-layout settings-layout-unified grid grid-cols-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-6">
+          <aside className="settings-sidebar settings-sidebar-modern hidden xl:block">
             <div className="settings-sidebar-card">
               <span className="settings-sidebar-title">Categories</span>
               <div className="settings-nav" aria-label="Settings sections">
@@ -286,11 +320,11 @@ function Settings({ userRole, initialSection }: SettingsProps) {
             </div>
           </aside>
 
-          <section className="settings-main settings-main-modern">
-            <div className="settings-panel-hero settings-panel-hero-modern">
+          <section className="settings-main settings-main-modern min-w-0">
+            <div className="settings-panel-hero settings-panel-hero-modern rounded-2xl p-4 md:p-5 lg:p-6">
               <span className="settings-panel-kicker">{activeCategoryConfig.icon} {activeCategoryConfig.label}</span>
-              <h2>{activeCategoryConfig.label}</h2>
-              <p>{activeCategoryConfig.description}</p>
+              <h2 className="text-xl md:text-2xl">{activeCategoryConfig.label}</h2>
+              <p className="text-sm md:text-base">{activeCategoryConfig.description}</p>
 
               <div className="settings-panel-tabs" role="tablist" aria-label={`${activeCategoryConfig.label} sub-sections`}>
                 {activeCategoryConfig.panels.map((panel) => (
@@ -308,9 +342,9 @@ function Settings({ userRole, initialSection }: SettingsProps) {
             </div>
 
             <div className="settings-panel-surface">
-              <div className="settings-panel-intro">
-                <h3>{activePanelConfig.label}</h3>
-                <p>{activePanelConfig.description}</p>
+              <div className="settings-panel-intro rounded-2xl p-4 md:p-5">
+                <h3 className="text-lg md:text-xl">{activePanelConfig.label}</h3>
+                <p className="text-sm md:text-base">{activePanelConfig.description}</p>
               </div>
 
               {activePanelConfig.render()}

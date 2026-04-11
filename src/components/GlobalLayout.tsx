@@ -56,10 +56,18 @@ function GlobalLayout({
   children,
 }: GlobalLayoutProps) {
   const avatarText = userAvatarText || userName?.slice(0, 1)?.toUpperCase() || 'U';
+  const mobilePrimaryItems = navItems.filter((item) => ['home', 'printers', 'statistics', 'settings'].includes(item.id));
+
+  const handleMobileSelect = (id: string) => {
+    onSelect(id);
+    if (mobileMenuOpen) {
+      onToggleMobileMenu();
+    }
+  };
 
   return (
-    <div className={`global-layout ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
-      <aside className="global-sidebar">
+    <div className={`global-layout min-h-full ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
+      <aside className="global-sidebar hidden lg:block" aria-label="Desktop navigation">
         <div className="global-sidebar-inner">
           <div className="global-brand" onClick={() => onSelect('home')}>
             <img src="/images/logo.png" alt="PrintHive" className="global-brand-logo" />
@@ -101,9 +109,9 @@ function GlobalLayout({
         </div>
       </aside>
 
-      <div className="global-main-shell">
-        <header className="global-topbar">
-          <div className="global-topbar-copy">
+      <div className="global-main-shell p-4 md:p-5 lg:p-6">
+        <header className="global-topbar rounded-2xl p-4 md:p-5 lg:p-6">
+          <div className="global-topbar-copy min-w-0">
             <span className="global-topbar-kicker">{pageEyebrow}</span>
             <div className="global-breadcrumbs" aria-label="Breadcrumb">
               {breadcrumbs.map((crumb, index) => (
@@ -112,14 +120,14 @@ function GlobalLayout({
                 </span>
               ))}
             </div>
-            <h1>{pageTitle}</h1>
-            <p>{pageDescription}</p>
+            <h1 className="text-2xl md:text-3xl lg:text-4xl">{pageTitle}</h1>
+            <p className="text-sm md:text-base">{pageDescription}</p>
           </div>
 
           <div className="global-topbar-actions">
-            {rightSlot ? <div className="global-topbar-slot">{rightSlot}</div> : null}
+            {rightSlot ? <div className="global-topbar-slot hidden md:flex">{rightSlot}</div> : null}
 
-            <div className="global-user-chip">
+            <div className="global-user-chip hidden sm:flex">
               <div className="global-user-avatar">{avatarText}</div>
               <div className="global-user-copy">
                 <strong>{userName || 'User'}</strong>
@@ -136,7 +144,7 @@ function GlobalLayout({
 
             <button
               type="button"
-              className="global-mobile-menu-btn"
+              className="global-mobile-menu-btn lg:hidden"
               onClick={onToggleMobileMenu}
               aria-label="Toggle navigation"
             >
@@ -145,21 +153,65 @@ function GlobalLayout({
           </div>
         </header>
 
-        <div className={`global-mobile-nav ${mobileMenuOpen ? 'open' : ''}`}>
-          {navItems.map((item) => (
+        <button
+          type="button"
+          className={`fixed inset-0 z-40 bg-black/60 transition-opacity duration-200 lg:hidden ${mobileMenuOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+          onClick={onToggleMobileMenu}
+          aria-label="Close mobile navigation"
+        />
+
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 flex w-[min(21rem,88vw)] flex-col border-r border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl transition-transform duration-200 lg:hidden ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          aria-hidden={!mobileMenuOpen}
+        >
+          <div className="mb-4 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div className="flex items-center gap-3">
+              <img src="/images/logo.png" alt="PrintHive" className="h-9 w-9 object-contain" />
+              <div>
+                <span className="block text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-orange-300/80">3D Print Ops</span>
+                <strong className="text-sm text-white">{appName}</strong>
+              </div>
+            </div>
             <button
-              key={`mobile-${item.id}`}
               type="button"
-              className={`global-mobile-nav-item ${activeId === item.id ? 'active' : ''}`}
-              onClick={() => onSelect(item.id)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white"
+              onClick={onToggleMobileMenu}
+              aria-label="Close navigation"
+            >
+              ✕
+            </button>
+          </div>
+
+          <nav className="flex flex-1 flex-col gap-2 overflow-y-auto" aria-label="Mobile navigation">
+            {navItems.map((item) => (
+              <button
+                key={`mobile-${item.id}`}
+                type="button"
+                className={`global-mobile-nav-item ${activeId === item.id ? 'active' : ''}`}
+                onClick={() => handleMobileSelect(item.id)}
+              >
+                <span className="global-nav-icon">{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <main className="global-page-content pb-24 md:pb-4">{children}</main>
+
+        <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl backdrop-blur-xl md:hidden" aria-label="Quick mobile navigation">
+          {mobilePrimaryItems.map((item) => (
+            <button
+              key={`bottom-${item.id}`}
+              type="button"
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[0.68rem] font-semibold transition-colors ${activeId === item.id ? 'bg-orange-500/20 text-white ring-1 ring-orange-400/40' : 'text-zinc-300 hover:bg-white/5'}`}
+              onClick={() => handleMobileSelect(item.id)}
             >
               <span className="global-nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
+              <span className="truncate">{item.label}</span>
             </button>
           ))}
-        </div>
-
-        <main className="global-page-content">{children}</main>
+        </nav>
       </div>
     </div>
   );

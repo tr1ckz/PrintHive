@@ -632,6 +632,21 @@
     flex-direction: column;
   }
 
+  .printers-inline-summary span {
+    font-size: 0.74rem;
+    padding: 7px 9px;
+  }
+
+  .printer-summary-card,
+  .printer-bento-card,
+  .printer-panel {
+    padding: 14px;
+  }
+
+  .printer-summary-card strong {
+    font-size: 1.35rem;
+  }
+
   .btn-refresh,
   .printer-card-actions {
     width: 100%;

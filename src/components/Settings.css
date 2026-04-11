@@ -964,6 +964,10 @@
   margin-top: 4px;
 }
 
+.settings-mobile-controls {
+  display: none;
+}
+
 .settings-panel-tab {
   display: flex;
   flex-direction: column;
@@ -1021,6 +1025,15 @@
   margin: 0;
   color: rgba(255, 255, 255, 0.68);
   line-height: 1.45;
+}
+
+@media (max-width: 1279px) {
+  .settings-mobile-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+  }
 }
 
 @media (max-width: 900px) {
@@ -1172,6 +1185,23 @@
 @media (max-width: 640px) {
   .settings-container.settings-container-redesigned {
     padding: 16px 12px 24px;
+  }
+
+  .settings-mobile-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-panel-tabs {
+    display: flex;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+
+  .settings-panel-tab {
+    min-width: 220px;
+    flex: 0 0 auto;
   }
 
   .account-card-content,

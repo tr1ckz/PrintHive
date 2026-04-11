@@ -444,7 +444,7 @@ function ReactivePrinterCardComponent({
         </div>
       </div>
 
-      <div className="printer-bento-grid">
+      <div className="printer-bento-grid grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_minmax(0,1fr)]">
         <ReactiveCameraPanel
           printerId={printerId}
           printerName={name}

@@ -226,8 +226,8 @@ const Statistics: React.FC = () => {
   }
 
   return (
-    <div className="statistics-container">
-      <div className="statistics-hero">
+    <div className="statistics-container px-0 sm:px-1">
+      <div className="statistics-hero gap-3 md:gap-4">
         <div>
           <span className="statistics-kicker">Analytics snapshot</span>
         </div>
@@ -236,7 +236,7 @@ const Statistics: React.FC = () => {
         </button>
       </div>
 
-      <div className="stats-grid stats-bento-grid">
+      <div className="stats-grid stats-bento-grid grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <div className="stat-card stat-card-hero gradient-purple">
           <div className="stat-card-topline">PrintHive overview</div>
           <div className="stat-card-hero-main">
@@ -299,7 +299,7 @@ const Statistics: React.FC = () => {
       {costs && (
         <div className="cost-section">
           <h2>💰 Cost Calculator</h2>
-          <div className="cost-grid">
+          <div className="cost-grid grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="cost-card total">
               <div className="cost-icon">💵</div>
               <div className="cost-content">
@@ -347,7 +347,7 @@ const Statistics: React.FC = () => {
         </div>
       )}
 
-      <div className="details-grid">
+      <div className="details-grid grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className="detail-card">
           <div className="detail-header">
             <h3>Material by Color</h3>

@@ -96,7 +96,7 @@ function Printers() {
   const cameraConfigured = Boolean(cameraStreamUrl.trim());
 
   return (
-    <div className="printers-container">
+    <div className="printers-container px-0 sm:px-1">
       <div className="page-header printers-page-header">
         <div className="printers-inline-summary">
           <span>{onlineCount} online</span>
@@ -112,7 +112,7 @@ function Printers() {
         </button>
       </div>
 
-      <div className="printer-summary-grid">
+      <div className="printer-summary-grid grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="printer-summary-card">
           <span className="summary-label">Online printers</span>
           <strong>{onlineCount}/{totalPrinters || 0}</strong>
@@ -140,7 +140,7 @@ function Printers() {
           <p>Connect your printer to populate the new monitoring dashboard.</p>
         </div>
       ) : (
-        <div className="printers-stack">
+        <div className="printers-stack grid grid-cols-1 gap-4">
           {printerIds.map((printerId) => (
             <ReactivePrinterCard
               key={printerId}

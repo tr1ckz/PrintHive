@@ -341,18 +341,23 @@
   }
 
   .global-main-shell {
-    padding: 16px;
+    padding: 12px;
   }
 
   .global-topbar {
     padding: 16px;
     border-radius: 18px;
     flex-direction: column;
+    margin-bottom: 16px;
   }
 
   .global-topbar-actions {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-end;
+  }
+
+  .global-topbar-slot {
+    display: none;
   }
 
   .global-mobile-menu-btn {
@@ -363,27 +368,34 @@
 
   .global-mobile-nav {
     display: none;
-    margin: -8px 0 16px;
-    padding: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    background: rgba(12, 12, 14, 0.92);
-  }
-
-  .global-mobile-nav.open {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 8px;
   }
 }
 
 @media (max-width: 640px) {
+  .global-topbar {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .global-topbar h1 {
+    font-size: 1.6rem;
+  }
+
+  .global-topbar p {
+    font-size: 0.92rem;
+  }
+
   .global-topbar-actions {
-    align-items: stretch;
+    align-items: center;
+    justify-content: flex-end;
   }
 
   .global-user-chip {
-    flex: 1;
+    display: none;
+  }
+
+  .global-page-content {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 
   .global-logout-btn span {
