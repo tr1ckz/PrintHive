@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import type { CameraMode, CameraStreamType } from '../types';
+import type { CameraMode, CameraStreamType, Printer } from '../types';
 import { API_ENDPOINTS } from '../config/api';
 import FrigateCamera from './FrigateCamera';
 import RTSPCamera from './RTSPCamera';
@@ -63,6 +63,7 @@ const formatStatusLabel = (status?: string) => {
 };
 
 const fanToPercent = (speed: number) => Math.ceil((speed / 15) * 100 / 10) * 10;
+const EMPTY_AMS_TRAYS: NonNullable<Printer['ams']>['trays'] = [];
 
 interface ReactivePrinterCardProps {
   printerId: string;
@@ -73,9 +74,7 @@ interface ReactivePrinterCardProps {
   onOpenHardware: (printerId: string) => void;
 }
 
-function TelemetryTile({ printerId, label, valueSelector }: { printerId: string; label: string; valueSelector: (printer: ReturnType<typeof usePrinterStore.getState>['printersById'][string] | undefined) => string | null; }) {
-  const value = usePrinterStore((state) => valueSelector(state.printersById[printerId]));
-
+function TelemetryTile({ label, value }: { label: string; value: string | null }) {
   if (!value) {
     return null;
   }
@@ -194,95 +193,62 @@ function ReactiveStatusPanel({ printerId }: { printerId: string }) {
 }
 
 function ReactiveTelemetryPanel({ printerId, embedded = false }: { printerId: string; embedded?: boolean }) {
-  const hasAnyTelemetry = usePrinterStore((state) => {
+  const {
+    nozzleValue,
+    bedValue,
+    chamberValue,
+    wifiValue,
+    speedValue,
+    zHeightValue,
+    fansValue,
+  } = usePrinterStore(useShallow((state) => {
     const task = state.printersById[printerId]?.current_task;
-    return Boolean(
-      typeof task?.nozzle_temp === 'number' ||
-      typeof task?.bed_temp === 'number' ||
-      typeof task?.chamber_temp === 'number' ||
-      typeof task?.wifi_signal === 'number' ||
-      typeof task?.speed_factor === 'number' ||
-      typeof task?.z_height === 'number' ||
-      typeof task?.cooling_fan === 'number' ||
-      typeof task?.aux_fan === 'number' ||
-      typeof task?.chamber_fan === 'number'
-    );
-  });
+
+    const nozzleValue = typeof task?.nozzle_temp === 'number'
+      ? `${Math.round(task.nozzle_temp)}°${typeof task?.nozzle_target === 'number' && task.nozzle_target > 0 ? ` / ${Math.round(task.nozzle_target)}°` : ''}`
+      : null;
+    const bedValue = typeof task?.bed_temp === 'number'
+      ? `${Math.round(task.bed_temp)}°${typeof task?.bed_target === 'number' && task.bed_target > 0 ? ` / ${Math.round(task.bed_target)}°` : ''}`
+      : null;
+    const chamberValue = typeof task?.chamber_temp === 'number' ? `${Math.round(task.chamber_temp)}°C` : null;
+    const wifiValue = typeof task?.wifi_signal === 'number' ? `${task.wifi_signal} dBm` : null;
+    const speedValue = typeof task?.speed_factor === 'number' ? `${Math.round(task.speed_factor)}%` : null;
+    const zHeightValue = typeof task?.z_height === 'number' ? `${task.z_height.toFixed(2)} mm` : null;
+    const fansValue =
+      typeof task?.cooling_fan !== 'number' &&
+      typeof task?.aux_fan !== 'number' &&
+      typeof task?.chamber_fan !== 'number'
+        ? null
+        : [
+            typeof task?.cooling_fan === 'number' ? `Part ${fanToPercent(task.cooling_fan)}%` : null,
+            typeof task?.aux_fan === 'number' ? `Aux ${fanToPercent(task.aux_fan)}%` : null,
+            typeof task?.chamber_fan === 'number' ? `Chamber ${fanToPercent(task.chamber_fan)}%` : null,
+          ].filter(Boolean).join(' • ');
+
+    return {
+      nozzleValue,
+      bedValue,
+      chamberValue,
+      wifiValue,
+      speedValue,
+      zHeightValue,
+      fansValue,
+    };
+  }));
+
+  const hasAnyTelemetry = Boolean(
+    nozzleValue || bedValue || chamberValue || wifiValue || speedValue || zHeightValue || fansValue
+  );
 
   const content = hasAnyTelemetry ? (
         <div className={`telemetry-mini-grid ${embedded ? 'status-telemetry-grid' : ''}`.trim()}>
-          <TelemetryTile
-            printerId={printerId}
-            label="Nozzle"
-            valueSelector={(printer) => {
-              const task = printer?.current_task;
-              return typeof task?.nozzle_temp === 'number'
-                ? `${Math.round(task.nozzle_temp)}°${typeof task?.nozzle_target === 'number' && task.nozzle_target > 0 ? ` / ${Math.round(task.nozzle_target)}°` : ''}`
-                : null;
-            }}
-          />
-          <TelemetryTile
-            printerId={printerId}
-            label="Bed"
-            valueSelector={(printer) => {
-              const task = printer?.current_task;
-              return typeof task?.bed_temp === 'number'
-                ? `${Math.round(task.bed_temp)}°${typeof task?.bed_target === 'number' && task.bed_target > 0 ? ` / ${Math.round(task.bed_target)}°` : ''}`
-                : null;
-            }}
-          />
-          <TelemetryTile
-            printerId={printerId}
-            label="Chamber"
-            valueSelector={(printer) => {
-              const task = printer?.current_task;
-              return typeof task?.chamber_temp === 'number' ? `${Math.round(task.chamber_temp)}°C` : null;
-            }}
-          />
-          <TelemetryTile
-            printerId={printerId}
-            label="Wi‑Fi"
-            valueSelector={(printer) => {
-              const task = printer?.current_task;
-              return typeof task?.wifi_signal === 'number' ? `${task.wifi_signal} dBm` : null;
-            }}
-          />
-          <TelemetryTile
-            printerId={printerId}
-            label="Speed"
-            valueSelector={(printer) => {
-              const task = printer?.current_task;
-              return typeof task?.speed_factor === 'number' ? `${Math.round(task.speed_factor)}%` : null;
-            }}
-          />
-          <TelemetryTile
-            printerId={printerId}
-            label="Z Height"
-            valueSelector={(printer) => {
-              const task = printer?.current_task;
-              return typeof task?.z_height === 'number' ? `${task.z_height.toFixed(2)} mm` : null;
-            }}
-          />
-          <TelemetryTile
-            printerId={printerId}
-            label="Fans"
-            valueSelector={(printer) => {
-              const task = printer?.current_task;
-              if (
-                typeof task?.cooling_fan !== 'number' &&
-                typeof task?.aux_fan !== 'number' &&
-                typeof task?.chamber_fan !== 'number'
-              ) {
-                return null;
-              }
-
-              return [
-                typeof task?.cooling_fan === 'number' ? `Part ${fanToPercent(task.cooling_fan)}%` : null,
-                typeof task?.aux_fan === 'number' ? `Aux ${fanToPercent(task.aux_fan)}%` : null,
-                typeof task?.chamber_fan === 'number' ? `Chamber ${fanToPercent(task.chamber_fan)}%` : null,
-              ].filter(Boolean).join(' • ');
-            }}
-          />
+          <TelemetryTile label="Nozzle" value={nozzleValue} />
+          <TelemetryTile label="Bed" value={bedValue} />
+          <TelemetryTile label="Chamber" value={chamberValue} />
+          <TelemetryTile label="Wi‑Fi" value={wifiValue} />
+          <TelemetryTile label="Speed" value={speedValue} />
+          <TelemetryTile label="Z Height" value={zHeightValue} />
+          <TelemetryTile label="Fans" value={fansValue} />
         </div>
       ) : (
         <div className={`panel-empty compact ${embedded ? 'telemetry-inline-empty' : ''}`.trim()}>
@@ -316,8 +282,8 @@ function ReactiveAmsPanel({ printerId }: { printerId: string }) {
     const ams = printer?.ams || taskAms;
 
     return {
-      trays: ams?.trays || [],
-      activeTray: ams?.active_tray,
+      trays: Array.isArray(ams?.trays) ? ams.trays : EMPTY_AMS_TRAYS,
+      activeTray: typeof ams?.active_tray === 'number' ? ams.active_tray : null,
     };
   }));
 

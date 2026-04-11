@@ -53,8 +53,11 @@ function Printers() {
     if (printerIds.length === 0) {
       void loadPrinters();
     }
+  }, [loadPrinters, printerIds.length]);
+
+  useEffect(() => {
     void loadUiStreamSettings();
-  }, [loadPrinters, loadUiStreamSettings, printerIds.length]);
+  }, [loadUiStreamSettings]);
 
   const openHardwareModal = useCallback((printerId: string) => {
     const printer = usePrinterStore.getState().printersById[printerId];
