@@ -133,7 +133,32 @@ See [README-ENV.md](README-ENV.md) for detailed environment variable documentati
 - `OAUTH_GROUPS_CLAIM`: Claim name for groups (default: 'groups')
 - `LOCALAUTH`: Set to 'true' to enable /admin local login route (default: false)
 - `DISCORD_WEBHOOK_URL`: Discord webhook for notifications
-- `MQTT_BROKER`: MQTT broker address
+
+### MQTT / LAN Telemetry
+
+PrintHive does not require an external MQTT broker for Bambu printer monitoring. Instead, it connects directly to each configured printer over its built-in secure MQTT endpoint.
+
+**How it works:**
+- PrintHive opens an `mqtts` connection to `PRINTER_IP:8883`
+- It authenticates with username `bblp` and the printer access code
+- It subscribes to `device/SERIAL_NUMBER/report`
+- It sends a `pushall` request after connect so the printer returns its current state immediately
+
+**Required per printer:**
+- Printer IP address
+- Printer access code
+- Printer serial number
+- Network reachability from the PrintHive host to the printer on port `8883`
+
+**You do not need:**
+- A separate Mosquitto, EMQX, or other MQTT broker
+- An `MQTT_BROKER` environment variable for printer telemetry
+- Manual topic configuration
+
+**What to expect when idle:**
+- The printer can still report online or idle state when no job is running
+- Detailed telemetry such as temperatures, fans, Wi-Fi signal, and some AMS details only appear after the printer publishes those fields
+- If the UI shows **Awaiting telemetry**, that usually means the specific detailed fields have not arrived yet, not that MQTT is necessarily disconnected
 
 ### Authentication & Authorization
 
@@ -194,6 +219,17 @@ Track manually sliced prints that aren't synced to Bambu Cloud:
 - Access code from printer settings
 
 **Note:** The printer doesn't need to be in LAN-only mode. When connecting via Bambu Lab account, you can find the access code in the Printers view.
+
+#### Local Printer / FTP Setup
+
+For direct LAN telemetry and SD card access:
+
+1. Open **Settings > Local Printer / FTP**
+2. Add the printer name, IP address, access code, and serial number
+3. Save the printer and use **Test** to confirm connectivity
+4. Optionally assign a per-printer RTSP URL for camera routing
+
+The serial number is especially important if the printer is not being discovered through a connected Bambu Cloud account.
 
 ## Administration
 
