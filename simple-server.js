@@ -2116,6 +2116,33 @@ function parseCidr(cidr) {
   return { network, broadcast, prefix };
 }
 
+function normalizeCidr(cidr) {
+  const parsed = parseCidr(cidr);
+  if (!parsed) {
+    return null;
+  }
+
+  return `${intToIpv4(parsed.network)}/${parsed.prefix}`;
+}
+
+function dedupeStrings(values = []) {
+  return Array.from(new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+function ipInCidr(ip, cidr) {
+  if (!isValidIpv4(ip)) {
+    return false;
+  }
+
+  const parsed = parseCidr(cidr);
+  if (!parsed) {
+    return false;
+  }
+
+  const ipInt = ipv4ToInt(ip);
+  return ipInt >= parsed.network && ipInt <= parsed.broadcast;
+}
+
 function buildInterfaceCidrs() {
   const interfaces = os.networkInterfaces();
   const cidrs = [];
@@ -2171,6 +2198,118 @@ async function getArpTableIps() {
   } catch (_error) {
     return [];
   }
+}
+
+async function getRouteTableCidrs() {
+  const results = [];
+
+  try {
+    if (process.platform === 'win32') {
+      const { stdout } = await execAsync('route print -4', { timeout: 3000 });
+      const lines = String(stdout || '').split(/\r?\n/);
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        const match = trimmed.match(/^(\d{1,3}(?:\.\d{1,3}){3})\s+(\d{1,3}(?:\.\d{1,3}){3})\s+(\d{1,3}(?:\.\d{1,3}){3})\s+/);
+        if (!match) {
+          return;
+        }
+
+        const destination = match[1];
+        const mask = match[2];
+        if (!isValidIpv4(destination) || !isValidIpv4(mask)) {
+          return;
+        }
+
+        const prefix = netmaskToPrefix(mask);
+        if (prefix < 8 || prefix > 30) {
+          return;
+        }
+
+        if (!isPrivateOrLocalIpv4(destination)) {
+          return;
+        }
+
+        results.push(`${destination}/${prefix}`);
+      });
+    } else {
+      const { stdout } = await execAsync('ip -o -4 route show', { timeout: 3000 });
+      const lines = String(stdout || '').split(/\r?\n/);
+
+      lines.forEach((line) => {
+        const tokens = line.trim().split(/\s+/);
+        if (tokens.length === 0) {
+          return;
+        }
+
+        const cidrToken = tokens[0];
+        if (!cidrToken.includes('/')) {
+          return;
+        }
+
+        const normalized = normalizeCidr(cidrToken);
+        if (!normalized) {
+          return;
+        }
+
+        const baseIp = normalized.split('/')[0];
+        if (!isPrivateOrLocalIpv4(baseIp)) {
+          return;
+        }
+
+        results.push(normalized);
+      });
+    }
+  } catch (_error) {
+    return [];
+  }
+
+  return dedupeStrings(results.map(normalizeCidr).filter(Boolean));
+}
+
+function getDiscoveryHistoryCidrs() {
+  try {
+    const raw = db.prepare('SELECT value FROM config WHERE key = ?').get('discovery_scan_cidrs_history')?.value;
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return dedupeStrings(parsed.map(normalizeCidr).filter(Boolean));
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveDiscoveryHistoryCidrs(cidrs) {
+  const normalized = dedupeStrings((cidrs || []).map(normalizeCidr).filter(Boolean)).slice(0, 24);
+
+  db.prepare(`
+    INSERT INTO config (key, value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+  `).run('discovery_scan_cidrs_history', JSON.stringify(normalized));
+
+  return normalized;
+}
+
+function deriveDiscoverySubnetForIp(ip, cidrCandidates = []) {
+  const normalizedCandidates = dedupeStrings((cidrCandidates || []).map(normalizeCidr).filter(Boolean));
+  const match = normalizedCandidates.find((cidr) => ipInCidr(ip, cidr));
+  if (match) {
+    return match;
+  }
+
+  if (!isValidIpv4(ip)) {
+    return null;
+  }
+
+  const parts = ip.split('.');
+  return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
 }
 
 function isPrivateOrLocalIpv4(ip) {
@@ -2418,15 +2557,19 @@ app.post('/api/printers/discover-ip', async (req, res) => {
   }
 
   try {
-    const [cloudDevices, arpIps] = await Promise.all([
+    const [cloudDevices, arpIps, routeCidrs] = await Promise.all([
       fetchAllCloudDevices(),
       getArpTableIps(),
+      getRouteTableCidrs(),
     ]);
+
+    const historyCidrs = getDiscoveryHistoryCidrs();
     const cloudDevice = findMatchingCloudDevice(cloudDevices, printer);
     const cloudIp = String(cloudDevice?.ip_address || '').trim();
 
     const interfaceCidrs = buildInterfaceCidrs();
-    const cidrIps = interfaceCidrs.flatMap((cidr) => expandCidrHosts(cidr));
+    const autoCidrs = dedupeStrings([...historyCidrs, ...routeCidrs, ...interfaceCidrs].map(normalizeCidr).filter(Boolean));
+    const cidrIps = autoCidrs.flatMap((cidr) => expandCidrHosts(cidr));
     const candidateIps = buildCandidateIpList({
       existingIp: printer.ip_address,
       cloudIp,
@@ -2473,12 +2616,20 @@ app.post('/api/printers/discover-ip', async (req, res) => {
         stats: {
           candidateIps: candidateIps.length,
           reachableMqttHosts: reachable.length,
-          localCidrsScanned: interfaceCidrs,
+          autoCidrsScanned: autoCidrs,
           explicitCidrs,
         },
-        note: 'ARP-based discovery only works on local broadcast domains. For routed VLANs/subnets, provide scanCidrs or configure IP manually.',
+        note: 'Auto-discovery scans local interfaces, route-table networks, ARP neighbors, and learned subnet history. Advanced CIDR input is optional fallback for edge networks.',
       });
     }
+
+    const learnedSubnet = deriveDiscoverySubnetForIp(discoveredIp, [...autoCidrs, ...explicitCidrs]);
+    const savedHistoryCidrs = saveDiscoveryHistoryCidrs([
+      ...historyCidrs,
+      ...routeCidrs,
+      ...explicitCidrs,
+      learnedSubnet,
+    ]);
 
     db.prepare(`
       UPDATE printers
@@ -2498,10 +2649,11 @@ app.post('/api/printers/discover-ip', async (req, res) => {
       stats: {
         candidateIps: candidateIps.length,
         reachableMqttHosts: reachable.length,
-        localCidrsScanned: interfaceCidrs,
+        autoCidrsScanned: autoCidrs,
         explicitCidrs,
+        savedHistoryCidrs,
       },
-      note: 'Discovery uses local interface CIDRs and ARP cache. If your printer is on a routed network, add that subnet as an explicit scan CIDR.',
+      note: 'Discovery used route tables, ARP neighbors, local interface subnets, and saved subnet history. Advanced CIDR input remains optional fallback only.',
     });
   } catch (error) {
     logger.error('[Discovery] Failed:', error);

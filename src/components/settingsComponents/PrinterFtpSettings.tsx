@@ -42,6 +42,7 @@ export function PrinterFtpSettings() {
   const [testingId, setTestingId] = useState<string | null>(null);
   const [discoveringId, setDiscoveringId] = useState<string | null>(null);
   const [discoveryCidrs, setDiscoveryCidrs] = useState('');
+  const [showAdvancedDiscovery, setShowAdvancedDiscovery] = useState(false);
 
   useEffect(() => {
     loadPrinters();
@@ -215,17 +216,33 @@ export function PrinterFtpSettings() {
       </p>
 
       {!editingPrinter && (
-        <div className="form-group" style={{ marginBottom: '12px' }}>
-          <label>Discovery CIDRs (optional)</label>
-          <input
-            type="text"
-            value={discoveryCidrs}
-            onChange={(event) => setDiscoveryCidrs(event.target.value)}
-            placeholder="192.168.1.0/24, 10.20.30.0/24"
-          />
-          <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
-            Used by Discover IP. Helpful when printers are on routed VLANs/subnets where ARP cannot see every host.
+        <div style={{ marginBottom: '12px' }}>
+          <small style={{ display: 'block', color: 'var(--text-secondary)' }}>
+            Discover IP now auto-scans local interfaces, route-table networks, ARP neighbors, and remembered subnets.
           </small>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={() => setShowAdvancedDiscovery((prev) => !prev)}
+            style={{ marginTop: '8px' }}
+          >
+            {showAdvancedDiscovery ? 'Hide Advanced Discovery' : 'Advanced Discovery'}
+          </button>
+
+          {showAdvancedDiscovery && (
+            <div className="form-group" style={{ marginTop: '10px' }}>
+              <label>Optional Extra CIDRs</label>
+              <input
+                type="text"
+                value={discoveryCidrs}
+                onChange={(event) => setDiscoveryCidrs(event.target.value)}
+                placeholder="192.168.1.0/24, 10.20.30.0/24"
+              />
+              <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
+                Only needed for unusual network layouts where automatic route and ARP discovery cannot reach the printer subnet.
+              </small>
+            </div>
+          )}
         </div>
       )}
 

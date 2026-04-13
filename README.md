@@ -233,8 +233,9 @@ For direct LAN telemetry and SD card access:
 The serial number is especially important if the printer is not being discovered through a connected Bambu Cloud account.
 
 **Different subnet/VLAN?**
-- ARP-based discovery only works on the local broadcast domain
-- For routed networks, set **Discovery CIDRs** (for example `10.20.30.0/24`) before using **Discover IP**
+- Discover IP now auto-scans route-table networks, local interfaces, ARP neighbors, and remembered subnets
+- In most setups, you should not need to enter CIDRs manually
+- If your network is unusual, use **Advanced Discovery** to add optional extra CIDRs (for example `10.20.30.0/24`)
 - Discovery still requires network reachability from the PrintHive host to the printer on MQTT port `8883`
 
 ## Administration
