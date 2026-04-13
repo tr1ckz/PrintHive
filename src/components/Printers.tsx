@@ -16,7 +16,7 @@ function Printers() {
   const [frigateStreamUrl, setFrigateStreamUrl] = useState('');
   const [rtspUrl, setRtspUrl] = useState('');
   const loadPrinters = usePrinterStore((state) => state.loadInitialPrinters);
-  const { printerIds, loading, error, onlineCount, activeJobs, totalPrinters, socketStatus } = usePrinterStore(
+  const { printerIds, loading, error, onlineCount, activeJobs, totalPrinters, socketStatus, hasAssignedRtsp } = usePrinterStore(
     useShallow((state) => {
       const printers = state.printerOrder.map((id) => state.printersById[id]).filter(Boolean);
       return {
@@ -30,6 +30,7 @@ function Printers() {
         }).length,
         totalPrinters: printers.length,
         socketStatus: state.socketStatus,
+        hasAssignedRtsp: printers.some((printer) => Boolean(String(printer.camera_rtsp_url || '').trim())),
       };
     })
   );
@@ -101,8 +102,10 @@ function Printers() {
   }
 
   const activeCameraUrl = cameraMode === 'native-rtsp' ? rtspUrl : frigateStreamUrl;
-  const cameraConfigured = Boolean(activeCameraUrl.trim());
-  const cameraLabel = cameraMode === 'native-rtsp'
+  const cameraConfigured = Boolean(activeCameraUrl.trim()) || hasAssignedRtsp;
+  const cameraLabel = hasAssignedRtsp
+    ? 'Per-printer RTSP ready'
+    : cameraMode === 'native-rtsp'
     ? 'Native RTSP ready'
     : `${cameraStreamType === 'frigate-webrtc' ? 'WebRTC' : 'HLS'} stream ready`;
 

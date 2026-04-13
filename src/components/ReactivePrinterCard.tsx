@@ -364,7 +364,9 @@ function ReactiveCameraPanel({
   }));
 
   const effectiveRtspUrl = printerCameraRtspUrl?.trim() || rtspUrl;
-  const streamConfigured = cameraMode === 'native-rtsp'
+  const hasAssignedRtsp = Boolean(printerCameraRtspUrl?.trim());
+  const useRtspStream = hasAssignedRtsp || cameraMode === 'native-rtsp';
+  const streamConfigured = useRtspStream
     ? Boolean(effectiveRtspUrl?.trim())
     : Boolean(frigateStreamUrl?.trim());
 
@@ -384,7 +386,7 @@ function ReactiveCameraPanel({
 
       {streamConfigured ? (
         <div className="printer-camera-shell">
-          {cameraMode === 'native-rtsp' ? (
+          {useRtspStream ? (
             <RTSPCamera
               rtspUrl={effectiveRtspUrl}
               printerId={printerId}
@@ -402,7 +404,7 @@ function ReactiveCameraPanel({
               <span className="camera-bitrate">{formatBitrate(ipcamBitrate)}</span>
             ) : null}
             <span className="camera-source-badge">
-              {cameraMode === 'native-rtsp'
+              {useRtspStream
                 ? (printerCameraRtspUrl?.trim() ? 'Assigned RTSP' : 'Native RTSP')
                 : cameraStreamType === 'frigate-webrtc'
                   ? 'Frigate WebRTC'
