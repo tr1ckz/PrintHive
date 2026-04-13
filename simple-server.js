@@ -229,11 +229,22 @@ function normalizeCameraFps(value, fallback = 5) {
 function getConfiguredRtspSource(printerId = '') {
   const normalizedPrinterId = String(printerId || '').trim();
   if (normalizedPrinterId) {
-    const printerOverride = db.prepare('SELECT camera_rtsp_url FROM printers WHERE dev_id = ?').get(normalizedPrinterId);
+    const printerOverride = db.prepare('SELECT serial_number, camera_rtsp_url FROM printers WHERE dev_id = ?').get(normalizedPrinterId);
     const printerRtspUrl = String(printerOverride?.camera_rtsp_url || '').trim();
 
     if (/^rtsps?:\/\//i.test(printerRtspUrl)) {
       return { rtspUrl: printerRtspUrl, proxyKey: `printer:${normalizedPrinterId}`, source: 'printer' };
+    }
+
+    // Fallback: look for a ghost record sharing the same serial number (pre-migration state).
+    if (printerOverride?.serial_number) {
+      const bySerial = db.prepare(
+        `SELECT camera_rtsp_url FROM printers WHERE serial_number = ? AND camera_rtsp_url IS NOT NULL AND TRIM(camera_rtsp_url) != ''`
+      ).get(printerOverride.serial_number);
+      const serialRtspUrl = String(bySerial?.camera_rtsp_url || '').trim();
+      if (/^rtsps?:\/\//i.test(serialRtspUrl)) {
+        return { rtspUrl: serialRtspUrl, proxyKey: `printer:${normalizedPrinterId}`, source: 'printer' };
+      }
     }
   }
 
@@ -787,6 +798,17 @@ function buildRealtimePrinterPayload(device, jobData = null, overrides = {}) {
       FROM printers
       WHERE dev_id = ?
     `).get(printerId) || {};
+
+    // Fallback: if no camera URL found by dev_id, look for a record matching by serial number
+    // (handles ghost manual_* records that haven't been migrated yet).
+    if (!latestConfig.camera_rtsp_url && device?.serial_number) {
+      const bySerial = db.prepare(`
+        SELECT camera_rtsp_url FROM printers WHERE serial_number = ? AND camera_rtsp_url IS NOT NULL AND TRIM(camera_rtsp_url) != ''
+      `).get(device.serial_number);
+      if (bySerial?.camera_rtsp_url) {
+        latestConfig.camera_rtsp_url = bySerial.camera_rtsp_url;
+      }
+    }
   } catch (error) {
     logger.debug('[Realtime] Failed to load printer config snapshot:', error.message);
   }
@@ -2833,6 +2855,14 @@ app.post('/api/printers/config', async (req, res) => {
     const existingPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(effectiveDevId);
     const isNewPrinter = !existingPrinter;
 
+    // When cloud binding changes the dev_id, carry over fields from the old record that weren't re-submitted.
+    const devIdChanged = effectiveDevId !== dev_id;
+    let oldRecord = null;
+    if (devIdChanged) {
+      oldRecord = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id);
+    }
+    const effectiveCameraRtspUrl = camera_rtsp_url || (devIdChanged ? (oldRecord?.camera_rtsp_url || '') : '') || '';
+
     const upsert = db.prepare(`
       INSERT INTO printers (dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -2846,9 +2876,15 @@ app.post('/api/printers/config', async (req, res) => {
     `);
     
     upsert.run(
-      effectiveDevId, name, ip_address, effectiveAccessCode, effectiveSerialNumber, camera_rtsp_url,
-      name, ip_address, effectiveAccessCode, effectiveSerialNumber, camera_rtsp_url
+      effectiveDevId, name, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl,
+      name, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl
     );
+
+    // Clean up the old manual/placeholder record now that it's been migrated to the cloud identity.
+    if (devIdChanged && oldRecord) {
+      db.prepare('DELETE FROM printers WHERE dev_id = ?').run(dev_id);
+      logger.info(`[CloudBind] Migrated printer "${dev_id}" → "${effectiveDevId}", deleted old record.`);
+    }
 
     const respondWithDiscovery = async () => {
       let autoDiscovery = null;
