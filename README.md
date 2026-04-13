@@ -226,9 +226,11 @@ For direct LAN telemetry and SD card access:
 
 1. Open **Settings > Local Printer / FTP**
 2. Add the printer name, access code, and serial number (IP can be discovered automatically)
-3. Use **Discover IP** to auto-detect the printer on reachable networks
-4. Save the printer and use **Test** to confirm connectivity
-5. Optionally assign a per-printer RTSP URL for camera routing
+3. Save the printer to trigger a one-time auto-discovery attempt
+4. Use **Manual Discover Missing IPs** to retry unresolved printers when needed
+5. Use per-printer **Discover IP** for targeted manual retries
+6. Use **Test** to confirm connectivity
+7. Optionally assign a per-printer RTSP URL for camera routing
 
 The serial number is especially important if the printer is not being discovered through a connected Bambu Cloud account.
 
@@ -237,6 +239,7 @@ The serial number is especially important if the printer is not being discovered
 - In most setups, you should not need to enter CIDRs manually
 - If your network is unusual, use **Advanced Discovery** to add optional extra CIDRs (for example `10.20.30.0/24`)
 - Discovery still requires network reachability from the PrintHive host to the printer on MQTT port `8883`
+- Manual bulk discovery stops once enough printers are resolved to match cloud-configured printer count
 
 ## Administration
 

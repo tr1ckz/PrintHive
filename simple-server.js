@@ -2297,6 +2297,33 @@ function saveDiscoveryHistoryCidrs(cidrs) {
   return normalized;
 }
 
+function getAutoDiscoveryAttemptedDevIds() {
+  try {
+    const raw = db.prepare('SELECT value FROM config WHERE key = ?').get('discovery_auto_attempted_dev_ids')?.value;
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return dedupeStrings(parsed);
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveAutoDiscoveryAttemptedDevIds(devIds) {
+  const normalized = dedupeStrings(devIds);
+  db.prepare(`
+    INSERT INTO config (key, value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+  `).run('discovery_auto_attempted_dev_ids', JSON.stringify(normalized));
+}
+
 function deriveDiscoverySubnetForIp(ip, cidrCandidates = []) {
   const normalizedCandidates = dedupeStrings((cidrCandidates || []).map(normalizeCidr).filter(Boolean));
   const match = normalizedCandidates.find((cidr) => ipInCidr(ip, cidr));
@@ -2522,6 +2549,118 @@ function findMatchingCloudDevice(devices, printer) {
   }) || null;
 }
 
+async function discoverPrinterIp(printer, { explicitCidrs = [] } = {}) {
+  const accessCode = String(printer.access_code || '').trim() || String(db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value || '').trim();
+  const serialCandidates = Array.from(new Set([
+    String(printer.serial_number || '').trim(),
+    String(printer.dev_id || '').trim(),
+  ].filter(Boolean)));
+
+  if (!accessCode) {
+    return { success: false, error: 'Access code is required before discovery can run' };
+  }
+
+  if (serialCandidates.length === 0) {
+    return { success: false, error: 'Serial number (or dev_id) is required before discovery can run' };
+  }
+
+  const [cloudDevices, arpIps, routeCidrs] = await Promise.all([
+    fetchAllCloudDevices(),
+    getArpTableIps(),
+    getRouteTableCidrs(),
+  ]);
+
+  const historyCidrs = getDiscoveryHistoryCidrs();
+  const cloudDevice = findMatchingCloudDevice(cloudDevices, printer);
+  const cloudIp = String(cloudDevice?.ip_address || '').trim();
+
+  const interfaceCidrs = buildInterfaceCidrs();
+  const autoCidrs = dedupeStrings([...historyCidrs, ...routeCidrs, ...interfaceCidrs].map(normalizeCidr).filter(Boolean));
+  const cidrIps = autoCidrs.flatMap((cidr) => expandCidrHosts(cidr));
+  const candidateIps = buildCandidateIpList({
+    existingIp: printer.ip_address,
+    cloudIp,
+    arpIps,
+    cidrIps,
+    explicitCidrs,
+  }).slice(0, 2200);
+
+  if (candidateIps.length === 0) {
+    return { success: false, error: 'No candidate IP addresses were found to probe' };
+  }
+
+  const tcpResults = await runWithConcurrency(candidateIps, async (ip) => {
+    const open = await testTcpPort(ip, 8883, 450);
+    return { ip, open };
+  }, 48);
+
+  const reachable = tcpResults.filter((entry) => entry?.open).map((entry) => entry.ip);
+  let discoveredIp = null;
+  let matchedSerial = null;
+
+  for (const ip of reachable) {
+    for (const serialCandidate of serialCandidates) {
+      const verify = await verifyPrinterViaMqtt(ip, serialCandidate, accessCode);
+      if (verify.ok) {
+        discoveredIp = ip;
+        matchedSerial = serialCandidate;
+        break;
+      }
+    }
+
+    if (discoveredIp) {
+      break;
+    }
+  }
+
+  if (!discoveredIp) {
+    return {
+      success: false,
+      error: 'No matching printer responded on reachable MQTT endpoints',
+      stats: {
+        candidateIps: candidateIps.length,
+        reachableMqttHosts: reachable.length,
+        autoCidrsScanned: autoCidrs,
+        explicitCidrs,
+      },
+      note: 'Auto-discovery scans local interfaces, route-table networks, ARP neighbors, and learned subnet history. Advanced CIDR input is optional fallback for edge networks.',
+    };
+  }
+
+  const learnedSubnet = deriveDiscoverySubnetForIp(discoveredIp, [...autoCidrs, ...explicitCidrs]);
+  const savedHistoryCidrs = saveDiscoveryHistoryCidrs([
+    ...historyCidrs,
+    ...routeCidrs,
+    ...explicitCidrs,
+    learnedSubnet,
+  ]);
+
+  db.prepare(`
+    UPDATE printers
+    SET ip_address = ?,
+        access_code = COALESCE(NULLIF(?, ''), access_code),
+        serial_number = COALESCE(NULLIF(serial_number, ''), ?),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE dev_id = ?
+  `).run(discoveredIp, accessCode, matchedSerial || serialCandidates[0], printer.dev_id);
+
+  logger.info(`[Discovery] Updated printer ${printer.dev_id} with discovered IP ${discoveredIp}`);
+
+  return {
+    success: true,
+    discoveredIp,
+    matchedSerial: matchedSerial || serialCandidates[0],
+    stats: {
+      candidateIps: candidateIps.length,
+      reachableMqttHosts: reachable.length,
+      autoCidrsScanned: autoCidrs,
+      explicitCidrs,
+      savedHistoryCidrs,
+    },
+    note: 'Discovery used route tables, ARP neighbors, local interface subnets, and saved subnet history. Advanced CIDR input remains optional fallback only.',
+  };
+}
+
 // Discover and save local printer IP
 app.post('/api/printers/discover-ip', async (req, res) => {
   if (!req.session.authenticated) {
@@ -2542,122 +2681,73 @@ app.post('/api/printers/discover-ip', async (req, res) => {
     return res.status(404).json({ error: 'Printer not found in local configuration' });
   }
 
-  const accessCode = String(printer.access_code || '').trim() || String(db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value || '').trim();
-  const serialCandidates = Array.from(new Set([
-    String(printer.serial_number || '').trim(),
-    String(printer.dev_id || '').trim(),
-  ].filter(Boolean)));
+  try {
+    const result = await discoverPrinterIp(printer, { explicitCidrs });
+    res.json(result);
+  } catch (error) {
+    logger.error('[Discovery] Failed:', error);
+    res.status(500).json({ error: 'Failed to discover printer IP', details: error.message });
+  }
+});
 
-  if (!accessCode) {
-    return res.status(400).json({ error: 'Access code is required before discovery can run' });
+// Manual discover for unresolved printers (not a background job)
+app.post('/api/printers/discover-missing-ips', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  if (serialCandidates.length === 0) {
-    return res.status(400).json({ error: 'Serial number (or dev_id) is required before discovery can run' });
-  }
+  const explicitCidrs = Array.isArray(req.body?.scanCidrs)
+    ? req.body.scanCidrs.map((value) => String(value || '').trim()).filter(Boolean)
+    : [];
 
   try {
-    const [cloudDevices, arpIps, routeCidrs] = await Promise.all([
+    const [cloudDevices, configuredPrinters] = await Promise.all([
       fetchAllCloudDevices(),
-      getArpTableIps(),
-      getRouteTableCidrs(),
+      Promise.resolve(db.prepare('SELECT * FROM printers ORDER BY name').all()),
     ]);
 
-    const historyCidrs = getDiscoveryHistoryCidrs();
-    const cloudDevice = findMatchingCloudDevice(cloudDevices, printer);
-    const cloudIp = String(cloudDevice?.ip_address || '').trim();
+    const cloudConfiguredCount = cloudDevices.length;
+    const printersWithIp = configuredPrinters.filter((printer) => String(printer.ip_address || '').trim().length > 0).length;
+    const unresolved = configuredPrinters.filter((printer) => {
+      const hasIp = String(printer.ip_address || '').trim().length > 0;
+      const hasAccessCode = String(printer.access_code || '').trim().length > 0 || String(db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value || '').trim().length > 0;
+      const hasSerial = String(printer.serial_number || '').trim().length > 0 || String(printer.dev_id || '').trim().length > 0;
+      return !hasIp && hasAccessCode && hasSerial;
+    });
 
-    const interfaceCidrs = buildInterfaceCidrs();
-    const autoCidrs = dedupeStrings([...historyCidrs, ...routeCidrs, ...interfaceCidrs].map(normalizeCidr).filter(Boolean));
-    const cidrIps = autoCidrs.flatMap((cidr) => expandCidrHosts(cidr));
-    const candidateIps = buildCandidateIpList({
-      existingIp: printer.ip_address,
-      cloudIp,
-      arpIps,
-      cidrIps,
-      explicitCidrs,
-    }).slice(0, 2200);
+    const missingTarget = cloudConfiguredCount > 0
+      ? Math.max(0, cloudConfiguredCount - printersWithIp)
+      : unresolved.length;
+    const maxToProcess = Math.min(unresolved.length, missingTarget || unresolved.length);
 
-    if (candidateIps.length === 0) {
-      return res.json({
-        success: false,
-        error: 'No candidate IP addresses were found to probe',
-      });
-    }
+    const processed = [];
+    let foundCount = 0;
 
-    const tcpResults = await runWithConcurrency(candidateIps, async (ip) => {
-      const open = await testTcpPort(ip, 8883, 450);
-      return { ip, open };
-    }, 48);
-
-    const reachable = tcpResults.filter((entry) => entry?.open).map((entry) => entry.ip);
-    let discoveredIp = null;
-    let matchedSerial = null;
-
-    for (const ip of reachable) {
-      for (const serialCandidate of serialCandidates) {
-        const verify = await verifyPrinterViaMqtt(ip, serialCandidate, accessCode);
-        if (verify.ok) {
-          discoveredIp = ip;
-          matchedSerial = serialCandidate;
-          break;
-        }
+    for (const printer of unresolved.slice(0, maxToProcess)) {
+      const result = await discoverPrinterIp(printer, { explicitCidrs });
+      processed.push({ dev_id: printer.dev_id, name: printer.name || printer.dev_id, ...result });
+      if (result.success) {
+        foundCount += 1;
       }
 
-      if (discoveredIp) {
+      if (missingTarget > 0 && foundCount >= missingTarget) {
         break;
       }
     }
 
-    if (!discoveredIp) {
-      return res.json({
-        success: false,
-        error: 'No matching printer responded on reachable MQTT endpoints',
-        stats: {
-          candidateIps: candidateIps.length,
-          reachableMqttHosts: reachable.length,
-          autoCidrsScanned: autoCidrs,
-          explicitCidrs,
-        },
-        note: 'Auto-discovery scans local interfaces, route-table networks, ARP neighbors, and learned subnet history. Advanced CIDR input is optional fallback for edge networks.',
-      });
-    }
-
-    const learnedSubnet = deriveDiscoverySubnetForIp(discoveredIp, [...autoCidrs, ...explicitCidrs]);
-    const savedHistoryCidrs = saveDiscoveryHistoryCidrs([
-      ...historyCidrs,
-      ...routeCidrs,
-      ...explicitCidrs,
-      learnedSubnet,
-    ]);
-
-    db.prepare(`
-      UPDATE printers
-      SET ip_address = ?,
-          access_code = COALESCE(NULLIF(?, ''), access_code),
-          serial_number = COALESCE(NULLIF(serial_number, ''), ?),
-          updated_at = CURRENT_TIMESTAMP
-      WHERE dev_id = ?
-    `).run(discoveredIp, accessCode, matchedSerial || serialCandidates[0], devId);
-
-    logger.info(`[Discovery] Updated printer ${devId} with discovered IP ${discoveredIp}`);
-
     res.json({
       success: true,
-      discoveredIp,
-      matchedSerial: matchedSerial || serialCandidates[0],
-      stats: {
-        candidateIps: candidateIps.length,
-        reachableMqttHosts: reachable.length,
-        autoCidrsScanned: autoCidrs,
-        explicitCidrs,
-        savedHistoryCidrs,
-      },
-      note: 'Discovery used route tables, ARP neighbors, local interface subnets, and saved subnet history. Advanced CIDR input remains optional fallback only.',
+      cloudConfiguredCount,
+      printersWithIpBefore: printersWithIp,
+      missingTarget,
+      processedCount: processed.length,
+      foundCount,
+      results: processed,
+      note: 'Manual discover stops once the missing cloud-configured printer count is satisfied.',
     });
   } catch (error) {
-    logger.error('[Discovery] Failed:', error);
-    res.status(500).json({ error: 'Failed to discover printer IP', details: error.message });
+    logger.error('[DiscoveryBulk] Failed:', error);
+    res.status(500).json({ error: 'Failed to discover missing printer IPs', details: error.message });
   }
 });
 
@@ -2689,6 +2779,9 @@ app.post('/api/printers/config', (req, res) => {
   }
   
   try {
+    const existingPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id);
+    const isNewPrinter = !existingPrinter;
+
     const upsert = db.prepare(`
       INSERT INTO printers (dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -2706,8 +2799,50 @@ app.post('/api/printers/config', (req, res) => {
       name, ip_address, access_code, serial_number, camera_rtsp_url
     );
 
-    const go2rtcInfo = syncGo2RtcConfigSafe();
-    res.json({ success: true, go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath, streamCount: go2rtcInfo?.streamCount || 0 });
+    const respondWithDiscovery = async () => {
+      let autoDiscovery = null;
+      const normalizedIp = String(ip_address || '').trim();
+      const shouldAutoDiscover = isNewPrinter && !normalizedIp;
+
+      if (shouldAutoDiscover) {
+        const attemptedDevIds = getAutoDiscoveryAttemptedDevIds();
+        const alreadyAttempted = attemptedDevIds.includes(dev_id);
+
+        if (!alreadyAttempted) {
+          saveAutoDiscoveryAttemptedDevIds([...attemptedDevIds, dev_id]);
+
+          const savedPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id);
+          if (savedPrinter) {
+            autoDiscovery = await discoverPrinterIp(savedPrinter, { explicitCidrs: [] });
+          }
+        } else {
+          autoDiscovery = {
+            success: false,
+            skipped: true,
+            reason: 'already-attempted',
+          };
+        }
+      }
+
+      const go2rtcInfo = syncGo2RtcConfigSafe();
+      res.json({
+        success: true,
+        go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath,
+        streamCount: go2rtcInfo?.streamCount || 0,
+        autoDiscovery,
+      });
+    };
+
+    respondWithDiscovery().catch((error) => {
+      logger.warn('[AutoDiscovery] Failed after save:', error.message);
+      const go2rtcInfo = syncGo2RtcConfigSafe();
+      res.json({
+        success: true,
+        go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath,
+        streamCount: go2rtcInfo?.streamCount || 0,
+        autoDiscovery: { success: false, error: error.message },
+      });
+    });
   } catch (error) {
     console.error('Failed to save printer config:', error);
     res.status(500).json({ error: 'Failed to save printer configuration' });

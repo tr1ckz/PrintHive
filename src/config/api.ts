@@ -28,6 +28,7 @@ export const API_ENDPOINTS = {
     CONFIG: `${API_BASE_URL}/api/printers/config`,
     CONFIG_DELETE: (devId: string) => `${API_BASE_URL}/api/printers/config/${devId}`,
     DISCOVER_IP: `${API_BASE_URL}/api/printers/discover-ip`,
+    DISCOVER_MISSING_IPS: `${API_BASE_URL}/api/printers/discover-missing-ips`,
     CAMERA_SNAPSHOT: `${API_BASE_URL}/api/camera-snapshot`,
     CAMERA_STREAM: `${API_BASE_URL}/api/camera/stream`,
     CAMERA_STOP: `${API_BASE_URL}/api/camera/stop`,

@@ -41,6 +41,7 @@ export function PrinterFtpSettings() {
   const [loading, setLoading] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [discoveringId, setDiscoveringId] = useState<string | null>(null);
+  const [discoveringMissing, setDiscoveringMissing] = useState(false);
   const [discoveryCidrs, setDiscoveryCidrs] = useState('');
   const [showAdvancedDiscovery, setShowAdvancedDiscovery] = useState(false);
 
@@ -84,7 +85,11 @@ export function PrinterFtpSettings() {
       const data = await response.json();
       
       if (data.success) {
-        setToast({ message: 'Printer saved successfully!', type: 'success' });
+        if (data.autoDiscovery?.success && data.autoDiscovery?.discoveredIp) {
+          setToast({ message: `Printer saved. Auto-discovered IP ${data.autoDiscovery.discoveredIp}.`, type: 'success' });
+        } else {
+          setToast({ message: 'Printer saved successfully!', type: 'success' });
+        }
         setEditingPrinter(null);
         setIsAdding(false);
         loadPrinters();
@@ -187,6 +192,36 @@ export function PrinterFtpSettings() {
     }
   };
 
+  const handleDiscoverMissingIps = async () => {
+    setDiscoveringMissing(true);
+
+    try {
+      const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.DISCOVER_MISSING_IPS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scanCidrs: discoveryCidrs
+            .split(',')
+            .map((part) => part.trim())
+            .filter(Boolean)
+        }),
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setToast({ message: `Manual discovery finished: ${data.foundCount}/${data.processedCount} resolved.`, type: 'success' });
+        await loadPrinters();
+      } else {
+        setToast({ message: data.error || 'Manual discovery failed', type: 'error' });
+      }
+    } catch (_error) {
+      setToast({ message: 'Failed to run manual discover', type: 'error' });
+    } finally {
+      setDiscoveringMissing(false);
+    }
+  };
+
   const startEditing = (printer: Printer) => {
     setEditingPrinter({
       dev_id: printer.dev_id,
@@ -220,6 +255,18 @@ export function PrinterFtpSettings() {
           <small style={{ display: 'block', color: 'var(--text-secondary)' }}>
             Discover IP now auto-scans local interfaces, route-table networks, ARP neighbors, and remembered subnets.
           </small>
+          <small style={{ display: 'block', color: 'var(--text-secondary)', marginTop: '3px' }}>
+            New printers get one automatic discovery attempt on save. Use manual discover to retry later.
+          </small>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={handleDiscoverMissingIps}
+            disabled={discoveringMissing}
+            style={{ marginTop: '8px', marginRight: '8px' }}
+          >
+            {discoveringMissing ? 'Discovering Missing IPs...' : 'Manual Discover Missing IPs'}
+          </button>
           <button
             type="button"
             className="btn btn-sm btn-secondary"
