@@ -316,8 +316,8 @@ export function PrinterFtpSettings() {
                     type="button"
                     className="btn btn-sm btn-secondary"
                     onClick={() => handleDiscoverIp(printer)}
-                    disabled={discoveringId === printer.dev_id || !printer.access_code}
-                    title={printer.access_code ? 'Auto-detect IP via MQTT probing' : 'Add access code to enable discovery'}
+                    disabled={discoveringId === printer.dev_id}
+                    title="Auto-detect IP via cloud + local MQTT credentials"
                   >
                     {discoveringId === printer.dev_id ? 'Discovering...' : 'Discover IP'}
                   </button>

@@ -2549,23 +2549,34 @@ function findMatchingCloudDevice(devices, printer) {
   }) || null;
 }
 
-async function discoverPrinterIp(printer, { explicitCidrs = [] } = {}) {
-  const accessCode = String(printer.access_code || '').trim() || String(db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value || '').trim();
+function getCloudDeviceAccessCodeCandidates(cloudDevice) {
+  if (!cloudDevice || typeof cloudDevice !== 'object') {
+    return [];
+  }
+
+  return dedupeStrings([
+    cloudDevice.access_code,
+    cloudDevice.dev_access_code,
+    cloudDevice.lan_access_code,
+    cloudDevice.local_access_code,
+    cloudDevice?.lan?.access_code,
+    cloudDevice?.secure?.access_code,
+    cloudDevice?.iot?.access_code,
+  ]);
+}
+
+async function discoverPrinterIp(printer, { explicitCidrs = [], cloudDevices: cloudDevicesOverride = null } = {}) {
   const serialCandidates = Array.from(new Set([
     String(printer.serial_number || '').trim(),
     String(printer.dev_id || '').trim(),
   ].filter(Boolean)));
-
-  if (!accessCode) {
-    return { success: false, error: 'Access code is required before discovery can run' };
-  }
 
   if (serialCandidates.length === 0) {
     return { success: false, error: 'Serial number (or dev_id) is required before discovery can run' };
   }
 
   const [cloudDevices, arpIps, routeCidrs] = await Promise.all([
-    fetchAllCloudDevices(),
+    cloudDevicesOverride ? Promise.resolve(cloudDevicesOverride) : fetchAllCloudDevices(),
     getArpTableIps(),
     getRouteTableCidrs(),
   ]);
@@ -2573,6 +2584,16 @@ async function discoverPrinterIp(printer, { explicitCidrs = [] } = {}) {
   const historyCidrs = getDiscoveryHistoryCidrs();
   const cloudDevice = findMatchingCloudDevice(cloudDevices, printer);
   const cloudIp = String(cloudDevice?.ip_address || '').trim();
+  const globalAccessCode = String(db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value || '').trim();
+  const accessCodeCandidates = dedupeStrings([
+    printer.access_code,
+    ...getCloudDeviceAccessCodeCandidates(cloudDevice),
+    globalAccessCode,
+  ]);
+
+  if (accessCodeCandidates.length === 0) {
+    return { success: false, error: 'No access code available locally or from cloud for this printer' };
+  }
 
   const interfaceCidrs = buildInterfaceCidrs();
   const autoCidrs = dedupeStrings([...historyCidrs, ...routeCidrs, ...interfaceCidrs].map(normalizeCidr).filter(Boolean));
@@ -2599,11 +2620,17 @@ async function discoverPrinterIp(printer, { explicitCidrs = [] } = {}) {
   let matchedSerial = null;
 
   for (const ip of reachable) {
-    for (const serialCandidate of serialCandidates) {
-      const verify = await verifyPrinterViaMqtt(ip, serialCandidate, accessCode);
-      if (verify.ok) {
-        discoveredIp = ip;
-        matchedSerial = serialCandidate;
+    for (const accessCodeCandidate of accessCodeCandidates) {
+      for (const serialCandidate of serialCandidates) {
+        const verify = await verifyPrinterViaMqtt(ip, serialCandidate, accessCodeCandidate);
+        if (verify.ok) {
+          discoveredIp = ip;
+          matchedSerial = serialCandidate;
+          break;
+        }
+      }
+
+      if (discoveredIp) {
         break;
       }
     }
@@ -2642,7 +2669,7 @@ async function discoverPrinterIp(printer, { explicitCidrs = [] } = {}) {
         serial_number = COALESCE(NULLIF(serial_number, ''), ?),
         updated_at = CURRENT_TIMESTAMP
     WHERE dev_id = ?
-  `).run(discoveredIp, accessCode, matchedSerial || serialCandidates[0], printer.dev_id);
+  `).run(discoveredIp, accessCodeCandidates[0], matchedSerial || serialCandidates[0], printer.dev_id);
 
   logger.info(`[Discovery] Updated printer ${printer.dev_id} with discovered IP ${discoveredIp}`);
 
@@ -2710,9 +2737,8 @@ app.post('/api/printers/discover-missing-ips', async (req, res) => {
     const printersWithIp = configuredPrinters.filter((printer) => String(printer.ip_address || '').trim().length > 0).length;
     const unresolved = configuredPrinters.filter((printer) => {
       const hasIp = String(printer.ip_address || '').trim().length > 0;
-      const hasAccessCode = String(printer.access_code || '').trim().length > 0 || String(db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value || '').trim().length > 0;
       const hasSerial = String(printer.serial_number || '').trim().length > 0 || String(printer.dev_id || '').trim().length > 0;
-      return !hasIp && hasAccessCode && hasSerial;
+      return !hasIp && hasSerial;
     });
 
     const missingTarget = cloudConfiguredCount > 0
@@ -2724,7 +2750,7 @@ app.post('/api/printers/discover-missing-ips', async (req, res) => {
     let foundCount = 0;
 
     for (const printer of unresolved.slice(0, maxToProcess)) {
-      const result = await discoverPrinterIp(printer, { explicitCidrs });
+      const result = await discoverPrinterIp(printer, { explicitCidrs, cloudDevices });
       processed.push({ dev_id: printer.dev_id, name: printer.name || printer.dev_id, ...result });
       if (result.success) {
         foundCount += 1;
