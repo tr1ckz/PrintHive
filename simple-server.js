@@ -5,11 +5,17 @@ const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const axios = require('axios');
 const fs = require('fs');
+const os = require('os');
+const net = require('net');
+const mqtt = require('mqtt');
 const multer = require('multer');
+const { exec: execCallback } = require('child_process');
+const { promisify } = require('util');
 const passport = require('passport');
 const oidc = require('openid-client');
 const { WebSocketServer, WebSocket } = require('ws');
 const RtspCameraProxy = require('./rtsp-camera-proxy');
+const execAsync = promisify(execCallback);
 
 // Sync version on startup
 try {
@@ -2047,6 +2053,459 @@ app.post('/api/settings/test-printer-ftp', async (req, res) => {
   } catch (error) {
     console.error('Printer FTP test error:', error);
     res.json({ success: false, error: error.message || 'Failed to connect to printer' });
+  }
+});
+
+function isValidIpv4(ip) {
+  if (!ip || typeof ip !== 'string') {
+    return false;
+  }
+
+  const parts = ip.trim().split('.');
+  if (parts.length !== 4) {
+    return false;
+  }
+
+  return parts.every((part) => {
+    if (!/^\d+$/.test(part)) {
+      return false;
+    }
+    const num = Number(part);
+    return num >= 0 && num <= 255;
+  });
+}
+
+function ipv4ToInt(ip) {
+  return ip.split('.').reduce((acc, octet) => ((acc << 8) + Number(octet)) >>> 0, 0);
+}
+
+function intToIpv4(value) {
+  return [
+    (value >>> 24) & 255,
+    (value >>> 16) & 255,
+    (value >>> 8) & 255,
+    value & 255,
+  ].join('.');
+}
+
+function netmaskToPrefix(mask) {
+  const bits = mask
+    .split('.')
+    .map((part) => Number(part).toString(2).padStart(8, '0'))
+    .join('');
+
+  const firstZero = bits.indexOf('0');
+  return firstZero === -1 ? 32 : firstZero;
+}
+
+function parseCidr(cidr) {
+  const [rawIp, rawPrefix] = String(cidr || '').trim().split('/');
+  if (!isValidIpv4(rawIp)) {
+    return null;
+  }
+
+  const prefix = Number(rawPrefix);
+  if (!Number.isInteger(prefix) || prefix < 8 || prefix > 30) {
+    return null;
+  }
+
+  const ipInt = ipv4ToInt(rawIp);
+  const mask = prefix === 0 ? 0 : ((~0 << (32 - prefix)) >>> 0);
+  const network = ipInt & mask;
+  const broadcast = network | (~mask >>> 0);
+  return { network, broadcast, prefix };
+}
+
+function buildInterfaceCidrs() {
+  const interfaces = os.networkInterfaces();
+  const cidrs = [];
+
+  Object.values(interfaces).forEach((entries) => {
+    (entries || []).forEach((entry) => {
+      if (!entry || entry.internal || entry.family !== 'IPv4') {
+        return;
+      }
+
+      if (entry.cidr) {
+        cidrs.push(entry.cidr);
+        return;
+      }
+
+      if (entry.address && entry.netmask && isValidIpv4(entry.address) && isValidIpv4(entry.netmask)) {
+        const prefix = netmaskToPrefix(entry.netmask);
+        if (prefix >= 8 && prefix <= 30) {
+          cidrs.push(`${entry.address}/${prefix}`);
+        }
+      }
+    });
+  });
+
+  return cidrs;
+}
+
+function expandCidrHosts(cidr, maxHostsPerSubnet = 384) {
+  const parsed = parseCidr(cidr);
+  if (!parsed) {
+    return [];
+  }
+
+  const hosts = [];
+  const start = parsed.network + 1;
+  const end = parsed.broadcast - 1;
+
+  for (let ipInt = start; ipInt <= end; ipInt += 1) {
+    hosts.push(intToIpv4(ipInt >>> 0));
+    if (hosts.length >= maxHostsPerSubnet) {
+      break;
+    }
+  }
+
+  return hosts;
+}
+
+async function getArpTableIps() {
+  try {
+    const { stdout } = await execAsync('arp -a', { timeout: 2000 });
+    const matches = String(stdout || '').match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || [];
+    return Array.from(new Set(matches.filter(isValidIpv4)));
+  } catch (_error) {
+    return [];
+  }
+}
+
+function isPrivateOrLocalIpv4(ip) {
+  if (!isValidIpv4(ip)) {
+    return false;
+  }
+
+  const [a, b] = ip.split('.').map(Number);
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 169 && b === 254) return true;
+  return false;
+}
+
+function buildCandidateIpList({ existingIp, cloudIp, arpIps, cidrIps, explicitCidrs }) {
+  const ordered = [];
+  const pushUnique = (value) => {
+    const ip = String(value || '').trim();
+    if (!isValidIpv4(ip)) {
+      return;
+    }
+    if (!ordered.includes(ip)) {
+      ordered.push(ip);
+    }
+  };
+
+  pushUnique(existingIp);
+  pushUnique(cloudIp);
+  (arpIps || []).forEach(pushUnique);
+  (cidrIps || []).forEach(pushUnique);
+
+  if (Array.isArray(explicitCidrs) && explicitCidrs.length > 0) {
+    const explicitIps = explicitCidrs.flatMap((cidr) => expandCidrHosts(cidr, 1024));
+    explicitIps.forEach(pushUnique);
+  }
+
+  return ordered.filter(isPrivateOrLocalIpv4);
+}
+
+function testTcpPort(ip, port = 8883, timeoutMs = 450) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+
+    const finish = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+
+    try {
+      socket.connect(port, ip);
+    } catch (_error) {
+      finish(false);
+    }
+  });
+}
+
+async function runWithConcurrency(items, worker, concurrency = 32) {
+  const results = [];
+  let cursor = 0;
+
+  const runWorker = async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        results[index] = await worker(items[index], index);
+      } catch (_error) {
+        results[index] = null;
+      }
+    }
+  };
+
+  const workers = Array.from({ length: Math.min(concurrency, Math.max(1, items.length)) }, () => runWorker());
+  await Promise.all(workers);
+  return results;
+}
+
+function verifyPrinterViaMqtt(ip, serialNumber, accessCode, timeoutMs = 4500) {
+  return new Promise((resolve) => {
+    if (!isValidIpv4(ip) || !serialNumber || !accessCode) {
+      resolve({ ok: false, reason: 'missing-required-fields' });
+      return;
+    }
+
+    const requestTopic = `device/${serialNumber}/request`;
+    const reportTopic = `device/${serialNumber}/report`;
+    const client = mqtt.connect(`mqtts://${ip}:8883`, {
+      clientId: `printhive-discovery-${Date.now()}-${Math.floor(Math.random() * 9999)}`,
+      username: 'bblp',
+      password: accessCode,
+      protocol: 'mqtts',
+      rejectUnauthorized: false,
+      reconnectPeriod: 0,
+      connectTimeout: 3000,
+    });
+
+    let settled = false;
+    const timer = setTimeout(() => {
+      done({ ok: false, reason: 'timeout' });
+    }, timeoutMs);
+
+    const done = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      try {
+        client.end(true);
+      } catch (_error) {
+        // no-op
+      }
+      resolve(result);
+    };
+
+    client.on('connect', () => {
+      client.subscribe(reportTopic, (subscribeErr) => {
+        if (subscribeErr) {
+          done({ ok: false, reason: 'subscribe-failed' });
+          return;
+        }
+
+        const payload = {
+          pushing: {
+            sequence_id: Date.now().toString(),
+            command: 'pushall',
+          },
+        };
+
+        client.publish(requestTopic, JSON.stringify(payload), (publishErr) => {
+          if (publishErr) {
+            done({ ok: false, reason: 'publish-failed' });
+          }
+        });
+      });
+    });
+
+    client.on('message', (_topic, message) => {
+      try {
+        const parsed = JSON.parse(String(message || '{}'));
+        if (parsed && typeof parsed === 'object') {
+          done({ ok: true, reason: 'verified' });
+          return;
+        }
+      } catch (_error) {
+        // Ignore parse failures and keep waiting for the next message.
+      }
+    });
+
+    client.on('error', () => {
+      done({ ok: false, reason: 'mqtt-error' });
+    });
+
+    client.on('close', () => {
+      if (!settled) {
+        done({ ok: false, reason: 'closed' });
+      }
+    });
+  });
+}
+
+async function fetchAllCloudDevices() {
+  const devices = [];
+  const accounts = db.prepare('SELECT email, token, region FROM bambu_accounts').all();
+
+  for (const account of accounts) {
+    const apiUrl = account.region === 'china'
+      ? 'https://api.bambulab.cn/v1/iot-service/api/user/bind'
+      : 'https://api.bambulab.com/v1/iot-service/api/user/bind';
+
+    try {
+      const response = await axios.get(apiUrl, {
+        headers: { Authorization: `Bearer ${account.token}` },
+        timeout: 8000,
+      });
+
+      if (Array.isArray(response.data?.devices)) {
+        devices.push(...response.data.devices);
+      }
+    } catch (error) {
+      logger.debug(`[Discovery] Could not fetch cloud devices for ${account.email}: ${error.message}`);
+    }
+  }
+
+  return devices;
+}
+
+function findMatchingCloudDevice(devices, printer) {
+  const printerDevId = String(printer?.dev_id || '').trim();
+  const printerSerial = String(printer?.serial_number || '').trim();
+
+  return (devices || []).find((device) => {
+    const deviceDevId = String(device?.dev_id || '').trim();
+    const deviceSerial = String(device?.serial_number || '').trim();
+    return (
+      (printerDevId && (deviceDevId === printerDevId || deviceSerial === printerDevId)) ||
+      (printerSerial && (deviceSerial === printerSerial || deviceDevId === printerSerial))
+    );
+  }) || null;
+}
+
+// Discover and save local printer IP
+app.post('/api/printers/discover-ip', async (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const devId = String(req.body?.dev_id || '').trim();
+  const explicitCidrs = Array.isArray(req.body?.scanCidrs)
+    ? req.body.scanCidrs.map((value) => String(value || '').trim()).filter(Boolean)
+    : [];
+
+  if (!devId) {
+    return res.status(400).json({ error: 'dev_id is required' });
+  }
+
+  const printer = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(devId);
+  if (!printer) {
+    return res.status(404).json({ error: 'Printer not found in local configuration' });
+  }
+
+  const accessCode = String(printer.access_code || '').trim() || String(db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value || '').trim();
+  const serialCandidates = Array.from(new Set([
+    String(printer.serial_number || '').trim(),
+    String(printer.dev_id || '').trim(),
+  ].filter(Boolean)));
+
+  if (!accessCode) {
+    return res.status(400).json({ error: 'Access code is required before discovery can run' });
+  }
+
+  if (serialCandidates.length === 0) {
+    return res.status(400).json({ error: 'Serial number (or dev_id) is required before discovery can run' });
+  }
+
+  try {
+    const [cloudDevices, arpIps] = await Promise.all([
+      fetchAllCloudDevices(),
+      getArpTableIps(),
+    ]);
+    const cloudDevice = findMatchingCloudDevice(cloudDevices, printer);
+    const cloudIp = String(cloudDevice?.ip_address || '').trim();
+
+    const interfaceCidrs = buildInterfaceCidrs();
+    const cidrIps = interfaceCidrs.flatMap((cidr) => expandCidrHosts(cidr));
+    const candidateIps = buildCandidateIpList({
+      existingIp: printer.ip_address,
+      cloudIp,
+      arpIps,
+      cidrIps,
+      explicitCidrs,
+    }).slice(0, 2200);
+
+    if (candidateIps.length === 0) {
+      return res.json({
+        success: false,
+        error: 'No candidate IP addresses were found to probe',
+      });
+    }
+
+    const tcpResults = await runWithConcurrency(candidateIps, async (ip) => {
+      const open = await testTcpPort(ip, 8883, 450);
+      return { ip, open };
+    }, 48);
+
+    const reachable = tcpResults.filter((entry) => entry?.open).map((entry) => entry.ip);
+    let discoveredIp = null;
+    let matchedSerial = null;
+
+    for (const ip of reachable) {
+      for (const serialCandidate of serialCandidates) {
+        const verify = await verifyPrinterViaMqtt(ip, serialCandidate, accessCode);
+        if (verify.ok) {
+          discoveredIp = ip;
+          matchedSerial = serialCandidate;
+          break;
+        }
+      }
+
+      if (discoveredIp) {
+        break;
+      }
+    }
+
+    if (!discoveredIp) {
+      return res.json({
+        success: false,
+        error: 'No matching printer responded on reachable MQTT endpoints',
+        stats: {
+          candidateIps: candidateIps.length,
+          reachableMqttHosts: reachable.length,
+          localCidrsScanned: interfaceCidrs,
+          explicitCidrs,
+        },
+        note: 'ARP-based discovery only works on local broadcast domains. For routed VLANs/subnets, provide scanCidrs or configure IP manually.',
+      });
+    }
+
+    db.prepare(`
+      UPDATE printers
+      SET ip_address = ?,
+          access_code = COALESCE(NULLIF(?, ''), access_code),
+          serial_number = COALESCE(NULLIF(serial_number, ''), ?),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE dev_id = ?
+    `).run(discoveredIp, accessCode, matchedSerial || serialCandidates[0], devId);
+
+    logger.info(`[Discovery] Updated printer ${devId} with discovered IP ${discoveredIp}`);
+
+    res.json({
+      success: true,
+      discoveredIp,
+      matchedSerial: matchedSerial || serialCandidates[0],
+      stats: {
+        candidateIps: candidateIps.length,
+        reachableMqttHosts: reachable.length,
+        localCidrsScanned: interfaceCidrs,
+        explicitCidrs,
+      },
+      note: 'Discovery uses local interface CIDRs and ARP cache. If your printer is on a routed network, add that subnet as an explicit scan CIDR.',
+    });
+  } catch (error) {
+    logger.error('[Discovery] Failed:', error);
+    res.status(500).json({ error: 'Failed to discover printer IP', details: error.message });
   }
 });
 

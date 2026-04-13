@@ -225,11 +225,17 @@ Track manually sliced prints that aren't synced to Bambu Cloud:
 For direct LAN telemetry and SD card access:
 
 1. Open **Settings > Local Printer / FTP**
-2. Add the printer name, IP address, access code, and serial number
-3. Save the printer and use **Test** to confirm connectivity
-4. Optionally assign a per-printer RTSP URL for camera routing
+2. Add the printer name, access code, and serial number (IP can be discovered automatically)
+3. Use **Discover IP** to auto-detect the printer on reachable networks
+4. Save the printer and use **Test** to confirm connectivity
+5. Optionally assign a per-printer RTSP URL for camera routing
 
 The serial number is especially important if the printer is not being discovered through a connected Bambu Cloud account.
+
+**Different subnet/VLAN?**
+- ARP-based discovery only works on the local broadcast domain
+- For routed networks, set **Discovery CIDRs** (for example `10.20.30.0/24`) before using **Discover IP**
+- Discovery still requires network reachability from the PrintHive host to the printer on MQTT port `8883`
 
 ## Administration
 

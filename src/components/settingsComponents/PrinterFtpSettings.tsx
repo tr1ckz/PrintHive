@@ -40,6 +40,8 @@ export function PrinterFtpSettings() {
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [discoveringId, setDiscoveringId] = useState<string | null>(null);
+  const [discoveryCidrs, setDiscoveryCidrs] = useState('');
 
   useEffect(() => {
     loadPrinters();
@@ -151,6 +153,39 @@ export function PrinterFtpSettings() {
     }
   };
 
+  const handleDiscoverIp = async (printer: Printer) => {
+    setDiscoveringId(printer.dev_id);
+
+    try {
+      const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.DISCOVER_IP, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dev_id: printer.dev_id,
+          scanCidrs: discoveryCidrs
+            .split(',')
+            .map((part) => part.trim())
+            .filter(Boolean)
+        }),
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        const ipMessage = data.discoveredIp ? ` ${data.discoveredIp}` : '';
+        setToast({ message: `Discovered printer IP:${ipMessage}`.trim(), type: 'success' });
+        await loadPrinters();
+      } else {
+        setToast({ message: data.error || 'Could not auto-discover printer IP', type: 'error' });
+      }
+    } catch (_error) {
+      setToast({ message: 'Failed to run IP discovery', type: 'error' });
+    } finally {
+      setDiscoveringId(null);
+    }
+  };
+
   const startEditing = (printer: Printer) => {
     setEditingPrinter({
       dev_id: printer.dev_id,
@@ -179,6 +214,21 @@ export function PrinterFtpSettings() {
         Configure your printers' local FTP connections and optionally assign a dedicated RTSP camera to each printer.
       </p>
 
+      {!editingPrinter && (
+        <div className="form-group" style={{ marginBottom: '12px' }}>
+          <label>Discovery CIDRs (optional)</label>
+          <input
+            type="text"
+            value={discoveryCidrs}
+            onChange={(event) => setDiscoveryCidrs(event.target.value)}
+            placeholder="192.168.1.0/24, 10.20.30.0/24"
+          />
+          <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
+            Used by Discover IP. Helpful when printers are on routed VLANs/subnets where ARP cannot see every host.
+          </small>
+        </div>
+      )}
+
       {/* Printer Cards List */}
       {printers.length > 0 && !editingPrinter && (
         <div className="printer-cards-list">
@@ -197,6 +247,15 @@ export function PrinterFtpSettings() {
                     disabled={testingId === printer.dev_id || !printer.ip_address}
                   >
                     {testingId === printer.dev_id ? 'Testing...' : 'Test'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => handleDiscoverIp(printer)}
+                    disabled={discoveringId === printer.dev_id || !printer.access_code}
+                    title={printer.access_code ? 'Auto-detect IP via MQTT probing' : 'Add access code to enable discovery'}
+                  >
+                    {discoveringId === printer.dev_id ? 'Discovering...' : 'Discover IP'}
                   </button>
                   <button
                     type="button"
