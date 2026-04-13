@@ -2538,15 +2538,31 @@ async function fetchAllCloudDevices() {
 function findMatchingCloudDevice(devices, printer) {
   const printerDevId = String(printer?.dev_id || '').trim();
   const printerSerial = String(printer?.serial_number || '').trim();
+  const printerName = String(printer?.name || '').trim().toLowerCase();
 
-  return (devices || []).find((device) => {
+  const exactMatch = (devices || []).find((device) => {
     const deviceDevId = String(device?.dev_id || '').trim();
     const deviceSerial = String(device?.serial_number || '').trim();
     return (
       (printerDevId && (deviceDevId === printerDevId || deviceSerial === printerDevId)) ||
       (printerSerial && (deviceSerial === printerSerial || deviceDevId === printerSerial))
     );
-  }) || null;
+  });
+
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  if (!printerName) {
+    return null;
+  }
+
+  const nameMatches = (devices || []).filter((device) => String(device?.name || '').trim().toLowerCase() === printerName);
+  if (nameMatches.length === 1) {
+    return nameMatches[0];
+  }
+
+  return null;
 }
 
 function getCloudDeviceAccessCodeCandidates(cloudDevice) {
@@ -2793,7 +2809,7 @@ app.get('/api/printers/config', (req, res) => {
 });
 
 // Save or update printer configuration
-app.post('/api/printers/config', (req, res) => {
+app.post('/api/printers/config', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -2805,7 +2821,16 @@ app.post('/api/printers/config', (req, res) => {
   }
   
   try {
-    const existingPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id);
+    const cloudDevices = await fetchAllCloudDevices();
+    const cloudMatch = findMatchingCloudDevice(cloudDevices, { dev_id, name, serial_number });
+    const effectiveDevId = String(cloudMatch?.dev_id || dev_id).trim();
+    const effectiveSerialNumber = String(serial_number || cloudMatch?.serial_number || '').trim();
+    const effectiveAccessCode = dedupeStrings([
+      access_code,
+      ...getCloudDeviceAccessCodeCandidates(cloudMatch),
+    ])[0] || '';
+
+    const existingPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(effectiveDevId);
     const isNewPrinter = !existingPrinter;
 
     const upsert = db.prepare(`
@@ -2821,8 +2846,8 @@ app.post('/api/printers/config', (req, res) => {
     `);
     
     upsert.run(
-      dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url,
-      name, ip_address, access_code, serial_number, camera_rtsp_url
+      effectiveDevId, name, ip_address, effectiveAccessCode, effectiveSerialNumber, camera_rtsp_url,
+      name, ip_address, effectiveAccessCode, effectiveSerialNumber, camera_rtsp_url
     );
 
     const respondWithDiscovery = async () => {
@@ -2832,14 +2857,14 @@ app.post('/api/printers/config', (req, res) => {
 
       if (shouldAutoDiscover) {
         const attemptedDevIds = getAutoDiscoveryAttemptedDevIds();
-        const alreadyAttempted = attemptedDevIds.includes(dev_id);
+        const alreadyAttempted = attemptedDevIds.includes(effectiveDevId);
 
         if (!alreadyAttempted) {
-          saveAutoDiscoveryAttemptedDevIds([...attemptedDevIds, dev_id]);
+          saveAutoDiscoveryAttemptedDevIds([...attemptedDevIds, effectiveDevId]);
 
-          const savedPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id);
+          const savedPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(effectiveDevId);
           if (savedPrinter) {
-            autoDiscovery = await discoverPrinterIp(savedPrinter, { explicitCidrs: [] });
+            autoDiscovery = await discoverPrinterIp(savedPrinter, { explicitCidrs: [], cloudDevices });
           }
         } else {
           autoDiscovery = {
@@ -2853,6 +2878,7 @@ app.post('/api/printers/config', (req, res) => {
       const go2rtcInfo = syncGo2RtcConfigSafe();
       res.json({
         success: true,
+        dev_id: effectiveDevId,
         go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath,
         streamCount: go2rtcInfo?.streamCount || 0,
         autoDiscovery,

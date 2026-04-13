@@ -87,6 +87,8 @@ export function PrinterFtpSettings() {
       if (data.success) {
         if (data.autoDiscovery?.success && data.autoDiscovery?.discoveredIp) {
           setToast({ message: `Printer saved. Auto-discovered IP ${data.autoDiscovery.discoveredIp}.`, type: 'success' });
+        } else if (data.dev_id && editingPrinter.dev_id !== data.dev_id) {
+          setToast({ message: 'Printer saved and matched to cloud printer identity.', type: 'success' });
         } else {
           setToast({ message: 'Printer saved successfully!', type: 'success' });
         }

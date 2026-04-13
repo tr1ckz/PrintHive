@@ -246,6 +246,11 @@ The serial number is especially important if the printer is not being discovered
 - Access code from matching Bambu Cloud device
 - Legacy global access code fallback
 
+**Cloud match behavior:**
+- When you save a local printer entry, PrintHive tries to bind it to the matching cloud printer first
+- Matching prefers serial/dev_id and falls back to a unique cloud printer name match
+- That binding is then used for IP discovery and cloud-sourced access code lookup
+
 ## Administration
 
 ### Database Maintenance
