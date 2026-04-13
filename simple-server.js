@@ -2879,12 +2879,10 @@ app.post('/api/printers/config', async (req, res) => {
       access_code,
       ...getCloudDeviceAccessCodeCandidates(cloudMatch),
     ])[0] || '';
-  // Prefer the cloud device's display name so the DB and go2rtc labels stay in sync with the cloud
-  const effectiveName = String(cloudMatch?.name || name || '').trim() || name || '';
-  // Prefer the cloud device's display name so the DB and go2rtc labels stay in sync with the cloud
-  const effectiveName = String(cloudMatch?.name || name || '').trim() || name || '';
+    // Prefer the cloud device's display name so the DB and go2rtc labels stay in sync with the cloud
+    const effectiveName = String(cloudMatch?.name || name || '').trim() || name || '';
 
-  const existingPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(effectiveDevId);
+    const existingPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(effectiveDevId);
     const isNewPrinter = !existingPrinter;
 
     // When cloud binding changes the dev_id, carry over fields from the old record that weren't re-submitted.
@@ -2908,38 +2906,20 @@ app.post('/api/printers/config', async (req, res) => {
     `);
     
     upsert.run(
-      effectiveDevId, name, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl,
-      name, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl
-
-    // (upsert above already uses correct values, just ensure effectiveName is used in DB — re-run correctly)
-  // Broadcast realtime patch so all connected clients (e.g. Printers page) pick up the
-        // updated camera_rtsp_url and name immediately without a page reload.
-        broadcastRealtimeMessage({
-          type: 'printer.telemetry',
-          printerId: effectiveDevId,
-          payload: {
-            dev_id: effectiveDevId,
-            name: effectiveName,
-            camera_rtsp_url: effectiveCameraRtspUrl || null,
-              upsert.run(
-                effectiveDevId, effectiveName, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl,
-                effectiveName, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl
-              );
-
-              // Broadcast realtime patch so all connected clients (e.g. Printers page) pick up the
-              // updated camera_rtsp_url and name immediately without a page reload.
-              broadcastRealtimeMessage({
-                type: 'printer.telemetry',
-                printerId: effectiveDevId,
-                payload: {
-                  dev_id: effectiveDevId,
-                  name: effectiveName,
-                  camera_rtsp_url: effectiveCameraRtspUrl || null,
-                },
-              });
-          },
-        });
+      effectiveDevId, effectiveName, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl,
+      effectiveName, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl
     );
+
+    // Broadcast realtime patch so connected clients pick up camera/name updates without reload.
+    broadcastRealtimeMessage({
+      type: 'printer.telemetry',
+      printerId: effectiveDevId,
+      payload: {
+        dev_id: effectiveDevId,
+        name: effectiveName,
+        camera_rtsp_url: effectiveCameraRtspUrl || null,
+      },
+    });
 
     // Clean up the old manual/placeholder record now that it's been migrated to the cloud identity.
     if (devIdChanged && oldRecord) {
@@ -3735,6 +3715,7 @@ function mergeConfiguredPrinters(devices = []) {
       });
 
       const existingDevice = matchingKey ? mergedDevices.get(matchingKey) : null;
+      const alreadyMerged = mergedDevices.get(matchingKey || printer.dev_id);
       const mergedDevice = {
         ...buildConfiguredPrinterDevice(printer),
         ...existingDevice,
@@ -3742,18 +3723,7 @@ function mergeConfiguredPrinters(devices = []) {
         ip_address: printer.ip_address || existingDevice?.ip_address || null,
         access_code: printer.access_code || existingDevice?.access_code || null,
         serial_number: printer.serial_number || existingDevice?.serial_number || null,
-        camera_rtsp_url: printer.camera_rtsp_url || existingDevice?.camera_rtsp_url || null
-            // Preserve camera_rtsp_url that may have been set by a previous iteration for this same key
-            const alreadyMerged = mergedDevices.get(matchingKey || printer.dev_id);
-            const mergedDevice = {
-              ...buildConfiguredPrinterDevice(printer),
-              ...existingDevice,
-              name: existingDevice?.name || printer.name || existingDevice?.serial_number || printer.serial_number || printer.ip_address || 'Configured Printer',
-              ip_address: printer.ip_address || existingDevice?.ip_address || null,
-              access_code: printer.access_code || existingDevice?.access_code || null,
-              serial_number: printer.serial_number || existingDevice?.serial_number || null,
-              camera_rtsp_url: printer.camera_rtsp_url || alreadyMerged?.camera_rtsp_url || existingDevice?.camera_rtsp_url || null
-            };
+        camera_rtsp_url: printer.camera_rtsp_url || alreadyMerged?.camera_rtsp_url || existingDevice?.camera_rtsp_url || null
       };
 
       mergedDevices.set(matchingKey || printer.dev_id, mergedDevice);
