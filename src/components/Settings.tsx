@@ -6,7 +6,6 @@ import {
   SettingsContext,
   BambuSettings,
   PrinterFtpSettings,
-  AccountSettings,
   CostSettings,
   UISettings,
   NotificationSettings,
@@ -22,11 +21,10 @@ interface SettingsProps {
   initialSection?: string;
 }
 
-type SettingsCategory = 'general' | 'account' | 'printers' | 'cloud' | 'advanced' | 'system';
+type SettingsCategory = 'workspace' | 'hardware' | 'integrations' | 'system';
 type SettingsPanel =
   | 'appearance'
   | 'costs'
-  | 'profile'
   | 'users'
   | 'bambu'
   | 'local'
@@ -38,8 +36,6 @@ type SettingsPanel =
 interface PanelConfig {
   id: SettingsPanel;
   label: string;
-  hint: string;
-  description: string;
   adminOnly?: boolean;
   render: () => JSX.Element | null;
 }
@@ -48,8 +44,21 @@ interface CategoryConfig {
   id: SettingsCategory;
   label: string;
   icon: string;
-  description: string;
   panels: PanelConfig[];
+}
+
+function CategoryIcon({ id }: { id: SettingsCategory }) {
+  const paths: Record<SettingsCategory, JSX.Element> = {
+    workspace: <path d="M4 6h16M4 12h16M4 18h16" />,
+    hardware: <><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M12 12h.01" /></>,
+    integrations: <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />,
+    system: <><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" /></>,
+  };
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths[id]}
+    </svg>
+  );
 }
 
 function Settings({ userRole, initialSection }: SettingsProps) {
@@ -58,45 +67,23 @@ function Settings({ userRole, initialSection }: SettingsProps) {
 
   const navigation = useMemo<CategoryConfig[]>(() => [
     {
-      id: 'general',
-      label: 'General',
-      icon: '🎛️',
-      description: 'Keep the day-to-day experience tight by splitting UI defaults and cost preferences into focused panels.',
+      id: 'workspace',
+      label: 'Workspace',
+      icon: '▤',
       panels: [
         {
           id: 'appearance',
           label: 'Appearance',
-          hint: 'Theme and layout',
-          description: 'Adjust the visual feel, density, and dashboard behavior for the unified interface.',
           render: () => <UISettings />,
         },
         {
           id: 'costs',
           label: 'Costs',
-          hint: 'Materials and rates',
-          description: 'Tune the price and usage defaults that drive your print estimates.',
           render: () => <CostSettings />,
-        },
-      ],
-    },
-    {
-      id: 'account',
-      label: 'Account',
-      icon: '👤',
-      description: 'Profile controls and user access live here, without being buried beneath unrelated toggles.',
-      panels: [
-        {
-          id: 'profile',
-          label: 'Profile',
-          hint: 'Identity and credentials',
-          description: 'Manage your personal account details and authentication settings.',
-          render: () => <AccountSettings />,
         },
         {
           id: 'users',
           label: 'Users',
-          hint: 'Shared access',
-          description: 'Add, review, and adjust shared workshop permissions.',
           adminOnly: true,
           render: () => (
             <CollapsibleSection title="User Management" icon="👥" defaultExpanded={true}>
@@ -108,75 +95,52 @@ function Settings({ userRole, initialSection }: SettingsProps) {
       ],
     },
     {
-      id: 'printers',
-      label: 'Printers',
-      icon: '🖨️',
-      description: 'Separate cloud identity from local printer details so each task stays compact and obvious.',
+      id: 'hardware',
+      label: 'Hardware',
+      icon: '◫',
       panels: [
         {
           id: 'bambu',
-          label: 'Bambu Cloud',
-          hint: 'Accounts and pairing',
-          description: 'Connect or swap Bambu Lab accounts without scrolling past unrelated settings.',
+          label: 'Bambu Link',
           render: () => <BambuSettings />,
         },
         {
           id: 'local',
-          label: 'Local / FTP',
-          hint: 'LAN and timelapse access',
-          description: 'Manage local printer IPs, access codes, and timelapse download connectivity.',
+          label: 'Local Network',
           render: () => <PrinterFtpSettings />,
         },
       ],
     },
     {
-      id: 'cloud',
-      label: 'Cloud Sync',
-      icon: '☁️',
-      description: 'Group notifications and auth integrations together so sync-related configuration is always easy to find.',
+      id: 'integrations',
+      label: 'Integrations',
+      icon: '⌥',
       panels: [
         {
           id: 'notifications',
           label: 'Notifications',
-          hint: 'Alerts and Discord',
-          description: 'Manage the messages that leave PrintHive and keep your team in the loop.',
           render: () => <NotificationSettings />,
         },
         {
           id: 'oauth',
-          label: 'OAuth',
-          hint: 'External sign-in',
-          description: 'Configure SSO and provider details in their own contained panel.',
+          label: 'SSO & Auth',
           render: () => <OAuthSettings />,
-        },
-      ],
-    },
-    {
-      id: 'advanced',
-      label: 'Advanced',
-      icon: '⚡',
-      description: 'Tuck the workshop automation and watchdog behavior into a single focused workspace.',
-      panels: [
-        {
-          id: 'watchdog',
-          label: 'Watchdog',
-          hint: 'Automation and recovery',
-          description: 'Adjust watchdog timing, monitoring, and recovery behavior without unrelated clutter.',
-          render: () => <WatchdogSettings />,
         },
       ],
     },
     {
       id: 'system',
       label: 'System',
-      icon: '🖥️',
-      description: 'Reserve heavy maintenance, backups, and service controls for a dedicated system area.',
+      icon: '⚙',
       panels: [
         {
+          id: 'watchdog',
+          label: 'Watchdog',
+          render: () => <WatchdogSettings />,
+        },
+        {
           id: 'system-panel',
-          label: 'System Controls',
-          hint: 'Backups and service actions',
-          description: 'Handle database maintenance, backups, and runtime options from a single panel.',
+          label: 'Maintenance',
           render: () => <SystemSettings />,
         },
       ],
@@ -188,24 +152,31 @@ function Settings({ userRole, initialSection }: SettingsProps) {
     const [candidateCategory, candidatePanel] = normalized.split(/[.:/]/);
 
     const aliases: Record<string, { category: SettingsCategory; panel: SettingsPanel }> = {
-      general: { category: 'general', panel: 'appearance' },
-      preferences: { category: 'general', panel: 'appearance' },
-      ui: { category: 'general', panel: 'appearance' },
-      costs: { category: 'general', panel: 'costs' },
-      account: { category: 'account', panel: 'profile' },
-      profile: { category: 'account', panel: 'profile' },
-      administration: { category: 'account', panel: isAdmin ? 'users' : 'profile' },
-      printers: { category: 'printers', panel: 'bambu' },
-      printer: { category: 'printers', panel: 'bambu' },
-      hardware: { category: 'printers', panel: 'bambu' },
-      connectivity: { category: 'printers', panel: 'local' },
-      cloud: { category: 'cloud', panel: 'notifications' },
-      integrations: { category: 'cloud', panel: 'notifications' },
-      notifications: { category: 'cloud', panel: 'notifications' },
-      oauth: { category: 'cloud', panel: 'oauth' },
-      advanced: { category: 'advanced', panel: 'watchdog' },
-      watchdog: { category: 'advanced', panel: 'watchdog' },
-      system: { category: 'system', panel: 'system-panel' },
+      workspace: { category: 'workspace', panel: 'appearance' },
+      general: { category: 'workspace', panel: 'appearance' },
+      preferences: { category: 'workspace', panel: 'appearance' },
+      ui: { category: 'workspace', panel: 'appearance' },
+      appearance: { category: 'workspace', panel: 'appearance' },
+      costs: { category: 'workspace', panel: 'costs' },
+      users: { category: 'workspace', panel: isAdmin ? 'users' : 'appearance' },
+      administration: { category: 'workspace', panel: isAdmin ? 'users' : 'appearance' },
+      account: { category: 'workspace', panel: 'appearance' },
+      profile: { category: 'workspace', panel: 'appearance' },
+      hardware: { category: 'hardware', panel: 'bambu' },
+      printers: { category: 'hardware', panel: 'bambu' },
+      printer: { category: 'hardware', panel: 'bambu' },
+      bambu: { category: 'hardware', panel: 'bambu' },
+      local: { category: 'hardware', panel: 'local' },
+      connectivity: { category: 'hardware', panel: 'local' },
+      integrations: { category: 'integrations', panel: 'notifications' },
+      cloud: { category: 'integrations', panel: 'notifications' },
+      notifications: { category: 'integrations', panel: 'notifications' },
+      oauth: { category: 'integrations', panel: 'oauth' },
+      sso: { category: 'integrations', panel: 'oauth' },
+      system: { category: 'system', panel: 'watchdog' },
+      watchdog: { category: 'system', panel: 'watchdog' },
+      advanced: { category: 'system', panel: 'watchdog' },
+      maintenance: { category: 'system', panel: 'system-panel' },
     };
 
     if (candidateCategory && candidatePanel) {
@@ -216,7 +187,7 @@ function Settings({ userRole, initialSection }: SettingsProps) {
       }
     }
 
-    return aliases[normalized] || { category: 'general', panel: 'appearance' };
+    return aliases[normalized] || { category: 'workspace', panel: 'appearance' };
   };
 
   const [selection, setSelection] = useState<{ category: SettingsCategory; panel: SettingsPanel }>(() => resolveSelection(initialSection));
@@ -237,7 +208,6 @@ function Settings({ userRole, initialSection }: SettingsProps) {
     if (!activeCategoryConfig || !activePanelConfig) return;
     const nextHash = `${activeCategoryConfig.id}.${activePanelConfig.id}`;
     const nextUrl = `/settings#${nextHash}`;
-
     if (window.location.pathname === '/settings' && window.location.hash !== `#${nextHash}`) {
       window.history.replaceState({ section: nextHash }, '', nextUrl);
     }
@@ -255,101 +225,75 @@ function Settings({ userRole, initialSection }: SettingsProps) {
 
   return (
     <SettingsContext.Provider value={{ toast, setToast, isAdmin }}>
-      <div className="settings-container settings-shell px-0 sm:px-1">
-        <div className="settings-header settings-shell-header">
-          <div className="settings-header-pills">
-            <span className="settings-summary-pill">{availableCategories.length} categories</span>
-            <span className="settings-summary-pill muted">{activeCategoryConfig.panels.length} focused panels</span>
-          </div>
+      <div className="st-shell">
+        {/* Mobile selects */}
+        <div className="st-mobile-controls">
+          <select
+            value={selection.category}
+            onChange={(e) => handleCategoryChange(e.target.value as SettingsCategory)}
+            className="st-mobile-select"
+          >
+            {availableCategories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.label}</option>
+            ))}
+          </select>
+          <select
+            value={activePanelConfig.id}
+            onChange={(e) => handlePanelChange(e.target.value as SettingsPanel)}
+            className="st-mobile-select"
+          >
+            {activeCategoryConfig.panels.map((panel) => (
+              <option key={panel.id} value={panel.id}>{panel.label}</option>
+            ))}
+          </select>
         </div>
 
-        <div className="settings-mobile-controls xl:hidden">
-          <div className="form-group">
-            <label htmlFor="settings-category-select">Category</label>
-            <select
-              id="settings-category-select"
-              value={selection.category}
-              onChange={(event) => handleCategoryChange(event.target.value as SettingsCategory)}
-              className="form-control"
-            >
+        <div className="st-layout">
+          {/* Sidebar */}
+          <aside className="st-sidebar">
+            <nav className="st-nav" aria-label="Settings navigation">
               {availableCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="settings-panel-select">Section</label>
-            <select
-              id="settings-panel-select"
-              value={activePanelConfig.id}
-              onChange={(event) => handlePanelChange(event.target.value as SettingsPanel)}
-              className="form-control"
-            >
-              {activeCategoryConfig.panels.map((panel) => (
-                <option key={panel.id} value={panel.id}>
-                  {panel.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="settings-layout settings-layout-unified grid grid-cols-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-6">
-          <aside className="settings-sidebar settings-sidebar-modern hidden xl:block">
-            <div className="settings-sidebar-card">
-              <span className="settings-sidebar-title">Categories</span>
-              <div className="settings-nav" aria-label="Settings sections">
-                {availableCategories.map((category) => (
+                <div key={category.id} className="st-nav-group">
                   <button
-                    key={category.id}
                     type="button"
-                    className={`settings-nav-item ${activeCategoryConfig.id === category.id ? 'active' : ''}`}
+                    className={`st-nav-category ${activeCategoryConfig.id === category.id ? 'is-active' : ''}`}
                     onClick={() => handleCategoryChange(category.id)}
                   >
-                    <span className="settings-nav-icon">{category.icon}</span>
-                    <span className="settings-nav-copy">
-                      <span className="settings-nav-label">{category.label}</span>
-                      <span className="settings-nav-hint">{category.panels.length} panel{category.panels.length > 1 ? 's' : ''}</span>
+                    <span className="st-nav-cat-icon">
+                      <CategoryIcon id={category.id} />
                     </span>
+                    <span className="st-nav-cat-label">{category.label}</span>
                   </button>
-                ))}
-              </div>
-            </div>
+
+                  {activeCategoryConfig.id === category.id && (
+                    <div className="st-nav-panels">
+                      {category.panels.map((panel) => (
+                        <button
+                          key={panel.id}
+                          type="button"
+                          className={`st-nav-panel ${activePanelConfig.id === panel.id ? 'is-active' : ''}`}
+                          onClick={() => handlePanelChange(panel.id)}
+                        >
+                          {panel.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </nav>
           </aside>
 
-          <section className="settings-main settings-main-modern min-w-0">
-            <div className="settings-panel-hero settings-panel-hero-modern rounded-2xl p-4 md:p-5 lg:p-6">
-              <span className="settings-panel-kicker">{activeCategoryConfig.icon} {activeCategoryConfig.label}</span>
-              <h2 className="text-xl md:text-2xl">{activeCategoryConfig.label}</h2>
-              <p className="text-sm md:text-base">{activeCategoryConfig.description}</p>
-
-              <div className="settings-panel-tabs" role="tablist" aria-label={`${activeCategoryConfig.label} sub-sections`}>
-                {activeCategoryConfig.panels.map((panel) => (
-                  <button
-                    key={panel.id}
-                    type="button"
-                    className={`settings-panel-tab ${activePanelConfig.id === panel.id ? 'active' : ''}`}
-                    onClick={() => handlePanelChange(panel.id)}
-                  >
-                    <strong>{panel.label}</strong>
-                    <span>{panel.hint}</span>
-                  </button>
-                ))}
-              </div>
+          {/* Content */}
+          <main className="st-content">
+            <div className="st-content-header">
+              <span className="st-content-eyebrow">{activeCategoryConfig.label}</span>
+              <h2 className="st-content-title">{activePanelConfig.label}</h2>
             </div>
-
-            <div className="settings-panel-surface">
-              <div className="settings-panel-intro rounded-2xl p-4 md:p-5">
-                <h3 className="text-lg md:text-xl">{activePanelConfig.label}</h3>
-                <p className="text-sm md:text-base">{activePanelConfig.description}</p>
-              </div>
-
+            <div className="st-content-body">
               {activePanelConfig.render()}
             </div>
-          </section>
+          </main>
         </div>
 
         {toast ? (
