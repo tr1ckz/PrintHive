@@ -61,6 +61,16 @@
   --gradient-primary: linear-gradient(135deg, rgba(var(--theme-accent-rgb), 0.18) 0%, color-mix(in srgb, var(--theme-accent-strong) 18%, transparent) 100%);
   --gradient-background: linear-gradient(180deg, #09090b 0%, #0f1014 100%);
   --gradient-dark: linear-gradient(180deg, rgba(18, 18, 22, 0.96) 0%, rgba(11, 11, 15, 0.98) 100%);
+
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, 'Cascadia Code', monospace;
+
+  /* Radius scale */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
 }
 
 * {
@@ -70,7 +80,8 @@
 }
 
 body {
-  font-family: Inter, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
+  font-family: var(--font-mono);
+  font-size: 13px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--gradient-background);
