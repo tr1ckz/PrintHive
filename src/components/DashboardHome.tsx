@@ -13,6 +13,9 @@ import StorageTrendWidget, { TrendPoint } from './dashboard/widgets/StorageTrend
 import UpcomingScheduleWidget, { ScheduleItem } from './dashboard/widgets/UpcomingScheduleWidget';
 import QueuePressureWidget, { QueuePressureSummary } from './dashboard/widgets/QueuePressureWidget';
 import BackupTelemetryWidget, { BackupTelemetrySummary } from './dashboard/widgets/BackupTelemetryWidget';
+import LivePrintersWidget, { LivePrinterRow } from './dashboard/widgets/LivePrintersWidget';
+import DuplicatePressureWidget, { DuplicatePressureSummary } from './dashboard/widgets/DuplicatePressureWidget';
+import BackgroundJobsWidget, { BackgroundJobRow } from './dashboard/widgets/BackgroundJobsWidget';
 import './DashboardHome.css';
 
 interface DashboardHomeProps {
@@ -70,6 +73,25 @@ interface DatabaseSettings {
   lastBackupDate?: string | null;
 }
 
+interface DuplicateGroup {
+  name: string;
+  totalSize?: number;
+  files?: Array<{ id: number; fileSize?: number }>;
+}
+
+interface BackgroundJobStatusResponse {
+  running?: boolean;
+  total?: number;
+  processed?: number;
+  completed?: number;
+  matched?: number;
+  added?: number;
+  deleted?: number;
+  failed?: number;
+  unmatched?: number;
+  skipped?: number;
+}
+
 const BREAKPOINTS = { lg: 1320, md: 1100, sm: 860, xs: 620, xxs: 0 };
 const COLUMNS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
 
@@ -98,6 +120,19 @@ function formatDateLabel(input?: string): string {
   const date = new Date(input);
   if (Number.isNaN(date.getTime())) return 'Unknown';
   return date.toLocaleDateString();
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+  const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(precision)} ${units[index]}`;
 }
 
 function mapStatus(status: number): string {
@@ -159,6 +194,48 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       lastBackupDate: null,
     }),
     staleTime: 45000,
+  });
+
+  const duplicateGroupsQuery = useQuery({
+    queryKey: ['dashboard', 'duplicates'],
+    queryFn: async () => {
+      const data = await fetchJson<{ duplicates?: DuplicateGroup[] }>(API_ENDPOINTS.LIBRARY.DUPLICATES('hash'), { duplicates: [] });
+      return Array.isArray(data.duplicates) ? data.duplicates : [];
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+
+  const backgroundJobsQuery = useQuery({
+    queryKey: ['dashboard', 'background-jobs'],
+    queryFn: async (): Promise<BackgroundJobRow[]> => {
+      const definitions = [
+        { id: 'video-match', name: 'Video Matching', endpoint: API_ENDPOINTS.VIDEO.MATCH_STATUS },
+        { id: 'library-scan', name: 'Library Scan', endpoint: API_ENDPOINTS.LIBRARY.SCAN_STATUS },
+        { id: 'auto-tag', name: 'Auto Tagging', endpoint: API_ENDPOINTS.LIBRARY.AUTO_TAG_STATUS },
+        { id: 'bulk-delete', name: 'Bulk Delete', endpoint: API_ENDPOINTS.LIBRARY.BULK_DELETE_STATUS },
+      ];
+
+      const results = await Promise.all(definitions.map(async (definition) => {
+        const data = await fetchJson<BackgroundJobStatusResponse>(definition.endpoint, {});
+        const completed = data.completed ?? data.matched ?? data.added ?? data.deleted ?? 0;
+        const failed = data.failed ?? data.unmatched ?? data.skipped ?? 0;
+
+        return {
+          id: definition.id,
+          name: definition.name,
+          running: Boolean(data.running),
+          processed: Number(data.processed || 0),
+          total: Number(data.total || 0),
+          completed: Number(completed || 0),
+          failed: Number(failed || 0),
+        } as BackgroundJobRow;
+      }));
+
+      return results.filter((job) => job.running);
+    },
+    staleTime: 3000,
+    refetchInterval: 5000,
   });
 
   const dashboardLayoutSettingsQuery = useQuery({
@@ -394,6 +471,39 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     };
   }, [backupSettingsQuery.data]);
 
+  const livePrintersRows = useMemo<LivePrinterRow[]>(() => (
+    printers.map((printer) => ({
+      id: printer.id,
+      name: printer.name,
+      model: printer.model,
+      status: printer.status,
+      online: printer.online,
+      progress: Number(printer.progress || 0),
+      currentPrint: printer.currentPrint || null,
+    }))
+  ), [printers]);
+
+  const duplicatePressureSummary = useMemo<DuplicatePressureSummary>(() => {
+    const groups = duplicateGroupsQuery.data || [];
+    const duplicateFileCount = groups.reduce((sum, group) => sum + Math.max(0, (group.files?.length || 1) - 1), 0);
+    const totalSize = groups.reduce((sum, group) => sum + Number(group.totalSize || 0), 0);
+
+    return {
+      groupCount: groups.length,
+      duplicateFileCount,
+      estimatedWasteLabel: formatBytes(totalSize),
+      topGroups: groups.slice(0, 8).map((group) => ({
+        name: group.name || 'Untitled Group',
+        fileCount: group.files?.length || 0,
+        sizeLabel: formatBytes(Number(group.totalSize || 0)),
+      })),
+    };
+  }, [duplicateGroupsQuery.data]);
+
+  const backgroundJobRows = useMemo<BackgroundJobRow[]>(() => (
+    backgroundJobsQuery.data || []
+  ), [backgroundJobsQuery.data]);
+
   const queryErrorCount = [
     printersQuery.isError,
     statsQuery.isError,
@@ -417,6 +527,21 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
 
     if (widgetId === 'healthSummary') {
       return <HealthSummaryWidget fleetMetrics={[...healthSummary.fleet]} qualityMetrics={[...healthSummary.quality]} density={density} />;
+    }
+
+    if (widgetId === 'livePrinters') {
+      return <LivePrintersWidget printers={livePrintersRows} density={density} onOpenPrinters={() => onNavigate('printers')} />;
+    }
+
+    if (widgetId === 'backgroundJobs') {
+      return (
+        <BackgroundJobsWidget
+          jobs={backgroundJobRows}
+          density={density}
+          onOpenLibrary={() => onNavigate('library')}
+          onOpenHistory={() => onNavigate('history')}
+        />
+      );
     }
 
     if (widgetId === 'activityStream') {
@@ -447,6 +572,10 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           onOpenPrinters={() => onNavigate('printers')}
         />
       );
+    }
+
+    if (widgetId === 'duplicatePressure') {
+      return <DuplicatePressureWidget summary={duplicatePressureSummary} density={density} onOpenDuplicates={() => onNavigate('duplicates')} />;
     }
 
     return <BackupTelemetryWidget summary={backupSummary} density={density} />;

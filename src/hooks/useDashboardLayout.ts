@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Layout, Layouts } from 'react-grid-layout';
 
 export type DashboardWidgetId =
+  | 'livePrinters'
   | 'healthSummary'
   | 'activityStream'
   | 'heatmap'
   | 'storageTrend'
   | 'upcomingSchedule'
   | 'queuePressure'
-  | 'backupTelemetry';
+  | 'backupTelemetry'
+  | 'duplicatePressure'
+  | 'backgroundJobs';
 
 export interface DashboardWidgetRegistryItem {
   id: DashboardWidgetId;
@@ -35,70 +38,91 @@ type SnapProfile = {
 };
 
 const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = [
+  'livePrinters',
   'healthSummary',
+  'backgroundJobs',
   'activityStream',
   'heatmap',
   'storageTrend',
   'upcomingSchedule',
   'queuePressure',
   'backupTelemetry',
+  'duplicatePressure',
 ];
 
 export const dashboardWidgetRegistry: DashboardWidgetRegistryItem[] = [
+  { id: 'livePrinters', title: 'Live Printers' },
   { id: 'healthSummary', title: 'Health Summary' },
+  { id: 'backgroundJobs', title: 'Background Jobs' },
   { id: 'activityStream', title: 'Activity Stream' },
   { id: 'heatmap', title: 'Heatmap' },
   { id: 'storageTrend', title: 'Storage Trend' },
   { id: 'upcomingSchedule', title: 'Upcoming Schedule' },
   { id: 'queuePressure', title: 'Queue Pressure' },
   { id: 'backupTelemetry', title: 'Backup Telemetry' },
+  { id: 'duplicatePressure', title: 'Duplicate Pressure' },
 ];
 
 export const defaultDashboardLayouts: Layouts = {
   lg: [
-    { i: 'healthSummary', x: 0, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'queuePressure', x: 4, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'backupTelemetry', x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'activityStream', x: 0, y: 5, w: 6, h: 8, minW: 4, minH: 5 },
-    { i: 'storageTrend', x: 6, y: 5, w: 6, h: 8, minW: 4, minH: 5 },
-    { i: 'heatmap', x: 0, y: 13, w: 7, h: 6, minW: 4, minH: 4 },
-    { i: 'upcomingSchedule', x: 7, y: 13, w: 5, h: 6, minW: 4, minH: 4 },
+    { i: 'livePrinters', x: 0, y: 0, w: 5, h: 6, minW: 4, minH: 5 },
+    { i: 'healthSummary', x: 5, y: 0, w: 3, h: 5, minW: 3, minH: 4 },
+    { i: 'queuePressure', x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
+    { i: 'backupTelemetry', x: 5, y: 5, w: 3, h: 5, minW: 3, minH: 4 },
+    { i: 'backgroundJobs', x: 8, y: 5, w: 4, h: 6, minW: 3, minH: 5 },
+    { i: 'activityStream', x: 0, y: 6, w: 7, h: 8, minW: 5, minH: 6 },
+    { i: 'storageTrend', x: 7, y: 11, w: 5, h: 8, minW: 4, minH: 6 },
+    { i: 'heatmap', x: 0, y: 14, w: 7, h: 6, minW: 4, minH: 5 },
+    { i: 'upcomingSchedule', x: 7, y: 19, w: 5, h: 6, minW: 4, minH: 5 },
+    { i: 'duplicatePressure', x: 0, y: 20, w: 7, h: 5, minW: 4, minH: 4 },
   ],
   md: [
-    { i: 'healthSummary', x: 0, y: 0, w: 5, h: 5, minW: 3, minH: 4 },
-    { i: 'queuePressure', x: 5, y: 0, w: 5, h: 5, minW: 3, minH: 4 },
-    { i: 'backupTelemetry', x: 0, y: 5, w: 10, h: 5, minW: 3, minH: 4 },
-    { i: 'activityStream', x: 0, y: 10, w: 10, h: 8, minW: 4, minH: 5 },
-    { i: 'storageTrend', x: 0, y: 18, w: 10, h: 8, minW: 4, minH: 5 },
-    { i: 'heatmap', x: 0, y: 26, w: 10, h: 6, minW: 4, minH: 4 },
-    { i: 'upcomingSchedule', x: 0, y: 32, w: 10, h: 6, minW: 4, minH: 4 },
+    { i: 'livePrinters', x: 0, y: 0, w: 10, h: 6, minW: 4, minH: 5 },
+    { i: 'healthSummary', x: 0, y: 6, w: 5, h: 5, minW: 3, minH: 4 },
+    { i: 'queuePressure', x: 5, y: 6, w: 5, h: 5, minW: 3, minH: 4 },
+    { i: 'backupTelemetry', x: 0, y: 11, w: 5, h: 5, minW: 3, minH: 4 },
+    { i: 'backgroundJobs', x: 5, y: 11, w: 5, h: 6, minW: 3, minH: 5 },
+    { i: 'activityStream', x: 0, y: 17, w: 10, h: 8, minW: 5, minH: 6 },
+    { i: 'storageTrend', x: 0, y: 25, w: 10, h: 8, minW: 5, minH: 6 },
+    { i: 'heatmap', x: 0, y: 33, w: 10, h: 6, minW: 4, minH: 5 },
+    { i: 'upcomingSchedule', x: 0, y: 39, w: 10, h: 6, minW: 4, minH: 5 },
+    { i: 'duplicatePressure', x: 0, y: 45, w: 10, h: 5, minW: 4, minH: 4 },
   ],
   sm: [
-    { i: 'healthSummary', x: 0, y: 0, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 5, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'backupTelemetry', x: 0, y: 10, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'activityStream', x: 0, y: 15, w: 6, h: 8, minW: 4, minH: 5 },
-    { i: 'storageTrend', x: 0, y: 23, w: 6, h: 8, minW: 4, minH: 5 },
-    { i: 'heatmap', x: 0, y: 31, w: 6, h: 6, minW: 4, minH: 4 },
-    { i: 'upcomingSchedule', x: 0, y: 37, w: 6, h: 6, minW: 4, minH: 4 },
+    { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 3, minH: 5 },
+    { i: 'healthSummary', x: 0, y: 6, w: 6, h: 5, minW: 3, minH: 4 },
+    { i: 'queuePressure', x: 0, y: 11, w: 6, h: 5, minW: 3, minH: 4 },
+    { i: 'backupTelemetry', x: 0, y: 16, w: 6, h: 5, minW: 3, minH: 4 },
+    { i: 'backgroundJobs', x: 0, y: 21, w: 6, h: 6, minW: 3, minH: 5 },
+    { i: 'activityStream', x: 0, y: 27, w: 6, h: 8, minW: 4, minH: 6 },
+    { i: 'storageTrend', x: 0, y: 35, w: 6, h: 8, minW: 4, minH: 6 },
+    { i: 'heatmap', x: 0, y: 43, w: 6, h: 6, minW: 4, minH: 5 },
+    { i: 'upcomingSchedule', x: 0, y: 49, w: 6, h: 6, minW: 4, minH: 5 },
+    { i: 'duplicatePressure', x: 0, y: 55, w: 6, h: 5, minW: 4, minH: 4 },
   ],
   xs: [
-    { i: 'healthSummary', x: 0, y: 0, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 5, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'backupTelemetry', x: 0, y: 10, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'activityStream', x: 0, y: 15, w: 4, h: 8, minW: 2, minH: 5 },
-    { i: 'storageTrend', x: 0, y: 23, w: 4, h: 8, minW: 2, minH: 5 },
-    { i: 'heatmap', x: 0, y: 31, w: 4, h: 6, minW: 2, minH: 4 },
-    { i: 'upcomingSchedule', x: 0, y: 37, w: 4, h: 6, minW: 2, minH: 4 },
+    { i: 'livePrinters', x: 0, y: 0, w: 4, h: 6, minW: 2, minH: 5 },
+    { i: 'healthSummary', x: 0, y: 6, w: 4, h: 5, minW: 2, minH: 4 },
+    { i: 'queuePressure', x: 0, y: 11, w: 4, h: 5, minW: 2, minH: 4 },
+    { i: 'backupTelemetry', x: 0, y: 16, w: 4, h: 5, minW: 2, minH: 4 },
+    { i: 'backgroundJobs', x: 0, y: 21, w: 4, h: 6, minW: 2, minH: 5 },
+    { i: 'activityStream', x: 0, y: 27, w: 4, h: 8, minW: 2, minH: 6 },
+    { i: 'storageTrend', x: 0, y: 35, w: 4, h: 8, minW: 2, minH: 6 },
+    { i: 'heatmap', x: 0, y: 43, w: 4, h: 6, minW: 2, minH: 5 },
+    { i: 'upcomingSchedule', x: 0, y: 49, w: 4, h: 6, minW: 2, minH: 5 },
+    { i: 'duplicatePressure', x: 0, y: 55, w: 4, h: 5, minW: 2, minH: 4 },
   ],
   xxs: [
-    { i: 'healthSummary', x: 0, y: 0, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 5, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'backupTelemetry', x: 0, y: 10, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'activityStream', x: 0, y: 15, w: 2, h: 8, minW: 2, minH: 5 },
-    { i: 'storageTrend', x: 0, y: 23, w: 2, h: 8, minW: 2, minH: 5 },
-    { i: 'heatmap', x: 0, y: 31, w: 2, h: 6, minW: 2, minH: 4 },
-    { i: 'upcomingSchedule', x: 0, y: 37, w: 2, h: 6, minW: 2, minH: 4 },
+    { i: 'livePrinters', x: 0, y: 0, w: 2, h: 6, minW: 2, minH: 5 },
+    { i: 'healthSummary', x: 0, y: 6, w: 2, h: 5, minW: 2, minH: 4 },
+    { i: 'queuePressure', x: 0, y: 11, w: 2, h: 5, minW: 2, minH: 4 },
+    { i: 'backupTelemetry', x: 0, y: 16, w: 2, h: 5, minW: 2, minH: 4 },
+    { i: 'backgroundJobs', x: 0, y: 21, w: 2, h: 6, minW: 2, minH: 5 },
+    { i: 'activityStream', x: 0, y: 27, w: 2, h: 8, minW: 2, minH: 6 },
+    { i: 'storageTrend', x: 0, y: 35, w: 2, h: 8, minW: 2, minH: 6 },
+    { i: 'heatmap', x: 0, y: 43, w: 2, h: 6, minW: 2, minH: 5 },
+    { i: 'upcomingSchedule', x: 0, y: 49, w: 2, h: 6, minW: 2, minH: 5 },
+    { i: 'duplicatePressure', x: 0, y: 55, w: 2, h: 5, minW: 2, minH: 4 },
   ],
 };
 
@@ -110,13 +134,16 @@ const DEFAULT_SNAP_PROFILE: SnapProfile = {
 };
 
 const WIDGET_SNAP_PROFILES: Record<DashboardWidgetId, SnapProfile> = {
+  livePrinters: { widths: [4, 5, 6, 8, 10, 12], heights: [5, 6, 7, 8, 10] },
   healthSummary: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
+  backgroundJobs: { widths: [3, 4, 5, 6], heights: [5, 6, 7, 8] },
   activityStream: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10, 12] },
   heatmap: { widths: [4, 6, 7, 8, 10, 12], heights: [5, 6, 7, 8] },
   storageTrend: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10] },
   upcomingSchedule: { widths: [4, 5, 6, 7, 8], heights: [5, 6, 7, 8, 10] },
   queuePressure: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
   backupTelemetry: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
+  duplicatePressure: { widths: [3, 4, 5, 6, 7, 8], heights: [4, 5, 6, 7] },
 };
 
 function isWidgetId(value: string): value is DashboardWidgetId {
