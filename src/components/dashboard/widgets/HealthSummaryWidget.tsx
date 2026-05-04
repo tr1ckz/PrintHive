@@ -1,0 +1,66 @@
+import { useMemo, useState } from 'react';
+
+interface HealthMetric {
+  label: string;
+  value: string;
+  tone: 'good' | 'warn' | 'bad' | 'neutral';
+}
+
+interface HealthSummaryWidgetProps {
+  fleetMetrics: HealthMetric[];
+  qualityMetrics: HealthMetric[];
+}
+
+const toneClassMap: Record<HealthMetric['tone'], string> = {
+  good: 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200',
+  warn: 'border-amber-400/50 bg-amber-500/10 text-amber-200',
+  bad: 'border-rose-400/50 bg-rose-500/10 text-rose-200',
+  neutral: 'border-white/20 bg-white/5 text-white/80',
+};
+
+function HealthSummaryWidget({ fleetMetrics, qualityMetrics }: HealthSummaryWidgetProps) {
+  const [tab, setTab] = useState<'fleet' | 'quality'>('fleet');
+
+  const currentMetrics = useMemo(
+    () => (tab === 'fleet' ? fleetMetrics : qualityMetrics),
+    [tab, fleetMetrics, qualityMetrics]
+  );
+
+  return (
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex items-center gap-1 rounded border border-white/15 bg-black/25 p-1">
+        <button
+          type="button"
+          onClick={() => setTab('fleet')}
+          className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${tab === 'fleet' ? 'bg-white/15 text-white' : 'text-white/60'}`}
+        >
+          Fleet
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('quality')}
+          className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${tab === 'quality' ? 'bg-white/15 text-white' : 'text-white/60'}`}
+        >
+          Quality
+        </button>
+      </div>
+
+      {currentMetrics.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center rounded border border-dashed border-white/20 text-xs text-white/50">
+          No health metrics available.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {currentMetrics.map((metric) => (
+            <div key={metric.label} className={`rounded border p-2 ${toneClassMap[metric.tone]}`}>
+              <p className="text-[10px] uppercase tracking-[0.12em]">{metric.label}</p>
+              <p className="mt-1 text-sm font-semibold">{metric.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default HealthSummaryWidget;

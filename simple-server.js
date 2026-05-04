@@ -3138,111 +3138,145 @@ app.post('/api/settings/ui', (req, res) => {
   }
 });
 
-const defaultDashboardWidgetPrefs = {
-  version: 1,
-  density: 'compact',
-  refreshSeconds: 30,
-  showHeaderMeta: true,
-  statsOrder: ['printersOnline', 'totalPrints', 'successRate', 'libraryCount'],
-  statsHidden: [],
-  widgetOrder: ['activePrints', 'printers', 'recentPrints', 'quickStats', 'quickActions'],
-  widgetHidden: [],
-  widgetSpan: {
-    activePrints: 2,
-    printers: 1,
-    recentPrints: 1,
-    quickStats: 1,
-    quickActions: 1,
-  },
-  widgetLayout: {
-    activePrints: { x: 0, y: 0, w: 8, h: 5, minW: 4, minH: 3 },
-    printers: { x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 3 },
-    recentPrints: { x: 0, y: 5, w: 6, h: 6, minW: 4, minH: 4 },
-    quickStats: { x: 6, y: 5, w: 3, h: 4, minW: 3, minH: 3 },
-    quickActions: { x: 9, y: 5, w: 3, h: 4, minW: 3, minH: 3 },
-  },
+const dashboardWidgetIds = new Set(['healthSummary', 'activityStream', 'heatmap', 'storageTrend', 'upcomingSchedule', 'queuePressure', 'backupTelemetry']);
+const dashboardBreakpointKeys = ['lg', 'md', 'sm', 'xs', 'xxs'];
+
+const defaultDashboardLayouts = {
+  lg: [
+    { i: 'healthSummary', x: 0, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
+    { i: 'queuePressure', x: 4, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
+    { i: 'backupTelemetry', x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
+    { i: 'activityStream', x: 0, y: 5, w: 6, h: 8, minW: 4, minH: 5 },
+    { i: 'storageTrend', x: 6, y: 5, w: 6, h: 8, minW: 4, minH: 5 },
+    { i: 'heatmap', x: 0, y: 13, w: 7, h: 6, minW: 4, minH: 4 },
+    { i: 'upcomingSchedule', x: 7, y: 13, w: 5, h: 6, minW: 4, minH: 4 },
+  ],
+  md: [
+    { i: 'healthSummary', x: 0, y: 0, w: 5, h: 5, minW: 3, minH: 4 },
+    { i: 'queuePressure', x: 5, y: 0, w: 5, h: 5, minW: 3, minH: 4 },
+    { i: 'backupTelemetry', x: 0, y: 5, w: 10, h: 5, minW: 3, minH: 4 },
+    { i: 'activityStream', x: 0, y: 10, w: 10, h: 8, minW: 4, minH: 5 },
+    { i: 'storageTrend', x: 0, y: 18, w: 10, h: 8, minW: 4, minH: 5 },
+    { i: 'heatmap', x: 0, y: 26, w: 10, h: 6, minW: 4, minH: 4 },
+    { i: 'upcomingSchedule', x: 0, y: 32, w: 10, h: 6, minW: 4, minH: 4 },
+  ],
+  sm: [
+    { i: 'healthSummary', x: 0, y: 0, w: 6, h: 5, minW: 3, minH: 4 },
+    { i: 'queuePressure', x: 0, y: 5, w: 6, h: 5, minW: 3, minH: 4 },
+    { i: 'backupTelemetry', x: 0, y: 10, w: 6, h: 5, minW: 3, minH: 4 },
+    { i: 'activityStream', x: 0, y: 15, w: 6, h: 8, minW: 4, minH: 5 },
+    { i: 'storageTrend', x: 0, y: 23, w: 6, h: 8, minW: 4, minH: 5 },
+    { i: 'heatmap', x: 0, y: 31, w: 6, h: 6, minW: 4, minH: 4 },
+    { i: 'upcomingSchedule', x: 0, y: 37, w: 6, h: 6, minW: 4, minH: 4 },
+  ],
+  xs: [
+    { i: 'healthSummary', x: 0, y: 0, w: 4, h: 5, minW: 2, minH: 4 },
+    { i: 'queuePressure', x: 0, y: 5, w: 4, h: 5, minW: 2, minH: 4 },
+    { i: 'backupTelemetry', x: 0, y: 10, w: 4, h: 5, minW: 2, minH: 4 },
+    { i: 'activityStream', x: 0, y: 15, w: 4, h: 8, minW: 2, minH: 5 },
+    { i: 'storageTrend', x: 0, y: 23, w: 4, h: 8, minW: 2, minH: 5 },
+    { i: 'heatmap', x: 0, y: 31, w: 4, h: 6, minW: 2, minH: 4 },
+    { i: 'upcomingSchedule', x: 0, y: 37, w: 4, h: 6, minW: 2, minH: 4 },
+  ],
+  xxs: [
+    { i: 'healthSummary', x: 0, y: 0, w: 2, h: 5, minW: 2, minH: 4 },
+    { i: 'queuePressure', x: 0, y: 5, w: 2, h: 5, minW: 2, minH: 4 },
+    { i: 'backupTelemetry', x: 0, y: 10, w: 2, h: 5, minW: 2, minH: 4 },
+    { i: 'activityStream', x: 0, y: 15, w: 2, h: 8, minW: 2, minH: 5 },
+    { i: 'storageTrend', x: 0, y: 23, w: 2, h: 8, minW: 2, minH: 5 },
+    { i: 'heatmap', x: 0, y: 31, w: 2, h: 6, minW: 2, minH: 4 },
+    { i: 'upcomingSchedule', x: 0, y: 37, w: 2, h: 6, minW: 2, minH: 4 },
+  ],
 };
 
-const dashboardStatIds = new Set(['printersOnline', 'totalPrints', 'successRate', 'libraryCount']);
-const dashboardWidgetIds = new Set(['activePrints', 'printers', 'recentPrints', 'quickStats', 'quickActions']);
+const defaultDashboardWidgetPrefs = {
+  version: 2,
+  layouts: defaultDashboardLayouts,
+  hiddenWidgetIds: [],
+};
 
 function sanitizeDashboardWidgetPrefs(raw = {}) {
   const safe = raw && typeof raw === 'object' ? raw : {};
 
-  const uniqueInSet = (list, allowed) => {
+  const normalizeHidden = (list) => {
     if (!Array.isArray(list)) return [];
     const seen = new Set();
     const out = [];
     for (const item of list) {
-      const value = String(item || '').trim();
-      if (!allowed.has(value) || seen.has(value)) continue;
-      seen.add(value);
-      out.push(value);
+      const id = String(item || '').trim();
+      if (!dashboardWidgetIds.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
     }
     return out;
   };
 
-  const statsOrder = uniqueInSet(safe.statsOrder, dashboardStatIds);
-  const widgetOrder = uniqueInSet(safe.widgetOrder, dashboardWidgetIds);
+  const parseLayoutValue = (input, fallback, min, max) => {
+    const parsed = Number.parseInt(String(input), 10);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(min, Math.min(max, parsed));
+  };
 
-  // Ensure all known items are present in order lists for stability.
-  for (const id of defaultDashboardWidgetPrefs.statsOrder) {
-    if (!statsOrder.includes(id)) statsOrder.push(id);
-  }
-  for (const id of defaultDashboardWidgetPrefs.widgetOrder) {
-    if (!widgetOrder.includes(id)) widgetOrder.push(id);
-  }
+  const normalizeLayouts = (inputLayouts) => {
+    const output = {};
 
-  const statsHidden = uniqueInSet(safe.statsHidden, dashboardStatIds);
-  const widgetHidden = uniqueInSet(safe.widgetHidden, dashboardWidgetIds);
+    for (const key of dashboardBreakpointKeys) {
+      const defaults = Array.isArray(defaultDashboardLayouts[key]) ? defaultDashboardLayouts[key] : [];
+      const map = new Map(defaults.map((item) => [item.i, { ...item }]));
+      const incoming = inputLayouts && Array.isArray(inputLayouts[key]) ? inputLayouts[key] : [];
 
-  const rawSpan = safe.widgetSpan && typeof safe.widgetSpan === 'object' ? safe.widgetSpan : {};
-  const widgetSpan = {};
-  for (const id of dashboardWidgetIds) {
-    const parsed = Number.parseInt(String(rawSpan[id] ?? defaultDashboardWidgetPrefs.widgetSpan[id]), 10);
-    widgetSpan[id] = parsed === 2 ? 2 : 1;
-  }
+      for (const item of incoming) {
+        if (!item || typeof item.i !== 'string' || !dashboardWidgetIds.has(item.i)) {
+          continue;
+        }
+        const fallback = map.get(item.i) || { i: item.i, x: 0, y: 0, w: 4, h: 4, minW: 2, minH: 2 };
+        const minW = parseLayoutValue(item.minW, fallback.minW || 2, 1, 24);
+        const minH = parseLayoutValue(item.minH, fallback.minH || 2, 2, 24);
 
-  const rawLayout = safe.widgetLayout && typeof safe.widgetLayout === 'object' ? safe.widgetLayout : {};
-  const widgetLayout = {};
-  for (const id of dashboardWidgetIds) {
-    const fallback = defaultDashboardWidgetPrefs.widgetLayout[id];
-    const item = rawLayout[id] && typeof rawLayout[id] === 'object' ? rawLayout[id] : {};
-    const minWParsed = Number.parseInt(String(item.minW ?? fallback.minW), 10);
-    const minHParsed = Number.parseInt(String(item.minH ?? fallback.minH), 10);
-    const minW = Number.isFinite(minWParsed) ? Math.max(2, Math.min(12, minWParsed)) : fallback.minW;
-    const minH = Number.isFinite(minHParsed) ? Math.max(2, Math.min(12, minHParsed)) : fallback.minH;
+        map.set(item.i, {
+          i: item.i,
+          x: parseLayoutValue(item.x, fallback.x, 0, 24),
+          y: parseLayoutValue(item.y, fallback.y, 0, 999),
+          w: parseLayoutValue(item.w, fallback.w, minW, 24),
+          h: parseLayoutValue(item.h, fallback.h, minH, 24),
+          minW,
+          minH,
+        });
+      }
 
-    const xParsed = Number.parseInt(String(item.x ?? fallback.x), 10);
-    const yParsed = Number.parseInt(String(item.y ?? fallback.y), 10);
-    const wParsed = Number.parseInt(String(item.w ?? fallback.w), 10);
-    const hParsed = Number.parseInt(String(item.h ?? fallback.h), 10);
+      output[key] = defaults.map((item) => map.get(item.i) || item);
+    }
 
-    widgetLayout[id] = {
-      x: Number.isFinite(xParsed) ? Math.max(0, Math.min(11, xParsed)) : fallback.x,
-      y: Number.isFinite(yParsed) ? Math.max(0, yParsed) : fallback.y,
-      w: Number.isFinite(wParsed) ? Math.max(minW, Math.min(12, wParsed)) : fallback.w,
-      h: Number.isFinite(hParsed) ? Math.max(minH, Math.min(12, hParsed)) : fallback.h,
-      minW,
-      minH,
-    };
-  }
+    return output;
+  };
 
-  const density = safe.density === 'comfortable' ? 'comfortable' : 'compact';
-  const refreshParsed = Number.parseInt(String(safe.refreshSeconds ?? defaultDashboardWidgetPrefs.refreshSeconds), 10);
-  const refreshSeconds = Number.isFinite(refreshParsed) ? Math.max(10, Math.min(300, refreshParsed)) : 30;
+  // Backward compatibility with prior single-layout schema.
+  const legacyLayout = safe.widgetLayout && typeof safe.widgetLayout === 'object' ? safe.widgetLayout : null;
+  const legacyHidden = Array.isArray(safe.widgetHidden) ? safe.widgetHidden : [];
+  const migratedLayouts = legacyLayout
+    ? {
+        lg: Object.keys(legacyLayout).map((id) => {
+          const item = legacyLayout[id] && typeof legacyLayout[id] === 'object' ? legacyLayout[id] : {};
+          return {
+            i: id,
+            x: parseLayoutValue(item.x, 0, 0, 24),
+            y: parseLayoutValue(item.y, 0, 0, 999),
+            w: parseLayoutValue(item.w, 4, 1, 24),
+            h: parseLayoutValue(item.h, 5, 2, 24),
+            minW: parseLayoutValue(item.minW, 2, 1, 24),
+            minH: parseLayoutValue(item.minH, 2, 2, 24),
+          };
+        }),
+      }
+    : null;
+
+  const layouts = normalizeLayouts(safe.layouts || migratedLayouts || defaultDashboardLayouts);
+  const hiddenWidgetIds = normalizeHidden(safe.hiddenWidgetIds || legacyHidden);
 
   return {
-    version: 1,
-    density,
-    refreshSeconds,
-    showHeaderMeta: Boolean(safe.showHeaderMeta ?? true),
-    statsOrder,
-    statsHidden,
-    widgetOrder,
-    widgetHidden,
-    widgetSpan,
-    widgetLayout,
+    version: 2,
+    layouts,
+    hiddenWidgetIds,
   };
 }
 

@@ -42,6 +42,10 @@ export const API_ENDPOINTS = {
     DOWNLOAD: (modelId: string) => `${API_BASE_URL}/api/download/${modelId}`,
     LOCAL_DOWNLOAD: (modelId: string) => `${API_BASE_URL}/api/local/download/${modelId}`,
   },
+
+  PRINTS: {
+    LIST: `${API_BASE_URL}/api/prints`,
+  },
   
   LIBRARY: {
     BASE: `${API_BASE_URL}/api/library`,
