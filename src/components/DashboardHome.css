@@ -105,6 +105,21 @@
   border-bottom: 2px solid rgba(var(--theme-accent-rgb), 0.85);
 }
 
+.ops-primary-text {
+  color: rgba(255, 255, 255, 0.96);
+  font-weight: 700;
+}
+
+.ops-meta-text {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
+.ops-row-divider {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
 .widget-drag-handle {
   cursor: grab;
   user-select: none;
