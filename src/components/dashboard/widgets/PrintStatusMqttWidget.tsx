@@ -26,12 +26,12 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded border border-cyan-400/30 bg-cyan-500/10 px-4 py-3.5">
-          <p className="text-[10px] uppercase tracking-[0.12em] leading-[1.45] text-cyan-100/85">MQTT Links</p>
+        <div className="rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3.5">
+          <p className="ops-secondary-text">MQTT Links</p>
           <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{mqttConnected}/{rows.length || 0}</p>
         </div>
-        <div className="rounded border border-emerald-400/30 bg-emerald-500/10 px-4 py-3.5">
-          <p className="text-[10px] uppercase tracking-[0.12em] leading-[1.45] text-emerald-100/85">Printing</p>
+        <div className="rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3.5">
+          <p className="ops-secondary-text">Printing</p>
           <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{printing}</p>
         </div>
       </div>
@@ -41,28 +41,28 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
           No printer telemetry available.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="ops-list rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3">
           {visibleRows.map((row) => {
             const progress = Math.max(0, Math.min(100, Number(row.progress || 0)));
             return (
-              <article key={row.id} className="rounded border border-white/15 bg-white/[0.03] px-4 py-3.5">
+              <article key={row.id} className="py-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold leading-tight text-white/90">{row.name}</p>
-                    <p className="mt-1 truncate text-[10px] uppercase tracking-[0.1em] leading-[1.45] text-white/52">
+                    <p className="truncate text-sm font-semibold leading-tight text-white">{row.name}</p>
+                    <p className="mt-1 truncate ops-tertiary-text">
                       {row.currentPrint || row.status || 'Idle'}
                     </p>
                   </div>
-                  <span className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${row.mqttConnected ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200' : 'border-white/20 bg-black/20 text-white/65'}`}>
+                  <span className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${row.mqttConnected ? 'border-emerald-700 text-emerald-300' : 'border-slate-700 text-slate-400'}`}>
                     {row.mqttConnected ? 'MQTT' : 'No MQTT'}
                   </span>
                 </div>
 
-                <div className="mt-2 h-2 overflow-hidden rounded border border-white/10 bg-black/25">
-                  <div className="h-full bg-[linear-gradient(90deg,rgba(var(--theme-accent-rgb),0.92),rgba(var(--theme-accent-rgb),0.45))]" style={{ width: `${progress}%` }} />
+                <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-slate-700 bg-slate-950">
+                  <div className="h-full bg-slate-400" style={{ width: `${progress}%` }} />
                 </div>
 
-                <div className="mt-2.5 flex items-center justify-between text-[10px] uppercase tracking-[0.1em] leading-[1.45] text-white/55">
+                <div className="mt-2.5 flex items-center justify-between ops-tertiary-text">
                   <span>{progress}%</span>
                   <span>
                     N {Math.round(Number(row.nozzleTemp || 0))}C / B {Math.round(Number(row.bedTemp || 0))}C
@@ -77,7 +77,7 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
       <button
         type="button"
         onClick={onOpenPrinters}
-        className="widget-no-drag mt-auto rounded border border-white/20 bg-white/5 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/75 hover:border-white/35"
+        className="widget-no-drag mt-auto rounded-[4px] border border-slate-700 bg-slate-900 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-200 hover:border-slate-500"
       >
         Open Printers
       </button>

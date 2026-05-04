@@ -553,17 +553,17 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
 
   return (
     <section className="dashboard-home command-center-stage px-0">
-      <header className="command-center-hero mb-3 rounded-xl p-3">
+      <header className="command-center-hero mb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--theme-accent-strong)]">Command Center</p>
-            <h2 className="mt-1 text-xl font-semibold text-white">Operations Grid</h2>
-            <p className="mt-1 text-xs text-white/60">
+            <p className="ops-secondary-text">Command Center</p>
+            <h2 className="command-center-title mt-1">Operations Grid</h2>
+            <p className="command-center-subtitle mt-1">
               Modular dashboard · drag/resize widgets · persisted layout
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="command-center-actions flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {
@@ -571,7 +571,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
                 setIsEditMode(next);
                 setShowWidgetLibrary(next);
               }}
-              className={`inline-flex items-center gap-1.5 rounded border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] ${isEditMode ? 'border-[color:var(--theme-accent)] bg-[color:var(--color-accent-soft)] text-white' : 'border-white/20 bg-white/5 text-white/80 hover:border-white/35'}`}
+              className={`inline-flex items-center gap-1.5 rounded-[4px] border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] ${isEditMode ? 'border-slate-500 bg-[#1b2330] text-white' : 'text-slate-200 hover:border-slate-500'}`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
               {isEditMode ? 'Done Editing' : 'Edit Dashboard'}
@@ -581,7 +581,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
               <button
                 type="button"
                 onClick={snapAllWidgets}
-                className="rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80 hover:border-white/35"
+                className="rounded-[4px] border border-slate-700 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-200 hover:border-slate-500"
               >
                 Snap Layout
               </button>
@@ -591,7 +591,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
               <button
                 type="button"
                 onClick={() => setShowWidgetLibrary((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80 hover:border-white/35"
+                className="inline-flex items-center gap-1.5 rounded-[4px] border border-slate-700 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-200 hover:border-slate-500"
               >
                 <Plus className="h-3.5 w-3.5" /> Widget Library
               </button>
@@ -600,7 +600,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             <button
               type="button"
               onClick={() => onNavigate('statistics')}
-              className="rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/80 hover:border-white/35"
+              className="rounded-[4px] border border-slate-700 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-200 hover:border-slate-500"
             >
               Open Full Stats
             </button>
@@ -632,7 +632,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       </header>
 
       {queryErrorCount > 0 ? (
-        <div className="mb-3 rounded border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-amber-200">
+        <div className="mb-3 rounded-[4px] border border-amber-500/40 bg-[#1f1a12] px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-amber-200">
           Some data sources are unavailable ({queryErrorCount}). Widgets are showing partial data.
         </div>
       ) : null}
@@ -787,9 +787,9 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
         </ResponsiveGridLayout>
 
         {isEditMode && showWidgetLibrary ? (
-          <aside className="absolute right-0 top-0 z-10 w-64 rounded-lg border border-white/15 bg-[rgba(10,12,17,0.97)] p-3 shadow-xl">
-            <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">Widget Library</h3>
-            <p className="mb-2 mt-0.5 text-[10px] text-white/45">Re-enable hidden widgets</p>
+          <aside className="absolute right-0 top-0 z-10 w-64 rounded-[4px] border border-[#2f3743] bg-[#10161e] p-3 shadow-xl">
+            <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Widget Library</h3>
+            <p className="mb-2 mt-0.5 text-[10px] text-slate-500">Re-enable hidden widgets</p>
             <div className="space-y-2">
               {dashboardWidgetRegistry.map((widget) => {
                 const hidden = hiddenWidgetIds.includes(widget.id);
@@ -799,7 +799,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
                     type="button"
                     disabled={!hidden}
                     onClick={() => showWidget(widget.id)}
-                    className={`w-full rounded border px-2 py-1.5 text-left text-xs ${hidden ? 'border-[color:var(--theme-accent)]/40 text-[color:var(--theme-accent)] hover:bg-[color:var(--theme-accent)]/10' : 'border-white/15 text-white/40 opacity-60'}`}
+                    className={`w-full rounded-[4px] border px-2 py-1.5 text-left text-xs ${hidden ? 'border-slate-600 text-slate-200 hover:bg-slate-800/40' : 'border-slate-800 text-slate-600 opacity-70'}`}
                   >
                     {widget.title}
                   </button>

@@ -19,30 +19,30 @@ function FleetAlertsWidget({ data, onOpenPrinters, onOpenMaintenance }: FleetAle
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded border border-white/15 bg-black/20 p-2">
-          <p className="text-[10px] uppercase tracking-[0.1em] text-white/55">Offline</p>
-          <p className={`mt-1 text-lg font-bold ${offlineCount > 0 ? 'text-amber-300' : 'text-emerald-300'}`}>{offlineCount}</p>
+        <div className="rounded-[4px] border border-slate-700 bg-slate-900 p-3">
+          <p className="ops-secondary-text">Offline</p>
+          <p className="mt-1 text-2xl font-bold text-white">{offlineCount}</p>
         </div>
-        <div className="rounded border border-white/15 bg-black/20 p-2">
-          <p className="text-[10px] uppercase tracking-[0.1em] text-white/55">Overdue</p>
-          <p className={`mt-1 text-lg font-bold ${data.overdueMaintenance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{data.overdueMaintenance}</p>
+        <div className="rounded-[4px] border border-slate-700 bg-slate-900 p-3">
+          <p className="ops-secondary-text">Overdue</p>
+          <p className="mt-1 text-2xl font-bold text-white">{data.overdueMaintenance}</p>
         </div>
       </div>
 
-      <div className="rounded border border-white/15 bg-white/[0.03] p-2">
-        <p className="text-[10px] uppercase tracking-[0.09em] text-white/50">Active prints</p>
-        <p className="mt-1 text-sm font-semibold text-white/90">{data.activePrints} / {data.totalPrinters || 0} printers</p>
+      <div className="rounded-[4px] border border-slate-700 bg-slate-900 p-3">
+        <p className="ops-secondary-text">Active Prints</p>
+        <p className="mt-1 text-xl font-bold text-white">{data.activePrints}<span className="text-slate-500">/{data.totalPrinters || 0}</span></p>
       </div>
 
       {visibleOffline.length > 0 ? (
-        <div className="space-y-1">
-          <p className="text-[10px] uppercase tracking-[0.1em] text-white/55">Offline printers</p>
+        <div className="ops-list rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3">
+          <p className="ops-secondary-text">Offline Printers</p>
           {visibleOffline.map((name) => (
-            <p key={name} className="truncate rounded border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100">{name}</p>
+            <p key={name} className="truncate py-1 text-sm font-semibold text-white">{name}</p>
           ))}
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center rounded border border-dashed border-emerald-400/30 bg-emerald-500/10 text-xs text-emerald-100">
+        <div className="flex flex-1 items-center justify-center rounded-[4px] border border-dashed border-slate-700 bg-slate-900 text-xs text-slate-500">
           Fleet is healthy.
         </div>
       )}
@@ -51,14 +51,14 @@ function FleetAlertsWidget({ data, onOpenPrinters, onOpenMaintenance }: FleetAle
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="widget-no-drag rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
+          className="widget-no-drag rounded-[4px] border border-slate-700 bg-slate-900 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-200 hover:border-slate-500"
         >
           Printers
         </button>
         <button
           type="button"
           onClick={onOpenMaintenance}
-          className="widget-no-drag rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
+          className="widget-no-drag rounded-[4px] border border-slate-700 bg-slate-900 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-200 hover:border-slate-500"
         >
           Maintenance
         </button>

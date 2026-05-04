@@ -40,13 +40,13 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 rounded border border-white/15 bg-black/20 p-2">
+      <div className="flex flex-wrap gap-2 rounded-[4px] border border-slate-700 bg-slate-900 p-2">
         {(['all', 'running', 'success', 'failed'] as const).map((filter) => (
           <button
             key={filter}
             type="button"
             onClick={() => setStatusFilter(filter)}
-            className={`rounded px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${statusFilter === filter ? 'bg-white/15 text-white' : 'text-white/60'}`}
+            className={`rounded-[3px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${statusFilter === filter ? 'bg-slate-700 text-white' : 'text-slate-400'}`}
           >
             {filter}
           </button>
@@ -65,8 +65,8 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
         const progressPct = Math.max(6, Math.min(100, row.progressPct ?? (statusKey === 'running' ? 50 : 100)));
 
         return (
-          <article key={row.id} className="overflow-hidden rounded border border-white/15 bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div className="relative h-28 overflow-hidden border-b border-white/10 bg-[linear-gradient(160deg,rgba(var(--theme-accent-rgb),0.18),rgba(20,24,31,0.95))]">
+          <article key={row.id} className="overflow-hidden rounded-[4px] border border-slate-700 bg-slate-900">
+            <div className="relative h-28 overflow-hidden border-b border-slate-800 bg-slate-950">
               {row.thumbnailUrl ? (
                 <img
                   src={row.thumbnailUrl}
@@ -79,28 +79,26 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
                 />
               ) : null}
 
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_42%,rgba(0,0,0,0.74)_100%)]" />
-
-              <span className={`absolute right-2 top-2 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${badgeClass}`}>
-                {row.status}
-              </span>
-
-              <div className="absolute bottom-2 left-4 right-4">
-                <p className="truncate pr-20 text-sm font-bold text-white">{row.title}</p>
-              </div>
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_45%,rgba(0,0,0,0.35)_100%)]" />
             </div>
 
             <div className="space-y-3 px-4 py-3.5">
-              <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] leading-[1.45] text-white/45">{row.printer}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="truncate text-sm font-bold text-white">{row.title}</p>
+                <span className={`shrink-0 rounded-[3px] border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${badgeClass}`}>
+                  {row.status}
+                </span>
+              </div>
+              <p className="ops-secondary-text truncate">{row.printer}</p>
 
-              <div className="h-1.5 overflow-hidden rounded border border-white/15 bg-black/30">
+              <div className="h-1.5 overflow-hidden rounded-[3px] border border-slate-700 bg-slate-950">
                 <div
-                  className={`h-full ${statusKey === 'failed' ? 'bg-rose-400/90' : statusKey === 'running' ? 'bg-amber-300/90' : 'bg-emerald-400/90'}`}
+                  className={`h-full ${statusKey === 'failed' ? 'bg-rose-400' : statusKey === 'running' ? 'bg-amber-300' : 'bg-emerald-400'}`}
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] leading-[1.45] text-white/45">
+              <div className="flex flex-wrap items-center gap-1.5 ops-tertiary-text">
                 <span className="truncate">{row.startedAt}</span>
                 <span aria-hidden>•</span>
                 <span>{row.durationLabel}</span>
@@ -114,7 +112,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
       </div>
 
       {filteredRows.length > rowLimit ? (
-        <p className="text-[10px] uppercase tracking-[0.08em] text-white/45">
+        <p className="ops-tertiary-text">
           Showing {rowLimit} of {filteredRows.length} rows for this filter.
         </p>
       ) : null}

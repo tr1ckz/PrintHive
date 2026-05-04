@@ -12,15 +12,7 @@ interface StatCard {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
-  tone: 'blue' | 'green' | 'amber' | 'violet';
 }
-
-const toneClassMap: Record<StatCard['tone'], string> = {
-  blue: 'border-cyan-400/35 bg-cyan-500/12 text-cyan-100',
-  green: 'border-emerald-400/35 bg-emerald-500/12 text-emerald-100',
-  amber: 'border-amber-400/35 bg-amber-500/12 text-amber-100',
-  violet: 'border-violet-400/35 bg-violet-500/12 text-violet-100',
-};
 
 function QuickStatsWidget({ printersOnlineLabel, totalPrints, successRate, libraryModels }: QuickStatsWidgetProps) {
   const cards: StatCard[] = [
@@ -29,42 +21,38 @@ function QuickStatsWidget({ printersOnlineLabel, totalPrints, successRate, libra
       label: 'Printers Online',
       value: printersOnlineLabel,
       icon: Printer,
-      tone: 'blue',
     },
     {
       key: 'prints',
       label: 'Total Prints',
       value: `${totalPrints}`,
       icon: Trophy,
-      tone: 'green',
     },
     {
       key: 'success',
       label: 'Success Rate',
       value: `${successRate}%`,
       icon: CheckCircle2,
-      tone: 'amber',
     },
     {
       key: 'library',
       label: 'Library Models',
       value: `${libraryModels}`,
       icon: BookOpen,
-      tone: 'violet',
     },
   ];
 
   return (
-    <div className="grid h-full grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="grid h-full grid-cols-1 gap-2 sm:grid-cols-2">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <article key={card.key} className={`rounded border px-5 py-4 ${toneClassMap[card.tone]}`}>
+          <article key={card.key} className="rounded-[4px] border border-slate-700 bg-slate-900 px-5 py-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] leading-[1.45]">{card.label}</p>
-              <Icon className="h-4 w-4 opacity-90" />
+              <p className="ops-secondary-text">{card.label}</p>
+              <Icon className="h-4 w-4 text-slate-500" />
             </div>
-            <p className="mt-3 text-3xl font-bold leading-tight text-white">{card.value}</p>
+            <p className="mt-2 text-3xl font-bold leading-tight text-white">{card.value}</p>
           </article>
         );
       })}

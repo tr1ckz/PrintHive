@@ -30,12 +30,12 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
 
   if (printers.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 rounded border border-dashed border-white/20 text-xs text-white/55">
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[4px] border border-dashed border-slate-700 text-xs text-slate-500">
         <p>No printers configured.</p>
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="rounded border border-white/20 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-white/70"
+          className="rounded-[4px] border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.08em] text-slate-200"
         >
           Open Printers
         </button>
@@ -46,13 +46,13 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2 rounded border border-white/15 bg-black/20 p-2">
+        <div className="flex flex-wrap gap-2 rounded-[4px] border border-slate-700 bg-slate-900 p-2">
           {(['all', 'online', 'active'] as const).map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setScope(item)}
-              className={`rounded px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-white/15 text-white' : 'text-white/60'}`}
+              className={`rounded-[3px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-slate-700 text-white' : 'text-slate-400'}`}
             >
               {item}
             </button>
@@ -61,32 +61,32 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/75 hover:border-white/35"
+          className="rounded-[4px] border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-200 hover:border-slate-500"
         >
           Open
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="ops-list rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3">
         {visibleRows.map((printer) => (
-          <div key={printer.id} className="rounded border border-white/15 bg-white/[0.03] p-4">
+          <div key={printer.id} className="py-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold leading-tight text-white/90">{printer.name}</p>
-                <p className="mt-1 truncate text-[10px] uppercase tracking-[0.12em] leading-[1.45] text-white/45">{printer.model}</p>
+                <p className="mt-1 truncate ops-tertiary-text">{printer.model}</p>
               </div>
               <span
-                className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${printer.online ? 'border-emerald-400/45 bg-emerald-500/10 text-emerald-200' : 'border-white/20 bg-black/20 text-white/65'}`}
+                className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-emerald-700 text-emerald-300' : 'border-slate-700 text-slate-400'}`}
               >
                 {printer.online ? 'Online' : 'Offline'}
               </span>
             </div>
 
-            <div className="mt-2 h-2 overflow-hidden rounded border border-white/10 bg-black/25">
-              <div className="h-full bg-[linear-gradient(90deg,rgba(var(--theme-accent-rgb),0.92),rgba(var(--theme-accent-rgb),0.4))]" style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
+            <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-slate-700 bg-slate-950">
+              <div className="h-full bg-slate-400" style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
             </div>
 
-            <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.1em] leading-[1.45] text-white/55">
+            <div className="mt-2 flex items-center justify-between ops-tertiary-text">
               <span className="truncate">{printer.currentPrint || printer.status || 'Idle'}</span>
               <span>{Math.max(0, Math.min(100, printer.progress || 0))}%</span>
             </div>
