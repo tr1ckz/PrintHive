@@ -12,7 +12,7 @@ function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShel
     <article className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-white/14 bg-[linear-gradient(165deg,rgba(19,22,28,0.97)_0%,rgba(10,12,17,0.98)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_16px_34px_rgba(0,0,0,0.34)] transition-[border-color,box-shadow] duration-200 hover:border-white/22 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_22px_34px_rgba(0,0,0,0.38)]">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-[linear-gradient(90deg,rgba(var(--theme-accent-rgb),0.85),rgba(var(--theme-accent-rgb),0.1),rgba(var(--theme-accent-rgb),0.85))] opacity-65" />
 
-      <header className="widget-drag-handle flex shrink-0 cursor-grab items-center justify-between gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-2 active:cursor-grabbing">
+      <header className="widget-drag-handle flex shrink-0 cursor-grab items-center justify-between gap-2 border-b border-white/10 bg-white/[0.03] px-4 py-3 active:cursor-grabbing">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className="inline-flex h-5 w-5 select-none items-center justify-center rounded border border-white/20 bg-black/30 text-[10px] font-bold text-white/50"
@@ -34,7 +34,7 @@ function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShel
         ) : null}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto p-3">{children}</div>
+      <div className="min-h-0 flex-1 overflow-auto p-4 md:p-5">{children}</div>
 
       <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[linear-gradient(180deg,rgba(var(--theme-accent-rgb),0),rgba(var(--theme-accent-rgb),0.3),rgba(var(--theme-accent-rgb),0))] opacity-40" />
     </article>

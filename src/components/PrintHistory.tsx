@@ -280,6 +280,15 @@ const PrintHistory: React.FC = () => {
         setToast({ message: `Printer sync failed:\n${data.error}\n\n${data.details || ''}\n${data.hint || ''}`, type: 'error' });
         return;
       }
+
+      if (data.queued) {
+        setToast({
+          message: '✓ Printer timelapse sync started in background. Track progress in Background Jobs.',
+          type: 'success'
+        });
+        setShowPrinterSync(false);
+        return;
+      }
       
       setToast({ message: `✓ Downloaded ${data.downloaded} timelapses from printer:\n${data.files?.slice(0, 10).join('\n')}${data.files?.length > 10 ? '\n...' : ''}`, type: 'success' });
       setShowPrinterSync(false);
@@ -309,6 +318,15 @@ const PrintHistory: React.FC = () => {
       
       if (!response.ok) {
         setToast({ message: `SD card sync failed:\n${data.error}\n\n${data.details || ''}\n${data.hint || ''}`, type: 'error' });
+        return;
+      }
+
+      if (data.queued) {
+        setToast({
+          message: '✓ SD card sync started in background. Track progress in Background Jobs.',
+          type: 'success'
+        });
+        setShowSdCardSync(false);
         return;
       }
       

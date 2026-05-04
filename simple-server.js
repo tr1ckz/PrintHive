@@ -3493,6 +3493,20 @@ let bulkDeleteJob = {
   queue: []
 };
 
+// Global state for printer transfer background jobs (timelapse + SD card sync)
+let printerTransferJob = {
+  running: false,
+  type: '',
+  total: 0,
+  processed: 0,
+  completed: 0,
+  failed: 0,
+  currentFile: '',
+  startTime: null,
+  phase: 'idle',
+  message: '',
+};
+
 // Match videos to prints based on timestamp (non-blocking background job)
 app.post('/api/match-videos', (req, res) => {
   if (!req.session.authenticated) {
@@ -5063,79 +5077,114 @@ app.post('/api/sync-printer-timelapses', async (req, res) => {
     return res.status(400).json({ error: 'Printer IP and access code required' });
   }
 
-  try {
-    // Check if printer is idle before downloading
-    // Get printer status from Bambu API
-    try {
-      const printersResponse = await axios.get('https://api.bambulab.com/v1/iot-service/api/user/bind', {
-        headers: { 'Authorization': `Bearer ${req.session.token}` }
-      });
-      
-      if (printersResponse.data && printersResponse.data.devices) {
-        const activePrinter = printersResponse.data.devices.find(d => 
-          d.print_status === 'RUNNING' || d.print_status === 'PRINTING'
-        );
-        
-        if (activePrinter) {
-          return res.status(400).json({ 
-            error: 'Printer is currently printing',
-            details: `Cannot download timelapses while printer "${activePrinter.name}" is printing. Please wait until the print is complete.`,
-            printerStatus: activePrinter.print_status
-          });
-        }
-      }
-    } catch (statusErr) {
-      console.log('Could not check printer status:', statusErr.message);
-      // Continue anyway if we can't check status
-    }
-
-    // Connect to printer
-    console.log(`Connecting to printer at ${printerIp}...`);
-    const connected = await bambuFtp.connect(printerIp, accessCode);
-    
-    if (!connected) {
-      return res.status(500).json({ 
-        error: 'FTP/FTPS not available on this printer',
-        details: 'Most Bambu Lab printers do not support FTP access to timelapse files. Timelapses are typically only accessible:\n\n1. Via the SD card (remove from printer and access directly)\n2. Through Bambu Studio if synced to cloud\n3. Some models may have a web interface\n\nAlternatively, ensure timelapses are uploaded to Bambu Cloud and use the "Sync Cloud" button instead.',
-        hint: 'Check your printer model documentation for file access methods'
-      });
-    }
-
-    // Download all timelapses (with optional deletion)
-    const deleteAfter = req.body.deleteAfterDownload || false;
-    const downloaded = await bambuFtp.downloadAllTimelapses(videosDir, deleteAfter);
-    
-    // Disconnect
-    await bambuFtp.disconnect();
-
-    // Save printer credentials to global config for future use
-    try {
-      const upsert = db.prepare(`
-        INSERT INTO config (key, value, updated_at) 
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
-      `);
-      upsert.run('printer_ip', printerIp, printerIp);
-      upsert.run('printer_access_code', accessCode, accessCode);
-    } catch (err) {
-      console.log('Failed to save printer credentials:', err.message);
-    }
-
-    res.json({
-      success: true,
-      downloaded: downloaded.filter(f => !f.skipped).length,
-      files: downloaded.map(f => f.filename),
-      message: `Downloaded ${downloaded.filter(f => !f.skipped).length} new timelapses from printer`
-    });
-
-  } catch (error) {
-    console.error('Printer timelapse sync error:', error);
-    await bambuFtp.disconnect();
-    res.status(500).json({ 
-      error: 'Failed to sync timelapses from printer',
-      details: error.message 
+  if (printerTransferJob.running) {
+    return res.status(409).json({
+      success: false,
+      message: 'Another printer transfer job is already running',
+      status: printerTransferJob,
     });
   }
+
+  const deleteAfter = req.body.deleteAfterDownload || false;
+  const token = req.session?.token;
+
+  printerTransferJob = {
+    running: true,
+    type: 'timelapse-sync',
+    total: 0,
+    processed: 0,
+    completed: 0,
+    failed: 0,
+    currentFile: '',
+    startTime: Date.now(),
+    phase: 'queued',
+    message: 'Timelapse sync queued',
+  };
+
+  res.json({
+    success: true,
+    queued: true,
+    message: 'Timelapse sync started in background. Check /api/printer-transfer-status or dashboard Background Jobs.',
+    status: printerTransferJob,
+  });
+
+  void (async () => {
+    try {
+      printerTransferJob.phase = 'checking-printer';
+      printerTransferJob.message = 'Checking printer state';
+
+      // Check if printer is idle before downloading
+      // Get printer status from Bambu API
+      try {
+        const printersResponse = await axios.get('https://api.bambulab.com/v1/iot-service/api/user/bind', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (printersResponse.data && printersResponse.data.devices) {
+          const activePrinter = printersResponse.data.devices.find(d =>
+            d.print_status === 'RUNNING' || d.print_status === 'PRINTING'
+          );
+
+          if (activePrinter) {
+            throw new Error(`Cannot download timelapses while printer "${activePrinter.name}" is ${activePrinter.print_status}.`);
+          }
+        }
+      } catch (statusErr) {
+        if (statusErr instanceof Error && statusErr.message.includes('Cannot download timelapses while printer')) {
+          throw statusErr;
+        }
+        console.log('Could not check printer status:', statusErr.message);
+        // Continue anyway if we can't check status
+      }
+
+      // Connect to printer
+      printerTransferJob.phase = 'connecting';
+      printerTransferJob.message = `Connecting to printer ${printerIp}`;
+      console.log(`Connecting to printer at ${printerIp}...`);
+      const connected = await bambuFtp.connect(printerIp, accessCode);
+
+      if (!connected) {
+        throw new Error('FTP/FTPS not available on this printer. Try SD card import or cloud sync instead.');
+      }
+
+      printerTransferJob.phase = 'downloading';
+      printerTransferJob.message = 'Downloading timelapses';
+
+      // Download all timelapses (with optional deletion)
+      const downloaded = await bambuFtp.downloadAllTimelapses(videosDir, deleteAfter);
+      const newDownloads = downloaded.filter(f => !f.skipped).length;
+
+      printerTransferJob.total = downloaded.length;
+      printerTransferJob.processed = downloaded.length;
+      printerTransferJob.completed = newDownloads;
+      printerTransferJob.currentFile = '';
+
+      // Save printer credentials to global config for future use
+      try {
+        const upsert = db.prepare(`
+          INSERT INTO config (key, value, updated_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
+        `);
+        upsert.run('printer_ip', printerIp, printerIp);
+        upsert.run('printer_access_code', accessCode, accessCode);
+      } catch (err) {
+        console.log('Failed to save printer credentials:', err.message);
+      }
+
+      printerTransferJob.phase = 'complete';
+      printerTransferJob.message = `Downloaded ${newDownloads} new timelapses (${downloaded.length} scanned)`;
+    } catch (error) {
+      console.error('Printer timelapse sync error:', error);
+      printerTransferJob.failed += 1;
+      printerTransferJob.phase = 'error';
+      printerTransferJob.message = `Failed: ${error.message}`;
+    } finally {
+      await bambuFtp.disconnect();
+      printerTransferJob.running = false;
+      printerTransferJob.currentFile = '';
+    }
+  })();
 });
 
 // Sync SD card files with print history
@@ -5156,130 +5205,170 @@ app.post('/api/sync-sd-card', async (req, res) => {
     });
   }
 
-  try {
-    console.log(`Connecting to printer at ${printerIp} for SD card sync...`);
-    
-    // Connect to printer via FTP
-    const connected = await bambuFtp.connect(printerIp, accessCode);
-    if (!connected) {
-      return res.status(500).json({
-        error: 'FTP/FTPS not available on this printer',
-        details: 'Could not establish FTP connection to printer. Ensure the printer is on LAN mode or FTP is enabled.',
-        hint: 'Check your printer settings and network configuration'
-      });
-    }
-
-    // List all files on SD card
-    const sdFiles = await bambuFtp.listAllPrinterFiles();
-    console.log(`Found ${sdFiles.length} files on printer SD card`);
-
-    if (sdFiles.length === 0) {
-      await bambuFtp.disconnect();
-      return res.json({
-        success: true,
-        added: 0,
-        files: [],
-        message: 'No files found on SD card'
-      });
-    }
-
-    // Get all existing prints from database
-    const existingPrints = getAllPrintsFromDb();
-    const existingTitles = new Set(existingPrints.map(p => p.title?.toLowerCase()));
-    const existingFileNames = new Set(existingPrints.map(p => {
-      // Extract filename from title or plateName
-      const title = p.title || p.plateName || '';
-      return title.toLowerCase().replace(/\.(gcode|3mf)$/i, '');
-    }));
-
-    // Filter for files not in history
-    const newFiles = sdFiles.filter(file => {
-      const baseName = file.name.replace(/\.(gcode|3mf)$/i, '').toLowerCase();
-      const hasTitle = existingTitles.has(file.name.toLowerCase());
-      const hasFileName = existingFileNames.has(baseName);
-      return !hasTitle && !hasFileName;
-    });
-
-    console.log(`Found ${newFiles.length} new files not in print history`);
-
-    // Create print records for missing files
-    const added = [];
-    for (const file of newFiles) {
-      try {
-        // Generate a unique modelId for the SD card file
-        const modelId = `sd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        // Create print record
-        const printData = {
-          id: null, // Auto-increment
-          designId: null,
-          designTitle: file.name,
-          instanceId: null,
-          modelId: modelId,
-          title: file.name,
-          cover: null,
-          videoUrl: null,
-          videoLocal: null,
-          coverLocal: null,
-          status: 2, // Status 2 = completed (assuming SD card files are completed prints)
-          feedbackStatus: null,
-          startTime: file.modified || new Date().toISOString(),
-          endTime: file.modified || new Date().toISOString(),
-          weight: null,
-          length: null,
-          costTime: null,
-          profileId: null,
-          plateIndex: null,
-          plateName: file.name,
-          deviceId: null,
-          deviceModel: null,
-          deviceName: 'SD Card Import',
-          bedType: null,
-          jobType: null,
-          mode: 'local',
-          isPublicProfile: false,
-          isPrintable: false,
-          isDelete: false,
-          amsDetailMapping: [],
-          material: {},
-          platform: 'local',
-          stepSummary: [],
-          nozzleInfos: [],
-          snapShot: null
-        };
-
-        storePrint(printData);
-        added.push({
-          name: file.name,
-          modelId: modelId,
-          modified: file.modified
-        });
-
-        console.log(`✓ Added ${file.name} to print history`);
-      } catch (err) {
-        console.error(`Failed to add ${file.name} to history:`, err.message);
-      }
-    }
-
-    // Disconnect
-    await bambuFtp.disconnect();
-
-    res.json({
-      success: true,
-      added: added.length,
-      scanned: sdFiles.length,
-      files: added.map(f => f.name),
-      message: `Added ${added.length} new prints from SD card to history`
-    });
-
-  } catch (error) {
-    console.error('SD card sync error:', error);
-    await bambuFtp.disconnect();
-    res.status(500).json({ 
-      error: 'Failed to sync SD card files',
-      details: error.message 
+  if (printerTransferJob.running) {
+    return res.status(409).json({
+      success: false,
+      message: 'Another printer transfer job is already running',
+      status: printerTransferJob,
     });
   }
+
+  printerTransferJob = {
+    running: true,
+    type: 'sd-card-sync',
+    total: 0,
+    processed: 0,
+    completed: 0,
+    failed: 0,
+    currentFile: '',
+    startTime: Date.now(),
+    phase: 'queued',
+    message: 'SD card sync queued',
+  };
+
+  res.json({
+    success: true,
+    queued: true,
+    message: 'SD card sync started in background. Check /api/printer-transfer-status or dashboard Background Jobs.',
+    status: printerTransferJob,
+  });
+
+  void (async () => {
+    try {
+      printerTransferJob.phase = 'connecting';
+      printerTransferJob.message = `Connecting to printer ${printerIp}`;
+      console.log(`Connecting to printer at ${printerIp} for SD card sync...`);
+
+      // Connect to printer via FTP
+      const connected = await bambuFtp.connect(printerIp, accessCode);
+      if (!connected) {
+        throw new Error('FTP/FTPS not available on this printer. Ensure LAN mode or FTP access is enabled.');
+      }
+
+      // List all files on SD card
+      printerTransferJob.phase = 'listing';
+      printerTransferJob.message = 'Listing SD card files';
+      const sdFiles = await bambuFtp.listAllPrinterFiles();
+      console.log(`Found ${sdFiles.length} files on printer SD card`);
+
+      printerTransferJob.total = sdFiles.length;
+
+      if (sdFiles.length === 0) {
+        printerTransferJob.phase = 'complete';
+        printerTransferJob.message = 'No files found on SD card';
+        return;
+      }
+
+      // Get all existing prints from database
+      const existingPrints = getAllPrintsFromDb();
+      const existingTitles = new Set(existingPrints.map(p => p.title?.toLowerCase()));
+      const existingFileNames = new Set(existingPrints.map(p => {
+        // Extract filename from title or plateName
+        const title = p.title || p.plateName || '';
+        return title.toLowerCase().replace(/\.(gcode|3mf)$/i, '');
+      }));
+
+      // Filter for files not in history
+      const newFiles = sdFiles.filter(file => {
+        const baseName = file.name.replace(/\.(gcode|3mf)$/i, '').toLowerCase();
+        const hasTitle = existingTitles.has(file.name.toLowerCase());
+        const hasFileName = existingFileNames.has(baseName);
+        return !hasTitle && !hasFileName;
+      });
+
+      console.log(`Found ${newFiles.length} new files not in print history`);
+      printerTransferJob.phase = 'importing';
+      printerTransferJob.total = newFiles.length;
+
+      let addedCount = 0;
+      for (const file of newFiles) {
+        printerTransferJob.currentFile = file.name;
+        try {
+          // Generate a unique modelId for the SD card file
+          const modelId = `sd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+          // Create print record
+          const printData = {
+            id: null, // Auto-increment
+            designId: null,
+            designTitle: file.name,
+            instanceId: null,
+            modelId: modelId,
+            title: file.name,
+            cover: null,
+            videoUrl: null,
+            videoLocal: null,
+            coverLocal: null,
+            status: 2, // Status 2 = completed (assuming SD card files are completed prints)
+            feedbackStatus: null,
+            startTime: file.modified || new Date().toISOString(),
+            endTime: file.modified || new Date().toISOString(),
+            weight: null,
+            length: null,
+            costTime: null,
+            profileId: null,
+            plateIndex: null,
+            plateName: file.name,
+            deviceId: null,
+            deviceModel: null,
+            deviceName: 'SD Card Import',
+            bedType: null,
+            jobType: null,
+            mode: 'local',
+            isPublicProfile: false,
+            isPrintable: false,
+            isDelete: false,
+            amsDetailMapping: [],
+            material: {},
+            platform: 'local',
+            stepSummary: [],
+            nozzleInfos: [],
+            snapShot: null
+          };
+
+          storePrint(printData);
+          addedCount += 1;
+          printerTransferJob.completed = addedCount;
+          console.log(`✓ Added ${file.name} to print history`);
+        } catch (err) {
+          printerTransferJob.failed += 1;
+          console.error(`Failed to add ${file.name} to history:`, err.message);
+        }
+
+        printerTransferJob.processed += 1;
+        await yieldToEventLoop();
+      }
+
+      printerTransferJob.phase = 'complete';
+      printerTransferJob.message = `Added ${addedCount} new prints from SD card`;
+    } catch (error) {
+      console.error('SD card sync error:', error);
+      printerTransferJob.failed += 1;
+      printerTransferJob.phase = 'error';
+      printerTransferJob.message = `Failed: ${error.message}`;
+    } finally {
+      await bambuFtp.disconnect();
+      printerTransferJob.running = false;
+      printerTransferJob.currentFile = '';
+    }
+  })();
+});
+
+app.get('/api/printer-transfer-status', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const elapsed = printerTransferJob.startTime ? ((Date.now() - printerTransferJob.startTime) / 1000).toFixed(1) : 0;
+  const percent = printerTransferJob.total > 0
+    ? Math.round((printerTransferJob.processed / Math.max(printerTransferJob.total, 1)) * 100)
+    : 0;
+
+  res.json({
+    ...printerTransferJob,
+    elapsedSeconds: elapsed,
+    percentComplete: percent,
+  });
 });
 
 // Statistics endpoint
@@ -7619,6 +7708,15 @@ app.get('/api/background-jobs/summary', (req, res) => {
       total: Number(bulkDeleteJob.total || 0),
       completed: Number(bulkDeleteJob.deleted || 0),
       failed: Number(bulkDeleteJob.failed || 0),
+    },
+    {
+      id: 'printer-transfer',
+      name: printerTransferJob.type === 'sd-card-sync' ? 'SD Card Sync' : 'Printer Timelapse Sync',
+      running: Boolean(printerTransferJob.running),
+      processed: Number(printerTransferJob.processed || 0),
+      total: Number(printerTransferJob.total || 0),
+      completed: Number(printerTransferJob.completed || 0),
+      failed: Number(printerTransferJob.failed || 0),
     },
   ];
 
