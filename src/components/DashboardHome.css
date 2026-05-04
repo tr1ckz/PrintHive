@@ -2,17 +2,24 @@
   max-width: 1680px;
   margin: 0 auto;
   color: #ffffff;
+  --ops-bg: #0f1318;
+  --ops-surface: #141a22;
+  --ops-surface-alt: #11171f;
+  --ops-border: rgba(var(--theme-accent-rgb), 0.28);
+  --ops-border-strong: rgba(var(--theme-accent-rgb), 0.48);
+  --ops-secondary: rgba(226, 232, 240, 0.7);
+  --ops-tertiary: rgba(148, 163, 184, 0.5);
 }
 
 .command-center-stage {
-  padding-bottom: 16px;
+  padding-bottom: 20px;
 }
 
 .command-center-hero {
-  border: 1px solid #2f3743;
+  border: 1px solid var(--ops-border);
   border-radius: 4px;
-  background: #131820;
-  padding: 16px;
+  background: var(--ops-surface);
+  padding: 20px;
 }
 
 .command-center-title {
@@ -22,29 +29,29 @@
 }
 
 .command-center-subtitle {
-  color: #9ca3af;
+  color: var(--ops-secondary);
   font-size: 0.8rem;
   line-height: 1.45;
 }
 
 .command-center-actions button {
-  border: 1px solid #374151;
+  border: 1px solid var(--ops-border);
   border-radius: 4px;
-  background: #11161d;
+  background: var(--ops-surface-alt);
   color: #e5e7eb;
 }
 
 .command-center-kpi-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .command-kpi-card {
-  border: 1px solid #303845;
+  border: 1px solid var(--ops-border);
   border-radius: 4px;
-  background: #121821;
-  padding: 14px 16px;
+  background: var(--ops-surface-alt);
+  padding: 16px 18px;
 }
 
 .command-kpi-label {
@@ -52,7 +59,7 @@
   text-transform: uppercase;
   letter-spacing: 0.12em;
   line-height: 1.45;
-  color: #94a3b8;
+  color: var(--ops-secondary);
 }
 
 .command-kpi-value {
@@ -77,15 +84,15 @@
 }
 
 .command-center-grid .react-grid-item.react-grid-placeholder {
-  background: rgba(148, 163, 184, 0.1);
-  border: 1px dashed #475569;
+  background: rgba(var(--theme-accent-rgb), 0.16);
+  border: 1px dashed var(--ops-border-strong);
   border-radius: 4px;
   opacity: 1;
 }
 
 .command-center-grid .react-grid-item > .react-resizable-handle::after {
-  border-right: 2px solid #64748b;
-  border-bottom: 2px solid #64748b;
+  border-right: 2px solid var(--ops-border-strong);
+  border-bottom: 2px solid var(--ops-border-strong);
 }
 
 .ops-primary-text {
@@ -94,7 +101,7 @@
 }
 
 .ops-secondary-text {
-  color: #94a3b8;
+  color: var(--ops-secondary);
   font-size: 0.72rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -102,7 +109,7 @@
 }
 
 .ops-tertiary-text {
-  color: rgba(71, 85, 105, 0.9);
+  color: var(--ops-tertiary);
   font-size: 0.66rem;
   line-height: 1.45;
   letter-spacing: 0.08em;
@@ -110,7 +117,7 @@
 }
 
 .ops-row-divider {
-  border-color: #27303a;
+  border-color: var(--ops-border);
 }
 
 .ops-list {
@@ -119,9 +126,44 @@
 }
 
 .ops-list > * + * {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid #232d39;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(var(--theme-accent-rgb), 0.22);
+}
+
+/* Override slate-centric utility classes inside the operations grid so all widgets follow the active accent color system. */
+.dashboard-home .bg-slate-900 {
+  background-color: var(--ops-surface-alt) !important;
+}
+
+.dashboard-home .bg-slate-950 {
+  background-color: #0b1016 !important;
+}
+
+.dashboard-home .border-slate-700,
+.dashboard-home .border-slate-600,
+.dashboard-home .border-slate-800 {
+  border-color: var(--ops-border) !important;
+}
+
+.dashboard-home .text-slate-200 {
+  color: #f1f5f9 !important;
+}
+
+.dashboard-home .text-slate-300,
+.dashboard-home .text-slate-400,
+.dashboard-home .text-slate-500,
+.dashboard-home .text-slate-600 {
+  color: var(--ops-secondary) !important;
+}
+
+.dashboard-home .bg-slate-700,
+.dashboard-home .hover\:bg-slate-800\/40:hover {
+  background-color: rgba(var(--theme-accent-rgb), 0.2) !important;
+}
+
+.dashboard-home .hover\:border-slate-500:hover {
+  border-color: var(--ops-border-strong) !important;
 }
 
 .widget-drag-handle {
