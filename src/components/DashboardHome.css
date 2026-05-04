@@ -83,7 +83,7 @@
 }
 
 .command-center-grid .react-grid-item {
-  transition: transform 150ms ease, filter 150ms ease;
+  transition: filter 150ms ease;
   animation: commandWidgetRise 260ms ease both;
 }
 
@@ -110,11 +110,9 @@
 @keyframes commandWidgetRise {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
