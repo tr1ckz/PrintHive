@@ -94,6 +94,7 @@ export const API_ENDPOINTS = {
     SAVE_OAUTH: `${API_BASE_URL}/api/settings/save-oauth`,
     SAVE_UI: `${API_BASE_URL}/api/settings/save-ui`,
     UI: `${API_BASE_URL}/api/settings/ui`,
+    DASHBOARD_WIDGETS: `${API_BASE_URL}/api/settings/dashboard-widgets`,
     OAUTH_PUBLIC: `${API_BASE_URL}/api/settings/oauth-public`,
     GET: `${API_BASE_URL}/api/settings`,
     COSTS: `${API_BASE_URL}/api/settings/costs`,

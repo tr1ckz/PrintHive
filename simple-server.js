@@ -3138,6 +3138,136 @@ app.post('/api/settings/ui', (req, res) => {
   }
 });
 
+const defaultDashboardWidgetPrefs = {
+  version: 1,
+  density: 'compact',
+  refreshSeconds: 30,
+  showHeaderMeta: true,
+  statsOrder: ['printersOnline', 'totalPrints', 'successRate', 'libraryCount'],
+  statsHidden: [],
+  widgetOrder: ['activePrints', 'printers', 'recentPrints', 'quickStats', 'quickActions'],
+  widgetHidden: [],
+  widgetSpan: {
+    activePrints: 2,
+    printers: 1,
+    recentPrints: 1,
+    quickStats: 1,
+    quickActions: 1,
+  },
+};
+
+const dashboardStatIds = new Set(['printersOnline', 'totalPrints', 'successRate', 'libraryCount']);
+const dashboardWidgetIds = new Set(['activePrints', 'printers', 'recentPrints', 'quickStats', 'quickActions']);
+
+function sanitizeDashboardWidgetPrefs(raw = {}) {
+  const safe = raw && typeof raw === 'object' ? raw : {};
+
+  const uniqueInSet = (list, allowed) => {
+    if (!Array.isArray(list)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const item of list) {
+      const value = String(item || '').trim();
+      if (!allowed.has(value) || seen.has(value)) continue;
+      seen.add(value);
+      out.push(value);
+    }
+    return out;
+  };
+
+  const statsOrder = uniqueInSet(safe.statsOrder, dashboardStatIds);
+  const widgetOrder = uniqueInSet(safe.widgetOrder, dashboardWidgetIds);
+
+  // Ensure all known items are present in order lists for stability.
+  for (const id of defaultDashboardWidgetPrefs.statsOrder) {
+    if (!statsOrder.includes(id)) statsOrder.push(id);
+  }
+  for (const id of defaultDashboardWidgetPrefs.widgetOrder) {
+    if (!widgetOrder.includes(id)) widgetOrder.push(id);
+  }
+
+  const statsHidden = uniqueInSet(safe.statsHidden, dashboardStatIds);
+  const widgetHidden = uniqueInSet(safe.widgetHidden, dashboardWidgetIds);
+
+  const rawSpan = safe.widgetSpan && typeof safe.widgetSpan === 'object' ? safe.widgetSpan : {};
+  const widgetSpan = {};
+  for (const id of dashboardWidgetIds) {
+    const parsed = Number.parseInt(String(rawSpan[id] ?? defaultDashboardWidgetPrefs.widgetSpan[id]), 10);
+    widgetSpan[id] = parsed === 2 ? 2 : 1;
+  }
+
+  const density = safe.density === 'comfortable' ? 'comfortable' : 'compact';
+  const refreshParsed = Number.parseInt(String(safe.refreshSeconds ?? defaultDashboardWidgetPrefs.refreshSeconds), 10);
+  const refreshSeconds = Number.isFinite(refreshParsed) ? Math.max(10, Math.min(300, refreshParsed)) : 30;
+
+  return {
+    version: 1,
+    density,
+    refreshSeconds,
+    showHeaderMeta: Boolean(safe.showHeaderMeta ?? true),
+    statsOrder,
+    statsHidden,
+    widgetOrder,
+    widgetHidden,
+    widgetSpan,
+  };
+}
+
+function getDashboardWidgetConfigKey(userId) {
+  return `dashboard_widgets_layout_user_${userId}`;
+}
+
+// Get dashboard widget preferences (authenticated)
+app.get('/api/settings/dashboard-widgets', (req, res) => {
+  if (!req.session?.authenticated || !req.session?.userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const key = getDashboardWidgetConfigKey(req.session.userId);
+    const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key);
+
+    if (!row?.value) {
+      return res.json({ success: true, preferences: defaultDashboardWidgetPrefs });
+    }
+
+    let parsed = {};
+    try {
+      parsed = JSON.parse(row.value);
+    } catch {
+      parsed = {};
+    }
+
+    return res.json({ success: true, preferences: sanitizeDashboardWidgetPrefs(parsed) });
+  } catch (error) {
+    console.error('Failed to load dashboard widget settings:', error);
+    return res.status(500).json({ error: 'Failed to load dashboard widget settings' });
+  }
+});
+
+// Save dashboard widget preferences (authenticated)
+app.post('/api/settings/dashboard-widgets', (req, res) => {
+  if (!req.session?.authenticated || !req.session?.userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const preferences = sanitizeDashboardWidgetPrefs(req.body || {});
+    const key = getDashboardWidgetConfigKey(req.session.userId);
+
+    db.prepare(`
+      INSERT INTO config (key, value, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+    `).run(key, JSON.stringify(preferences));
+
+    return res.json({ success: true, preferences });
+  } catch (error) {
+    console.error('Failed to save dashboard widget settings:', error);
+    return res.status(500).json({ error: 'Failed to save dashboard widget settings' });
+  }
+});
+
 app.get('/api/camera/stream', (req, res) => {
   if (!req.session?.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
