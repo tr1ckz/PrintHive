@@ -75,14 +75,18 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
         const progressPct = Math.max(6, Math.min(100, row.progressPct ?? (statusKey === 'running' ? 50 : 100)));
 
         return (
-          <article key={row.id} className="ops-clickable-card rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+          <article key={row.id} className="ops-clickable-card relative rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+            <span className={`absolute right-2 top-2 z-10 shrink-0 rounded-[3px] border bg-neutral-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${badgeClass}`}>
+              {row.status}
+            </span>
+
             <div className="relative mb-3 h-28 overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950">
               {row.thumbnailUrl ? (
                 <img
                   src={row.thumbnailUrl}
                   alt={row.title}
                   loading="lazy"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover object-center"
                   onError={(event) => {
                     event.currentTarget.style.display = 'none';
                   }}
@@ -93,15 +97,12 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
             </div>
 
             <div className="mt-4 space-y-4">
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start justify-between gap-2 pr-24">
                 <p className="truncate text-sm font-bold text-white">{row.title}</p>
-                <span className={`shrink-0 rounded-[3px] border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${badgeClass}`}>
-                  {row.status}
-                </span>
               </div>
               <p className="text-xs font-semibold tracking-wider text-neutral-400 uppercase truncate">{row.printer}</p>
 
-              <div className="h-1.5 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
+              <div className="h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
                 <div
                   className={`h-full ${progressBarClass}`}
                   style={{ width: `${progressPct}%` }}

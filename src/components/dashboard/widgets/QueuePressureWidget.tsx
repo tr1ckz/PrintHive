@@ -20,6 +20,9 @@ function QueuePressureWidget({ summary, density = 'comfortable', onRefresh, onOp
       <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
         <p className="ops-secondary-text">Queue Pressure</p>
         <p className="mt-1.5 text-3xl font-bold leading-tight text-white">{summary.pressureScore}%</p>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
+          <div className="h-full bg-orange-500" style={{ width: `${Math.max(0, Math.min(100, summary.pressureScore || 0))}%` }} />
+        </div>
         <p className="mt-1.5 text-[11px] leading-[1.45] text-neutral-500">{summary.recommendation}</p>
       </div>
 

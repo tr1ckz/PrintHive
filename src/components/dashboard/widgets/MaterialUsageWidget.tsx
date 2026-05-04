@@ -40,7 +40,7 @@ function MaterialUsageWidget({
             <article key={card.id} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
               <p className="ops-secondary-text">{card.label}</p>
               <p className="mt-2 text-xl font-bold leading-tight text-white">{formatWeight(card.value)}</p>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
+              <div className="mt-2 h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
                 <div
                   className="h-full bg-orange-500"
                   style={{ width: `${widthPct}%` }}

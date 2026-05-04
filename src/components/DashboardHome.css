@@ -233,6 +233,40 @@
   padding: 16px !important;
 }
 
+/* Unified dark scrollbars for widget scroll regions. */
+.dashboard-home .widget-shell-body,
+.dashboard-home .overflow-auto,
+.dashboard-home .overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #404040 #171717;
+}
+
+.dashboard-home .widget-shell-body::-webkit-scrollbar,
+.dashboard-home .overflow-auto::-webkit-scrollbar,
+.dashboard-home .overflow-y-auto::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dashboard-home .widget-shell-body::-webkit-scrollbar-track,
+.dashboard-home .overflow-auto::-webkit-scrollbar-track,
+.dashboard-home .overflow-y-auto::-webkit-scrollbar-track {
+  background: #171717;
+}
+
+.dashboard-home .widget-shell-body::-webkit-scrollbar-thumb,
+.dashboard-home .overflow-auto::-webkit-scrollbar-thumb,
+.dashboard-home .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 999px;
+}
+
+.dashboard-home .widget-shell-body::-webkit-scrollbar-thumb:hover,
+.dashboard-home .overflow-auto::-webkit-scrollbar-thumb:hover,
+.dashboard-home .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: #525252;
+}
+
 @media (max-width: 860px) {
   .widget-shell-body {
     padding: 12px !important;

@@ -58,7 +58,7 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
                   </span>
                 </div>
 
-                <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
+                <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
                   <div className={`h-full ${row.mqttConnected ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${progress}%` }} />
                 </div>
 

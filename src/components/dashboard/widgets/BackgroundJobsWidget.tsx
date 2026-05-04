@@ -1,3 +1,5 @@
+import { Inbox } from 'lucide-react';
+
 export interface BackgroundJobRow {
   id: string;
   name: string;
@@ -27,8 +29,9 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
       </div>
 
       {visibleJobs.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center rounded border border-dashed border-white/20 text-xs text-white/50">
-          No background jobs running.
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-dashed border-neutral-700 bg-neutral-950/40 p-5 text-xs text-neutral-500">
+          <Inbox className="h-4 w-4 text-neutral-600" aria-hidden />
+          <p className="italic">No background jobs running.</p>
         </div>
       ) : (
         <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
@@ -40,7 +43,7 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
                   <p className="truncate text-sm font-semibold leading-tight text-white">{job.name}</p>
                   <span className="ops-tertiary-text">{pct}%</span>
                 </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
+                <div className="mt-2 h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
                   <div className="h-full bg-orange-500" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
                 </div>
                 <p className="mt-2 ops-tertiary-text">{job.completed} done | {job.failed} failed</p>
