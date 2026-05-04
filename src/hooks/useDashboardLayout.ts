@@ -58,22 +58,22 @@ export const dashboardWidgetRegistry: DashboardWidgetRegistryItem[] = [
 
 export const defaultDashboardLayouts: Layouts = {
   lg: [
-    { i: 'livePrinters', x: 0, y: 0, w: 5, h: 6, minW: 4, minH: 5 },
+    { i: 'livePrinters', x: 0, y: 0, w: 5, h: 7, minW: 4, minH: 5 },
     { i: 'healthSummary', x: 5, y: 0, w: 3, h: 5, minW: 3, minH: 4 },
     { i: 'fleetAlerts', x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'backgroundJobs', x: 8, y: 5, w: 4, h: 6, minW: 3, minH: 5 },
     { i: 'upcomingSchedule', x: 5, y: 5, w: 3, h: 6, minW: 3, minH: 5 },
-    { i: 'activityStream', x: 0, y: 6, w: 8, h: 8, minW: 5, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 14, w: 8, h: 6, minW: 5, minH: 5 },
+    { i: 'backgroundJobs', x: 8, y: 5, w: 4, h: 6, minW: 3, minH: 5 },
+    { i: 'activityStream', x: 0, y: 7, w: 8, h: 8, minW: 5, minH: 6 },
+    { i: 'failureWatch', x: 8, y: 11, w: 4, h: 4, minW: 3, minH: 4 },
   ],
   md: [
     { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 5 },
     { i: 'healthSummary', x: 6, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'fleetAlerts', x: 0, y: 6, w: 4, h: 5, minW: 3, minH: 4 },
+    { i: 'fleetAlerts', x: 6, y: 5, w: 4, h: 5, minW: 3, minH: 4 },
+    { i: 'upcomingSchedule', x: 0, y: 6, w: 4, h: 6, minW: 3, minH: 5 },
     { i: 'backgroundJobs', x: 4, y: 6, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 11, w: 4, h: 6, minW: 3, minH: 5 },
-    { i: 'activityStream', x: 0, y: 17, w: 10, h: 8, minW: 5, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 25, w: 10, h: 6, minW: 5, minH: 5 },
+    { i: 'activityStream', x: 0, y: 12, w: 10, h: 8, minW: 5, minH: 6 },
+    { i: 'failureWatch', x: 0, y: 20, w: 10, h: 5, minW: 5, minH: 4 },
   ],
   sm: [
     { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 3, minH: 5 },
@@ -311,7 +311,7 @@ function readLocalState(storageKey: string): DashboardLayoutPreferences | null {
 
 export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   const {
-    storageKey = 'printhive.command-center.layout.v4',
+    storageKey = 'printhive.command-center.layout.v5',
     backendState,
     backendReady,
     onPersist,
