@@ -680,12 +680,12 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           margin={[12, 12]}
           containerPadding={[0, 0]}
           layouts={visibleLayouts}
-          isDraggable={isEditMode}
-          isResizable={isEditMode}
-          compactType="vertical"
-          preventCollision
-          isBounded
-          resizeHandles={['se']}
+          isDraggable
+          isResizable
+          compactType={null}
+          preventCollision={false}
+          isBounded={false}
+          resizeHandles={['se', 'sw', 'ne', 'nw']}
           draggableHandle=".widget-drag-handle"
           onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as keyof Layouts)}
           onLayoutChange={(_currentLayout, allLayouts) => handleLayoutsChange(allLayouts as Layouts)}
@@ -693,7 +693,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           onResizeStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
         >
           {visibleWidgetIds.includes('livePrinters') ? (
-            <div key="livePrinters">
+            <div key="livePrinters" className="h-full">
               <WidgetShell title="Live Printers" isEditMode={isEditMode} onHide={() => hideWidget('livePrinters')}>
                 <LivePrintersWidget
                   printers={livePrintersRows}
@@ -705,7 +705,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           ) : null}
 
           {visibleWidgetIds.includes('healthSummary') ? (
-            <div key="healthSummary">
+            <div key="healthSummary" className="h-full">
               <WidgetShell title="Health Summary" isEditMode={isEditMode} onHide={() => hideWidget('healthSummary')}>
                 <HealthSummaryWidget
                   fleetMetrics={[...healthSummary.fleet]}
@@ -717,7 +717,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           ) : null}
 
           {visibleWidgetIds.includes('backgroundJobs') ? (
-            <div key="backgroundJobs">
+            <div key="backgroundJobs" className="h-full">
               <WidgetShell title="Background Jobs" isEditMode={isEditMode} onHide={() => hideWidget('backgroundJobs')}>
                 <BackgroundJobsWidget
                   jobs={backgroundJobRows}
@@ -730,7 +730,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           ) : null}
 
           {visibleWidgetIds.includes('queuePressure') ? (
-            <div key="queuePressure">
+            <div key="queuePressure" className="h-full">
               <WidgetShell title="Queue Pressure" isEditMode={isEditMode} onHide={() => hideWidget('queuePressure')}>
                 <QueuePressureWidget
                   summary={queuePressureSummary}
@@ -744,7 +744,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           ) : null}
 
           {visibleWidgetIds.includes('backupTelemetry') ? (
-            <div key="backupTelemetry">
+            <div key="backupTelemetry" className="h-full">
               <WidgetShell title="Backup Telemetry" isEditMode={isEditMode} onHide={() => hideWidget('backupTelemetry')}>
                 <BackupTelemetryWidget
                   summary={backupSummary}
@@ -755,7 +755,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           ) : null}
 
           {visibleWidgetIds.includes('activityStream') ? (
-            <div key="activityStream">
+            <div key="activityStream" className="h-full">
               <WidgetShell title="Activity Stream" isEditMode={isEditMode} onHide={() => hideWidget('activityStream')}>
                 <ActivityStreamWidget
                   rows={activityRows}
@@ -766,7 +766,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           ) : null}
 
           {visibleWidgetIds.includes('storageTrend') ? (
-            <div key="storageTrend">
+            <div key="storageTrend" className="h-full">
               <WidgetShell title="Storage Trend" isEditMode={isEditMode} onHide={() => hideWidget('storageTrend')}>
                 <StorageTrendWidget
                   points={storageTrendSeries}
@@ -777,7 +777,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           ) : null}
 
           {visibleWidgetIds.includes('heatmap') ? (
-            <div key="heatmap">
+            <div key="heatmap" className="h-full">
               <WidgetShell title="Print Heatmap" isEditMode={isEditMode} onHide={() => hideWidget('heatmap')}>
                 <HeatmapWidget buckets={heatmapBuckets} />
               </WidgetShell>
@@ -785,7 +785,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           ) : null}
 
           {visibleWidgetIds.includes('upcomingSchedule') ? (
-            <div key="upcomingSchedule">
+            <div key="upcomingSchedule" className="h-full">
               <WidgetShell title="Upcoming Schedule" isEditMode={isEditMode} onHide={() => hideWidget('upcomingSchedule')}>
                 <UpcomingScheduleWidget
                   items={upcomingScheduleItems}
@@ -796,7 +796,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           ) : null}
 
           {visibleWidgetIds.includes('duplicatePressure') ? (
-            <div key="duplicatePressure">
+            <div key="duplicatePressure" className="h-full">
               <WidgetShell title="Duplicate Pressure" isEditMode={isEditMode} onHide={() => hideWidget('duplicatePressure')}>
                 <DuplicatePressureWidget
                   summary={duplicatePressureSummary}
