@@ -1,6 +1,6 @@
 {
   "name": "printhive",
-  "version": "1.4.10",
+  "version": "1.4.11",
   "description": "Web application for 3D printer management - monitor printers, manage models and timelapses",
   "main": "simple-server.js",
   "scripts": {
@@ -40,6 +40,7 @@
     "fluent-ffmpeg": "^2.1.3",
     "hls.js": "^1.6.15",
     "jszip": "^3.10.1",
+    "lucide-react": "^1.14.0",
     "mqtt": "^5.14.1",
     "multer": "^2.0.2",
     "openid-client": "^6.8.1",
