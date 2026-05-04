@@ -83,6 +83,8 @@ const unifiedCameraRelayStreamName = 'printhive_camera';
 const go2rtcInternalBaseUrl = process.env.GO2RTC_INTERNAL_URL || 'http://127.0.0.1:1984';
 const go2rtcProxyPath = '/api/go2rtc';
 const go2rtcWebSocketProxyPath = `${go2rtcProxyPath}/ws`;
+const clientTelemetryBuffer = [];
+const maxClientTelemetryEvents = 300;
 
 function normalizeStreamRelayUrl(value = '') {
   return String(value || '').trim().replace(/\/+$/, '');
@@ -402,11 +404,16 @@ function scheduleRecurringTask(taskName, taskFn, intervalMs, initialDelayMs = 0)
     }
 
     running = true;
+    const startedAt = Date.now();
     try {
       await taskFn();
     } catch (error) {
       logger.warn(`[${taskName}] Scheduled task error:`, error.message);
     } finally {
+      const durationMs = Date.now() - startedAt;
+      if (durationMs > 5000) {
+        logger.warn(`[${taskName}] Slow run detected (${durationMs}ms).`);
+      }
       running = false;
       timer = setTimeout(runTask, intervalMs);
     }
@@ -3755,6 +3762,53 @@ app.get('/api/check-auth', (req, res) => {
   }
 });
 
+app.post('/api/client-telemetry', (req, res) => {
+  try {
+    const payload = req.body || {};
+    const event = {
+      timestamp: new Date().toISOString(),
+      level: typeof payload.level === 'string' ? payload.level : 'error',
+      source: typeof payload.source === 'string' ? payload.source.slice(0, 100) : 'unknown',
+      message: typeof payload.message === 'string' ? payload.message.slice(0, 500) : 'No message',
+      path: typeof payload.path === 'string' ? payload.path.slice(0, 300) : '',
+      href: typeof payload.href === 'string' ? payload.href.slice(0, 500) : '',
+      details: payload.details && typeof payload.details === 'object' ? payload.details : null,
+      sessionId: req.sessionID,
+      userId: req.session?.userId || null,
+      ip: req.ip,
+      ua: req.get('user-agent') || '',
+    };
+
+    clientTelemetryBuffer.push(event);
+    if (clientTelemetryBuffer.length > maxClientTelemetryEvents) {
+      clientTelemetryBuffer.splice(0, clientTelemetryBuffer.length - maxClientTelemetryEvents);
+    }
+
+    logger.warn('[client-telemetry]', {
+      level: event.level,
+      source: event.source,
+      message: event.message,
+      path: event.path,
+      userId: event.userId,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to ingest client telemetry:', error.message);
+    res.status(500).json({ success: false });
+  }
+});
+
+app.get('/api/client-telemetry/recent', (req, res) => {
+  if (!req.session?.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+  const recent = clientTelemetryBuffer.slice(-limit).reverse();
+  res.json({ events: recent });
+});
+
 // Logout endpoint
 app.post('/auth/logout', (req, res) => {
   console.log('=== LOGOUT ===');
@@ -6988,11 +7042,16 @@ async function processBulkDeleteQueue() {
       const thumbPath = path.join(__dirname, 'data', 'thumbnails', `${fileId}.png`);
       const geoPath = path.join(__dirname, 'data', 'geometry', `${fileId}.stl`);
       
-      if (fs.existsSync(thumbPath)) {
-        fs.unlinkSync(thumbPath);
+      const [thumbExists, geoExists] = await Promise.all([
+        fs.promises.access(thumbPath).then(() => true).catch(() => false),
+        fs.promises.access(geoPath).then(() => true).catch(() => false),
+      ]);
+
+      if (thumbExists) {
+        await fs.promises.unlink(thumbPath).catch(() => {});
       }
-      if (fs.existsSync(geoPath)) {
-        fs.unlinkSync(geoPath);
+      if (geoExists) {
+        await fs.promises.unlink(geoPath).catch(() => {});
       }
       
       bulkDeleteJob.deleted++;
@@ -7004,8 +7063,7 @@ async function processBulkDeleteQueue() {
     
     bulkDeleteJob.processed++;
     
-    // Small delay to avoid blocking
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await yieldToEventLoop();
   }
   
   if (bulkDeleteJob.processed >= bulkDeleteJob.total) {
