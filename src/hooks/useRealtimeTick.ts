@@ -9,6 +9,7 @@ export function useRealtimeTick(callback: () => void, options: RealtimeTickOptio
   const { minIntervalMs = 4000 } = options;
   const callbackRef = useRef(callback);
   const lastRunRef = useRef(0);
+  const pendingRef = useRef<number | null>(null);
 
   useEffect(() => {
     callbackRef.current = callback;
@@ -22,17 +23,36 @@ export function useRealtimeTick(callback: () => void, options: RealtimeTickOptio
           return;
         }
 
+        // Avoid churn while the page is in the background.
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+          return;
+        }
+
         const now = Date.now();
         if (now - lastRunRef.current < minIntervalMs) {
           return;
         }
 
+        if (pendingRef.current) {
+          return;
+        }
+
         lastRunRef.current = now;
-        callbackRef.current();
+        pendingRef.current = window.setTimeout(() => {
+          pendingRef.current = null;
+          try {
+            callbackRef.current();
+          } catch {
+            // Ignore callback errors to keep the UI alive.
+          }
+        }, 0);
       }
     );
 
     return () => {
+      if (pendingRef.current) {
+        window.clearTimeout(pendingRef.current);
+      }
       unsubscribe();
     };
   }, [minIntervalMs]);

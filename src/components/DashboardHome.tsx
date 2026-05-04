@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Layout, ResponsiveLayouts, Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import { LayoutGrid, Plus } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
-import { useRealtimeTick } from '../hooks/useRealtimeTick';
 import useDashboardLayout, { DashboardLayoutPreferences, dashboardWidgetRegistry } from '../hooks/useDashboardLayout';
 import WidgetShell from './dashboard/WidgetShell';
 import HealthSummaryWidget from './dashboard/widgets/HealthSummaryWidget';
@@ -124,7 +123,6 @@ function widgetDensity(layouts: Record<string, Array<{ i: string; w?: number; h?
 }
 
 function DashboardHome({ onNavigate }: DashboardHomeProps) {
-  const queryClient = useQueryClient();
   const [isEditMode, setIsEditMode] = useState(true);
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
   const [currentBreakpoint, setCurrentBreakpoint] = useState<Breakpoint>('lg');
@@ -237,10 +235,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       persistDashboardLayout.mutate(next);
     },
   });
-
-  useRealtimeTick(() => {
-    void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-  }, { minIntervalMs: 8000 });
 
   const printers = printersQuery.data?.printers || [];
   const stats = statsQuery.data;
