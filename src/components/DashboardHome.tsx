@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Layouts, ResponsiveGridLayout } from 'react-grid-layout';
+import { Layout, Layouts, ResponsiveGridLayout } from 'react-grid-layout';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
@@ -267,6 +267,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     visibleWidgetIds,
     hiddenWidgetIds,
     visibleLayouts,
+    snapBreakpointLayout,
     showWidget,
     hideWidget,
     setAllVisible,
@@ -736,12 +737,14 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           isDraggable={isEditMode}
           isResizable={isEditMode}
           compactType="vertical"
-          preventCollision={false}
+          preventCollision
           isBounded
           resizeHandles={['se']}
           draggableHandle=".widget-drag-handle"
           onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as keyof Layouts)}
           onLayoutChange={(_currentLayout, allLayouts) => handleLayoutsChange(allLayouts as Layouts)}
+          onDragStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
+          onResizeStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
         >
           {widgetRegistry.map((widget) => {
             if (!visibleWidgetIds.includes(widget.id)) {

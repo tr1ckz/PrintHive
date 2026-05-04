@@ -127,6 +127,13 @@ export const defaultDashboardLayouts: Layouts = {
 };
 
 const BREAKPOINT_ORDER: Array<keyof Layouts> = ['lg', 'md', 'sm', 'xs', 'xxs'];
+const BREAKPOINT_COLUMNS: Record<keyof Layouts, number> = {
+  lg: 12,
+  md: 10,
+  sm: 6,
+  xs: 4,
+  xxs: 2,
+};
 
 const DEFAULT_SNAP_PROFILE: SnapProfile = {
   widths: [2, 3, 4, 5, 6, 7, 8, 10, 12],
@@ -188,10 +195,42 @@ function sanitizeLayoutItem(item: Partial<Layout>, fallback: Layout): Layout {
   };
 }
 
+function intersects(a: Layout, b: Layout): boolean {
+  return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+}
+
+function resolveCollisions(items: Layout[], columns: number): Layout[] {
+  const sorted = [...items].sort((a, b) => {
+    if (a.y !== b.y) return a.y - b.y;
+    if (a.x !== b.x) return a.x - b.x;
+    return a.i.localeCompare(b.i);
+  });
+
+  const placed: Layout[] = [];
+
+  for (const rawItem of sorted) {
+    const next: Layout = {
+      ...rawItem,
+      w: Math.max(1, Math.min(rawItem.w, columns)),
+      x: Math.max(0, Math.min(rawItem.x, Math.max(0, columns - Math.min(rawItem.w, columns)))),
+      y: Math.max(0, rawItem.y),
+    };
+
+    while (placed.some((existing) => intersects(existing, next))) {
+      next.y += 1;
+    }
+
+    placed.push(next);
+  }
+
+  return placed;
+}
+
 function normalizeLayouts(input?: Partial<Layouts> | null): Layouts {
   const next: Layouts = {};
 
   BREAKPOINT_ORDER.forEach((breakpoint) => {
+    const columns = BREAKPOINT_COLUMNS[breakpoint];
     const defaults = defaultDashboardLayouts[breakpoint] || [];
     const defaultMap = new Map<string, Layout>(defaults.map((item) => [item.i, { ...item }]));
     const incoming = input?.[breakpoint];
@@ -227,7 +266,7 @@ function normalizeLayouts(input?: Partial<Layouts> | null): Layouts {
       return defaultMap.get(id) || fallback;
     });
 
-    next[breakpoint] = ordered;
+    next[breakpoint] = resolveCollisions(ordered, columns);
   });
 
   return next;
@@ -345,6 +384,34 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     setLayouts(normalizeLayouts(nextLayouts));
   }, []);
 
+  const snapBreakpointLayout = useCallback((breakpoint: keyof Layouts, incomingLayout: Layout[]) => {
+    setLayouts((current) => {
+      const existing = current[breakpoint] || [];
+      const byId = new Map<string, Layout>(existing.map((item) => [item.i, item]));
+
+      for (const item of incomingLayout) {
+        if (!item || typeof item.i !== 'string' || !isWidgetId(item.i)) {
+          continue;
+        }
+        const fallback = byId.get(item.i) || {
+          i: item.i,
+          x: 0,
+          y: 0,
+          w: 4,
+          h: 4,
+          minW: 2,
+          minH: 2,
+        };
+        byId.set(item.i, sanitizeLayoutItem(item, fallback));
+      }
+
+      return normalizeLayouts({
+        ...current,
+        [breakpoint]: Array.from(byId.values()),
+      });
+    });
+  }, []);
+
   const hideWidget = useCallback((widgetId: DashboardWidgetId) => {
     setHiddenWidgetIds((current) => {
       if (current.includes(widgetId)) return current;
@@ -371,6 +438,7 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     hiddenWidgetIds,
     visibleWidgetIds,
     handleLayoutsChange,
+    snapBreakpointLayout,
     hideWidget,
     showWidget,
     setAllVisible,
