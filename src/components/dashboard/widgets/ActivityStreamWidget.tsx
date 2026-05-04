@@ -77,10 +77,10 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
                 />
               ) : null}
 
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_55%,rgba(0,0,0,0.28)_100%)]" />
+              <div className="absolute inset-0 bg-black/25" />
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4 p-4">
               <div className="flex items-start justify-between gap-2">
                 <p className="truncate text-sm font-bold text-white">{row.title}</p>
                 <span className={`shrink-0 rounded-[3px] border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${badgeClass}`}>

@@ -560,7 +560,6 @@
 
 .ams-slot-card.active {
   border-color: #f97316;
-  box-shadow: inset 0 0 0 1px rgba(249, 115, 22, 0.2);
 }
 
 .ams-slot-header {

@@ -26,11 +26,11 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3.5">
+        <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
           <p className="ops-secondary-text">MQTT Links</p>
           <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{mqttConnected}/{rows.length || 0}</p>
         </div>
-        <div className="rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3.5">
+        <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
           <p className="ops-secondary-text">Printing</p>
           <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{printing}</p>
         </div>
@@ -41,11 +41,11 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
           No printer telemetry available.
         </div>
       ) : (
-        <div className="ops-list rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3">
+        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
           {visibleRows.map((row) => {
             const progress = Math.max(0, Math.min(100, Number(row.progress || 0)));
             return (
-              <article key={row.id} className="py-1">
+              <article key={row.id} className="border-b border-neutral-800 py-3 last:border-b-0">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold leading-tight text-white">{row.name}</p>
@@ -58,8 +58,8 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
                   </span>
                 </div>
 
-                <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-slate-700 bg-slate-950">
-                  <div className="h-full bg-slate-400" style={{ width: `${progress}%` }} />
+                <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
+                  <div className="h-full bg-orange-500" style={{ width: `${progress}%` }} />
                 </div>
 
                 <div className="mt-2.5 flex items-center justify-between ops-tertiary-text">
@@ -77,7 +77,7 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
       <button
         type="button"
         onClick={onOpenPrinters}
-        className="widget-no-drag mt-auto rounded-[4px] border border-slate-700 bg-slate-900 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-200 hover:border-slate-500"
+        className="widget-no-drag mt-auto rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
       >
         Open Printers
       </button>

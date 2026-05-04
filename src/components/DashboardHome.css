@@ -158,6 +158,12 @@
   color: #a3a3a3 !important;
 }
 
+.dashboard-home .text-neutral-300,
+.dashboard-home .text-neutral-400,
+.dashboard-home .text-neutral-500 {
+  color: #a3a3a3 !important;
+}
+
 .dashboard-home .bg-slate-700,
 .dashboard-home .hover\:bg-slate-800\/40:hover {
   background-color: #262626 !important;
@@ -165,20 +171,6 @@
 
 .dashboard-home .hover\:border-slate-500:hover {
   border-color: #404040 !important;
-}
-
-.dashboard-home .text-amber-200,
-.dashboard-home .text-amber-300,
-.dashboard-home .text-rose-300,
-.dashboard-home .text-emerald-300,
-.dashboard-home .text-emerald-400,
-.dashboard-home .text-rose-400,
-.dashboard-home .text-cyan-100,
-.dashboard-home .text-cyan-200,
-.dashboard-home .text-cyan-300,
-.dashboard-home .text-violet-100,
-.dashboard-home .text-violet-200 {
-  color: #ffffff !important;
 }
 
 .widget-drag-handle {

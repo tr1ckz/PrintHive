@@ -30,12 +30,12 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
 
   if (printers.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[4px] border border-dashed border-slate-700 text-xs text-slate-500">
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[4px] border border-dashed border-neutral-800 text-xs text-neutral-500">
         <p>No printers configured.</p>
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="rounded-[4px] border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.08em] text-slate-200"
+          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.08em] text-white"
         >
           Open Printers
         </button>
@@ -46,13 +46,13 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2 rounded-[4px] border border-slate-700 bg-slate-900 p-2">
+        <div className="flex flex-wrap gap-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-2">
           {(['all', 'online', 'active'] as const).map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setScope(item)}
-              className={`rounded-[3px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-slate-700 text-white' : 'text-slate-400'}`}
+              className={`rounded-[3px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-neutral-800 text-white' : 'text-neutral-400'}`}
             >
               {item}
             </button>
@@ -61,15 +61,15 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="rounded-[4px] border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-200 hover:border-slate-500"
+          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
         >
           Open
         </button>
       </div>
 
-      <div className="ops-list rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3">
+      <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
         {visibleRows.map((printer) => (
-          <div key={printer.id} className="py-1">
+          <div key={printer.id} className="border-b border-neutral-800 py-3 last:border-b-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold leading-tight text-white/90">{printer.name}</p>
@@ -82,8 +82,8 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
               </span>
             </div>
 
-            <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-slate-700 bg-slate-950">
-              <div className="h-full bg-slate-400" style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
+            <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
+              <div className="h-full bg-orange-500" style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
             </div>
 
             <div className="mt-2 flex items-center justify-between ops-tertiary-text">
