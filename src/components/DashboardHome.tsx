@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Layout, Layouts, ResponsiveGridLayout } from 'react-grid-layout';
 import { LayoutGrid, Plus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -151,9 +151,39 @@ function widgetDensity(layouts: Layouts, breakpoint: keyof Layouts, id: string):
 
 function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const queryClient = useQueryClient();
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(true);
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
   const [currentBreakpoint, setCurrentBreakpoint] = useState<keyof Layouts>('lg');
+  const gridContainerRef = useRef<HTMLDivElement | null>(null);
+  const [gridWidth, setGridWidth] = useState(1320);
+
+  useEffect(() => {
+    const element = gridContainerRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateWidth = () => {
+      const width = Math.floor(element.getBoundingClientRect().width);
+      if (Number.isFinite(width) && width > 0) {
+        setGridWidth(width);
+      }
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+
+    observer.observe(element);
+    window.addEventListener('resize', updateWidth);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateWidth);
+    };
+  }, []);
 
   const printersQuery = useQuery({
     queryKey: ['dashboard', 'printers'],
@@ -638,9 +668,10 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
         </div>
       ) : null}
 
-      <div className="relative">
+      <div className="relative" ref={gridContainerRef}>
         <ResponsiveGridLayout
           className="command-center-grid"
+          width={gridWidth}
           breakpoints={BREAKPOINTS}
           cols={COLUMNS}
           rowHeight={30}
