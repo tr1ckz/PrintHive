@@ -26,9 +26,28 @@ function App() {
     void loadFooterVersion();
   }, []);
 
+  useEffect(() => {
+    if (isAuthenticated !== null) {
+      return;
+    }
+
+    // Fail-safe: never leave users stuck on the splash screen indefinitely.
+    const timeoutId = window.setTimeout(() => {
+      setIsAuthenticated(false);
+    }, 8000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isAuthenticated]);
+
   const loadFooterVersion = async () => {
     try {
-      const response = await fetchWithRetry(API_ENDPOINTS.SYSTEM.VERSION, { credentials: 'include' });
+      const response = await fetchWithRetry(
+        API_ENDPOINTS.SYSTEM.VERSION,
+        { credentials: 'include' },
+        { maxRetries: 0, timeoutMs: 6000 }
+      );
       if (!response.ok) {
         return;
       }
@@ -54,9 +73,11 @@ function App() {
 
   const loadColorScheme = async () => {
     try {
-      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, {
-        credentials: 'include',
-      });
+      const response = await fetchWithRetry(
+        API_ENDPOINTS.SETTINGS.UI,
+        { credentials: 'include' },
+        { maxRetries: 0, timeoutMs: 6000 }
+      );
       const data = await response.json();
       applyThemeScheme(data.success ? data.colorScheme : 'orange');
     } catch (error) {
@@ -67,9 +88,11 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      const response = await fetchWithRetry(API_ENDPOINTS.AUTH.CHECK, {
-        credentials: 'include'
-      });
+      const response = await fetchWithRetry(
+        API_ENDPOINTS.AUTH.CHECK,
+        { credentials: 'include' },
+        { maxRetries: 0, timeoutMs: 6000 }
+      );
       const data = await response.json();
       setIsAuthenticated(data.authenticated);
     } catch (error) {

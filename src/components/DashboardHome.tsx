@@ -133,12 +133,26 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const [isEditMode, setIsEditMode] = useState(true);
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
   const [currentBreakpoint, setCurrentBreakpoint] = useState<Breakpoint>('lg');
+  const [isPageVisible, setIsPageVisible] = useState<boolean>(() => (
+    typeof document === 'undefined' ? true : document.visibilityState === 'visible'
+  ));
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      setIsPageVisible(document.visibilityState === 'visible');
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
 
   const printersQuery = useQuery({
     queryKey: ['dashboard', 'printers'],
     queryFn: () => fetchJson<PrinterStatusResponse>(API_ENDPOINTS.PRINTERS.STATUS, { printers: [], online: 0, total: 0 }),
     staleTime: 15000,
-    refetchInterval: 30000,
+    refetchInterval: isPageVisible ? 45000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: 0,
@@ -148,6 +162,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     queryKey: ['dashboard', 'stats'],
     queryFn: () => fetchJson<StatisticsResponse>(API_ENDPOINTS.STATISTICS.HISTORY, { totalPrints: 0, successRate: 0, failedPrints: 0, totalWeight: 0, totalTime: 0 }),
     staleTime: 30000,
+    refetchInterval: isPageVisible ? 120000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: 0,
@@ -156,7 +171,8 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const activityQuery = useQuery({
     queryKey: ['dashboard', 'activity'],
     queryFn: () => fetchJson<PrintActivityApiRow[]>(`${API_ENDPOINTS.PRINTS.LIST}?limit=40`, []),
-    staleTime: 20000,
+    staleTime: 30000,
+    refetchInterval: isPageVisible ? 90000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: 0,
@@ -165,7 +181,8 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const maintenanceQuery = useQuery({
     queryKey: ['dashboard', 'maintenance'],
     queryFn: () => fetchJson<MaintenanceTask[]>(API_ENDPOINTS.MAINTENANCE.LIST, []),
-    staleTime: 20000,
+    staleTime: 30000,
+    refetchInterval: isPageVisible ? 120000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: 0,
@@ -179,7 +196,8 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       if (Array.isArray((data as { files?: unknown[] })?.files)) return (data as { files: unknown[] }).files;
       return [];
     },
-    staleTime: 45000,
+    staleTime: 60000,
+    refetchInterval: isPageVisible ? 180000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: 0,
@@ -214,7 +232,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       return results.filter((job) => job.running);
     },
     staleTime: 10000,
-    refetchInterval: () => (typeof document !== 'undefined' && document.visibilityState === 'visible' ? 15000 : false),
+    refetchInterval: isPageVisible ? 20000 : false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: 0,
