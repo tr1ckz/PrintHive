@@ -14,6 +14,7 @@ import BackgroundJobsWidget, { BackgroundJobRow } from './dashboard/widgets/Back
 import FailureWatchWidget, { FailureWatchRow } from './dashboard/widgets/FailureWatchWidget';
 import FleetAlertsWidget, { FleetAlertsData } from './dashboard/widgets/FleetAlertsWidget';
 import PrintStatusMqttWidget, { MqttPrinterRow } from './dashboard/widgets/PrintStatusMqttWidget';
+import MaterialUsageWidget from './dashboard/widgets/MaterialUsageWidget';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import './DashboardHome.css';
@@ -401,6 +402,65 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     }).length;
   }, [activityRaw]);
 
+  const materialUsage = useMemo(() => {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const sevenDays = 7 * oneDay;
+    const thirtyDays = 30 * oneDay;
+
+    let todayWeight = 0;
+    let weekWeight = 0;
+    let monthWeight = 0;
+    let weightedRows = 0;
+    let successMonthWeight = 0;
+
+    for (const row of activityRaw) {
+      const weight = Number(row.weight || 0);
+      if (!Number.isFinite(weight) || weight <= 0) {
+        continue;
+      }
+
+      weightedRows += 1;
+
+      if (!row.startTime) {
+        monthWeight += weight;
+        continue;
+      }
+
+      const timestamp = new Date(row.startTime).getTime();
+      if (Number.isNaN(timestamp)) {
+        monthWeight += weight;
+        continue;
+      }
+
+      const age = now - timestamp;
+
+      if (age <= oneDay) {
+        todayWeight += weight;
+      }
+      if (age <= sevenDays) {
+        weekWeight += weight;
+      }
+      if (age <= thirtyDays) {
+        monthWeight += weight;
+        if (Number(row.status || 0) === 2) {
+          successMonthWeight += weight;
+        }
+      }
+    }
+
+    const successSharePct = monthWeight > 0 ? (successMonthWeight / monthWeight) * 100 : 0;
+
+    return {
+      todayWeight,
+      weekWeight,
+      monthWeight,
+      allTimeWeight: Number(stats?.totalWeight || 0),
+      successSharePct,
+      sampleSize: weightedRows,
+    };
+  }, [activityRaw, stats?.totalWeight]);
+
   const fleetAlertsData = useMemo<FleetAlertsData>(() => {
     const offline = printers.filter((printer) => !printer.online);
 
@@ -584,6 +644,21 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   totalPrints={quickStats.totalPrints}
                   successRate={quickStats.successRate}
                   libraryModels={quickStats.libraryModels}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('materialUsage') ? (
+            <div key="materialUsage" className="h-full">
+              <WidgetShell title="Material Usage" isEditMode={isEditMode} onHide={() => hideWidget('materialUsage')}>
+                <MaterialUsageWidget
+                  todayWeight={materialUsage.todayWeight}
+                  weekWeight={materialUsage.weekWeight}
+                  monthWeight={materialUsage.monthWeight}
+                  allTimeWeight={materialUsage.allTimeWeight}
+                  successSharePct={materialUsage.successSharePct}
+                  sampleSize={materialUsage.sampleSize}
                 />
               </WidgetShell>
             </div>

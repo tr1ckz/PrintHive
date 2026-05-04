@@ -15,10 +15,10 @@ function FailureWatchWidget({ rows, failed24hCount, onOpenHistory }: FailureWatc
   const visibleRows = rows.slice(0, 8);
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="rounded border border-rose-400/35 bg-rose-500/10 px-3 py-2.5">
-        <p className="text-[10px] uppercase tracking-[0.1em] text-rose-200/85">Failure Watch</p>
-        <p className="mt-1 text-lg font-bold text-white">{failed24hCount} in last 24h</p>
+    <div className="flex h-full flex-col gap-4">
+      <div className="rounded border border-rose-400/35 bg-rose-500/10 px-4 py-3.5">
+        <p className="text-[10px] uppercase tracking-[0.12em] leading-[1.45] text-rose-200/85">Failure Watch</p>
+        <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{failed24hCount} in last 24h</p>
       </div>
 
       {visibleRows.length === 0 ? (
@@ -26,16 +26,16 @@ function FailureWatchWidget({ rows, failed24hCount, onOpenHistory }: FailureWatc
           No recent failed prints.
         </div>
       ) : (
-        <div className="space-y-3 rounded border border-white/10 bg-black/15 p-2">
+        <div className="space-y-3.5 rounded border border-white/10 bg-black/15 p-3">
           {visibleRows.map((row) => (
-            <div key={row.id} className="rounded border border-rose-400/20 bg-black/20 px-3 py-2.5">
+            <div key={row.id} className="rounded border border-rose-400/20 bg-black/20 px-4 py-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="truncate text-sm font-bold text-white">{row.title}</p>
                 <span className="rounded border border-rose-300/40 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-rose-100">
                   Failed
                 </span>
               </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px] uppercase tracking-[0.09em] text-white/38">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] leading-[1.45] text-white/40">
                 <span className="truncate">{row.printer}</span>
                 <span aria-hidden>•</span>
                 <span>{row.startedAt}</span>
@@ -48,7 +48,7 @@ function FailureWatchWidget({ rows, failed24hCount, onOpenHistory }: FailureWatc
       <button
         type="button"
         onClick={onOpenHistory}
-        className="widget-no-drag mt-auto rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
+        className="widget-no-drag mt-auto rounded border border-white/20 bg-white/5 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/75 hover:border-white/35"
       >
         Open Print History
       </button>

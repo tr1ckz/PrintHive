@@ -44,15 +44,15 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
   }
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5 rounded border border-white/15 bg-black/20 p-1.5">
+        <div className="flex flex-wrap gap-2 rounded border border-white/15 bg-black/20 p-2">
           {(['all', 'online', 'active'] as const).map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setScope(item)}
-              className={`rounded px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${scope === item ? 'bg-white/15 text-white' : 'text-white/60'}`}
+              className={`rounded px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-white/15 text-white' : 'text-white/60'}`}
             >
               {item}
             </button>
@@ -61,22 +61,22 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="rounded border border-white/20 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
+          className="rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/75 hover:border-white/35"
         >
           Open
         </button>
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         {visibleRows.map((printer) => (
-          <div key={printer.id} className="rounded border border-white/15 bg-white/[0.03] p-3">
+          <div key={printer.id} className="rounded border border-white/15 bg-white/[0.03] p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="truncate text-xs font-semibold text-white/90">{printer.name}</p>
-                <p className="truncate text-[10px] uppercase tracking-[0.1em] text-white/45">{printer.model}</p>
+                <p className="truncate text-sm font-semibold leading-tight text-white/90">{printer.name}</p>
+                <p className="mt-1 truncate text-[10px] uppercase tracking-[0.12em] leading-[1.45] text-white/45">{printer.model}</p>
               </div>
               <span
-                className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-emerald-400/45 bg-emerald-500/10 text-emerald-200' : 'border-white/20 bg-black/20 text-white/65'}`}
+                className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${printer.online ? 'border-emerald-400/45 bg-emerald-500/10 text-emerald-200' : 'border-white/20 bg-black/20 text-white/65'}`}
               >
                 {printer.online ? 'Online' : 'Offline'}
               </span>
@@ -86,7 +86,7 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
               <div className="h-full bg-[linear-gradient(90deg,rgba(var(--theme-accent-rgb),0.92),rgba(var(--theme-accent-rgb),0.4))]" style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
             </div>
 
-            <div className="mt-1 flex items-center justify-between text-[10px] uppercase tracking-[0.08em] text-white/55">
+            <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.1em] leading-[1.45] text-white/55">
               <span className="truncate">{printer.currentPrint || printer.status || 'Idle'}</span>
               <span>{Math.max(0, Math.min(100, printer.progress || 0))}%</span>
             </div>

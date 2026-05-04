@@ -39,14 +39,14 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
   }
 
   return (
-    <div className="space-y-3.5">
-      <div className="flex flex-wrap gap-1.5 rounded border border-white/15 bg-black/20 p-1.5">
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2 rounded border border-white/15 bg-black/20 p-2">
         {(['all', 'running', 'success', 'failed'] as const).map((filter) => (
           <button
             key={filter}
             type="button"
             onClick={() => setStatusFilter(filter)}
-            className={`rounded px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${statusFilter === filter ? 'bg-white/15 text-white' : 'text-white/60'}`}
+            className={`rounded px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${statusFilter === filter ? 'bg-white/15 text-white' : 'text-white/60'}`}
           >
             {filter}
           </button>
@@ -81,17 +81,17 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
 
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_42%,rgba(0,0,0,0.74)_100%)]" />
 
-              <span className={`absolute right-2 top-2 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.09em] ${badgeClass}`}>
+              <span className={`absolute right-2 top-2 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${badgeClass}`}>
                 {row.status}
               </span>
 
-              <div className="absolute bottom-2 left-3 right-3">
+              <div className="absolute bottom-2 left-4 right-4">
                 <p className="truncate pr-20 text-sm font-bold text-white">{row.title}</p>
               </div>
             </div>
 
-            <div className="space-y-2.5 px-3 py-3">
-              <p className="truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-white/45">{row.printer}</p>
+            <div className="space-y-3 px-4 py-3.5">
+              <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] leading-[1.45] text-white/45">{row.printer}</p>
 
               <div className="h-1.5 overflow-hidden rounded border border-white/15 bg-black/30">
                 <div
@@ -100,7 +100,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-1 text-[10px] uppercase tracking-[0.08em] text-white/42">
+              <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] leading-[1.45] text-white/45">
                 <span className="truncate">{row.startedAt}</span>
                 <span aria-hidden>•</span>
                 <span>{row.durationLabel}</span>

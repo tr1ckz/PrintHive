@@ -20,10 +20,10 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
   const visibleJobs = activeJobs.slice(0, density === 'compact' ? 2 : density === 'expanded' ? 4 : 3);
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="rounded border border-white/15 bg-black/20 px-3 py-2.5">
-        <p className="text-[10px] uppercase tracking-[0.1em] text-white/55">Pipeline</p>
-        <p className="mt-1 text-lg font-bold text-white">{activeJobs.length} active</p>
+    <div className="flex h-full flex-col gap-4">
+      <div className="rounded border border-white/15 bg-black/20 px-4 py-3.5">
+        <p className="text-[10px] uppercase tracking-[0.12em] leading-[1.45] text-white/55">Pipeline</p>
+        <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{activeJobs.length} active</p>
       </div>
 
       {visibleJobs.length === 0 ? (
@@ -31,19 +31,19 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
           No background jobs running.
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-3">
           {visibleJobs.map((job) => {
             const pct = job.total > 0 ? Math.round((job.processed / job.total) * 100) : 0;
             return (
-              <div key={job.id} className="rounded border border-white/15 bg-white/[0.03] p-3">
+              <div key={job.id} className="rounded border border-white/15 bg-white/[0.03] p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-xs font-semibold text-white/90">{job.name}</p>
-                  <span className="text-[10px] uppercase tracking-[0.08em] text-white/65">{pct}%</span>
+                  <p className="truncate text-sm font-semibold leading-tight text-white/90">{job.name}</p>
+                  <span className="text-[10px] uppercase tracking-[0.1em] text-white/65">{pct}%</span>
                 </div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded border border-white/10 bg-black/25">
                   <div className="h-full bg-[linear-gradient(90deg,rgba(var(--theme-accent-rgb),0.92),rgba(var(--theme-accent-rgb),0.4))]" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
                 </div>
-                <p className="mt-1.5 text-[10px] uppercase tracking-[0.08em] text-white/50">{job.completed} done | {job.failed} failed</p>
+                <p className="mt-2 text-[10px] uppercase tracking-[0.1em] leading-[1.45] text-white/52">{job.completed} done | {job.failed} failed</p>
               </div>
             );
           })}
@@ -54,14 +54,14 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
         <button
           type="button"
           onClick={onOpenLibrary}
-          className="rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
+          className="rounded border border-white/20 bg-white/5 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/75 hover:border-white/35"
         >
           Library
         </button>
         <button
           type="button"
           onClick={onOpenHistory}
-          className="rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
+          className="rounded border border-white/20 bg-white/5 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/75 hover:border-white/35"
         >
           History
         </button>

@@ -26,13 +26,13 @@ function UpcomingScheduleWidget({ items, density = 'comfortable' }: UpcomingSche
   const visibleItems = filtered.slice(0, limit);
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] uppercase tracking-[0.1em] text-white/55">Maintenance queue</p>
+        <p className="text-[10px] uppercase tracking-[0.12em] leading-[1.45] text-white/55">Maintenance queue</p>
         <button
           type="button"
           onClick={() => setShowOverdueOnly((current) => !current)}
-          className="rounded border border-white/20 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
+          className="rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/75 hover:border-white/35"
         >
           {showOverdueOnly ? 'All' : 'Overdue'}
         </button>
@@ -43,15 +43,15 @@ function UpcomingScheduleWidget({ items, density = 'comfortable' }: UpcomingSche
           No scheduled maintenance tasks.
         </div>
       ) : (
-        <div className="space-y-3 rounded border border-white/10 bg-black/15 p-2">
+        <div className="space-y-3.5 rounded border border-white/10 bg-black/15 p-3">
           {visibleItems.map((item) => (
-            <div key={item.id} className={`rounded border px-3 py-2.5 ${item.overdue ? 'border-rose-400/30 bg-rose-500/10' : 'border-white/12 bg-white/[0.03]'}`}>
+            <div key={item.id} className={`rounded border px-4 py-3 ${item.overdue ? 'border-rose-400/30 bg-rose-500/10' : 'border-white/12 bg-white/[0.03]'}`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-white">{item.title}</p>
-                  <p className="truncate text-[10px] uppercase tracking-[0.1em] text-white/38">{item.printer}</p>
+                  <p className="mt-1 truncate text-[10px] uppercase tracking-[0.12em] leading-[1.45] text-white/42">{item.printer}</p>
                 </div>
-                <span className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${item.overdue ? 'border-rose-300/40 text-rose-200' : 'border-white/20 text-white/70'}`}>
+                <span className={`rounded border px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] ${item.overdue ? 'border-rose-300/40 text-rose-200' : 'border-white/20 text-white/70'}`}>
                   {item.dueLabel}
                 </span>
               </div>
