@@ -609,3 +609,143 @@
     padding: 18px;
   }
 }
+
+/* Strict industrial sweep */
+.maintenance {
+  gap: 20px;
+}
+
+.maintenance-header,
+.summary-card,
+.task-card,
+.no-tasks,
+.maintenance-filters,
+.maintenance-modal,
+.maintenance-history-item,
+.maintenance-history-empty {
+  background: #171717;
+  border: 1px solid #262626;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.maintenance-header,
+.maintenance-filters,
+.no-tasks,
+.maintenance-history-empty {
+  padding: 20px;
+}
+
+.summary-card:hover,
+.task-card:hover,
+.filter-btn:hover,
+.preset-btn:hover,
+.btn-success:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: #404040;
+}
+
+.summary-card.overdue,
+.summary-card.due-soon,
+.task-card.overdue,
+.task-card.due-soon,
+.status-badge.overdue,
+.status-badge.due-soon {
+  background: #171717;
+  border-color: #f97316;
+  color: #ffffff;
+}
+
+.summary-label,
+.maintenance-subtitle,
+.task-description,
+.task-meta,
+.meta-item,
+.maintenance-loading,
+.no-tasks p,
+.maintenance-history-empty,
+.maintenance-history-time,
+.maintenance-history-body {
+  color: #a3a3a3;
+}
+
+.filter-btn,
+.task-icon,
+.task-meta,
+.maintenance-modal .form-group input,
+.maintenance-modal .form-group select,
+.maintenance-modal textarea,
+.preset-btn,
+.maintenance-history-body,
+.maintenance-history-scroll {
+  background: #0a0a0a;
+  border: 1px solid #262626;
+  color: #ffffff;
+}
+
+.filter-btn.active,
+.btn-success {
+  background: #f97316;
+  border-color: #f97316;
+  color: #ffffff;
+}
+
+.filter-btn.active:hover,
+.btn-success:hover {
+  background: #ea580c;
+  border-color: #ea580c;
+}
+
+.maintenance-modal .form-group input:focus,
+.maintenance-modal .form-group select:focus,
+.maintenance-modal textarea:focus {
+  border-color: #404040;
+}
+
+.maintenance-history-scroll {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 16px;
+  border-radius: 4px;
+}
+
+.maintenance-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.maintenance-history-item {
+  padding: 16px;
+}
+
+.maintenance-history-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.maintenance-history-status {
+  font-weight: 600;
+  color: #f97316;
+}
+
+.maintenance-history-notes {
+  margin-top: 8px;
+  font-style: italic;
+}
+
+.hours-display {
+  font-weight: 700;
+}
+
+.hours-display.is-overdue,
+.hours-display.is-warning {
+  color: #f97316;
+}
+
+.hours-display.is-ontrack {
+  color: #ffffff;
+}

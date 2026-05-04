@@ -1,5 +1,5 @@
 /* ============================================================
-   Settings — Industrial stylesheet
+   Settings ï¿½ Industrial stylesheet
    ============================================================ */
 
 /* Shell & layout */
@@ -929,4 +929,126 @@
     align-items: flex-start;
     gap: 10px;
   }
+}
+
+/* Strict industrial sweep */
+.st-layout,
+.st-sidebar,
+.st-content,
+.settings-section,
+.section-card,
+.account-card,
+.printer-ftp-card,
+.oauth-card,
+.notification-card,
+.system-card,
+.db-result-modal,
+.bambu-info,
+.settings-table,
+.settings-stat,
+.settings-inline-toolbar {
+  background: #171717;
+  border-color: #262626;
+  box-shadow: none;
+}
+
+.st-nav-category:hover,
+.st-nav-panel:hover,
+.settings-section.collapsible .section-header:hover {
+  background: #171717;
+}
+
+.st-nav-category.is-active,
+.st-nav-panel.is-active,
+.db-result-value,
+.settings-link,
+.settings-highlight {
+  color: #f97316;
+}
+
+.st-nav-category.is-active,
+.st-nav-panel.is-active {
+  background: rgba(249, 115, 22, 0.08);
+  border-left-color: #f97316;
+}
+
+.st-nav-category.is-active .st-nav-cat-icon,
+.settings-section.collapsible.expanded .expand-icon,
+.spinner-small {
+  color: #f97316;
+  border-top-color: #f97316;
+}
+
+.st-content-header,
+.st-nav-panels,
+.db-result-header,
+.db-result-row,
+.settings-inline-toolbar,
+.section-header {
+  border-color: #262626;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea,
+.st-mobile-select,
+.db-result-row,
+.settings-search-input,
+.settings-token,
+.settings-pill {
+  background: #0a0a0a;
+  border-color: #262626;
+  color: #ffffff;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus,
+.st-mobile-select:focus,
+.settings-search-input:focus {
+  border-color: #404040;
+}
+
+.form-description,
+.settings-inline-meta,
+.db-result-label,
+.st-content-eyebrow,
+.st-nav-category,
+.st-nav-panel {
+  color: #a3a3a3;
+}
+
+.btn-primary,
+.btn-save,
+.btn-create,
+.btn-run,
+.btn-confirm {
+  background: #f97316;
+  border-color: #f97316;
+  color: #ffffff;
+}
+
+.btn-primary:hover,
+.btn-save:hover,
+.btn-create:hover,
+.btn-run:hover,
+.btn-confirm:hover {
+  background: #ea580c;
+  border-color: #ea580c;
+}
+
+.btn,
+.btn-secondary,
+.btn-danger,
+.btn-ghost,
+.btn-inline {
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.message.success,
+.message.error {
+  background: #171717;
+  color: #ffffff;
+  border-left-color: #f97316;
 }

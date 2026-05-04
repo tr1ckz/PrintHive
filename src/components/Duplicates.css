@@ -489,3 +489,149 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
+/* Strict industrial sweep */
+.duplicates-container {
+  padding: 0;
+  max-width: 1480px;
+  display: grid;
+  gap: 20px;
+}
+
+.duplicates-header,
+.caution-banner,
+.duplicates-toolbar,
+.no-duplicates,
+.duplicate-group,
+.progress-container {
+  margin-bottom: 0;
+  background: #171717;
+  border: 1px solid #262626;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.duplicates-header,
+.caution-banner,
+.duplicates-toolbar,
+.no-duplicates,
+.progress-container {
+  padding: 20px;
+}
+
+.duplicates-header h1 {
+  background: none;
+  -webkit-text-fill-color: initial;
+  color: #ffffff;
+}
+
+.duplicates-description,
+.selection-info,
+.stat,
+.progress-info,
+.progress-percent,
+.group-reason,
+.file-meta,
+.file-details,
+.duplicates-loading {
+  color: #a3a3a3;
+}
+
+.caution-banner,
+.duplicate-group {
+  overflow: hidden;
+}
+
+.caution-content,
+.caution-content strong,
+.no-duplicates svg,
+.group-size,
+.space-wasted {
+  color: #ffffff;
+}
+
+.group-header,
+.duplicate-file,
+.group-actions,
+.duplicates-toolbar {
+  border-color: #262626;
+}
+
+.group-header,
+.duplicate-file:nth-child(odd) {
+  background: #171717;
+}
+
+.group-select,
+.search-box input,
+.search-box,
+.btn-select,
+.btn-select-all,
+.btn-suggested,
+.btn-cancel,
+.btn-close,
+.btn-secondary,
+.btn-danger {
+  background: #0a0a0a;
+  border: 1px solid #262626;
+  color: #ffffff;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.group-select:focus,
+.search-box input:focus {
+  border-color: #404040;
+  box-shadow: none;
+}
+
+.btn-warning,
+.btn-delete-selected,
+.duplicates-progress-fill {
+  background: #f97316;
+  border: 1px solid #f97316;
+  color: #ffffff;
+}
+
+.caution-banner .btn-warning:hover,
+.btn-delete-selected:hover {
+  background: #ea580c;
+  border-color: #ea580c;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-select:hover,
+.btn-select-all:hover,
+.btn-suggested:hover,
+.btn-cancel:hover,
+.btn-close:hover,
+.btn-secondary:hover,
+.btn-danger:hover,
+.duplicate-group:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: #404040;
+}
+
+.no-duplicates,
+.duplicates-progress-bar,
+.search-box,
+.duplicate-thumbnail,
+.file-preview {
+  background: #0a0a0a;
+  border-color: #262626;
+}
+
+.status-badge,
+.duplicate-reason,
+.size-badge,
+.group-type-badge {
+  background: #171717;
+  border: 1px solid #262626;
+  color: #f97316;
+}
+
+.duplicates-container input[type='checkbox'] {
+  accent-color: #f97316;
+}
+

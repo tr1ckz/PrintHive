@@ -685,7 +685,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                   type="text" 
                   value={editingFile.originalName} 
                   disabled 
-                  style={{ background: '#1a1a1a', color: '#888' }}
+                  className="library-modal-readonly"
                 />
               </div>
               
@@ -708,7 +708,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                   disabled={saving || autoTagging}
                   placeholder="Add tags..."
                 />
-                <small style={{ color: '#888', fontSize: '0.85rem', marginTop: '0.25rem', display: 'block' }}>
+                <small className="library-tags-hint">
                   Type and press Enter or comma to add. Click × to remove.
                 </small>
               </div>

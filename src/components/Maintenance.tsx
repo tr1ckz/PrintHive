@@ -428,10 +428,9 @@ function Maintenance() {
                   <div className="task-meta">
                     {printer && <span className="meta-item">🖨️ {printer.name}</span>}
                     <span className="meta-item">🔄 Every {formatHours(task.interval_hours)}</span>
-                    <span className="meta-item hours-display" style={{ 
-                      fontWeight: 'bold', 
-                      color: (task.hours_until_due ?? 0) < 0 ? '#ff6b6b' : (task.hours_until_due ?? 0) < 50 ? '#ffa726' : '#4caf50' 
-                    }}>
+                    <span
+                      className={`meta-item hours-display ${(task.hours_until_due ?? 0) < 0 ? 'is-overdue' : (task.hours_until_due ?? 0) < 50 ? 'is-warning' : 'is-ontrack'}`}
+                    >
                       ⏰ {(task.hours_until_due ?? 0) < 0
                         ? `${Math.abs(Math.round(task.hours_until_due ?? 0))} hrs overdue`
                         : `${Math.round(task.hours_until_due ?? 0)} hrs until maintenance`}
@@ -592,30 +591,25 @@ function Maintenance() {
               <h2>📜 Completion History</h2>
               <button className="modal-close" onClick={() => setViewHistory(null)}>×</button>
             </div>
-            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+            <div className="modal-body maintenance-history-scroll">
               {taskHistory.length === 0 ? (
-                <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', padding: '2rem' }}>
+                <p className="maintenance-history-empty">
                   No completion history yet
                 </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="maintenance-history-list">
                   {taskHistory.map((entry) => (
-                    <div key={entry.id} style={{
-                      background: 'rgba(255,255,255,0.05)',
-                      borderRadius: '8px',
-                      padding: '1rem',
-                      border: '1px solid rgba(255,255,255,0.1)'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                        <span style={{ fontWeight: 600, color: '#4caf50' }}>✓ Completed</span>
-                        <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>
+                    <div key={entry.id} className="maintenance-history-item">
+                      <div className="maintenance-history-head">
+                        <span className="maintenance-history-status">Completed</span>
+                        <span className="maintenance-history-time">
                           {new Date(entry.completed_at).toLocaleString()}
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)' }}>
+                      <div className="maintenance-history-body">
                         <div>Print hours: {entry.print_hours_at_completion?.toFixed(1) || 'N/A'}</div>
                         {entry.notes && (
-                          <div style={{ marginTop: '0.5rem', fontStyle: 'italic' }}>
+                          <div className="maintenance-history-notes">
                             Notes: {entry.notes}
                           </div>
                         )}

@@ -139,11 +139,9 @@ function Login({ onLoginSuccess }: LoginProps) {
 
           {!isAdminRoute && oauthProvider && oauthProvider !== 'none' && (
             <>
-              <div style={{ margin: '1.5rem 0', textAlign: 'center', color: '#888' }}>
-                <span style={{ display: 'inline-block', position: 'relative' }}>
-                  <span style={{ background: '#1a1a1a', padding: '0 10px', position: 'relative', zIndex: 1 }}>or</span>
-                  <span style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: '#333', zIndex: 0 }}></span>
-                </span>
+              <div className="login-divider">
+                <span className="login-divider-text">or</span>
+                <span className="login-divider-line"></span>
               </div>
               
               {oauthProvider === 'google' && (
@@ -173,7 +171,7 @@ function Login({ onLoginSuccess }: LoginProps) {
             {isAdminRoute ? (
               <p>Admin login - Default: admin / admin</p>
             ) : (
-              <p>For admin access, visit <a href="/admin" style={{ color: '#00d4ff' }}>/admin</a></p>
+              <p>For admin access, visit <a href="/admin" className="login-admin-link">/admin</a></p>
             )}
           </div>
         </form>

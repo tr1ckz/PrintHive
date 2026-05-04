@@ -1419,3 +1419,239 @@
   }
 }
 
+/* Strict industrial sweep */
+.library-container {
+  padding: 0;
+  max-width: 1480px;
+  display: grid;
+  gap: 20px;
+}
+
+.library-actions,
+.search-bar,
+.bulk-action-bar,
+.pagination {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.upload-dropzone,
+.upload-section,
+.scan-section,
+.search-bar,
+.bulk-action-bar,
+.empty-state,
+.no-files,
+.modal-content,
+.file-card,
+.description-modal-content {
+  background: #171717;
+  border: 1px solid #262626;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.upload-dropzone,
+.upload-section,
+.scan-section,
+.search-bar,
+.bulk-action-bar,
+.description-modal-content,
+.modal-content {
+  padding: 20px;
+}
+
+.upload-dropzone:hover,
+.file-card:hover,
+.btn-browse:hover,
+.btn-scan:hover,
+.btn-auto-tag:hover:not(:disabled),
+.btn-view-3d:hover,
+.btn-edit:hover,
+.btn-download:hover,
+.btn-delete:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.upload-dropzone:hover,
+.upload-dropzone.dragging,
+.file-card:hover,
+.search-input:focus,
+.text-input:focus,
+.file-input:focus,
+.scan-info code,
+.btn-browse:hover,
+.btn-scan:hover,
+.btn-auto-tag:hover:not(:disabled),
+.btn-view-3d:hover,
+.btn-edit:hover,
+.btn-download:hover,
+.btn-delete:hover {
+  border-color: #404040;
+}
+
+.dropzone-icon,
+.file-icon-large {
+  animation: none;
+}
+
+.btn-browse,
+.btn-scan,
+.btn-auto-tag,
+.btn-view-3d,
+.btn-edit,
+.btn-download,
+.btn-primary,
+.file-input::file-selector-button,
+.page-number.active {
+  background: #f97316;
+  border: 1px solid #f97316;
+  color: #ffffff;
+}
+
+.btn-scan.cancel,
+.btn-auto-tag.cancel,
+.btn-delete,
+.btn-delete-selected {
+  background: #171717;
+  border: 1px solid #262626;
+  color: #ffffff;
+}
+
+.btn-clear-search,
+.btn-secondary,
+.page-number,
+.btn-edit-file,
+.btn-bulk-tags,
+.btn-select-all,
+.btn-clear-selection,
+.btn-view,
+.btn-close,
+.btn-download {
+  background: #171717;
+  border: 1px solid #262626;
+  color: #ffffff;
+}
+
+.btn-browse:hover,
+.btn-scan:hover,
+.btn-auto-tag:hover:not(:disabled),
+.btn-primary:hover,
+.page-number.active:hover {
+  background: #ea580c;
+  border-color: #ea580c;
+}
+
+.file-preview,
+.view-3d-overlay,
+.empty-state,
+.auto-tag-progress .progress-fill,
+.scan-progress-fill,
+.library-summary-bar-fill {
+  background: #0a0a0a;
+}
+
+.view-3d-overlay {
+  opacity: 1;
+  background: rgba(10, 10, 10, 0.72);
+  backdrop-filter: none;
+}
+
+.view-3d-overlay span,
+.file-type,
+.file-desc .read-more,
+.scan-info code {
+  color: #f97316;
+  text-shadow: none;
+}
+
+.file-info,
+.file-actions,
+.modal-actions {
+  border-top: 1px solid #262626;
+}
+
+.file-info {
+  padding: 16px;
+}
+
+.file-actions {
+  padding: 16px;
+  justify-content: stretch;
+}
+
+.search-input,
+.text-input,
+.file-input,
+.modal-body input,
+.modal-body textarea,
+.modal-body select,
+.library-modal-readonly,
+.library-tags-hint {
+  background: #0a0a0a;
+  border: 1px solid #262626;
+  color: #ffffff;
+}
+
+.library-modal-readonly {
+  opacity: 0.7;
+}
+
+.library-tags-hint,
+.help-text,
+.dropzone-hint,
+.file-size,
+.file-date,
+.scan-info p,
+.auto-tag-progress .progress-text,
+.auto-tag-progress .current-file,
+.page-info,
+.results-count,
+.search-results-info,
+.selection-count {
+  color: #a3a3a3;
+}
+
+.scan-info code,
+.tag,
+.file-type,
+.filter-tag,
+.sort-badge {
+  background: #171717;
+  border: 1px solid #262626;
+  border-radius: 4px;
+}
+
+.auto-tag-progress .progress-bar,
+.scan-progress-bar,
+.library-summary-bar-track {
+  background: #0a0a0a;
+  border: 1px solid #262626;
+}
+
+.auto-tag-progress .progress-fill,
+.scan-progress-fill,
+.library-summary-bar-fill {
+  background: #f97316;
+}
+
+.modal-header,
+.description-modal-header,
+.bulk-action-bar,
+.search-bar,
+.upload-section h3,
+.scan-section h3 {
+  border-bottom: 1px solid #262626;
+}
+
+.modal-close,
+.btn-clear-search {
+  border-radius: 4px;
+}
+
+.modal-close:hover,
+.btn-clear-search:hover {
+  background: #262626;
+}
+

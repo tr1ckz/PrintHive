@@ -254,3 +254,134 @@
     font-size: 1.75rem;
   }
 }
+
+/* Strict industrial sweep */
+.login-container {
+  background: #0a0a0a;
+  background-image: url('/images/splash-hirez.png');
+}
+
+.login-container::after {
+  background: rgba(10, 10, 10, 0.82);
+}
+
+.login-container::before {
+  display: none;
+}
+
+.login-box {
+  background: rgba(23, 23, 23, 0.96);
+  border: 1px solid #262626;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.logo {
+  filter: none;
+}
+
+.login-header h1 {
+  background: none;
+  -webkit-text-fill-color: initial;
+  color: #ffffff;
+}
+
+.login-header p,
+.login-footer p,
+.login-divider {
+  color: #a3a3a3;
+}
+
+.form-group label {
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+
+.form-group input,
+.form-group select,
+.btn-oauth,
+.login-divider-text {
+  background: #0a0a0a;
+  border: 1px solid #262626;
+  border-radius: 4px;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #404040;
+  background: #0a0a0a;
+  box-shadow: none;
+}
+
+.error-message {
+  background: #171717;
+  border: 1px solid #262626;
+  border-left: 3px solid #f97316;
+  color: #ffffff;
+}
+
+.btn-primary {
+  background: #f97316;
+  border: 1px solid #f97316;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #ea580c;
+  border-color: #ea580c;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-primary:active:not(:disabled),
+.btn-oauth:hover,
+.btn-google:hover,
+.btn-oidc:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-oauth:hover,
+.btn-google:hover,
+.btn-oidc:hover,
+.login-admin-link:hover {
+  background: #171717;
+  border-color: #404040;
+}
+
+.login-footer,
+.form-divider {
+  border-top: 1px solid #262626;
+}
+
+.login-divider {
+  position: relative;
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+.login-divider-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #262626;
+}
+
+.login-divider-text {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  padding: 0 10px;
+}
+
+.login-admin-link {
+  color: #f97316;
+  text-decoration: none;
+}
