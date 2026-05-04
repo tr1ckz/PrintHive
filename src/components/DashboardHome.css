@@ -80,15 +80,17 @@
 
 .command-center-grid {
   min-height: 540px;
+  overflow: visible;
 }
 
 .command-center-grid .react-grid-item {
-  transition: filter 150ms ease;
+  transition: filter 150ms ease, box-shadow 150ms ease;
   animation: commandWidgetRise 260ms ease both;
 }
 
 .command-center-grid .react-grid-item:hover {
   filter: brightness(1.05);
+  z-index: 3;
 }
 
 .command-center-grid .react-grid-item.react-grid-placeholder {
@@ -104,7 +106,12 @@
 }
 
 .widget-drag-handle {
-  cursor: move;
+  cursor: grab;
+  user-select: none;
+}
+
+.widget-drag-handle:active {
+  cursor: grabbing;
 }
 
 @keyframes commandWidgetRise {

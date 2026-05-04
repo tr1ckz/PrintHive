@@ -9,14 +9,11 @@ import useDashboardLayout, { DashboardLayoutPreferences, dashboardWidgetRegistry
 import WidgetShell from './dashboard/WidgetShell';
 import HealthSummaryWidget from './dashboard/widgets/HealthSummaryWidget';
 import ActivityStreamWidget, { ActivityRow } from './dashboard/widgets/ActivityStreamWidget';
-import HeatmapWidget, { HeatmapBucket } from './dashboard/widgets/HeatmapWidget';
-import StorageTrendWidget, { TrendPoint } from './dashboard/widgets/StorageTrendWidget';
 import UpcomingScheduleWidget, { ScheduleItem } from './dashboard/widgets/UpcomingScheduleWidget';
-import QueuePressureWidget, { QueuePressureSummary } from './dashboard/widgets/QueuePressureWidget';
-import BackupTelemetryWidget, { BackupTelemetrySummary } from './dashboard/widgets/BackupTelemetryWidget';
 import LivePrintersWidget, { LivePrinterRow } from './dashboard/widgets/LivePrintersWidget';
-import DuplicatePressureWidget, { DuplicatePressureSummary } from './dashboard/widgets/DuplicatePressureWidget';
 import BackgroundJobsWidget, { BackgroundJobRow } from './dashboard/widgets/BackgroundJobsWidget';
+import FailureWatchWidget, { FailureWatchRow } from './dashboard/widgets/FailureWatchWidget';
+import FleetAlertsWidget, { FleetAlertsData } from './dashboard/widgets/FleetAlertsWidget';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import './DashboardHome.css';
@@ -68,20 +65,6 @@ interface MaintenanceTask {
   isOverdue?: boolean;
 }
 
-interface DatabaseSettings {
-  backupScheduleEnabled: boolean;
-  backupInterval: number;
-  backupRetention: number;
-  remoteBackupEnabled: boolean;
-  lastBackupDate?: string | null;
-}
-
-interface DuplicateGroup {
-  name: string;
-  totalSize?: number;
-  files?: Array<{ id: number; fileSize?: number }>;
-}
-
 interface BackgroundJobStatusResponse {
   running?: boolean;
   total?: number;
@@ -125,19 +108,6 @@ function formatDateLabel(input?: string): string {
   const date = new Date(input);
   if (Number.isNaN(date.getTime())) return 'Unknown';
   return date.toLocaleDateString();
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let index = 0;
-  while (value >= 1024 && index < units.length - 1) {
-    value /= 1024;
-    index += 1;
-  }
-  const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2;
-  return `${value.toFixed(precision)} ${units[index]}`;
 }
 
 function mapStatus(status: number): string {
@@ -193,28 +163,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       return [];
     },
     staleTime: 45000,
-  });
-
-  const backupSettingsQuery = useQuery({
-    queryKey: ['dashboard', 'backup-settings'],
-    queryFn: () => fetchJson<DatabaseSettings>(API_ENDPOINTS.SETTINGS.DATABASE, {
-      backupScheduleEnabled: false,
-      backupInterval: 7,
-      backupRetention: 30,
-      remoteBackupEnabled: false,
-      lastBackupDate: null,
-    }),
-    staleTime: 45000,
-  });
-
-  const duplicateGroupsQuery = useQuery({
-    queryKey: ['dashboard', 'duplicates'],
-    queryFn: async () => {
-      const data = await fetchJson<{ duplicates?: DuplicateGroup[] }>(API_ENDPOINTS.LIBRARY.DUPLICATES('hash'), { duplicates: [] });
-      return Array.isArray(data.duplicates) ? data.duplicates : [];
-    },
-    staleTime: 30000,
-    refetchInterval: 60000,
   });
 
   const backgroundJobsQuery = useQuery({
@@ -365,57 +313,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     }));
   }, [activityRaw]);
 
-  const heatmapBuckets = useMemo<HeatmapBucket[]>(() => {
-    const bucketMap = new Map<string, number>();
-
-    activityRaw.forEach((entry) => {
-      if (!entry.startTime) return;
-      const date = new Date(entry.startTime);
-      if (Number.isNaN(date.getTime())) return;
-      const key = date.toISOString().slice(0, 10);
-      bucketMap.set(key, (bucketMap.get(key) || 0) + 1);
-    });
-
-    const days: HeatmapBucket[] = [];
-    for (let index = 83; index >= 0; index -= 1) {
-      const date = new Date();
-      date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() - index);
-      const key = date.toISOString().slice(0, 10);
-      days.push({
-        dateLabel: key,
-        dayShort: date.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2),
-        count: bucketMap.get(key) || 0,
-      });
-    }
-
-    return days;
-  }, [activityRaw]);
-
-  const storageTrendSeries = useMemo<TrendPoint[]>(() => {
-    const monthMap = new Map<string, TrendPoint>();
-
-    activityRaw.forEach((entry) => {
-      const date = entry.startTime ? new Date(entry.startTime) : new Date();
-      const label = date.toLocaleDateString(undefined, { month: 'short' });
-
-      const existing = monthMap.get(label) || {
-        label,
-        filamentKg: 0,
-        printHours: 0,
-        jobs: 0,
-      };
-
-      existing.filamentKg += (entry.weight || 0) / 1000;
-      existing.printHours += (entry.costTime || 0) / 3600;
-      existing.jobs += 1;
-      monthMap.set(label, existing);
-    });
-
-    const values = Array.from(monthMap.values());
-    return values.slice(-8);
-  }, [activityRaw]);
-
   const upcomingScheduleItems = useMemo<ScheduleItem[]>(() => {
     return (maintenanceQuery.data || [])
       .slice()
@@ -444,43 +341,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       });
   }, [maintenanceQuery.data]);
 
-  const queuePressureSummary = useMemo<QueuePressureSummary>(() => {
-    const activeJobs = printers.filter((printer) => printer.online && printer.currentPrint).length;
-    const offlinePrinters = printers.filter((printer) => !printer.online).length;
-    const overdueTasks = (maintenanceQuery.data || []).filter((task) => task.isOverdue).length;
-
-    const pressureScore = Math.min(100, activeJobs * 18 + overdueTasks * 24 + offlinePrinters * 12);
-
-    let recommendation = 'Queue is stable. Continue normal operations.';
-    if (pressureScore >= 75) {
-      recommendation = 'Queue is under pressure. Prioritize overdue maintenance and rebalance printers.';
-    } else if (pressureScore >= 45) {
-      recommendation = 'Moderate pressure detected. Monitor active jobs and upcoming tasks.';
-    }
-
-    return {
-      pressureScore,
-      activeJobs,
-      overdueTasks,
-      offlinePrinters,
-      recommendation,
-    };
-  }, [printers, maintenanceQuery.data]);
-
-  const backupSummary = useMemo<BackupTelemetrySummary>(() => {
-    const settings = backupSettingsQuery.data;
-
-    return {
-      scheduleEnabled: Boolean(settings?.backupScheduleEnabled),
-      intervalDays: settings?.backupInterval || 7,
-      retentionDays: settings?.backupRetention || 30,
-      remoteEnabled: Boolean(settings?.remoteBackupEnabled),
-      lastBackupLabel: settings?.lastBackupDate
-        ? new Date(settings.lastBackupDate).toLocaleString()
-        : 'No backup recorded',
-    };
-  }, [backupSettingsQuery.data]);
-
   const livePrintersRows = useMemo<LivePrinterRow[]>(() => (
     printers.map((printer) => ({
       id: printer.id,
@@ -493,22 +353,40 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     }))
   ), [printers]);
 
-  const duplicatePressureSummary = useMemo<DuplicatePressureSummary>(() => {
-    const groups = duplicateGroupsQuery.data || [];
-    const duplicateFileCount = groups.reduce((sum, group) => sum + Math.max(0, (group.files?.length || 1) - 1), 0);
-    const totalSize = groups.reduce((sum, group) => sum + Number(group.totalSize || 0), 0);
+  const failureWatchRows = useMemo<FailureWatchRow[]>(() => {
+    return activityRaw
+      .filter((entry) => Number(entry.status || 0) === 3)
+      .slice(0, 16)
+      .map((entry) => ({
+        id: String(entry.id),
+        title: entry.title || 'Untitled print',
+        printer: entry.deviceName || 'Unknown printer',
+        startedAt: formatDateLabel(entry.startTime),
+      }));
+  }, [activityRaw]);
+
+  const failure24hCount = useMemo(() => {
+    const cutoff = Date.now() - (24 * 60 * 60 * 1000);
+    return activityRaw.filter((entry) => {
+      if (Number(entry.status || 0) !== 3) return false;
+      if (!entry.startTime) return true;
+      const timestamp = new Date(entry.startTime).getTime();
+      if (Number.isNaN(timestamp)) return true;
+      return timestamp >= cutoff;
+    }).length;
+  }, [activityRaw]);
+
+  const fleetAlertsData = useMemo<FleetAlertsData>(() => {
+    const offline = printers.filter((printer) => !printer.online);
 
     return {
-      groupCount: groups.length,
-      duplicateFileCount,
-      estimatedWasteLabel: formatBytes(totalSize),
-      topGroups: groups.slice(0, 8).map((group) => ({
-        name: group.name || 'Untitled Group',
-        fileCount: group.files?.length || 0,
-        sizeLabel: formatBytes(Number(group.totalSize || 0)),
-      })),
+      totalPrinters: printers.length,
+      onlinePrinters: printers.length - offline.length,
+      activePrints: printers.filter((printer) => printer.online && Boolean(printer.currentPrint)).length,
+      overdueMaintenance: (maintenanceQuery.data || []).filter((task) => task.isOverdue).length,
+      offlineNames: offline.map((printer) => printer.name),
     };
-  }, [duplicateGroupsQuery.data]);
+  }, [printers, maintenanceQuery.data]);
 
   const backgroundJobRows = useMemo<BackgroundJobRow[]>(() => (
     backgroundJobsQuery.data || []
@@ -524,17 +402,15 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       activePrints,
       overdueTasks,
       activeJobs: backgroundJobRows.length,
-      duplicateGroups: duplicatePressureSummary.groupCount,
-      duplicateFiles: duplicatePressureSummary.duplicateFileCount,
+      failed24h: failure24hCount,
     };
-  }, [printers, maintenanceQuery.data, backgroundJobRows.length, duplicatePressureSummary.groupCount, duplicatePressureSummary.duplicateFileCount]);
+  }, [printers, maintenanceQuery.data, backgroundJobRows.length, failure24hCount]);
 
   const isInitialLoading =
     printersQuery.isLoading &&
     statsQuery.isLoading &&
     activityQuery.isLoading &&
-    maintenanceQuery.isLoading &&
-    backupSettingsQuery.isLoading;
+    maintenanceQuery.isLoading;
 
   const queryErrorCount = [
     printersQuery.isError,
@@ -542,8 +418,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     activityQuery.isError,
     maintenanceQuery.isError,
     libraryQuery.isError,
-    backupSettingsQuery.isError,
-    duplicateGroupsQuery.isError,
     backgroundJobsQuery.isError,
     dashboardLayoutSettingsQuery.isError,
   ].filter(Boolean).length;
@@ -630,8 +504,8 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             <p className="command-kpi-value">{operationalSnapshot.overdueTasks}</p>
           </div>
           <div className="command-kpi-card">
-            <p className="command-kpi-label">Duplicate Pressure</p>
-            <p className="command-kpi-value">{operationalSnapshot.duplicateGroups}g / {operationalSnapshot.duplicateFiles}f</p>
+            <p className="command-kpi-label">Failures 24h</p>
+            <p className="command-kpi-value">{operationalSnapshot.failed24h}</p>
           </div>
         </div>
       </header>
@@ -655,10 +529,11 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           isDraggable
           isResizable
           compactType={null}
-          preventCollision
-          isBounded
+          preventCollision={false}
+          isBounded={false}
           resizeHandles={['se']}
           draggableHandle=".widget-drag-handle"
+          draggableCancel=".widget-no-drag,.react-resizable-handle,button,a,input,textarea,select"
           onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as Breakpoint)}
           onLayoutChange={(_currentLayout, allLayouts) => handleLayoutsChange(allLayouts as unknown as Record<string, Layout[]>)}
           onDragStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
@@ -701,26 +576,13 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             </div>
           ) : null}
 
-          {visibleWidgetIds.includes('queuePressure') ? (
-            <div key="queuePressure" className="h-full">
-              <WidgetShell title="Queue Pressure" isEditMode={isEditMode} onHide={() => hideWidget('queuePressure')}>
-                <QueuePressureWidget
-                  summary={queuePressureSummary}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'queuePressure')}
-                  onRefresh={() => { void queryClient.invalidateQueries({ queryKey: ['dashboard'] }); }}
+          {visibleWidgetIds.includes('fleetAlerts') ? (
+            <div key="fleetAlerts" className="h-full">
+              <WidgetShell title="Fleet Alerts" isEditMode={isEditMode} onHide={() => hideWidget('fleetAlerts')}>
+                <FleetAlertsWidget
+                  data={fleetAlertsData}
                   onOpenMaintenance={() => onNavigate('maintenance')}
                   onOpenPrinters={() => onNavigate('printers')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-
-          {visibleWidgetIds.includes('backupTelemetry') ? (
-            <div key="backupTelemetry" className="h-full">
-              <WidgetShell title="Backup Telemetry" isEditMode={isEditMode} onHide={() => hideWidget('backupTelemetry')}>
-                <BackupTelemetryWidget
-                  summary={backupSummary}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'backupTelemetry')}
                 />
               </WidgetShell>
             </div>
@@ -737,28 +599,9 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             </div>
           ) : null}
 
-          {visibleWidgetIds.includes('storageTrend') ? (
-            <div key="storageTrend" className="h-full">
-              <WidgetShell title="Storage Trend" isEditMode={isEditMode} onHide={() => hideWidget('storageTrend')}>
-                <StorageTrendWidget
-                  points={storageTrendSeries}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'storageTrend')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-
-          {visibleWidgetIds.includes('heatmap') ? (
-            <div key="heatmap" className="h-full">
-              <WidgetShell title="Print Heatmap" isEditMode={isEditMode} onHide={() => hideWidget('heatmap')}>
-                <HeatmapWidget buckets={heatmapBuckets} />
-              </WidgetShell>
-            </div>
-          ) : null}
-
           {visibleWidgetIds.includes('upcomingSchedule') ? (
             <div key="upcomingSchedule" className="h-full">
-              <WidgetShell title="Upcoming Schedule" isEditMode={isEditMode} onHide={() => hideWidget('upcomingSchedule')}>
+              <WidgetShell title="Maintenance Upcoming" isEditMode={isEditMode} onHide={() => hideWidget('upcomingSchedule')}>
                 <UpcomingScheduleWidget
                   items={upcomingScheduleItems}
                   density={widgetDensity(visibleLayouts, currentBreakpoint, 'upcomingSchedule')}
@@ -767,13 +610,13 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             </div>
           ) : null}
 
-          {visibleWidgetIds.includes('duplicatePressure') ? (
-            <div key="duplicatePressure" className="h-full">
-              <WidgetShell title="Duplicate Pressure" isEditMode={isEditMode} onHide={() => hideWidget('duplicatePressure')}>
-                <DuplicatePressureWidget
-                  summary={duplicatePressureSummary}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'duplicatePressure')}
-                  onOpenDuplicates={() => onNavigate('duplicates')}
+          {visibleWidgetIds.includes('failureWatch') ? (
+            <div key="failureWatch" className="h-full">
+              <WidgetShell title="Failure Watch" isEditMode={isEditMode} onHide={() => hideWidget('failureWatch')}>
+                <FailureWatchWidget
+                  rows={failureWatchRows}
+                  failed24hCount={failure24hCount}
+                  onOpenHistory={() => onNavigate('history')}
                 />
               </WidgetShell>
             </div>

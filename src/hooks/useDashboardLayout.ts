@@ -7,12 +7,9 @@ export type DashboardWidgetId =
   | 'livePrinters'
   | 'healthSummary'
   | 'activityStream'
-  | 'heatmap'
-  | 'storageTrend'
   | 'upcomingSchedule'
-  | 'queuePressure'
-  | 'backupTelemetry'
-  | 'duplicatePressure'
+  | 'fleetAlerts'
+  | 'failureWatch'
   | 'backgroundJobs';
 
 export interface DashboardWidgetRegistryItem {
@@ -42,89 +39,68 @@ type SnapProfile = {
 const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = [
   'livePrinters',
   'healthSummary',
+  'fleetAlerts',
   'backgroundJobs',
   'activityStream',
-  'heatmap',
-  'storageTrend',
   'upcomingSchedule',
-  'queuePressure',
-  'backupTelemetry',
-  'duplicatePressure',
+  'failureWatch',
 ];
 
 export const dashboardWidgetRegistry: DashboardWidgetRegistryItem[] = [
   { id: 'livePrinters', title: 'Live Printers' },
   { id: 'healthSummary', title: 'Health Summary' },
+  { id: 'fleetAlerts', title: 'Fleet Alerts' },
   { id: 'backgroundJobs', title: 'Background Jobs' },
   { id: 'activityStream', title: 'Activity Stream' },
-  { id: 'heatmap', title: 'Heatmap' },
-  { id: 'storageTrend', title: 'Storage Trend' },
-  { id: 'upcomingSchedule', title: 'Upcoming Schedule' },
-  { id: 'queuePressure', title: 'Queue Pressure' },
-  { id: 'backupTelemetry', title: 'Backup Telemetry' },
-  { id: 'duplicatePressure', title: 'Duplicate Pressure' },
+  { id: 'upcomingSchedule', title: 'Maintenance Upcoming' },
+  { id: 'failureWatch', title: 'Failure Watch' },
 ];
 
 export const defaultDashboardLayouts: Layouts = {
   lg: [
     { i: 'livePrinters', x: 0, y: 0, w: 5, h: 6, minW: 4, minH: 5 },
     { i: 'healthSummary', x: 5, y: 0, w: 3, h: 5, minW: 3, minH: 4 },
-    { i: 'queuePressure', x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'backupTelemetry', x: 5, y: 5, w: 3, h: 5, minW: 3, minH: 4 },
+    { i: 'fleetAlerts', x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
     { i: 'backgroundJobs', x: 8, y: 5, w: 4, h: 6, minW: 3, minH: 5 },
-    { i: 'activityStream', x: 0, y: 6, w: 7, h: 8, minW: 5, minH: 6 },
-    { i: 'storageTrend', x: 7, y: 11, w: 5, h: 8, minW: 4, minH: 6 },
-    { i: 'heatmap', x: 0, y: 14, w: 7, h: 6, minW: 4, minH: 5 },
-    { i: 'upcomingSchedule', x: 7, y: 19, w: 5, h: 6, minW: 4, minH: 5 },
-    { i: 'duplicatePressure', x: 0, y: 20, w: 7, h: 5, minW: 4, minH: 4 },
+    { i: 'upcomingSchedule', x: 5, y: 5, w: 3, h: 6, minW: 3, minH: 5 },
+    { i: 'activityStream', x: 0, y: 6, w: 8, h: 8, minW: 5, minH: 6 },
+    { i: 'failureWatch', x: 0, y: 14, w: 8, h: 6, minW: 5, minH: 5 },
   ],
   md: [
-    { i: 'livePrinters', x: 0, y: 0, w: 10, h: 6, minW: 4, minH: 5 },
-    { i: 'healthSummary', x: 0, y: 6, w: 5, h: 5, minW: 3, minH: 4 },
-    { i: 'queuePressure', x: 5, y: 6, w: 5, h: 5, minW: 3, minH: 4 },
-    { i: 'backupTelemetry', x: 0, y: 11, w: 5, h: 5, minW: 3, minH: 4 },
-    { i: 'backgroundJobs', x: 5, y: 11, w: 5, h: 6, minW: 3, minH: 5 },
+    { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 5 },
+    { i: 'healthSummary', x: 6, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
+    { i: 'fleetAlerts', x: 0, y: 6, w: 4, h: 5, minW: 3, minH: 4 },
+    { i: 'backgroundJobs', x: 4, y: 6, w: 6, h: 6, minW: 3, minH: 5 },
+    { i: 'upcomingSchedule', x: 0, y: 11, w: 4, h: 6, minW: 3, minH: 5 },
     { i: 'activityStream', x: 0, y: 17, w: 10, h: 8, minW: 5, minH: 6 },
-    { i: 'storageTrend', x: 0, y: 25, w: 10, h: 8, minW: 5, minH: 6 },
-    { i: 'heatmap', x: 0, y: 33, w: 10, h: 6, minW: 4, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 39, w: 10, h: 6, minW: 4, minH: 5 },
-    { i: 'duplicatePressure', x: 0, y: 45, w: 10, h: 5, minW: 4, minH: 4 },
+    { i: 'failureWatch', x: 0, y: 25, w: 10, h: 6, minW: 5, minH: 5 },
   ],
   sm: [
     { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 3, minH: 5 },
     { i: 'healthSummary', x: 0, y: 6, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 11, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'backupTelemetry', x: 0, y: 16, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'backgroundJobs', x: 0, y: 21, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'activityStream', x: 0, y: 27, w: 6, h: 8, minW: 4, minH: 6 },
-    { i: 'storageTrend', x: 0, y: 35, w: 6, h: 8, minW: 4, minH: 6 },
-    { i: 'heatmap', x: 0, y: 43, w: 6, h: 6, minW: 4, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 49, w: 6, h: 6, minW: 4, minH: 5 },
-    { i: 'duplicatePressure', x: 0, y: 55, w: 6, h: 5, minW: 4, minH: 4 },
+    { i: 'fleetAlerts', x: 0, y: 11, w: 6, h: 5, minW: 3, minH: 4 },
+    { i: 'backgroundJobs', x: 0, y: 16, w: 6, h: 6, minW: 3, minH: 5 },
+    { i: 'upcomingSchedule', x: 0, y: 22, w: 6, h: 6, minW: 4, minH: 5 },
+    { i: 'activityStream', x: 0, y: 28, w: 6, h: 8, minW: 4, minH: 6 },
+    { i: 'failureWatch', x: 0, y: 36, w: 6, h: 6, minW: 4, minH: 5 },
   ],
   xs: [
     { i: 'livePrinters', x: 0, y: 0, w: 4, h: 6, minW: 2, minH: 5 },
     { i: 'healthSummary', x: 0, y: 6, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 11, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'backupTelemetry', x: 0, y: 16, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'backgroundJobs', x: 0, y: 21, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'activityStream', x: 0, y: 27, w: 4, h: 8, minW: 2, minH: 6 },
-    { i: 'storageTrend', x: 0, y: 35, w: 4, h: 8, minW: 2, minH: 6 },
-    { i: 'heatmap', x: 0, y: 43, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 49, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'duplicatePressure', x: 0, y: 55, w: 4, h: 5, minW: 2, minH: 4 },
+    { i: 'fleetAlerts', x: 0, y: 11, w: 4, h: 5, minW: 2, minH: 4 },
+    { i: 'backgroundJobs', x: 0, y: 16, w: 4, h: 6, minW: 2, minH: 5 },
+    { i: 'upcomingSchedule', x: 0, y: 22, w: 4, h: 6, minW: 2, minH: 5 },
+    { i: 'activityStream', x: 0, y: 28, w: 4, h: 8, minW: 2, minH: 6 },
+    { i: 'failureWatch', x: 0, y: 36, w: 4, h: 6, minW: 2, minH: 5 },
   ],
   xxs: [
     { i: 'livePrinters', x: 0, y: 0, w: 2, h: 6, minW: 2, minH: 5 },
     { i: 'healthSummary', x: 0, y: 6, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 11, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'backupTelemetry', x: 0, y: 16, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'backgroundJobs', x: 0, y: 21, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'activityStream', x: 0, y: 27, w: 2, h: 8, minW: 2, minH: 6 },
-    { i: 'storageTrend', x: 0, y: 35, w: 2, h: 8, minW: 2, minH: 6 },
-    { i: 'heatmap', x: 0, y: 43, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 49, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'duplicatePressure', x: 0, y: 55, w: 2, h: 5, minW: 2, minH: 4 },
+    { i: 'fleetAlerts', x: 0, y: 11, w: 2, h: 5, minW: 2, minH: 4 },
+    { i: 'backgroundJobs', x: 0, y: 16, w: 2, h: 6, minW: 2, minH: 5 },
+    { i: 'upcomingSchedule', x: 0, y: 22, w: 2, h: 6, minW: 2, minH: 5 },
+    { i: 'activityStream', x: 0, y: 28, w: 2, h: 8, minW: 2, minH: 6 },
+    { i: 'failureWatch', x: 0, y: 36, w: 2, h: 6, minW: 2, minH: 5 },
   ],
 };
 
@@ -145,14 +121,11 @@ const DEFAULT_SNAP_PROFILE: SnapProfile = {
 const WIDGET_SNAP_PROFILES: Record<DashboardWidgetId, SnapProfile> = {
   livePrinters: { widths: [4, 5, 6, 8, 10, 12], heights: [5, 6, 7, 8, 10] },
   healthSummary: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
+  fleetAlerts: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
   backgroundJobs: { widths: [3, 4, 5, 6], heights: [5, 6, 7, 8] },
   activityStream: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10, 12] },
-  heatmap: { widths: [4, 6, 7, 8, 10, 12], heights: [5, 6, 7, 8] },
-  storageTrend: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10] },
   upcomingSchedule: { widths: [4, 5, 6, 7, 8], heights: [5, 6, 7, 8, 10] },
-  queuePressure: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
-  backupTelemetry: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
-  duplicatePressure: { widths: [3, 4, 5, 6, 7, 8], heights: [4, 5, 6, 7] },
+  failureWatch: { widths: [4, 5, 6, 8, 10, 12], heights: [5, 6, 7, 8] },
 };
 
 function isWidgetId(value: string): value is DashboardWidgetId {
@@ -338,7 +311,7 @@ function readLocalState(storageKey: string): DashboardLayoutPreferences | null {
 
 export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   const {
-    storageKey = 'printhive.command-center.layout.v3',
+    storageKey = 'printhive.command-center.layout.v4',
     backendState,
     backendReady,
     onPersist,
