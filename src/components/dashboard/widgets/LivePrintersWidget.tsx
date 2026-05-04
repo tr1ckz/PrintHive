@@ -76,7 +76,7 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
                 <p className="mt-1 truncate ops-tertiary-text">{printer.model}</p>
               </div>
               <span
-                className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-emerald-700 text-emerald-300' : 'border-slate-700 text-slate-400'}`}
+                className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-orange-500/50 text-orange-300' : 'border-neutral-700 text-neutral-400'}`}
               >
                 {printer.online ? 'Online' : 'Offline'}
               </span>

@@ -1,14 +1,14 @@
 .dashboard-home {
   max-width: 1680px;
   margin: 0 auto;
+  background: #0a0a0a;
   color: #ffffff;
-  --ops-bg: #0f1318;
-  --ops-surface: #141a22;
-  --ops-surface-alt: #11171f;
-  --ops-border: rgba(var(--theme-accent-rgb), 0.28);
-  --ops-border-strong: rgba(var(--theme-accent-rgb), 0.48);
-  --ops-secondary: rgba(226, 232, 240, 0.7);
-  --ops-tertiary: rgba(148, 163, 184, 0.5);
+  --ops-surface: #171717;
+  --ops-surface-alt: #171717;
+  --ops-border: #262626;
+  --ops-border-strong: #262626;
+  --ops-secondary: #a3a3a3;
+  --ops-tertiary: #737373;
 }
 
 .command-center-stage {
@@ -38,7 +38,7 @@
   border: 1px solid var(--ops-border);
   border-radius: 4px;
   background: var(--ops-surface-alt);
-  color: #e5e7eb;
+  color: #ffffff;
 }
 
 .command-center-kpi-grid {
@@ -55,9 +55,10 @@
 }
 
 .command-kpi-label {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   line-height: 1.45;
   color: var(--ops-secondary);
 }
@@ -84,8 +85,8 @@
 }
 
 .command-center-grid .react-grid-item.react-grid-placeholder {
-  background: rgba(var(--theme-accent-rgb), 0.16);
-  border: 1px dashed var(--ops-border-strong);
+  background: rgba(38, 38, 38, 0.7);
+  border: 1px dashed #262626;
   border-radius: 4px;
   opacity: 1;
 }
@@ -102,7 +103,8 @@
 
 .ops-secondary-text {
   color: var(--ops-secondary);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   line-height: 1.45;
@@ -110,10 +112,9 @@
 
 .ops-tertiary-text {
   color: var(--ops-tertiary);
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   line-height: 1.45;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .ops-row-divider {
@@ -128,16 +129,16 @@
 .ops-list > * + * {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid rgba(var(--theme-accent-rgb), 0.22);
+  border-top: 1px solid #262626;
 }
 
-/* Override slate-centric utility classes inside the operations grid so all widgets follow the active accent color system. */
+/* Normalize utility-driven styles to the strict neutral palette for Operations Grid. */
 .dashboard-home .bg-slate-900 {
   background-color: var(--ops-surface-alt) !important;
 }
 
 .dashboard-home .bg-slate-950 {
-  background-color: #0b1016 !important;
+  background-color: #111111 !important;
 }
 
 .dashboard-home .border-slate-700,
@@ -154,16 +155,30 @@
 .dashboard-home .text-slate-400,
 .dashboard-home .text-slate-500,
 .dashboard-home .text-slate-600 {
-  color: var(--ops-secondary) !important;
+  color: #a3a3a3 !important;
 }
 
 .dashboard-home .bg-slate-700,
 .dashboard-home .hover\:bg-slate-800\/40:hover {
-  background-color: rgba(var(--theme-accent-rgb), 0.2) !important;
+  background-color: #262626 !important;
 }
 
 .dashboard-home .hover\:border-slate-500:hover {
-  border-color: var(--ops-border-strong) !important;
+  border-color: #404040 !important;
+}
+
+.dashboard-home .text-amber-200,
+.dashboard-home .text-amber-300,
+.dashboard-home .text-rose-300,
+.dashboard-home .text-emerald-300,
+.dashboard-home .text-emerald-400,
+.dashboard-home .text-rose-400,
+.dashboard-home .text-cyan-100,
+.dashboard-home .text-cyan-200,
+.dashboard-home .text-cyan-300,
+.dashboard-home .text-violet-100,
+.dashboard-home .text-violet-200 {
+  color: #ffffff !important;
 }
 
 .widget-drag-handle {

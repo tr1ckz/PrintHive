@@ -16,7 +16,7 @@ function FailureWatchWidget({ rows, failed24hCount, onOpenHistory }: FailureWatc
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3.5">
+      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
         <p className="ops-secondary-text">Failures (24h)</p>
         <p className="mt-1.5 text-3xl font-bold leading-tight text-white">{failed24hCount}</p>
       </div>
@@ -26,16 +26,16 @@ function FailureWatchWidget({ rows, failed24hCount, onOpenHistory }: FailureWatc
           No recent failed prints.
         </div>
       ) : (
-        <div className="ops-list rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3">
+        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
           {visibleRows.map((row) => (
-            <div key={row.id} className="py-1">
+            <div key={row.id} className="border-b border-neutral-800 py-3 last:border-b-0">
               <div className="flex items-center justify-between gap-2">
                 <p className="truncate text-sm font-bold text-white">{row.title}</p>
-                <span className="rounded-[3px] border border-rose-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-rose-300">
+                <span className="rounded-[3px] border border-neutral-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-neutral-300">
                   Failed
                 </span>
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 ops-tertiary-text">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-neutral-500 text-xs">
                 <span className="truncate">{row.printer}</span>
                 <span aria-hidden>•</span>
                 <span>{row.startedAt}</span>
@@ -48,7 +48,7 @@ function FailureWatchWidget({ rows, failed24hCount, onOpenHistory }: FailureWatc
       <button
         type="button"
         onClick={onOpenHistory}
-        className="widget-no-drag mt-auto rounded-[4px] border border-slate-700 bg-slate-900 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-200 hover:border-slate-500"
+        className="widget-no-drag mt-auto rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
       >
         Open Print History
       </button>

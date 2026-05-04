@@ -40,33 +40,31 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 rounded-[4px] border border-slate-700 bg-slate-900 p-2">
+      <div className="flex flex-wrap gap-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-2">
         {(['all', 'running', 'success', 'failed'] as const).map((filter) => (
           <button
             key={filter}
             type="button"
             onClick={() => setStatusFilter(filter)}
-            className={`rounded-[3px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${statusFilter === filter ? 'bg-slate-700 text-white' : 'text-slate-400'}`}
+            className={`rounded-[3px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${statusFilter === filter ? 'bg-neutral-800 text-white' : 'text-neutral-400'}`}
           >
             {filter}
           </button>
         ))}
       </div>
 
-      <div className={`grid gap-3 ${density === 'compact' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+      <div className={`grid gap-4 ${density === 'compact' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
       {visibleRows.map((row) => {
         const statusKey = row.status.toLowerCase();
         const badgeClass =
-          statusKey === 'success'
-            ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-100'
-            : statusKey === 'failed'
-              ? 'border-rose-400/40 bg-rose-500/15 text-rose-100'
-              : 'border-amber-400/40 bg-amber-500/15 text-amber-100';
+          statusKey === 'running'
+            ? 'border-orange-500/60 bg-orange-500/20 text-white'
+            : 'border-neutral-700 bg-neutral-800 text-neutral-200';
         const progressPct = Math.max(6, Math.min(100, row.progressPct ?? (statusKey === 'running' ? 50 : 100)));
 
         return (
-          <article key={row.id} className="overflow-hidden rounded-[4px] border border-slate-700 bg-slate-900">
-            <div className="relative h-28 overflow-hidden border-b border-slate-800 bg-slate-950">
+          <article key={row.id} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+            <div className="relative mb-3 h-28 overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950">
               {row.thumbnailUrl ? (
                 <img
                   src={row.thumbnailUrl}
@@ -79,26 +77,26 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
                 />
               ) : null}
 
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_45%,rgba(0,0,0,0.35)_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_55%,rgba(0,0,0,0.28)_100%)]" />
             </div>
 
-            <div className="space-y-3 px-4 py-3.5">
+            <div className="space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <p className="truncate text-sm font-bold text-white">{row.title}</p>
                 <span className={`shrink-0 rounded-[3px] border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${badgeClass}`}>
                   {row.status}
                 </span>
               </div>
-              <p className="ops-secondary-text truncate">{row.printer}</p>
+              <p className="text-xs font-semibold tracking-wider text-neutral-400 uppercase truncate">{row.printer}</p>
 
-              <div className="h-1.5 overflow-hidden rounded-[3px] border border-slate-700 bg-slate-950">
+              <div className="h-1.5 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
                 <div
-                  className={`h-full ${statusKey === 'failed' ? 'bg-rose-400' : statusKey === 'running' ? 'bg-amber-300' : 'bg-emerald-400'}`}
+                  className={`h-full ${statusKey === 'running' ? 'bg-orange-500' : 'bg-neutral-500'}`}
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 ops-tertiary-text">
+              <div className="flex flex-wrap items-center gap-1.5 text-neutral-500 text-xs">
                 <span className="truncate">{row.startedAt}</span>
                 <span aria-hidden>•</span>
                 <span>{row.durationLabel}</span>

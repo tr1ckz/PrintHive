@@ -53,7 +53,7 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
                       {row.currentPrint || row.status || 'Idle'}
                     </p>
                   </div>
-                  <span className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${row.mqttConnected ? 'border-emerald-700 text-emerald-300' : 'border-slate-700 text-slate-400'}`}>
+                  <span className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${row.mqttConnected ? 'border-orange-500/50 text-orange-300' : 'border-neutral-700 text-neutral-400'}`}>
                     {row.mqttConnected ? 'MQTT' : 'No MQTT'}
                   </span>
                 </div>

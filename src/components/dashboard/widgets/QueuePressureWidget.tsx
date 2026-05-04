@@ -15,18 +15,11 @@ interface QueuePressureWidgetProps {
 }
 
 function QueuePressureWidget({ summary, density = 'comfortable', onRefresh, onOpenMaintenance, onOpenPrinters }: QueuePressureWidgetProps) {
-  const toneClass =
-    summary.pressureScore >= 75
-      ? 'text-rose-300'
-      : summary.pressureScore >= 45
-        ? 'text-amber-300'
-        : 'text-emerald-300';
-
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="rounded-[4px] border border-slate-700 bg-slate-900 px-4 py-3.5">
         <p className="ops-secondary-text">Queue Pressure</p>
-        <p className={`mt-1.5 text-3xl font-bold leading-tight ${toneClass}`}>{summary.pressureScore}%</p>
+        <p className="mt-1.5 text-3xl font-bold leading-tight text-white">{summary.pressureScore}%</p>
         <p className="mt-1.5 text-[11px] leading-[1.45] text-slate-400">{summary.recommendation}</p>
       </div>
 
