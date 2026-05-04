@@ -239,6 +239,10 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     },
   });
 
+  const handlePersistDashboardLayout = useCallback((next: DashboardLayoutPreferences) => {
+    persistDashboardLayout.mutate(next);
+  }, [persistDashboardLayout]);
+
   const {
     visibleWidgetIds,
     hiddenWidgetIds,
@@ -251,9 +255,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   } = useDashboardLayout({
     backendState: dashboardLayoutSettingsQuery.data,
     backendReady: dashboardLayoutSettingsQuery.isFetched || dashboardLayoutSettingsQuery.isError,
-    onPersist: (next) => {
-      persistDashboardLayout.mutate(next);
-    },
+    onPersist: handlePersistDashboardLayout,
   });
 
   const shouldPollBackgroundJobs = isPageVisible && visibleWidgetIds.includes('backgroundJobs');

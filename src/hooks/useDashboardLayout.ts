@@ -324,6 +324,12 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
 
   const didHydrateBackendRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
+  const onPersistRef = useRef(onPersist);
+  const lastPersistSignatureRef = useRef('');
+
+  useEffect(() => {
+    onPersistRef.current = onPersist;
+  }, [onPersist]);
 
   useEffect(() => {
     if (!backendReady || didHydrateBackendRef.current) {
@@ -344,14 +350,24 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
       layouts,
       hiddenWidgetIds,
     };
+    const payloadSignature = JSON.stringify(payload);
 
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify(payload));
+      window.localStorage.setItem(storageKey, payloadSignature);
     } catch {
       // Ignore storage errors and continue with in-memory layout.
     }
 
-    if (!backendReady || !didHydrateBackendRef.current || !onPersist) {
+    if (!backendReady || !didHydrateBackendRef.current || !onPersistRef.current) {
+      return;
+    }
+
+    if (!lastPersistSignatureRef.current) {
+      lastPersistSignatureRef.current = payloadSignature;
+      return;
+    }
+
+    if (lastPersistSignatureRef.current === payloadSignature) {
       return;
     }
 
@@ -360,7 +376,8 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     }
 
     persistTimerRef.current = window.setTimeout(() => {
-      onPersist(payload);
+      lastPersistSignatureRef.current = payloadSignature;
+      onPersistRef.current?.(payload);
     }, saveDebounceMs);
 
     return () => {
@@ -368,7 +385,7 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
         window.clearTimeout(persistTimerRef.current);
       }
     };
-  }, [layouts, hiddenWidgetIds, storageKey, backendReady, saveDebounceMs, onPersist]);
+  }, [layouts, hiddenWidgetIds, storageKey, backendReady, saveDebounceMs]);
 
   const visibleWidgetIds = useMemo(
     () => DASHBOARD_WIDGET_IDS.filter((id) => !hiddenWidgetIds.includes(id)),
