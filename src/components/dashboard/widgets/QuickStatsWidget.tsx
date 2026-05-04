@@ -43,11 +43,11 @@ function QuickStatsWidget({ printersOnlineLabel, totalPrints, successRate, libra
   ];
 
   return (
-    <div className="grid h-full grid-cols-1 gap-2 sm:grid-cols-2">
+    <div className="grid h-full grid-cols-1 gap-3 sm:grid-cols-2">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <article key={card.key} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+          <article key={card.key} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
             <div className="flex items-center justify-between gap-2">
               <p className="ops-secondary-text">{card.label}</p>
               <Icon className="h-4 w-4 text-neutral-500" />

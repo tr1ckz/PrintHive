@@ -43,7 +43,7 @@ function UpcomingScheduleWidget({ items, density = 'comfortable' }: UpcomingSche
           No scheduled maintenance tasks.
         </div>
       ) : (
-        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
           {visibleItems.map((item) => (
             <div key={item.id} className="border-b border-neutral-800 py-3 last:border-b-0">
               <div className="flex items-center justify-between gap-3">

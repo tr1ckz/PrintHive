@@ -16,7 +16,7 @@ function FailureWatchWidget({ rows, failed24hCount, onOpenHistory }: FailureWatc
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
         <p className="ops-secondary-text">Failures (24h)</p>
         <p className="mt-1.5 text-3xl font-bold leading-tight text-white">{failed24hCount}</p>
       </div>
@@ -26,7 +26,7 @@ function FailureWatchWidget({ rows, failed24hCount, onOpenHistory }: FailureWatc
           No recent failed prints.
         </div>
       ) : (
-        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
           {visibleRows.map((row) => (
             <div key={row.id} className="border-b border-neutral-800 py-3 last:border-b-0">
               <div className="flex items-center justify-between gap-2">

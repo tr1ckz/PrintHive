@@ -30,7 +30,7 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
 
   if (printers.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[4px] border border-dashed border-neutral-800 text-xs text-neutral-500">
+      <div className="flex h-full flex-col items-center justify-center gap-3 rounded-[4px] border border-dashed border-neutral-800 p-5 text-xs text-neutral-500">
         <p>No printers configured.</p>
         <button
           type="button"
@@ -46,7 +46,7 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-2">
+        <div className="flex flex-wrap gap-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
           {(['all', 'online', 'active'] as const).map((item) => (
             <button
               key={item}
@@ -61,15 +61,15 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
         >
           Open
         </button>
       </div>
 
-      <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+      <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
         {visibleRows.map((printer) => (
-          <div key={printer.id} className="border-b border-neutral-800 py-3 last:border-b-0">
+          <div key={printer.id} className="border-b border-neutral-800 py-4 last:border-b-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold leading-tight text-white/90">{printer.name}</p>

@@ -32,7 +32,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
 
   if (rows.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center rounded border border-dashed border-white/20 text-xs text-white/50">
+      <div className="flex h-full items-center justify-center rounded border border-dashed border-white/20 p-5 text-xs text-white/50">
         No recent activity to display.
       </div>
     );
@@ -40,7 +40,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-2">
+      <div className="flex flex-wrap gap-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
         {(['all', 'running', 'success', 'failed'] as const).map((filter) => (
           <button
             key={filter}
@@ -63,7 +63,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
         const progressPct = Math.max(6, Math.min(100, row.progressPct ?? (statusKey === 'running' ? 50 : 100)));
 
         return (
-          <article key={row.id} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+          <article key={row.id} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
             <div className="relative mb-3 h-28 overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950">
               {row.thumbnailUrl ? (
                 <img
@@ -80,7 +80,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
               <div className="absolute inset-0 bg-black/25" />
             </div>
 
-            <div className="space-y-4 p-4">
+            <div className="mt-4 space-y-4">
               <div className="flex items-start justify-between gap-2">
                 <p className="truncate text-sm font-bold text-white">{row.title}</p>
                 <span className={`shrink-0 rounded-[3px] border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${badgeClass}`}>

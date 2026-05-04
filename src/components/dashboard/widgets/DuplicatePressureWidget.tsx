@@ -26,7 +26,7 @@ function DuplicatePressureWidget({ summary, density = 'comfortable', onOpenDupli
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className={`rounded-[4px] border p-4 ${tone}`}>
+      <div className={`rounded-[4px] border p-5 ${tone}`}>
         <p className="text-[10px] uppercase tracking-[0.1em]">Duplicate Pressure</p>
         <p className="mt-1 text-lg font-bold">{summary.groupCount} Groups</p>
         <p className="mt-1 text-[11px] text-white/85">{summary.duplicateFileCount} files | {summary.estimatedWasteLabel} potential waste</p>
@@ -37,7 +37,7 @@ function DuplicatePressureWidget({ summary, density = 'comfortable', onOpenDupli
           No duplicates currently detected.
         </div>
       ) : (
-        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
           {visibleTop.map((group) => (
             <div key={group.name} className="border-b border-neutral-800 py-3 last:border-b-0">
               <p className="truncate text-xs font-semibold text-white/88">{group.name}</p>

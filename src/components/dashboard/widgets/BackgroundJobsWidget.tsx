@@ -21,7 +21,7 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
         <p className="ops-secondary-text">Pipeline</p>
         <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{activeJobs.length} active</p>
       </div>
@@ -31,11 +31,11 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
           No background jobs running.
         </div>
       ) : (
-        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
           {visibleJobs.map((job) => {
             const pct = job.total > 0 ? Math.round((job.processed / job.total) * 100) : 0;
             return (
-              <div key={job.id} className="border-b border-neutral-800 py-3 last:border-b-0">
+              <div key={job.id} className="border-b border-neutral-800 py-4 last:border-b-0">
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate text-sm font-semibold leading-tight text-white">{job.name}</p>
                   <span className="ops-tertiary-text">{pct}%</span>
@@ -54,14 +54,14 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
         <button
           type="button"
           onClick={onOpenLibrary}
-          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
         >
           Library
         </button>
         <button
           type="button"
           onClick={onOpenHistory}
-          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
         >
           History
         </button>
