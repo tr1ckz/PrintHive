@@ -9,13 +9,15 @@ interface WidgetShellProps {
 
 function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShellProps) {
   return (
-    <article className="h-full overflow-hidden rounded-lg border border-white/14 bg-[linear-gradient(180deg,rgba(18,20,25,0.98),rgba(11,13,18,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_14px_24px_rgba(0,0,0,0.25)]">
-      <header className="flex items-center justify-between gap-2 border-b border-white/10 bg-white/[0.02] px-3 py-2">
+    <article className="group relative h-full overflow-hidden rounded-xl border border-white/14 bg-[linear-gradient(165deg,rgba(19,22,28,0.97)_0%,rgba(10,12,17,0.98)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_16px_34px_rgba(0,0,0,0.34)] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-[1px] hover:border-white/22 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_22px_34px_rgba(0,0,0,0.38)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-[linear-gradient(90deg,rgba(var(--theme-accent-rgb),0.85),rgba(var(--theme-accent-rgb),0.1),rgba(var(--theme-accent-rgb),0.85))] opacity-65" />
+
+      <header className="flex items-center justify-between gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           {isEditMode ? (
             <button
               type="button"
-              className="widget-drag-handle inline-flex h-5 w-5 items-center justify-center rounded border border-white/20 bg-black/30 text-[10px] font-bold text-white/70"
+              className="widget-drag-handle inline-flex h-5 w-5 items-center justify-center rounded border border-white/25 bg-black/35 text-[10px] font-bold text-white/75"
               title="Drag widget"
             >
               ::
@@ -36,6 +38,8 @@ function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShel
       </header>
 
       <div className="h-[calc(100%-42px)] overflow-auto p-3">{children}</div>
+
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-[linear-gradient(180deg,rgba(var(--theme-accent-rgb),0),rgba(var(--theme-accent-rgb),0.3),rgba(var(--theme-accent-rgb),0))] opacity-40" />
     </article>
   );
 }

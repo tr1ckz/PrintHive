@@ -504,6 +504,21 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     backgroundJobsQuery.data || []
   ), [backgroundJobsQuery.data]);
 
+  const operationalSnapshot = useMemo(() => {
+    const onlinePrinters = printers.filter((printer) => printer.online).length;
+    const activePrints = printers.filter((printer) => printer.online && printer.currentPrint).length;
+    const overdueTasks = (maintenanceQuery.data || []).filter((task) => task.isOverdue).length;
+
+    return {
+      onlinePrinters,
+      activePrints,
+      overdueTasks,
+      activeJobs: backgroundJobRows.length,
+      duplicateGroups: duplicatePressureSummary.groupCount,
+      duplicateFiles: duplicatePressureSummary.duplicateFileCount,
+    };
+  }, [printers, maintenanceQuery.data, backgroundJobRows.length, duplicatePressureSummary.groupCount, duplicatePressureSummary.duplicateFileCount]);
+
   const queryErrorCount = [
     printersQuery.isError,
     statsQuery.isError,
@@ -511,6 +526,9 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     maintenanceQuery.isError,
     libraryQuery.isError,
     backupSettingsQuery.isError,
+    duplicateGroupsQuery.isError,
+    backgroundJobsQuery.isError,
+    dashboardLayoutSettingsQuery.isError,
   ].filter(Boolean).length;
 
   const isInitialLoading =
@@ -582,13 +600,13 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   };
 
   return (
-    <section className="dashboard-home px-0">
-      <header className="mb-3 rounded-md border border-white/15 bg-[linear-gradient(180deg,rgba(18,20,25,0.98),rgba(11,13,18,0.98))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_24px_rgba(0,0,0,0.28)]">
+    <section className="dashboard-home command-center-stage px-0">
+      <header className="command-center-hero mb-3 rounded-xl p-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--theme-accent-strong)]">Command Center</p>
-            <h2 className="mt-1 text-lg font-semibold text-white">Operations Dashboard</h2>
-            <p className="mt-1 text-xs text-white/55">Drag, resize, and configure the operational widgets for your workspace.</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Operations Grid</h2>
+            <p className="mt-1 text-xs text-white/60">Snap-based widgets with live fleet telemetry and job pressure cues.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -601,7 +619,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   return next;
                 });
               }}
-              className={`rounded border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] ${isEditMode ? 'border-[color:var(--theme-accent)] bg-[color:var(--color-accent-soft)] text-white' : 'border-white/20 bg-white/5 text-white/80 hover:border-white/35'}`}
+              className={`rounded border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] ${isEditMode ? 'border-[color:var(--theme-accent)] bg-[color:var(--color-accent-soft)] text-white' : 'border-white/20 bg-white/5 text-white/80 hover:border-white/35'}`}
             >
               {isEditMode ? 'Done Editing' : 'Edit Dashboard'}
             </button>
@@ -629,10 +647,33 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             <button
               type="button"
               onClick={() => onNavigate('statistics')}
-              className="rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80 hover:border-white/35"
+              className="rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/80 hover:border-white/35"
             >
               Open Full Stats
             </button>
+          </div>
+        </div>
+
+        <div className="command-center-kpi-grid mt-3">
+          <div className="command-kpi-card">
+            <p className="command-kpi-label">Fleet Online</p>
+            <p className="command-kpi-value">{operationalSnapshot.onlinePrinters}/{printers.length || 0}</p>
+          </div>
+          <div className="command-kpi-card">
+            <p className="command-kpi-label">Active Prints</p>
+            <p className="command-kpi-value">{operationalSnapshot.activePrints}</p>
+          </div>
+          <div className="command-kpi-card">
+            <p className="command-kpi-label">Background Jobs</p>
+            <p className="command-kpi-value">{operationalSnapshot.activeJobs}</p>
+          </div>
+          <div className="command-kpi-card">
+            <p className="command-kpi-label">Maintenance Overdue</p>
+            <p className="command-kpi-value">{operationalSnapshot.overdueTasks}</p>
+          </div>
+          <div className="command-kpi-card">
+            <p className="command-kpi-label">Duplicate Pressure</p>
+            <p className="command-kpi-value">{operationalSnapshot.duplicateGroups}g / {operationalSnapshot.duplicateFiles}f</p>
           </div>
         </div>
       </header>
