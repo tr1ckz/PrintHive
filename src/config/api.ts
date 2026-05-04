@@ -72,8 +72,10 @@ export const API_ENDPOINTS = {
   
   SYNC: {
     CLOUD: `${API_BASE_URL}/api/sync`,
+    CLOUD_STATUS: `${API_BASE_URL}/api/sync-status`,
     PRINTER_TIMELAPSES: `${API_BASE_URL}/api/sync-printer-timelapses`,
     DOWNLOAD_COVERS: `${API_BASE_URL}/api/download-missing-covers`,
+    DOWNLOAD_COVERS_STATUS: `${API_BASE_URL}/api/download-missing-covers-status`,
   },
   
   VIDEO: {
@@ -118,6 +120,7 @@ export const API_ENDPOINTS = {
     DATABASE_VACUUM: `${API_BASE_URL}/api/settings/database/vacuum`,
     DATABASE_ANALYZE: `${API_BASE_URL}/api/settings/database/analyze`,
     DATABASE_REINDEX: `${API_BASE_URL}/api/settings/database/reindex`,
+    DATABASE_MAINTENANCE_STATUS: `${API_BASE_URL}/api/settings/database/maintenance-status`,
     DATABASE_TEST_REMOTE: `${API_BASE_URL}/api/settings/database/test-remote`,
     DATABASE_BACKUP_FILE: (filename: string) => `${API_BASE_URL}/api/settings/database/backups/${filename}`,
     DATABASE_RESTORE_UPLOAD: `${API_BASE_URL}/api/settings/database/restore`,

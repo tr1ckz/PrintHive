@@ -3525,6 +3525,50 @@ let printerTransferJob = {
   message: '',
 };
 
+// Global state for cloud sync background job
+let cloudSyncJob = {
+  running: false,
+  total: 0,
+  processed: 0,
+  newPrints: 0,
+  updated: 0,
+  downloadedCovers: 0,
+  downloadedVideos: 0,
+  failed: 0,
+  currentFile: '',
+  startTime: null,
+  phase: 'idle',
+  message: '',
+};
+
+// Global state for cover backfill background job
+let coverBackfillJob = {
+  running: false,
+  total: 0,
+  processed: 0,
+  downloaded: 0,
+  failed: 0,
+  currentFile: '',
+  startTime: null,
+  phase: 'idle',
+  message: '',
+};
+
+// Global state for database maintenance jobs
+let databaseMaintenanceJob = {
+  running: false,
+  type: '',
+  total: 1,
+  processed: 0,
+  completed: 0,
+  failed: 0,
+  currentFile: '',
+  startTime: null,
+  phase: 'idle',
+  message: '',
+  details: null,
+};
+
 // Match videos to prints based on timestamp (non-blocking background job)
 app.post('/api/match-videos', (req, res) => {
   if (!req.session.authenticated) {
@@ -4886,153 +4930,160 @@ app.post('/api/sync', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  try {
-    const accounts = getConfiguredBambuAccounts(req);
+  const accounts = getConfiguredBambuAccounts(req);
+  if (!accounts.length) {
+    return res.status(400).json({ error: 'No Bambu account connected for cloud sync' });
+  }
 
-    if (!accounts.length) {
-      return res.status(400).json({ error: 'No Bambu account connected for cloud sync' });
-    }
+  if (cloudSyncJob.running) {
+    return res.status(409).json({ success: false, message: 'Cloud sync already running', status: cloudSyncJob });
+  }
 
-    console.log(`Fetching tasks from ${accounts.length} Bambu account(s)...`);
+  cloudSyncJob = {
+    running: true,
+    total: 0,
+    processed: 0,
+    newPrints: 0,
+    updated: 0,
+    downloadedCovers: 0,
+    downloadedVideos: 0,
+    failed: 0,
+    currentFile: '',
+    startTime: Date.now(),
+    phase: 'queued',
+    message: 'Cloud sync queued',
+  };
 
-    const accountResults = await Promise.allSettled(accounts.map(async (account) => {
-      const apiBase = getBambuApiBase(account.region);
-      const response = await axios.get(`${apiBase}/v1/user-service/my/tasks?limit=100`, {
-        headers: { 'Authorization': `Bearer ${account.token}` },
-        timeout: 10000
-      });
+  res.json({
+    success: true,
+    queued: true,
+    message: 'Cloud sync started in background. Check /api/sync-status or Background Jobs.',
+    status: cloudSyncJob,
+  });
 
-      const hits = (response.data?.hits || []).map((print) => ({
-        ...print,
-        __accountToken: account.token,
-        __apiBase: apiBase,
-        __accountEmail: account.email || null
+  void (async () => {
+    try {
+      cloudSyncJob.phase = 'fetching-tasks';
+      cloudSyncJob.message = `Fetching tasks from ${accounts.length} account(s)`;
+
+      const accountResults = await Promise.allSettled(accounts.map(async (account) => {
+        const apiBase = getBambuApiBase(account.region);
+        const response = await axios.get(`${apiBase}/v1/user-service/my/tasks?limit=100`, {
+          headers: { 'Authorization': `Bearer ${account.token}` },
+          timeout: 10000
+        });
+
+        const hits = (response.data?.hits || []).map((print) => ({
+          ...print,
+          __accountToken: account.token,
+          __apiBase: apiBase,
+        }));
+
+        return hits;
       }));
 
-      console.log(`Account ${account.email || 'session'} returned ${hits.length} task(s)`);
-      return hits;
-    }));
-
-    const allHits = [];
-    accountResults.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        allHits.push(...result.value);
-      } else {
-        console.log(`Failed to fetch tasks for ${accounts[index]?.email || 'session'}: ${result.reason?.message || result.reason}`);
-      }
-    });
-
-    const uniqueHits = Array.from(
-      new Map(allHits.map((print) => [print.id || print.modelId, print])).values()
-    );
-    const storedHits = uniqueHits.map(({ __accountToken, __apiBase, __accountEmail, ...print }) => print);
-
-    console.log('API Response received. Total unique hits:', uniqueHits.length || 0);
-    
-    if (uniqueHits.length > 0) {
-      console.log('Sample task structure:', JSON.stringify(storedHits[0], null, 2));
-      console.log('Storing prints in database...');
-      const result = storePrints(storedHits);
-      console.log('Store result:', result);
-      
-      // Download covers and timelapses
-      console.log('Starting downloads...');
-      
-      const downloadResults = await Promise.all(
-        uniqueHits.slice(0, 50).map(async (print) => {
-          const result = { cover: false, video: false };
-          
-          // Download cover - check both cover and coverUrl fields
-          const coverUrl = print.cover || print.coverUrl || print.snapshot;
-          if (coverUrl && print.modelId) {
-            try {
-              console.log(`Downloading cover for ${print.modelId}: ${coverUrl.substring(0, 80)}...`);
-              const localPath = await downloadCoverImage(coverUrl, print.modelId);
-              if (localPath) {
-                console.log(`✓ Cover saved: ${localPath}`);
-                result.cover = true;
-              } else {
-                console.log(`✗ Cover download returned null for ${print.modelId}`);
-              }
-            } catch (err) {
-              console.log(`✗ Cover download failed for ${print.modelId}: ${err.message}`);
-            }
-          } else {
-            console.log(`No cover URL for ${print.modelId || print.id}`);
-          }
-          
-          // Try to download timelapse video
-          try {
-            const taskId = print.id;
-            const apiBase = print.__apiBase || getBambuApiBase(req.session.region || 'global');
-            const token = print.__accountToken || req.session.token;
-            const videoEndpoint = `${apiBase}/v1/iot-service/api/user/task/${taskId}/video`;
-            
-            console.log(`Checking timelapse for task ${taskId}...`);
-            
-            try {
-              const videoResponse = await axios.get(videoEndpoint, {
-                headers: { 'Authorization': `Bearer ${token}` },
-                timeout: 10000,
-                maxRedirects: 0,
-                validateStatus: (status) => status < 400 || status === 302 || status === 301
-              });
-              
-              let videoUrl = null;
-              
-              if (videoResponse.data?.url) {
-                videoUrl = videoResponse.data.url;
-              } else if (videoResponse.headers?.location) {
-                videoUrl = videoResponse.headers.location;
-              } else if (videoResponse.status === 200) {
-                videoUrl = videoEndpoint;
-              }
-              
-              if (videoUrl) {
-                console.log(`Downloading video for ${print.modelId}...`);
-                const videoPath = await downloadTimelapseVideo(videoUrl, print.modelId, taskId);
-                if (videoPath) {
-                  updatePrintVideoPath(print.modelId, videoPath);
-                  result.video = true;
-                  console.log(`✓ Downloaded timelapse for ${print.modelId}`);
-                }
-              }
-            } catch (videoErr) {
-              if (videoErr.response?.status !== 404) {
-                console.log(`Video fetch error for ${print.modelId}:`, videoErr.message);
-              }
-            }
-          } catch (err) {
-            // Silent fail for timelapses
-          }
-          
-          return result;
-        })
-      );
-      
-      const downloadedCovers = downloadResults.filter(r => r.cover).length;
-      const downloadedVideos = downloadResults.filter(r => r.video).length;
-      
-      console.log(`=== DOWNLOAD SUMMARY ===`);
-      console.log(`Downloaded ${downloadedCovers} covers and ${downloadedVideos} timelapses`);
-      
-      res.json({ 
-        success: true, 
-        newPrints: result.newPrints || 0,
-        updated: result.updated || 0,
-        synced: uniqueHits.length,
-        downloadedCovers,
-        downloadedVideos,
-        message: `Synced ${uniqueHits.length} prints (${result.newPrints} new, ${result.updated} updated)\nDownloaded ${downloadedCovers} covers and ${downloadedVideos} timelapses` 
+      const allHits = [];
+      accountResults.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          allHits.push(...result.value);
+        }
       });
-    } else {
-      console.log('No prints found in API response');
-      res.json({ success: true, synced: 0, newPrints: 0, updated: 0, message: 'No prints to sync' });
+
+      const uniqueHits = Array.from(
+        new Map(allHits.map((print) => [print.id || print.modelId, print])).values()
+      );
+
+      const storedHits = uniqueHits.map(({ __accountToken, __apiBase, ...print }) => print);
+      const storeResult = storePrints(storedHits);
+      cloudSyncJob.newPrints = Number(storeResult.newPrints || 0);
+      cloudSyncJob.updated = Number(storeResult.updated || 0);
+
+      const targets = uniqueHits.slice(0, 50);
+      cloudSyncJob.total = targets.length;
+      cloudSyncJob.phase = 'downloading-assets';
+      cloudSyncJob.message = `Downloading covers and timelapses for ${targets.length} print(s)`;
+
+      await runWithConcurrency(targets, async (print) => {
+        cloudSyncJob.currentFile = String(print.modelId || print.id || 'print');
+
+        const coverUrl = print.cover || print.coverUrl || print.snapshot;
+        if (coverUrl && print.modelId) {
+          try {
+            const localPath = await downloadCoverImage(coverUrl, print.modelId);
+            if (localPath) {
+              cloudSyncJob.downloadedCovers += 1;
+            }
+          } catch (_err) {
+            cloudSyncJob.failed += 1;
+          }
+        }
+
+        try {
+          const taskId = print.id;
+          const apiBase = print.__apiBase || getBambuApiBase(req.session.region || 'global');
+          const token = print.__accountToken || req.session.token;
+          const videoEndpoint = `${apiBase}/v1/iot-service/api/user/task/${taskId}/video`;
+
+          const videoResponse = await axios.get(videoEndpoint, {
+            headers: { 'Authorization': `Bearer ${token}` },
+            timeout: 10000,
+            maxRedirects: 0,
+            validateStatus: (status) => status < 400 || status === 302 || status === 301
+          });
+
+          let videoUrl = null;
+          if (videoResponse.data?.url) {
+            videoUrl = videoResponse.data.url;
+          } else if (videoResponse.headers?.location) {
+            videoUrl = videoResponse.headers.location;
+          } else if (videoResponse.status === 200) {
+            videoUrl = videoEndpoint;
+          }
+
+          if (videoUrl) {
+            const videoPath = await downloadTimelapseVideo(videoUrl, print.modelId, taskId);
+            if (videoPath) {
+              updatePrintVideoPath(print.modelId, videoPath);
+              cloudSyncJob.downloadedVideos += 1;
+            }
+          }
+        } catch (_err) {
+          // Ignore missing/unavailable timelapses
+        }
+
+        cloudSyncJob.processed += 1;
+        await yieldToEventLoop();
+      }, 4);
+
+      cloudSyncJob.phase = 'complete';
+      cloudSyncJob.message = `Synced ${uniqueHits.length} print(s), ${cloudSyncJob.downloadedCovers} covers, ${cloudSyncJob.downloadedVideos} timelapses`;
+    } catch (error) {
+      console.error('Sync error:', error.message);
+      cloudSyncJob.failed += 1;
+      cloudSyncJob.phase = 'error';
+      cloudSyncJob.message = `Failed: ${error.message}`;
+    } finally {
+      cloudSyncJob.running = false;
+      cloudSyncJob.currentFile = '';
     }
-  } catch (error) {
-    console.error('Sync error:', error.message);
-    res.status(500).json({ error: 'Sync failed' });
+  })();
+});
+
+app.get('/api/sync-status', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
   }
+
+  const elapsed = cloudSyncJob.startTime ? ((Date.now() - cloudSyncJob.startTime) / 1000).toFixed(1) : 0;
+  const percent = cloudSyncJob.total > 0
+    ? Math.round((cloudSyncJob.processed / Math.max(cloudSyncJob.total, 1)) * 100)
+    : 0;
+
+  res.json({
+    ...cloudSyncJob,
+    elapsedSeconds: elapsed,
+    percentComplete: percent,
+  });
 });
 
 // Download missing covers for existing prints
@@ -5041,48 +5092,91 @@ app.post('/api/download-missing-covers', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  try {
-    const prints = getAllPrintsFromDb();
-    const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
-    
-    let downloaded = 0;
-    let failed = 0;
-    
-    for (const print of prints) {
-      // Check if cover already exists locally
-      const jpgPath = path.join(coverCacheDir, `${print.modelId}.jpg`);
-      const pngPath = path.join(coverCacheDir, `${print.modelId}.png`);
-      
-      if (!fs.existsSync(jpgPath) && !fs.existsSync(pngPath) && print.cover) {
+  if (coverBackfillJob.running) {
+    return res.status(409).json({ success: false, message: 'Cover download job already running', status: coverBackfillJob });
+  }
+
+  coverBackfillJob = {
+    running: true,
+    total: 0,
+    processed: 0,
+    downloaded: 0,
+    failed: 0,
+    currentFile: '',
+    startTime: Date.now(),
+    phase: 'queued',
+    message: 'Cover download queued',
+  };
+
+  res.json({
+    success: true,
+    queued: true,
+    message: 'Cover backfill started in background. Check /api/download-missing-covers-status or Background Jobs.',
+    status: coverBackfillJob,
+  });
+
+  void (async () => {
+    try {
+      const prints = getAllPrintsFromDb();
+      const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
+
+      const targets = prints.filter((print) => {
+        if (!print.cover || !print.modelId) return false;
+        const jpgPath = path.join(coverCacheDir, `${print.modelId}.jpg`);
+        const pngPath = path.join(coverCacheDir, `${print.modelId}.png`);
+        return !fs.existsSync(jpgPath) && !fs.existsSync(pngPath);
+      });
+
+      coverBackfillJob.total = targets.length;
+      coverBackfillJob.phase = 'downloading';
+      coverBackfillJob.message = `Downloading ${targets.length} missing cover(s)`;
+
+      await runWithConcurrency(targets, async (print) => {
+        coverBackfillJob.currentFile = String(print.modelId || 'cover');
         try {
           const localPath = await downloadCoverImage(print.cover, print.modelId);
           if (localPath) {
-            downloaded++;
-            console.log(`Downloaded cover for ${print.modelId}`);
+            coverBackfillJob.downloaded += 1;
           } else {
-            failed++;
+            coverBackfillJob.failed += 1;
           }
-        } catch (err) {
-          failed++;
-          console.log(`Failed to download cover for ${print.modelId}:`, err.message);
+        } catch (_err) {
+          coverBackfillJob.failed += 1;
         }
-        
-        // Add small delay to avoid overwhelming the server
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+
+        coverBackfillJob.processed += 1;
+        await yieldToEventLoop();
+      }, 4);
+
+      coverBackfillJob.phase = 'complete';
+      coverBackfillJob.message = `Downloaded ${coverBackfillJob.downloaded} cover(s), ${coverBackfillJob.failed} failed`;
+    } catch (error) {
+      console.error('Cover download error:', error);
+      coverBackfillJob.failed += 1;
+      coverBackfillJob.phase = 'error';
+      coverBackfillJob.message = `Failed: ${error.message}`;
+    } finally {
+      coverBackfillJob.running = false;
+      coverBackfillJob.currentFile = '';
     }
-    
-    res.json({ 
-      success: true, 
-      downloaded, 
-      failed,
-      total: prints.length,
-      message: `Downloaded ${downloaded} covers, ${failed} failed`
-    });
-  } catch (error) {
-    console.error('Cover download error:', error);
-    res.status(500).json({ error: 'Failed to download covers' });
+  })();
+});
+
+app.get('/api/download-missing-covers-status', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
   }
+
+  const elapsed = coverBackfillJob.startTime ? ((Date.now() - coverBackfillJob.startTime) / 1000).toFixed(1) : 0;
+  const percent = coverBackfillJob.total > 0
+    ? Math.round((coverBackfillJob.processed / Math.max(coverBackfillJob.total, 1)) * 100)
+    : 0;
+
+  res.json({
+    ...coverBackfillJob,
+    elapsedSeconds: elapsed,
+    percentComplete: percent,
+  });
 });
 
 // Sync timelapses from printer via FTP
@@ -7739,6 +7833,33 @@ app.get('/api/background-jobs/summary', (req, res) => {
       total: Number(printerTransferJob.total || 0),
       completed: Number(printerTransferJob.completed || 0),
       failed: Number(printerTransferJob.failed || 0),
+    },
+    {
+      id: 'cloud-sync',
+      name: 'Cloud Sync',
+      running: Boolean(cloudSyncJob.running),
+      processed: Number(cloudSyncJob.processed || 0),
+      total: Number(cloudSyncJob.total || 0),
+      completed: Number((cloudSyncJob.newPrints || 0) + (cloudSyncJob.updated || 0)),
+      failed: Number(cloudSyncJob.failed || 0),
+    },
+    {
+      id: 'cover-backfill',
+      name: 'Cover Backfill',
+      running: Boolean(coverBackfillJob.running),
+      processed: Number(coverBackfillJob.processed || 0),
+      total: Number(coverBackfillJob.total || 0),
+      completed: Number(coverBackfillJob.downloaded || 0),
+      failed: Number(coverBackfillJob.failed || 0),
+    },
+    {
+      id: 'database-maintenance',
+      name: databaseMaintenanceJob.type ? `DB ${databaseMaintenanceJob.type}` : 'DB Maintenance',
+      running: Boolean(databaseMaintenanceJob.running),
+      processed: Number(databaseMaintenanceJob.processed || 0),
+      total: Number(databaseMaintenanceJob.total || 0),
+      completed: Number(databaseMaintenanceJob.completed || 0),
+      failed: Number(databaseMaintenanceJob.failed || 0),
     },
   ];
 
@@ -10551,119 +10672,158 @@ app.post('/api/settings/database', async (req, res) => {
   }
 });
 
-app.post('/api/settings/database/vacuum', async (req, res) => {
+function requireAdminForDbMaintenance(req, res) {
+  if (!req.session.authenticated) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return null;
+  }
+
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    res.status(403).json({ error: 'Admin access required' });
+    return null;
+  }
+
+  return user;
+}
+
+function queueDatabaseMaintenanceJob(type, runner) {
+  if (databaseMaintenanceJob.running) {
+    return false;
+  }
+
+  databaseMaintenanceJob = {
+    running: true,
+    type,
+    total: 1,
+    processed: 0,
+    completed: 0,
+    failed: 0,
+    currentFile: '',
+    startTime: Date.now(),
+    phase: 'queued',
+    message: `${type} queued`,
+    details: null,
+  };
+
+  void (async () => {
+    try {
+      databaseMaintenanceJob.phase = 'running';
+      databaseMaintenanceJob.message = `${type} running`;
+      const details = await runner();
+      databaseMaintenanceJob.processed = 1;
+      databaseMaintenanceJob.completed = 1;
+      databaseMaintenanceJob.details = details || null;
+      databaseMaintenanceJob.phase = 'complete';
+      databaseMaintenanceJob.message = `${type} complete`;
+    } catch (error) {
+      databaseMaintenanceJob.failed = 1;
+      databaseMaintenanceJob.phase = 'error';
+      databaseMaintenanceJob.message = `Failed: ${error.message}`;
+    } finally {
+      databaseMaintenanceJob.running = false;
+    }
+  })();
+
+  return true;
+}
+
+app.get('/api/settings/database/maintenance-status', (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
+
+  const elapsed = databaseMaintenanceJob.startTime
+    ? ((Date.now() - databaseMaintenanceJob.startTime) / 1000).toFixed(1)
+    : 0;
+
+  res.json({
+    ...databaseMaintenanceJob,
+    elapsedSeconds: elapsed,
+    percentComplete: databaseMaintenanceJob.processed > 0 ? 100 : (databaseMaintenanceJob.running ? 50 : 0),
+  });
+});
+
+app.post('/api/settings/database/vacuum', async (req, res) => {
+  if (!requireAdminForDbMaintenance(req, res)) {
+    return;
   }
-  
-  try {
-    const fs = require('fs');
-    const path = require('path');
+
+  if (!queueDatabaseMaintenanceJob('vacuum', async () => {
     const dbPath = path.join(__dirname, 'data', 'printhive.db');
-    
-    // Get size before vacuum
     const sizeBefore = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
     const startTime = Date.now();
-    
-    console.log('Starting database vacuum...');
     db.exec('VACUUM');
-    
     const duration = Date.now() - startTime;
     const sizeAfter = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
-    const spaceSaved = sizeBefore - sizeAfter;
-    
-    console.log(`Database vacuum completed in ${duration}ms, saved ${spaceSaved} bytes`);
-    res.json({ 
-      success: true, 
-      message: 'Database vacuumed successfully',
-      details: {
-        sizeBefore: sizeBefore,
-        sizeAfter: sizeAfter,
-        spaceSaved: spaceSaved,
-        duration: duration
-      }
-    });
-  } catch (error) {
-    console.error('Failed to vacuum database:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return {
+      sizeBefore,
+      sizeAfter,
+      spaceSaved: sizeBefore - sizeAfter,
+      duration,
+    };
+  })) {
+    return res.status(409).json({ success: false, message: 'Another database maintenance job is already running', status: databaseMaintenanceJob });
   }
+
+  res.json({
+    success: true,
+    queued: true,
+    message: 'Database vacuum started in background. Check /api/settings/database/maintenance-status.',
+    status: databaseMaintenanceJob,
+  });
 });
 
 app.post('/api/settings/database/analyze', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
+  if (!requireAdminForDbMaintenance(req, res)) {
+    return;
   }
-  
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  try {
+
+  if (!queueDatabaseMaintenanceJob('analyze', async () => {
     const startTime = Date.now();
-    
-    // Count tables before analyze
     const tables = db.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'").get();
-    
-    console.log('Starting database analysis...');
     db.exec('ANALYZE');
-    
     const duration = Date.now() - startTime;
-    console.log(`Database analysis completed in ${duration}ms`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Database analyzed successfully',
-      details: {
-        tablesAnalyzed: tables.count,
-        duration: duration
-      }
-    });
-  } catch (error) {
-    console.error('Failed to analyze database:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return {
+      tablesAnalyzed: tables.count,
+      duration,
+    };
+  })) {
+    return res.status(409).json({ success: false, message: 'Another database maintenance job is already running', status: databaseMaintenanceJob });
   }
+
+  res.json({
+    success: true,
+    queued: true,
+    message: 'Database analyze started in background. Check /api/settings/database/maintenance-status.',
+    status: databaseMaintenanceJob,
+  });
 });
 
 app.post('/api/settings/database/reindex', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
+  if (!requireAdminForDbMaintenance(req, res)) {
+    return;
   }
-  
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  try {
+
+  if (!queueDatabaseMaintenanceJob('reindex', async () => {
     const startTime = Date.now();
-    
-    // Count indexes before reindex
     const indexes = db.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='index'").get();
-    
-    console.log('Starting database reindex...');
     db.exec('REINDEX');
-    
     const duration = Date.now() - startTime;
-    console.log(`Database reindex completed in ${duration}ms`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Database indexes rebuilt successfully',
-      details: {
-        indexesRebuilt: indexes.count,
-        duration: duration
-      }
-    });
-  } catch (error) {
-    console.error('Failed to reindex database:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return {
+      indexesRebuilt: indexes.count,
+      duration,
+    };
+  })) {
+    return res.status(409).json({ success: false, message: 'Another database maintenance job is already running', status: databaseMaintenanceJob });
   }
+
+  res.json({
+    success: true,
+    queued: true,
+    message: 'Database reindex started in background. Check /api/settings/database/maintenance-status.',
+    status: databaseMaintenanceJob,
+  });
 });
 
 // In-memory backup job tracking

@@ -169,6 +169,14 @@ export function SystemSettings() {
         credentials: 'include'
       });
       const data = await response.json();
+      if (!response.ok) {
+        setToast({ message: data.error || data.message || 'Failed to vacuum database', type: 'error' });
+        return;
+      }
+      if (data.queued) {
+        setToast({ message: 'Database vacuum started in background. Check Background Jobs for progress.', type: 'success' });
+        return;
+      }
       if (data.success && data.details) {
         setDbResultModal({
           title: 'Vacuum Complete',
@@ -200,6 +208,14 @@ export function SystemSettings() {
         credentials: 'include'
       });
       const data = await response.json();
+      if (!response.ok) {
+        setToast({ message: data.error || data.message || 'Failed to analyze database', type: 'error' });
+        return;
+      }
+      if (data.queued) {
+        setToast({ message: 'Database analyze started in background. Check Background Jobs for progress.', type: 'success' });
+        return;
+      }
       if (data.success && data.details) {
         setDbResultModal({
           title: 'Analyze Complete',
@@ -229,6 +245,14 @@ export function SystemSettings() {
         credentials: 'include'
       });
       const data = await response.json();
+      if (!response.ok) {
+        setToast({ message: data.error || data.message || 'Failed to rebuild indexes', type: 'error' });
+        return;
+      }
+      if (data.queued) {
+        setToast({ message: 'Database reindex started in background. Check Background Jobs for progress.', type: 'success' });
+        return;
+      }
       if (data.success && data.details) {
         setDbResultModal({
           title: 'Reindex Complete',

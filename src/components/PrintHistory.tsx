@@ -179,10 +179,18 @@ const PrintHistory: React.FC = () => {
     try {
       setSyncing(true);
       const response = await fetchWithRetry(API_ENDPOINTS.SYNC.CLOUD, { method: 'POST', credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to sync');
-      
       const data = await response.json();
-      setToast({ message: `Synced ${data.newPrints} new prints, ${data.updated} updated\nDownloaded ${data.downloadedCovers} covers and ${data.downloadedVideos} timelapses`, type: 'success' });
+
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || 'Failed to sync');
+      }
+
+      if (data.queued) {
+        setToast({ message: 'Cloud sync started in background. Track progress in Background Jobs.', type: 'success' });
+        return;
+      }
+
+      setToast({ message: `Synced ${data.newPrints || 0} new prints, ${data.updated || 0} updated\nDownloaded ${data.downloadedCovers || 0} covers and ${data.downloadedVideos || 0} timelapses`, type: 'success' });
       void fetchPrints();
     } catch (err) {
       setToast({ message: 'Sync failed: ' + (err instanceof Error ? err.message : 'Unknown error'), type: 'error' });
