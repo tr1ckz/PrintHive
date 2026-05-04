@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Layout, Layouts, ResponsiveGridLayout } from 'react-grid-layout';
+import { LayoutGrid, Plus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useRealtimeTick } from '../hooks/useRealtimeTick';
-import useDashboardLayout, { DashboardLayoutPreferences, DashboardWidgetId } from '../hooks/useDashboardLayout';
+import useDashboardLayout, { DashboardLayoutPreferences, DashboardWidgetId, dashboardWidgetRegistry } from '../hooks/useDashboardLayout';
 import WidgetShell from './dashboard/WidgetShell';
 import HealthSummaryWidget from './dashboard/widgets/HealthSummaryWidget';
 import ActivityStreamWidget, { ActivityRow } from './dashboard/widgets/ActivityStreamWidget';
@@ -142,10 +143,16 @@ function mapStatus(status: number): string {
   return 'Unknown';
 }
 
+function widgetDensity(layouts: Layouts, breakpoint: keyof Layouts, id: string): 'compact' | 'comfortable' | 'expanded' {
+  const entry = (layouts[breakpoint] || []).find((l) => l.i === id);
+  const area = (entry?.w || 4) * (entry?.h || 5);
+  return area <= 24 ? 'compact' : area <= 42 ? 'comfortable' : 'expanded';
+}
+
 function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const queryClient = useQueryClient();
   const [isEditMode, setIsEditMode] = useState(false);
-  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
   const [currentBreakpoint, setCurrentBreakpoint] = useState<keyof Layouts>('lg');
 
   const printersQuery = useQuery({
@@ -263,14 +270,12 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   });
 
   const {
-    widgetRegistry,
     visibleWidgetIds,
     hiddenWidgetIds,
     visibleLayouts,
     snapBreakpointLayout,
     showWidget,
     hideWidget,
-    setAllVisible,
     snapAllWidgets,
     handleLayoutsChange,
   } = useDashboardLayout({
@@ -520,6 +525,13 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     };
   }, [printers, maintenanceQuery.data, backgroundJobRows.length, duplicatePressureSummary.groupCount, duplicatePressureSummary.duplicateFileCount]);
 
+  const isInitialLoading =
+    printersQuery.isLoading &&
+    statsQuery.isLoading &&
+    activityQuery.isLoading &&
+    maintenanceQuery.isLoading &&
+    backupSettingsQuery.isLoading;
+
   const queryErrorCount = [
     printersQuery.isError,
     statsQuery.isError,
@@ -532,73 +544,13 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     dashboardLayoutSettingsQuery.isError,
   ].filter(Boolean).length;
 
-  const isInitialLoading =
-    printersQuery.isLoading &&
-    statsQuery.isLoading &&
-    activityQuery.isLoading &&
-    maintenanceQuery.isLoading &&
-    backupSettingsQuery.isLoading;
-
-  const renderWidget = (widgetId: DashboardWidgetId) => {
-    const currentLayout = (visibleLayouts[currentBreakpoint] || []).find((entry) => entry.i === widgetId);
-    const area = (currentLayout?.w || 4) * (currentLayout?.h || 5);
-    const density: 'compact' | 'comfortable' | 'expanded' = area <= 24 ? 'compact' : area <= 42 ? 'comfortable' : 'expanded';
-
-    if (widgetId === 'healthSummary') {
-      return <HealthSummaryWidget fleetMetrics={[...healthSummary.fleet]} qualityMetrics={[...healthSummary.quality]} density={density} />;
-    }
-
-    if (widgetId === 'livePrinters') {
-      return <LivePrintersWidget printers={livePrintersRows} density={density} onOpenPrinters={() => onNavigate('printers')} />;
-    }
-
-    if (widgetId === 'backgroundJobs') {
-      return (
-        <BackgroundJobsWidget
-          jobs={backgroundJobRows}
-          density={density}
-          onOpenLibrary={() => onNavigate('library')}
-          onOpenHistory={() => onNavigate('history')}
-        />
-      );
-    }
-
-    if (widgetId === 'activityStream') {
-      return <ActivityStreamWidget rows={activityRows} density={density} />;
-    }
-
-    if (widgetId === 'heatmap') {
-      return <HeatmapWidget buckets={heatmapBuckets} />;
-    }
-
-    if (widgetId === 'storageTrend') {
-      return <StorageTrendWidget points={storageTrendSeries} density={density} />;
-    }
-
-    if (widgetId === 'upcomingSchedule') {
-      return <UpcomingScheduleWidget items={upcomingScheduleItems} density={density} />;
-    }
-
-    if (widgetId === 'queuePressure') {
-      return (
-        <QueuePressureWidget
-          summary={queuePressureSummary}
-          density={density}
-          onRefresh={() => {
-            void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-          }}
-          onOpenMaintenance={() => onNavigate('maintenance')}
-          onOpenPrinters={() => onNavigate('printers')}
-        />
-      );
-    }
-
-    if (widgetId === 'duplicatePressure') {
-      return <DuplicatePressureWidget summary={duplicatePressureSummary} density={density} onOpenDuplicates={() => onNavigate('duplicates')} />;
-    }
-
-    return <BackupTelemetryWidget summary={backupSummary} density={density} />;
-  };
+  if (isInitialLoading) {
+    return (
+      <div className="flex min-h-[38vh] items-center justify-center rounded-md border border-white/10 bg-black/20 text-sm text-white/60">
+        Loading command center data...
+      </div>
+    );
+  }
 
   return (
     <section className="dashboard-home command-center-stage px-0">
@@ -607,21 +559,22 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--theme-accent-strong)]">Command Center</p>
             <h2 className="mt-1 text-xl font-semibold text-white">Operations Grid</h2>
-            <p className="mt-1 text-xs text-white/60">Snap-based widgets with live fleet telemetry and job pressure cues.</p>
+            <p className="mt-1 text-xs text-white/60">
+              Modular dashboard · drag/resize widgets · persisted layout
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {
-                setIsEditMode((current) => {
-                  const next = !current;
-                  if (!next) setIsLibraryOpen(false);
-                  return next;
-                });
+                const next = !isEditMode;
+                setIsEditMode(next);
+                setShowWidgetLibrary(next);
               }}
-              className={`rounded border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] ${isEditMode ? 'border-[color:var(--theme-accent)] bg-[color:var(--color-accent-soft)] text-white' : 'border-white/20 bg-white/5 text-white/80 hover:border-white/35'}`}
+              className={`inline-flex items-center gap-1.5 rounded border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] ${isEditMode ? 'border-[color:var(--theme-accent)] bg-[color:var(--color-accent-soft)] text-white' : 'border-white/20 bg-white/5 text-white/80 hover:border-white/35'}`}
             >
+              <LayoutGrid className="h-3.5 w-3.5" />
               {isEditMode ? 'Done Editing' : 'Edit Dashboard'}
             </button>
 
@@ -638,10 +591,10 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             {isEditMode ? (
               <button
                 type="button"
-                onClick={() => setIsLibraryOpen((current) => !current)}
-                className="rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80 hover:border-white/35"
+                onClick={() => setShowWidgetLibrary((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80 hover:border-white/35"
               >
-                {isLibraryOpen ? 'Hide Widget Library' : 'Widget Library'}
+                <Plus className="h-3.5 w-3.5" /> Widget Library
               </button>
             ) : null}
 
@@ -685,47 +638,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
         </div>
       ) : null}
 
-      {isEditMode && isLibraryOpen ? (
-        <aside className="mb-3 rounded-md border border-white/15 bg-black/30 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">Widget Library</p>
-            <button
-              type="button"
-              onClick={setAllVisible}
-              className="rounded border border-white/20 bg-white/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
-            >
-              Show All
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {widgetRegistry.map((widget) => {
-              const hidden = hiddenWidgetIds.includes(widget.id);
-              return (
-                <div key={widget.id} className="flex items-center justify-between rounded border border-white/15 bg-white/[0.03] px-2 py-2">
-                  <div>
-                    <p className="text-xs font-semibold text-white/90">{widget.title}</p>
-                    <p className="text-[10px] uppercase tracking-[0.08em] text-white/45">{widget.id}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => (hidden ? showWidget(widget.id) : hideWidget(widget.id))}
-                    className="rounded border border-white/20 bg-black/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80 hover:border-white/35"
-                  >
-                    {hidden ? 'Show' : 'Hide'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </aside>
-      ) : null}
-
-      {isInitialLoading ? (
-        <div className="flex min-h-[38vh] items-center justify-center rounded-md border border-white/10 bg-black/20 text-sm text-white/60">
-          Loading command center data...
-        </div>
-      ) : (
+      <div className="relative">
         <ResponsiveGridLayout
           className="command-center-grid"
           breakpoints={BREAKPOINTS}
@@ -746,27 +659,148 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           onDragStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
           onResizeStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
         >
-          {widgetRegistry.map((widget) => {
-            if (!visibleWidgetIds.includes(widget.id)) {
-              return null;
-            }
+          {visibleWidgetIds.includes('livePrinters') ? (
+            <div key="livePrinters">
+              <WidgetShell title="Live Printers" isEditMode={isEditMode} onHide={() => hideWidget('livePrinters')}>
+                <LivePrintersWidget
+                  printers={livePrintersRows}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'livePrinters')}
+                  onOpenPrinters={() => onNavigate('printers')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
 
-            return (
-              <div key={widget.id}>
-                <WidgetShell
-                  title={widget.title}
-                  isEditMode={isEditMode}
-                  onHide={isEditMode ? () => hideWidget(widget.id) : undefined}
-                >
-                  {renderWidget(widget.id)}
-                </WidgetShell>
-              </div>
-            );
-          })}
+          {visibleWidgetIds.includes('healthSummary') ? (
+            <div key="healthSummary">
+              <WidgetShell title="Health Summary" isEditMode={isEditMode} onHide={() => hideWidget('healthSummary')}>
+                <HealthSummaryWidget
+                  fleetMetrics={[...healthSummary.fleet]}
+                  qualityMetrics={[...healthSummary.quality]}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'healthSummary')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('backgroundJobs') ? (
+            <div key="backgroundJobs">
+              <WidgetShell title="Background Jobs" isEditMode={isEditMode} onHide={() => hideWidget('backgroundJobs')}>
+                <BackgroundJobsWidget
+                  jobs={backgroundJobRows}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'backgroundJobs')}
+                  onOpenLibrary={() => onNavigate('library')}
+                  onOpenHistory={() => onNavigate('history')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('queuePressure') ? (
+            <div key="queuePressure">
+              <WidgetShell title="Queue Pressure" isEditMode={isEditMode} onHide={() => hideWidget('queuePressure')}>
+                <QueuePressureWidget
+                  summary={queuePressureSummary}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'queuePressure')}
+                  onRefresh={() => { void queryClient.invalidateQueries({ queryKey: ['dashboard'] }); }}
+                  onOpenMaintenance={() => onNavigate('maintenance')}
+                  onOpenPrinters={() => onNavigate('printers')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('backupTelemetry') ? (
+            <div key="backupTelemetry">
+              <WidgetShell title="Backup Telemetry" isEditMode={isEditMode} onHide={() => hideWidget('backupTelemetry')}>
+                <BackupTelemetryWidget
+                  summary={backupSummary}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'backupTelemetry')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('activityStream') ? (
+            <div key="activityStream">
+              <WidgetShell title="Activity Stream" isEditMode={isEditMode} onHide={() => hideWidget('activityStream')}>
+                <ActivityStreamWidget
+                  rows={activityRows}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'activityStream')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('storageTrend') ? (
+            <div key="storageTrend">
+              <WidgetShell title="Storage Trend" isEditMode={isEditMode} onHide={() => hideWidget('storageTrend')}>
+                <StorageTrendWidget
+                  points={storageTrendSeries}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'storageTrend')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('heatmap') ? (
+            <div key="heatmap">
+              <WidgetShell title="Print Heatmap" isEditMode={isEditMode} onHide={() => hideWidget('heatmap')}>
+                <HeatmapWidget buckets={heatmapBuckets} />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('upcomingSchedule') ? (
+            <div key="upcomingSchedule">
+              <WidgetShell title="Upcoming Schedule" isEditMode={isEditMode} onHide={() => hideWidget('upcomingSchedule')}>
+                <UpcomingScheduleWidget
+                  items={upcomingScheduleItems}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'upcomingSchedule')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('duplicatePressure') ? (
+            <div key="duplicatePressure">
+              <WidgetShell title="Duplicate Pressure" isEditMode={isEditMode} onHide={() => hideWidget('duplicatePressure')}>
+                <DuplicatePressureWidget
+                  summary={duplicatePressureSummary}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'duplicatePressure')}
+                  onOpenDuplicates={() => onNavigate('duplicates')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
         </ResponsiveGridLayout>
-      )}
+
+        {isEditMode && showWidgetLibrary ? (
+          <aside className="absolute right-0 top-0 z-10 w-64 rounded-lg border border-white/15 bg-[rgba(10,12,17,0.97)] p-3 shadow-xl">
+            <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/90">Widget Library</h3>
+            <p className="mb-2 mt-0.5 text-[10px] text-white/45">Re-enable hidden widgets</p>
+            <div className="space-y-2">
+              {dashboardWidgetRegistry.map((widget) => {
+                const hidden = hiddenWidgetIds.includes(widget.id);
+                return (
+                  <button
+                    key={widget.id}
+                    type="button"
+                    disabled={!hidden}
+                    onClick={() => showWidget(widget.id)}
+                    className={`w-full rounded border px-2 py-1.5 text-left text-xs ${hidden ? 'border-[color:var(--theme-accent)]/40 text-[color:var(--theme-accent)] hover:bg-[color:var(--theme-accent)]/10' : 'border-white/15 text-white/40 opacity-60'}`}
+                  >
+                    {widget.title}
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+        ) : null}
+      </div>
     </section>
   );
 }
 
 export default DashboardHome;
+
