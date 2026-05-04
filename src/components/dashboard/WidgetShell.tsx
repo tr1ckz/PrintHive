@@ -32,7 +32,7 @@ function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShel
         ) : null}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto p-7 md:p-7">{children}</div>
+      <div className="widget-shell-body min-h-0 flex-1 overflow-auto">{children}</div>
     </article>
   );
 }
