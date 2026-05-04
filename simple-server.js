@@ -1772,7 +1772,20 @@ app.get('/api/bambu/accounts', (req, res) => {
   }
 
   try {
-    const allAccounts = db.prepare('SELECT id, email, region, is_primary, updated_at FROM bambu_accounts ORDER BY is_primary DESC, updated_at DESC').all();
+    let allAccounts = db.prepare('SELECT id, email, region, is_primary, updated_at FROM bambu_accounts ORDER BY is_primary DESC, updated_at DESC').all();
+
+    if (!allAccounts.length) {
+      allAccounts = getConfiguredBambuAccounts(req)
+        .filter((account) => account?.token)
+        .map((account, index) => ({
+          id: Number.isFinite(Number(account.id)) ? Number(account.id) : -(index + 1),
+          email: account.email || 'Connected account',
+          region: account.region || 'global',
+          is_primary: index === 0 ? 1 : 0,
+          updated_at: new Date().toISOString(),
+        }));
+    }
+
     // Deduplicate by email — keep the first occurrence (is_primary preferred, then most recent)
     const seen = new Set();
     const accounts = allAccounts.filter((a) => {
@@ -1837,17 +1850,11 @@ app.post('/api/bambu/accounts/add', async (req, res) => {
         `).run(req.session.userId, email, region, token, isPrimary);
       }
 
-      // If this is the primary account, update session
-      if (isPrimary) {
+      // Update session when this becomes primary, or when refreshing an existing primary account.
+      if (isPrimary || existingAccount?.is_primary) {
         req.session.token = token;
         req.session.region = region;
-              // Also refresh session when re-adding an existing primary account
-              if (!isPrimary && existingAccount?.is_primary) {
-                req.session.token = token;
-                req.session.region = region;
-                req.session.save(() => {});
-              }
-        req.session.save();
+        req.session.save(() => {});
       }
 
       res.json({ success: true });
@@ -3154,7 +3161,7 @@ app.post('/api/settings/ui', (req, res) => {
   }
 });
 
-const dashboardWidgetIds = new Set(['livePrinters', 'healthSummary', 'fleetAlerts', 'backgroundJobs', 'activityStream', 'upcomingSchedule', 'failureWatch']);
+const dashboardWidgetIds = new Set(['livePrinters', 'healthSummary', 'fleetAlerts', 'backgroundJobs', 'activityStream', 'upcomingSchedule', 'failureWatch', 'mqttStatus']);
 const dashboardBreakpointKeys = ['lg', 'md', 'sm', 'xs', 'xxs'];
 
 const defaultDashboardLayouts = {
@@ -3166,6 +3173,7 @@ const defaultDashboardLayouts = {
     { i: 'backgroundJobs', x: 8, y: 5, w: 4, h: 6, minW: 3, minH: 5 },
     { i: 'activityStream', x: 0, y: 7, w: 8, h: 8, minW: 5, minH: 6 },
     { i: 'failureWatch', x: 8, y: 11, w: 4, h: 4, minW: 3, minH: 4 },
+    { i: 'mqttStatus', x: 0, y: 15, w: 5, h: 5, minW: 4, minH: 4 },
   ],
   md: [
     { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 5 },
@@ -3175,6 +3183,7 @@ const defaultDashboardLayouts = {
     { i: 'backgroundJobs', x: 4, y: 6, w: 6, h: 6, minW: 3, minH: 5 },
     { i: 'activityStream', x: 0, y: 12, w: 10, h: 8, minW: 5, minH: 6 },
     { i: 'failureWatch', x: 0, y: 20, w: 10, h: 5, minW: 5, minH: 4 },
+    { i: 'mqttStatus', x: 0, y: 25, w: 10, h: 5, minW: 5, minH: 4 },
   ],
   sm: [
     { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 3, minH: 5 },
@@ -3184,6 +3193,7 @@ const defaultDashboardLayouts = {
     { i: 'upcomingSchedule', x: 0, y: 22, w: 6, h: 6, minW: 4, minH: 5 },
     { i: 'activityStream', x: 0, y: 28, w: 6, h: 8, minW: 4, minH: 6 },
     { i: 'failureWatch', x: 0, y: 36, w: 6, h: 6, minW: 4, minH: 5 },
+    { i: 'mqttStatus', x: 0, y: 42, w: 6, h: 5, minW: 4, minH: 4 },
   ],
   xs: [
     { i: 'livePrinters', x: 0, y: 0, w: 4, h: 6, minW: 2, minH: 5 },
@@ -3193,6 +3203,7 @@ const defaultDashboardLayouts = {
     { i: 'upcomingSchedule', x: 0, y: 22, w: 4, h: 6, minW: 2, minH: 5 },
     { i: 'activityStream', x: 0, y: 28, w: 4, h: 8, minW: 2, minH: 6 },
     { i: 'failureWatch', x: 0, y: 36, w: 4, h: 6, minW: 2, minH: 5 },
+    { i: 'mqttStatus', x: 0, y: 42, w: 4, h: 5, minW: 2, minH: 4 },
   ],
   xxs: [
     { i: 'livePrinters', x: 0, y: 0, w: 2, h: 6, minW: 2, minH: 5 },
@@ -3202,13 +3213,14 @@ const defaultDashboardLayouts = {
     { i: 'upcomingSchedule', x: 0, y: 22, w: 2, h: 6, minW: 2, minH: 5 },
     { i: 'activityStream', x: 0, y: 28, w: 2, h: 8, minW: 2, minH: 6 },
     { i: 'failureWatch', x: 0, y: 36, w: 2, h: 6, minW: 2, minH: 5 },
+    { i: 'mqttStatus', x: 0, y: 42, w: 2, h: 5, minW: 2, minH: 4 },
   ],
 };
 
 const defaultDashboardWidgetPrefs = {
-  version: 2,
+  version: 3,
   layouts: defaultDashboardLayouts,
-  hiddenWidgetIds: [],
+  hiddenWidgetIds: ['mqttStatus'],
 };
 
 function sanitizeDashboardWidgetPrefs(raw = {}) {
@@ -3289,10 +3301,16 @@ function sanitizeDashboardWidgetPrefs(raw = {}) {
   const layouts = normalizeLayouts(safe.layouts || migratedLayouts || defaultDashboardLayouts);
   const hiddenWidgetIds = normalizeHidden(safe.hiddenWidgetIds || legacyHidden);
 
+  const sourceVersion = Number.parseInt(String(safe.version || 0), 10);
+  const normalizedVersion = Number.isFinite(sourceVersion) ? sourceVersion : 0;
+  const nextHiddenWidgetIds = normalizedVersion >= 3
+    ? hiddenWidgetIds
+    : (hiddenWidgetIds.includes('mqttStatus') ? hiddenWidgetIds : [...hiddenWidgetIds, 'mqttStatus']);
+
   return {
-    version: 2,
+    version: 3,
     layouts,
-    hiddenWidgetIds,
+    hiddenWidgetIds: nextHiddenWidgetIds,
   };
 }
 
@@ -4027,8 +4045,8 @@ app.get('/api/printers', async (req, res) => {
   
   let printersData = { devices: [] };
   
-  // Get all Bambu accounts (global)
-  const bambuAccounts = db.prepare('SELECT id, email, token, region FROM bambu_accounts').all();
+  // Get all Bambu accounts (with fallback compatibility)
+  const bambuAccounts = getConfiguredBambuAccounts(req).filter((account) => account?.token);
   
   // Try to get printers from all connected Bambu Cloud accounts
   if (bambuAccounts.length > 0) {
@@ -4318,11 +4336,7 @@ app.get('/api/printers/status', async (req, res) => {
   try {
     let devices = [];
 
-    const bambuAccounts = db.prepare(`
-      SELECT email, token, region
-      FROM bambu_accounts
-      WHERE token IS NOT NULL AND token != ''
-    `).all();
+    const bambuAccounts = getConfiguredBambuAccounts(req).filter((account) => account?.token);
 
     for (const account of bambuAccounts) {
       try {
@@ -4363,17 +4377,25 @@ app.get('/api/printers/status', async (req, res) => {
       }];
     }
 
-    const printers = devices.map(device => ({
-      id: device.dev_id,
-      name: device.name || 'Printer',
-      model: device.dev_product_name || (device.serial_number ? 'Local Printer' : 'Configured Printer'),
-      status: device.print_status || device.current_task?.gcode_state || 'CONFIGURED',
-      progress: device.print_progress || device.current_task?.progress || 0,
-      online: Boolean(device.online),
-      currentPrint: device.current_task?.name || null,
-      nozzleTemp: device.nozzle_temper || device.current_task?.nozzle_temp || 0,
-      bedTemp: device.bed_temper || device.current_task?.bed_temp || 0
-    }));
+    const printers = devices.map(device => {
+      const deviceIp = device.ip_address || legacyPrinterIp;
+      const clientKey = `${deviceIp || ''}:${device.dev_id}`;
+      const mqttClient = mqttClients.get(clientKey);
+      const mqttJob = mqttClient?.connected ? mqttClient.getCurrentJob() : null;
+
+      return {
+        id: device.dev_id,
+        name: device.name || 'Printer',
+        model: device.dev_product_name || (device.serial_number ? 'Local Printer' : 'Configured Printer'),
+        status: device.print_status || mqttJob?.gcode_state || device.current_task?.gcode_state || 'CONFIGURED',
+        progress: device.print_progress || mqttJob?.mc_percent || mqttJob?.progress || device.current_task?.progress || 0,
+        online: Boolean(device.online),
+        mqttConnected: Boolean(mqttClient?.connected),
+        currentPrint: mqttJob?.name || device.current_task?.name || null,
+        nozzleTemp: device.nozzle_temper || mqttJob?.nozzle_temper || mqttJob?.nozzle_temp || device.current_task?.nozzle_temp || 0,
+        bedTemp: device.bed_temper || mqttJob?.bed_temper || mqttJob?.bed_temp || device.current_task?.bed_temp || 0
+      };
+    });
     
     const online = printers.filter(p => p.online).length;
     

@@ -13,6 +13,7 @@ import LivePrintersWidget, { LivePrinterRow } from './dashboard/widgets/LivePrin
 import BackgroundJobsWidget, { BackgroundJobRow } from './dashboard/widgets/BackgroundJobsWidget';
 import FailureWatchWidget, { FailureWatchRow } from './dashboard/widgets/FailureWatchWidget';
 import FleetAlertsWidget, { FleetAlertsData } from './dashboard/widgets/FleetAlertsWidget';
+import PrintStatusMqttWidget, { MqttPrinterRow } from './dashboard/widgets/PrintStatusMqttWidget';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import './DashboardHome.css';
@@ -29,6 +30,9 @@ interface PrinterStatus {
   progress?: number;
   currentPrint?: string;
   online: boolean;
+  mqttConnected?: boolean;
+  nozzleTemp?: number;
+  bedTemp?: number;
 }
 
 interface PrinterStatusResponse {
@@ -360,6 +364,20 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     }))
   ), [printers]);
 
+  const mqttStatusRows = useMemo<MqttPrinterRow[]>(() => (
+    printers.map((printer) => ({
+      id: printer.id,
+      name: printer.name,
+      online: printer.online,
+      mqttConnected: Boolean(printer.mqttConnected),
+      status: printer.status || 'IDLE',
+      progress: Number(printer.progress || 0),
+      currentPrint: printer.currentPrint || null,
+      nozzleTemp: Number(printer.nozzleTemp || 0),
+      bedTemp: Number(printer.bedTemp || 0),
+    }))
+  ), [printers]);
+
   const failureWatchRows = useMemo<FailureWatchRow[]>(() => {
     return activityRaw
       .filter((entry) => Number(entry.status || 0) === 3)
@@ -579,6 +597,18 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   density={widgetDensity(visibleLayouts, currentBreakpoint, 'backgroundJobs')}
                   onOpenLibrary={() => onNavigate('library')}
                   onOpenHistory={() => onNavigate('history')}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('mqttStatus') ? (
+            <div key="mqttStatus" className="h-full">
+              <WidgetShell title="Print Status (MQTT)" isEditMode={isEditMode} onHide={() => hideWidget('mqttStatus')}>
+                <PrintStatusMqttWidget
+                  rows={mqttStatusRows}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'mqttStatus')}
+                  onOpenPrinters={() => onNavigate('printers')}
                 />
               </WidgetShell>
             </div>

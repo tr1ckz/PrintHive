@@ -10,7 +10,8 @@ export type DashboardWidgetId =
   | 'upcomingSchedule'
   | 'fleetAlerts'
   | 'failureWatch'
-  | 'backgroundJobs';
+  | 'backgroundJobs'
+  | 'mqttStatus';
 
 export interface DashboardWidgetRegistryItem {
   id: DashboardWidgetId;
@@ -44,13 +45,17 @@ const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = [
   'activityStream',
   'upcomingSchedule',
   'failureWatch',
+  'mqttStatus',
 ];
+
+const DEFAULT_HIDDEN_WIDGET_IDS: DashboardWidgetId[] = ['mqttStatus'];
 
 export const dashboardWidgetRegistry: DashboardWidgetRegistryItem[] = [
   { id: 'livePrinters', title: 'Live Printers' },
   { id: 'healthSummary', title: 'Quick Stats' },
   { id: 'fleetAlerts', title: 'Fleet Alerts' },
   { id: 'backgroundJobs', title: 'Background Jobs' },
+  { id: 'mqttStatus', title: 'Print Status (MQTT)' },
   { id: 'activityStream', title: 'Activity Stream' },
   { id: 'upcomingSchedule', title: 'Maintenance Upcoming' },
   { id: 'failureWatch', title: 'Failure Watch' },
@@ -65,6 +70,7 @@ export const defaultDashboardLayouts: Layouts = {
     { i: 'backgroundJobs', x: 8, y: 5, w: 4, h: 6, minW: 3, minH: 5 },
     { i: 'activityStream', x: 0, y: 7, w: 8, h: 8, minW: 5, minH: 6 },
     { i: 'failureWatch', x: 8, y: 11, w: 4, h: 4, minW: 3, minH: 4 },
+    { i: 'mqttStatus', x: 0, y: 15, w: 5, h: 5, minW: 4, minH: 4 },
   ],
   md: [
     { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 5 },
@@ -74,6 +80,7 @@ export const defaultDashboardLayouts: Layouts = {
     { i: 'backgroundJobs', x: 4, y: 6, w: 6, h: 6, minW: 3, minH: 5 },
     { i: 'activityStream', x: 0, y: 12, w: 10, h: 8, minW: 5, minH: 6 },
     { i: 'failureWatch', x: 0, y: 20, w: 10, h: 5, minW: 5, minH: 4 },
+    { i: 'mqttStatus', x: 0, y: 25, w: 10, h: 5, minW: 5, minH: 4 },
   ],
   sm: [
     { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 3, minH: 5 },
@@ -83,6 +90,7 @@ export const defaultDashboardLayouts: Layouts = {
     { i: 'upcomingSchedule', x: 0, y: 22, w: 6, h: 6, minW: 4, minH: 5 },
     { i: 'activityStream', x: 0, y: 28, w: 6, h: 8, minW: 4, minH: 6 },
     { i: 'failureWatch', x: 0, y: 36, w: 6, h: 6, minW: 4, minH: 5 },
+    { i: 'mqttStatus', x: 0, y: 42, w: 6, h: 5, minW: 4, minH: 4 },
   ],
   xs: [
     { i: 'livePrinters', x: 0, y: 0, w: 4, h: 6, minW: 2, minH: 5 },
@@ -92,6 +100,7 @@ export const defaultDashboardLayouts: Layouts = {
     { i: 'upcomingSchedule', x: 0, y: 22, w: 4, h: 6, minW: 2, minH: 5 },
     { i: 'activityStream', x: 0, y: 28, w: 4, h: 8, minW: 2, minH: 6 },
     { i: 'failureWatch', x: 0, y: 36, w: 4, h: 6, minW: 2, minH: 5 },
+    { i: 'mqttStatus', x: 0, y: 42, w: 4, h: 5, minW: 2, minH: 4 },
   ],
   xxs: [
     { i: 'livePrinters', x: 0, y: 0, w: 2, h: 6, minW: 2, minH: 5 },
@@ -101,6 +110,7 @@ export const defaultDashboardLayouts: Layouts = {
     { i: 'upcomingSchedule', x: 0, y: 22, w: 2, h: 6, minW: 2, minH: 5 },
     { i: 'activityStream', x: 0, y: 28, w: 2, h: 8, minW: 2, minH: 6 },
     { i: 'failureWatch', x: 0, y: 36, w: 2, h: 6, minW: 2, minH: 5 },
+    { i: 'mqttStatus', x: 0, y: 42, w: 2, h: 5, minW: 2, minH: 4 },
   ],
 };
 
@@ -123,6 +133,7 @@ const WIDGET_SNAP_PROFILES: Record<DashboardWidgetId, SnapProfile> = {
   healthSummary: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
   fleetAlerts: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
   backgroundJobs: { widths: [3, 4, 5, 6], heights: [5, 6, 7, 8] },
+  mqttStatus: { widths: [4, 5, 6, 8, 10, 12], heights: [4, 5, 6, 7, 8] },
   activityStream: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10, 12] },
   upcomingSchedule: { widths: [4, 5, 6, 7, 8], heights: [5, 6, 7, 8, 10] },
   failureWatch: { widths: [4, 5, 6, 8, 10, 12], heights: [5, 6, 7, 8] },
@@ -263,6 +274,21 @@ function normalizeHiddenIds(input?: unknown): DashboardWidgetId[] {
   return out;
 }
 
+function withDefaultHidden(ids: DashboardWidgetId[], version: number): DashboardWidgetId[] {
+  if (version >= 3) {
+    return ids;
+  }
+
+  const merged = [...ids];
+  for (const id of DEFAULT_HIDDEN_WIDGET_IDS) {
+    if (!merged.includes(id)) {
+      merged.push(id);
+    }
+  }
+
+  return merged;
+}
+
 function layoutItemEquals(a: Layout, b: Layout): boolean {
   return a.i === b.i
     && a.x === b.x
@@ -299,10 +325,13 @@ function readLocalState(storageKey: string): DashboardLayoutPreferences | null {
       return null;
     }
     const parsed = JSON.parse(raw) as Partial<DashboardLayoutPreferences>;
+    const parsedVersion = Number(parsed.version || 0);
+    const hiddenIds = withDefaultHidden(normalizeHiddenIds(parsed.hiddenWidgetIds), parsedVersion);
+
     return {
-      version: 2,
+      version: 3,
       layouts: normalizeLayouts(parsed.layouts),
-      hiddenWidgetIds: normalizeHiddenIds(parsed.hiddenWidgetIds),
+      hiddenWidgetIds: hiddenIds,
     };
   } catch {
     return null;
@@ -320,7 +349,7 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
 
   const localState = useMemo(() => readLocalState(storageKey), [storageKey]);
   const [layouts, setLayouts] = useState<Layouts>(localState?.layouts || normalizeLayouts(defaultDashboardLayouts));
-  const [hiddenWidgetIds, setHiddenWidgetIds] = useState<DashboardWidgetId[]>(localState?.hiddenWidgetIds || []);
+  const [hiddenWidgetIds, setHiddenWidgetIds] = useState<DashboardWidgetId[]>(localState?.hiddenWidgetIds || [...DEFAULT_HIDDEN_WIDGET_IDS]);
 
   const didHydrateBackendRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
@@ -337,8 +366,9 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     }
 
     if (backendState) {
+      const backendVersion = Number(backendState.version || 0);
       setLayouts(normalizeLayouts(backendState.layouts));
-      setHiddenWidgetIds(normalizeHiddenIds(backendState.hiddenWidgetIds));
+      setHiddenWidgetIds(withDefaultHidden(normalizeHiddenIds(backendState.hiddenWidgetIds), backendVersion));
     }
 
     didHydrateBackendRef.current = true;
@@ -346,7 +376,7 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
 
   useEffect(() => {
     const payload: DashboardLayoutPreferences = {
-      version: 2,
+      version: 3,
       layouts,
       hiddenWidgetIds,
     };

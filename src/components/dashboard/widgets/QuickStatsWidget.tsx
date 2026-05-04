@@ -55,11 +55,11 @@ function QuickStatsWidget({ printersOnlineLabel, totalPrints, successRate, libra
   ];
 
   return (
-    <div className="grid h-full grid-cols-1 gap-2 sm:grid-cols-2">
+    <div className="grid h-full grid-cols-1 gap-3 sm:grid-cols-2">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <article key={card.key} className={`rounded border p-3 ${toneClassMap[card.tone]}`}>
+          <article key={card.key} className={`rounded border px-3.5 py-3 ${toneClassMap[card.tone]}`}>
             <div className="flex items-center justify-between gap-2">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em]">{card.label}</p>
               <Icon className="h-4 w-4 opacity-90" />
