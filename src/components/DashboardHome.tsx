@@ -236,12 +236,15 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
 
   const persistDashboardLayout = useMutation({
     mutationFn: async (payload: DashboardLayoutPreferences) => {
-      await fetchWithRetry(API_ENDPOINTS.SETTINGS.DASHBOARD_WIDGETS, {
+      const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.DASHBOARD_WIDGETS, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      if (!response.ok) {
+        throw new Error(`Failed to persist dashboard layout (${response.status})`);
+      }
     },
   });
 

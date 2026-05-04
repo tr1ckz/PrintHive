@@ -152,7 +152,7 @@ const WIDGET_SNAP_PROFILES: Record<DashboardWidgetId, SnapProfile> = {
   fleetAlerts: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
   backgroundJobs: { widths: [3, 4, 5, 6], heights: [5, 6, 7, 8] },
   mqttStatus: { widths: [4, 5, 6, 8, 10, 12], heights: [4, 5, 6, 7, 8] },
-  activityStream: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10, 12] },
+  activityStream: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10, 12, 14, 16, 18] },
   upcomingSchedule: { widths: [4, 5, 6, 7, 8], heights: [5, 6, 7, 8, 10] },
   failureWatch: { widths: [4, 5, 6, 8, 10, 12], heights: [5, 6, 7, 8] },
 };
@@ -336,6 +336,24 @@ function layoutsEqual(a: Layouts, b: Layouts): boolean {
   return true;
 }
 
+function hiddenIdsEqual(a: DashboardWidgetId[], b: DashboardWidgetId[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  const aSorted = [...a].sort();
+  const bSorted = [...b].sort();
+  for (let index = 0; index < aSorted.length; index += 1) {
+    if (aSorted[index] !== bSorted[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+const DEFAULT_NORMALIZED_LAYOUTS: Layouts = normalizeLayouts(defaultDashboardLayouts);
+
 function readLocalState(storageKey: string): DashboardLayoutPreferences | null {
   try {
     const raw = window.localStorage.getItem(storageKey);
@@ -366,6 +384,14 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   } = options;
 
   const localState = useMemo(() => readLocalState(storageKey), [storageKey]);
+  const localHasCustomState = useMemo(() => {
+    if (!localState) {
+      return false;
+    }
+
+    return !layoutsEqual(localState.layouts, DEFAULT_NORMALIZED_LAYOUTS)
+      || !hiddenIdsEqual(localState.hiddenWidgetIds, DEFAULT_HIDDEN_WIDGET_IDS);
+  }, [localState]);
   const [layouts, setLayouts] = useState<Layouts>(localState?.layouts || normalizeLayouts(defaultDashboardLayouts));
   const [hiddenWidgetIds, setHiddenWidgetIds] = useState<DashboardWidgetId[]>(localState?.hiddenWidgetIds || [...DEFAULT_HIDDEN_WIDGET_IDS]);
 
@@ -385,12 +411,20 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
 
     if (backendState) {
       const backendVersion = Number(backendState.version || 0);
-      setLayouts(normalizeLayouts(backendState.layouts));
-      setHiddenWidgetIds(withDefaultHidden(normalizeHiddenIds(backendState.hiddenWidgetIds), backendVersion));
+      const backendLayouts = normalizeLayouts(backendState.layouts);
+      const backendHiddenIds = withDefaultHidden(normalizeHiddenIds(backendState.hiddenWidgetIds), backendVersion);
+      const backendLooksDefault = layoutsEqual(backendLayouts, DEFAULT_NORMALIZED_LAYOUTS)
+        && hiddenIdsEqual(backendHiddenIds, DEFAULT_HIDDEN_WIDGET_IDS);
+
+      // Keep local customized layout if backend still only has generated defaults.
+      if (!(localHasCustomState && backendLooksDefault)) {
+        setLayouts(backendLayouts);
+        setHiddenWidgetIds(backendHiddenIds);
+      }
     }
 
     didHydrateBackendRef.current = true;
-  }, [backendReady, backendState]);
+  }, [backendReady, backendState, localHasCustomState]);
 
   useEffect(() => {
     const payload: DashboardLayoutPreferences = {
