@@ -10,6 +10,8 @@ interface HealthSummaryWidgetProps {
   fleetMetrics: HealthMetric[];
   qualityMetrics: HealthMetric[];
   density?: 'compact' | 'comfortable' | 'expanded';
+  onOpenPrinters?: () => void;
+  onOpenMaintenance?: () => void;
 }
 
 const toneClassMap: Record<HealthMetric['tone'], string> = {
@@ -19,7 +21,13 @@ const toneClassMap: Record<HealthMetric['tone'], string> = {
   neutral: 'border-white/20 bg-white/5 text-white/80',
 };
 
-function HealthSummaryWidget({ fleetMetrics, qualityMetrics, density = 'comfortable' }: HealthSummaryWidgetProps) {
+function HealthSummaryWidget({
+  fleetMetrics,
+  qualityMetrics,
+  density = 'comfortable',
+  onOpenPrinters,
+  onOpenMaintenance,
+}: HealthSummaryWidgetProps) {
   const [tab, setTab] = useState<'fleet' | 'quality'>('fleet');
 
   const currentMetrics = useMemo(
@@ -27,7 +35,17 @@ function HealthSummaryWidget({ fleetMetrics, qualityMetrics, density = 'comforta
     [tab, fleetMetrics, qualityMetrics]
   );
 
-  const visibleMetrics = density === 'compact' ? currentMetrics.slice(0, 3) : currentMetrics;
+  const sortedMetrics = useMemo(() => {
+    const toneOrder: Record<HealthMetric['tone'], number> = { bad: 0, warn: 1, neutral: 2, good: 3 };
+    return [...currentMetrics].sort((a, b) => {
+      if (toneOrder[a.tone] !== toneOrder[b.tone]) {
+        return toneOrder[a.tone] - toneOrder[b.tone];
+      }
+      return a.label.localeCompare(b.label);
+    });
+  }, [currentMetrics]);
+
+  const visibleMetrics = density === 'compact' ? sortedMetrics.slice(0, 3) : sortedMetrics;
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -62,6 +80,27 @@ function HealthSummaryWidget({ fleetMetrics, qualityMetrics, density = 'comforta
           ))}
         </div>
       )}
+
+      {(onOpenPrinters || onOpenMaintenance) ? (
+        <div className="mt-auto grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onOpenPrinters}
+            disabled={!onOpenPrinters}
+            className="widget-no-drag rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35 disabled:opacity-40"
+          >
+            Printers
+          </button>
+          <button
+            type="button"
+            onClick={onOpenMaintenance}
+            disabled={!onOpenMaintenance}
+            className="widget-no-drag rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35 disabled:opacity-40"
+          >
+            Maintenance
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

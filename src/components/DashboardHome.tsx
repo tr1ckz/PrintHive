@@ -84,7 +84,12 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 
 async function fetchJson<T>(url: string, fallback: T): Promise<T> {
   try {
-    const response = await fetchWithRetry(url, { credentials: 'include' });
+    const response = await fetchWithRetry(url, { credentials: 'include' }, {
+      maxRetries: 1,
+      delayMs: 400,
+      backoffMultiplier: 1.5,
+      timeoutMs: 10000,
+    });
     if (!response.ok) {
       return fallback;
     }
@@ -132,24 +137,36 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     queryFn: () => fetchJson<PrinterStatusResponse>(API_ENDPOINTS.PRINTERS.STATUS, { printers: [], online: 0, total: 0 }),
     staleTime: 15000,
     refetchInterval: 30000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 0,
   });
 
   const statsQuery = useQuery({
     queryKey: ['dashboard', 'stats'],
     queryFn: () => fetchJson<StatisticsResponse>(API_ENDPOINTS.STATISTICS.HISTORY, { totalPrints: 0, successRate: 0, failedPrints: 0, totalWeight: 0, totalTime: 0 }),
     staleTime: 30000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 0,
   });
 
   const activityQuery = useQuery({
     queryKey: ['dashboard', 'activity'],
     queryFn: () => fetchJson<PrintActivityApiRow[]>(`${API_ENDPOINTS.PRINTS.LIST}?limit=40`, []),
     staleTime: 20000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 0,
   });
 
   const maintenanceQuery = useQuery({
     queryKey: ['dashboard', 'maintenance'],
     queryFn: () => fetchJson<MaintenanceTask[]>(API_ENDPOINTS.MAINTENANCE.LIST, []),
     staleTime: 20000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 0,
   });
 
   const libraryQuery = useQuery({
@@ -161,6 +178,9 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       return [];
     },
     staleTime: 45000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 0,
   });
 
   const backgroundJobsQuery = useQuery({
@@ -191,8 +211,11 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
 
       return results.filter((job) => job.running);
     },
-    staleTime: 3000,
-    refetchInterval: 5000,
+    staleTime: 10000,
+    refetchInterval: () => (typeof document !== 'undefined' && document.visibilityState === 'visible' ? 15000 : false),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 0,
   });
 
   const dashboardLayoutSettingsQuery = useQuery({
@@ -206,6 +229,9 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       return (data?.preferences || null) as Partial<DashboardLayoutPreferences> | null;
     },
     staleTime: 30000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 0,
   });
 
   const persistDashboardLayout = useMutation({
@@ -522,7 +548,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           layouts={visibleLayouts as ResponsiveLayouts}
           isDraggable
           isResizable
-          compactType={null}
+          compactType="vertical"
           preventCollision={false}
           isBounded={false}
           resizeHandles={['se']}
@@ -552,6 +578,8 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   fleetMetrics={[...healthSummary.fleet]}
                   qualityMetrics={[...healthSummary.quality]}
                   density={widgetDensity(visibleLayouts, currentBreakpoint, 'healthSummary')}
+                  onOpenPrinters={() => onNavigate('printers')}
+                  onOpenMaintenance={() => onNavigate('maintenance')}
                 />
               </WidgetShell>
             </div>
