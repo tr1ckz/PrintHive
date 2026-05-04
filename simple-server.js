@@ -617,13 +617,14 @@ function setupFtpAutoSync() {
 
 // Auto-scan library every 5 minutes in background
 function setupAutoLibraryScan() {
-  const intervalMinutes = 5;
+  const intervalMinutes = 20;
   async function scanLibraryOnce() {
     try {
       logger.debug('[LibraryScan] Starting automatic scan...');
       const allFiles = walkDirectory(libraryDir);
       let added = 0;
       
+      let scanned = 0;
       for (const filePath of allFiles) {
         const ext = path.extname(filePath).toLowerCase();
         if (ext === '.3mf' || ext === '.stl' || ext === '.gcode') {
@@ -633,7 +634,7 @@ function setupAutoLibraryScan() {
           const existing = db.prepare('SELECT id FROM library WHERE filePath = ?').get(relativePath);
           
           if (!existing) {
-            const stats = fs.statSync(filePath);
+            const stats = await fs.promises.stat(filePath);
             const fileType = ext.substring(1);
             
             db.prepare(`
@@ -642,6 +643,11 @@ function setupAutoLibraryScan() {
             `).run(fileName, fileName, fileType, stats.size, relativePath, '', '');
             
             added++;
+          }
+
+          scanned += 1;
+          if (scanned % 50 === 0) {
+            await yieldToEventLoop();
           }
         }
       }
@@ -662,7 +668,7 @@ function setupAutoLibraryScan() {
 
 // Auto-match videos every 10 minutes in background
 function setupAutoVideoMatching() {
-  const intervalMinutes = 10;
+  const intervalMinutes = 20;
   async function matchVideosOnce() {
     try {
       logger.debug('[VideoMatch] Starting automatic matching...');
@@ -737,6 +743,9 @@ function setupAutoVideoMatching() {
             matched++;
           }
         }
+
+        // Ensure automatic background matching does not monopolize the event loop.
+        await yieldToEventLoop();
       }
       
       if (matched > 0) {
@@ -7508,6 +7517,54 @@ app.get('/api/library/scan-status', (req, res) => {
     elapsedSeconds: elapsed,
     percentComplete: percent
   });
+});
+
+// Consolidated background-jobs summary (single cheap request for dashboard widgets)
+app.get('/api/background-jobs/summary', (req, res) => {
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const jobs = [
+    {
+      id: 'video-match',
+      name: 'Video Matching',
+      running: Boolean(videoMatchJob.running),
+      processed: Number(videoMatchJob.processed || 0),
+      total: Number(videoMatchJob.total || 0),
+      completed: Number(videoMatchJob.matched || 0),
+      failed: Number(videoMatchJob.unmatched || 0),
+    },
+    {
+      id: 'library-scan',
+      name: 'Library Scan',
+      running: Boolean(libraryScanJob.running),
+      processed: Number(libraryScanJob.processed || 0),
+      total: Number(libraryScanJob.total || 0),
+      completed: Number(libraryScanJob.added || 0),
+      failed: Number(libraryScanJob.skipped || 0),
+    },
+    {
+      id: 'auto-tag',
+      name: 'Auto Tagging',
+      running: Boolean(autoTagJob.running),
+      processed: Number(autoTagJob.processed || 0),
+      total: Number(autoTagJob.total || 0),
+      completed: Number(autoTagJob.completed || 0),
+      failed: Number(autoTagJob.failed || 0),
+    },
+    {
+      id: 'bulk-delete',
+      name: 'Bulk Delete',
+      running: Boolean(bulkDeleteJob.running),
+      processed: Number(bulkDeleteJob.processed || 0),
+      total: Number(bulkDeleteJob.total || 0),
+      completed: Number(bulkDeleteJob.deleted || 0),
+      failed: Number(bulkDeleteJob.failed || 0),
+    },
+  ];
+
+  res.json({ jobs });
 });
 
 // Cancel library scan job

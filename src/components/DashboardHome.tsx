@@ -67,6 +67,15 @@ interface MaintenanceTask {
 }
 
 interface BackgroundJobStatusResponse {
+  jobs?: Array<{
+    id: string;
+    name: string;
+    running?: boolean;
+    total?: number;
+    processed?: number;
+    completed?: number;
+    failed?: number;
+  }>;
   running?: boolean;
   total?: number;
   processed?: number;
@@ -203,41 +212,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     retry: 0,
   });
 
-  const backgroundJobsQuery = useQuery({
-    queryKey: ['dashboard', 'background-jobs'],
-    queryFn: async (): Promise<BackgroundJobRow[]> => {
-      const definitions = [
-        { id: 'video-match', name: 'Video Matching', endpoint: API_ENDPOINTS.VIDEO.MATCH_STATUS },
-        { id: 'library-scan', name: 'Library Scan', endpoint: API_ENDPOINTS.LIBRARY.SCAN_STATUS },
-        { id: 'auto-tag', name: 'Auto Tagging', endpoint: API_ENDPOINTS.LIBRARY.AUTO_TAG_STATUS },
-        { id: 'bulk-delete', name: 'Bulk Delete', endpoint: API_ENDPOINTS.LIBRARY.BULK_DELETE_STATUS },
-      ];
-
-      const results = await Promise.all(definitions.map(async (definition) => {
-        const data = await fetchJson<BackgroundJobStatusResponse>(definition.endpoint, {});
-        const completed = data.completed ?? data.matched ?? data.added ?? data.deleted ?? 0;
-        const failed = data.failed ?? data.unmatched ?? data.skipped ?? 0;
-
-        return {
-          id: definition.id,
-          name: definition.name,
-          running: Boolean(data.running),
-          processed: Number(data.processed || 0),
-          total: Number(data.total || 0),
-          completed: Number(completed || 0),
-          failed: Number(failed || 0),
-        } as BackgroundJobRow;
-      }));
-
-      return results.filter((job) => job.running);
-    },
-    staleTime: 10000,
-    refetchInterval: isPageVisible ? 20000 : false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    retry: 0,
-  });
-
   const dashboardLayoutSettingsQuery = useQuery({
     queryKey: ['dashboard', 'layout-settings'],
     queryFn: async () => {
@@ -280,6 +254,34 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     onPersist: (next) => {
       persistDashboardLayout.mutate(next);
     },
+  });
+
+  const shouldPollBackgroundJobs = isPageVisible && visibleWidgetIds.includes('backgroundJobs');
+
+  const backgroundJobsQuery = useQuery({
+    queryKey: ['dashboard', 'background-jobs-summary'],
+    queryFn: async (): Promise<BackgroundJobRow[]> => {
+      const data = await fetchJson<BackgroundJobStatusResponse>(API_ENDPOINTS.SYSTEM.BACKGROUND_JOBS_SUMMARY, { jobs: [] });
+      const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+
+      return jobs
+        .map((job) => ({
+          id: job.id,
+          name: job.name,
+          running: Boolean(job.running),
+          processed: Number(job.processed || 0),
+          total: Number(job.total || 0),
+          completed: Number(job.completed || 0),
+          failed: Number(job.failed || 0),
+        } as BackgroundJobRow))
+        .filter((job) => job.running);
+    },
+    enabled: shouldPollBackgroundJobs,
+    staleTime: 20000,
+    refetchInterval: shouldPollBackgroundJobs ? 25000 : false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 0,
   });
 
   const printers = printersQuery.data?.printers || [];

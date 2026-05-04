@@ -138,6 +138,7 @@ export const API_ENDPOINTS = {
   
   SYSTEM: {
     HEALTH: `${API_BASE_URL}/api/health`,
+    BACKGROUND_JOBS_SUMMARY: `${API_BASE_URL}/api/background-jobs/summary`,
     LOG_LEVEL: `${API_BASE_URL}/api/log-level`,
     RESTART: `${API_BASE_URL}/api/system/restart`,
     VERSION: `${API_BASE_URL}/api/version`,
