@@ -610,11 +610,11 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
         <div className="command-center-kpi-grid mt-3">
           <div className="command-kpi-card">
             <p className="command-kpi-label">Fleet Online</p>
-            <p className="command-kpi-value">{operationalSnapshot.onlinePrinters}/{printers.length || 0}</p>
+            <p className={`command-kpi-value ${operationalSnapshot.onlinePrinters === (printers.length || 0) ? 'text-emerald-400' : 'text-amber-400'}`}>{operationalSnapshot.onlinePrinters}/{printers.length || 0}</p>
           </div>
           <div className="command-kpi-card">
             <p className="command-kpi-label">Active Prints</p>
-            <p className="command-kpi-value">{operationalSnapshot.activePrints}</p>
+            <p className={`command-kpi-value ${operationalSnapshot.activePrints > 0 ? 'text-emerald-400' : ''}`}>{operationalSnapshot.activePrints}</p>
           </div>
           <div className="command-kpi-card">
             <p className="command-kpi-label">Background Jobs</p>
@@ -622,11 +622,11 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           </div>
           <div className="command-kpi-card">
             <p className="command-kpi-label">Maintenance Overdue</p>
-            <p className="command-kpi-value">{operationalSnapshot.overdueTasks}</p>
+            <p className={`command-kpi-value ${operationalSnapshot.overdueTasks > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{operationalSnapshot.overdueTasks}</p>
           </div>
           <div className="command-kpi-card">
             <p className="command-kpi-label">Failures 24h</p>
-            <p className="command-kpi-value">{operationalSnapshot.failed24h}</p>
+            <p className={`command-kpi-value ${operationalSnapshot.failed24h > 0 ? 'text-rose-500' : 'text-emerald-400'}`}>{operationalSnapshot.failed24h}</p>
           </div>
         </div>
       </header>

@@ -9,6 +9,9 @@
   --ops-border-strong: #262626;
   --ops-secondary: #a3a3a3;
   --ops-tertiary: #737373;
+  --ops-success: #34d399;
+  --ops-warning: #fbbf24;
+  --ops-failure: #f43f5e;
 }
 
 .command-center-stage {
@@ -39,6 +42,17 @@
   border-radius: 4px;
   background: var(--ops-surface-alt);
   color: #ffffff;
+  transition: border-color 150ms ease, transform 180ms ease, filter 180ms ease;
+}
+
+.command-center-actions button:hover {
+  border-color: #525252;
+  transform: translateY(-1px);
+}
+
+.command-center-actions button:active {
+  transform: scale(0.98);
+  filter: brightness(1.08);
 }
 
 .command-center-kpi-grid {
@@ -50,8 +64,16 @@
 .command-kpi-card {
   border: 1px solid var(--ops-border);
   border-radius: 4px;
-  background: var(--ops-surface-alt);
+  background:
+    radial-gradient(circle at 12% 8%, rgba(52, 211, 153, 0.045) 0%, rgba(52, 211, 153, 0) 58%),
+    var(--ops-surface-alt);
   padding: 16px 18px;
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.command-kpi-card:hover {
+  border-color: #525252;
+  transform: translateY(-2px);
 }
 
 .command-kpi-label {
@@ -67,8 +89,33 @@
   margin-top: 8px;
   font-size: 1.6rem;
   font-weight: 700;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+  letter-spacing: 0.01em;
   line-height: 1.25;
   color: #ffffff;
+}
+
+.dashboard-home .ops-data-value {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+  letter-spacing: 0.01em;
+}
+
+.dashboard-home .ops-clickable-card {
+  transition: border-color 180ms ease, transform 200ms ease;
+}
+
+.dashboard-home .ops-clickable-card:hover {
+  border-color: #525252;
+  transform: translateY(-2px);
+}
+
+.dashboard-home .ops-micro-btn {
+  transition: transform 160ms ease, filter 160ms ease, border-color 160ms ease;
+}
+
+.dashboard-home .ops-micro-btn:active {
+  transform: scale(0.97);
+  filter: brightness(1.1);
 }
 
 .command-center-grid {

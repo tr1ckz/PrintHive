@@ -35,7 +35,7 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.08em] text-white"
+          className="ops-micro-btn rounded-[4px] border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.08em] text-white"
         >
           Open Printers
         </button>
@@ -52,7 +52,7 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
               key={item}
               type="button"
               onClick={() => setScope(item)}
-              className={`rounded-[3px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-neutral-800 text-white' : 'text-neutral-400'}`}
+              className={`ops-micro-btn rounded-[3px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-neutral-800 text-white' : 'text-neutral-400'}`}
             >
               {item}
             </button>
@@ -61,7 +61,7 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+          className="ops-micro-btn rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
         >
           Open
         </button>
@@ -69,26 +69,26 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
 
       <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
         {visibleRows.map((printer) => (
-          <div key={printer.id} className="border-b border-neutral-800 py-4 last:border-b-0">
+          <div key={printer.id} className="ops-clickable-card rounded-[3px] border border-transparent px-2 py-4 last:border-b-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold leading-tight text-white/90">{printer.name}</p>
                 <p className="mt-1 truncate ops-tertiary-text">{printer.model}</p>
               </div>
               <span
-                className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-orange-500/50 text-orange-300' : 'border-neutral-700 text-neutral-400'}`}
+                className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-emerald-500/55 text-emerald-400' : 'border-rose-500/50 text-rose-500'}`}
               >
                 {printer.online ? 'Online' : 'Offline'}
               </span>
             </div>
 
             <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
-              <div className="h-full bg-orange-500" style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
+              <div className={`h-full ${printer.online ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
             </div>
 
             <div className="mt-2 flex items-center justify-between ops-tertiary-text">
               <span className="truncate">{printer.currentPrint || printer.status || 'Idle'}</span>
-              <span>{Math.max(0, Math.min(100, printer.progress || 0))}%</span>
+              <span className="ops-data-value">{Math.max(0, Math.min(100, printer.progress || 0))}%</span>
             </div>
           </div>
         ))}

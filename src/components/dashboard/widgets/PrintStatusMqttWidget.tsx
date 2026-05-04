@@ -26,13 +26,13 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+        <div className="ops-clickable-card rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
           <p className="ops-secondary-text">MQTT Links</p>
-          <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{mqttConnected}/{rows.length || 0}</p>
+          <p className={`ops-data-value mt-1.5 text-2xl font-bold leading-tight ${mqttConnected === (rows.length || 0) ? 'text-emerald-400' : 'text-amber-400'}`}>{mqttConnected}/{rows.length || 0}</p>
         </div>
-        <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+        <div className="ops-clickable-card rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
           <p className="ops-secondary-text">Printing</p>
-          <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{printing}</p>
+          <p className={`ops-data-value mt-1.5 text-2xl font-bold leading-tight ${printing > 0 ? 'text-emerald-400' : 'text-white'}`}>{printing}</p>
         </div>
       </div>
 
@@ -45,7 +45,7 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
           {visibleRows.map((row) => {
             const progress = Math.max(0, Math.min(100, Number(row.progress || 0)));
             return (
-              <article key={row.id} className="border-b border-neutral-800 py-4 last:border-b-0">
+              <article key={row.id} className="ops-clickable-card rounded-[3px] border border-transparent px-2 py-4 last:border-b-0">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold leading-tight text-white">{row.name}</p>
@@ -53,18 +53,18 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
                       {row.currentPrint || row.status || 'Idle'}
                     </p>
                   </div>
-                  <span className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${row.mqttConnected ? 'border-orange-500/50 text-orange-300' : 'border-neutral-700 text-neutral-400'}`}>
+                  <span className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${row.mqttConnected ? 'border-emerald-500/55 text-emerald-400' : 'border-rose-500/50 text-rose-500'}`}>
                     {row.mqttConnected ? 'MQTT' : 'No MQTT'}
                   </span>
                 </div>
 
                 <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
-                  <div className="h-full bg-orange-500" style={{ width: `${progress}%` }} />
+                  <div className={`h-full ${row.mqttConnected ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${progress}%` }} />
                 </div>
 
                 <div className="mt-2.5 flex items-center justify-between ops-tertiary-text">
-                  <span>{progress}%</span>
-                  <span>
+                  <span className="ops-data-value">{progress}%</span>
+                  <span className="ops-data-value">
                     N {Math.round(Number(row.nozzleTemp || 0))}C / B {Math.round(Number(row.bedTemp || 0))}C
                   </span>
                 </div>
@@ -77,7 +77,7 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
       <button
         type="button"
         onClick={onOpenPrinters}
-        className="widget-no-drag mt-auto rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+        className="widget-no-drag ops-micro-btn mt-auto rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
       >
         Open Printers
       </button>

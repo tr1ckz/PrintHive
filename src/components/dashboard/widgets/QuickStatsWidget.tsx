@@ -47,12 +47,12 @@ function QuickStatsWidget({ printersOnlineLabel, totalPrints, successRate, libra
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <article key={card.key} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+          <article key={card.key} className="ops-clickable-card rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
             <div className="flex items-center justify-between gap-2">
               <p className="ops-secondary-text">{card.label}</p>
               <Icon className="h-4 w-4 text-neutral-500" />
             </div>
-            <p className="mt-2 text-3xl font-bold leading-tight text-white">{card.value}</p>
+            <p className="ops-data-value mt-2 text-3xl font-bold leading-tight text-white">{card.value}</p>
           </article>
         );
       })}
