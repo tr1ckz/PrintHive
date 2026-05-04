@@ -290,6 +290,35 @@ function normalizeHiddenIds(input?: unknown): DashboardWidgetId[] {
   return out;
 }
 
+function layoutItemEquals(a: Layout, b: Layout): boolean {
+  return a.i === b.i
+    && a.x === b.x
+    && a.y === b.y
+    && a.w === b.w
+    && a.h === b.h
+    && (a.minW || 0) === (b.minW || 0)
+    && (a.minH || 0) === (b.minH || 0);
+}
+
+function layoutsEqual(a: Layouts, b: Layouts): boolean {
+  for (const breakpoint of BREAKPOINT_ORDER) {
+    const aList = a[breakpoint] || [];
+    const bList = b[breakpoint] || [];
+
+    if (aList.length !== bList.length) {
+      return false;
+    }
+
+    for (let index = 0; index < aList.length; index += 1) {
+      if (!layoutItemEquals(aList[index], bList[index])) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 function readLocalState(storageKey: string): DashboardLayoutPreferences | null {
   try {
     const raw = window.localStorage.getItem(storageKey);
@@ -383,7 +412,8 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   }, [layouts, visibleWidgetIds]);
 
   const handleLayoutsChange = useCallback((nextLayouts: Layouts) => {
-    setLayouts(normalizeLayouts(nextLayouts));
+    const normalized = normalizeLayouts(nextLayouts);
+    setLayouts((current) => (layoutsEqual(current, normalized) ? current : normalized));
   }, []);
 
   const snapBreakpointLayout = useCallback((breakpoint: keyof Layouts, incomingLayout: Layout[]) => {
@@ -407,10 +437,12 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
         byId.set(item.i, sanitizeLayoutItem(item, fallback));
       }
 
-      return normalizeLayouts({
+      const next = normalizeLayouts({
         ...current,
         [breakpoint]: Array.from(byId.values()),
       });
+
+      return layoutsEqual(current, next) ? current : next;
     });
   }, []);
 
@@ -430,7 +462,10 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   }, []);
 
   const snapAllWidgets = useCallback(() => {
-    setLayouts((current) => normalizeLayouts(current));
+    setLayouts((current) => {
+      const next = normalizeLayouts(current);
+      return layoutsEqual(current, next) ? current : next;
+    });
   }, []);
 
   return {
