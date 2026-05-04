@@ -9,8 +9,8 @@ interface WidgetShellProps {
 
 function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShellProps) {
   return (
-    <article className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-900 transition-colors duration-150 hover:border-neutral-700">
-      <header className="widget-drag-handle flex shrink-0 cursor-grab items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-900 px-7 py-5 active:cursor-grabbing">
+    <article className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950 transition-colors duration-150 hover:border-neutral-700">
+      <header className="widget-drag-handle flex shrink-0 cursor-grab items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-950 px-5 py-3 active:cursor-grabbing">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className="inline-flex h-5 w-5 select-none items-center justify-center rounded-[3px] border border-neutral-700 bg-neutral-950 text-[10px] font-bold text-neutral-500"

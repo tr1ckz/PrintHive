@@ -29,9 +29,24 @@ interface LibraryProps {
   userRole?: string;
 }
 
+const LIBRARY_CACHE_KEY = 'bambu_library_cache';
+
 const Library: React.FC<LibraryProps> = ({ userRole }) => {
-  const [files, setFiles] = useState<LibraryFile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [files, setFiles] = useState<LibraryFile[]>(() => {
+    try {
+      const cached = sessionStorage.getItem(LIBRARY_CACHE_KEY);
+      return cached ? (JSON.parse(cached) as LibraryFile[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !sessionStorage.getItem(LIBRARY_CACHE_KEY);
+    } catch {
+      return true;
+    }
+  });
   const [uploading, setUploading] = useState(false);
   const [folderPath, setFolderPath] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -93,6 +108,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       if (!response.ok) throw new Error('Failed to fetch library');
       const data = await response.json();
       setFiles(data);
+      try { sessionStorage.setItem(LIBRARY_CACHE_KEY, JSON.stringify(data)); } catch { /* noop */ }
     } catch (err) {
       console.error('Failed to load library:', err);
     } finally {

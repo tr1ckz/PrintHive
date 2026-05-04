@@ -183,12 +183,12 @@
 }
 
 .widget-shell-body {
-  padding: 22px !important;
+  padding: 16px !important;
 }
 
 @media (max-width: 860px) {
   .widget-shell-body {
-    padding: 16px !important;
+    padding: 12px !important;
   }
 }
 

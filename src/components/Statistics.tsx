@@ -95,15 +95,38 @@ const formatColorHex = (colorHex: string) => {
   return { css: cssColor, name };
 };
 
+const STATS_CACHE_KEY = 'bambu_stats_cache';
+const COSTS_CACHE_KEY = 'bambu_costs_cache';
+
 const Statistics: React.FC = () => {
-  const [stats, setStats] = useState<StatisticsData | null>(null);
-  const [costs, setCosts] = useState<CostData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<StatisticsData | null>(() => {
+    try {
+      const cached = sessionStorage.getItem(STATS_CACHE_KEY);
+      return cached ? (JSON.parse(cached) as StatisticsData) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [costs, setCosts] = useState<CostData | null>(() => {
+    try {
+      const cached = sessionStorage.getItem(COSTS_CACHE_KEY);
+      return cached ? (JSON.parse(cached) as CostData) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !sessionStorage.getItem(STATS_CACHE_KEY);
+    } catch {
+      return true;
+    }
+  });
   const [error, setError] = useState('');
 
   const fetchStatistics = useCallback(async () => {
     try {
-      setLoading(true);
+      if (!stats) setLoading(true);
       setError('');
       
       const [statsRes, costsRes] = await Promise.all([
@@ -115,10 +138,12 @@ const Statistics: React.FC = () => {
       
       const statsData = await statsRes.json();
       setStats(statsData);
+      try { sessionStorage.setItem(STATS_CACHE_KEY, JSON.stringify(statsData)); } catch { /* noop */ }
       
       if (costsRes.ok) {
         const costsData = await costsRes.json();
         setCosts(costsData);
+        try { sessionStorage.setItem(COSTS_CACHE_KEY, JSON.stringify(costsData)); } catch { /* noop */ }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load statistics');

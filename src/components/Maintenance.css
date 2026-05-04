@@ -647,14 +647,39 @@
 }
 
 .summary-card.overdue,
-.summary-card.due-soon,
-.task-card.overdue,
-.task-card.due-soon,
-.status-badge.overdue,
-.status-badge.due-soon {
+.task-card.overdue {
   background: #171717;
-  border-color: #f97316;
-  color: #ffffff;
+  border-color: #ef4444;
+}
+
+.summary-card.due-soon,
+.task-card.due-soon {
+  background: #171717;
+  border-color: #f59e0b;
+}
+
+.status-badge.overdue {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.status-badge.due-soon {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fcd34d;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .summary-label,
@@ -741,11 +766,14 @@
   font-weight: 700;
 }
 
-.hours-display.is-overdue,
+.hours-display.is-overdue {
+  color: #fca5a5;
+}
+
 .hours-display.is-warning {
-  color: #f97316;
+  color: #fcd34d;
 }
 
 .hours-display.is-ontrack {
-  color: #ffffff;
+  color: #86efac;
 }

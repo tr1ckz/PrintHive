@@ -58,8 +58,20 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
         const statusKey = row.status.toLowerCase();
         const badgeClass =
           statusKey === 'running'
-            ? 'border-orange-500/60 bg-orange-500/20 text-white'
-            : 'border-neutral-700 bg-neutral-800 text-neutral-200';
+            ? 'border-orange-500/60 bg-orange-500/20 text-orange-300'
+            : statusKey === 'success' || statusKey === 'finished' || statusKey === 'complete' || statusKey === 'completed'
+            ? 'border-green-600/60 bg-green-600/15 text-green-300'
+            : statusKey === 'failed' || statusKey === 'failure' || statusKey === 'error' || statusKey === 'cancelled' || statusKey === 'canceled'
+            ? 'border-red-600/60 bg-red-600/15 text-red-300'
+            : 'border-neutral-700 bg-neutral-800 text-neutral-300';
+        const progressBarClass =
+          statusKey === 'running'
+            ? 'bg-orange-500'
+            : statusKey === 'success' || statusKey === 'finished' || statusKey === 'complete' || statusKey === 'completed'
+            ? 'bg-green-500'
+            : statusKey === 'failed' || statusKey === 'failure' || statusKey === 'error' || statusKey === 'cancelled' || statusKey === 'canceled'
+            ? 'bg-red-500'
+            : 'bg-neutral-500';
         const progressPct = Math.max(6, Math.min(100, row.progressPct ?? (statusKey === 'running' ? 50 : 100)));
 
         return (
@@ -91,7 +103,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
 
               <div className="h-1.5 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
                 <div
-                  className={`h-full ${statusKey === 'running' ? 'bg-orange-500' : 'bg-neutral-500'}`}
+                  className={`h-full ${progressBarClass}`}
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
