@@ -91,7 +91,11 @@ const pageMeta: Record<Tab, { eyebrow: string; title: string; description: strin
   }
 };
 
-const getHashSection = () => {
+const getSettingsSectionFromLocation = () => {
+  const searchSection = new URLSearchParams(window.location.search).get('section');
+  if (searchSection) {
+    return searchSection;
+  }
   return window.location.hash ? window.location.hash.slice(1) : null;
 };
 
@@ -124,7 +128,7 @@ function Dashboard({ onLogout }: DashboardProps) {
     const savedTab = localStorage.getItem('activeTab');
     return (savedTab as Tab) || 'home';
   });
-  const [settingsSection, setSettingsSection] = useState<string | null>(() => getHashSection());
+  const [settingsSection, setSettingsSection] = useState<string | null>(() => getSettingsSectionFromLocation());
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hideBmc, setHideBmc] = useState(false);
@@ -159,7 +163,7 @@ function Dashboard({ onLogout }: DashboardProps) {
       const tabFromPath = getTabFromLocation();
       if (tabFromPath) {
         setActiveTab(tabFromPath);
-        setSettingsSection(getHashSection());
+        setSettingsSection(getSettingsSectionFromLocation());
       }
     };
 
@@ -176,9 +180,9 @@ function Dashboard({ onLogout }: DashboardProps) {
     setMobileMenuOpen(false);
 
     const path = tabPaths[tab] || '/';
-    const nextUrl = hashSection ? `${path}#${hashSection}` : path;
+    const nextUrl = hashSection ? `${path}?section=${encodeURIComponent(hashSection)}` : path;
     window.history.pushState({ tab }, '', nextUrl);
-    setSettingsSection(hashSection || getHashSection());
+    setSettingsSection(hashSection || null);
   };
 
   const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'superadmin';

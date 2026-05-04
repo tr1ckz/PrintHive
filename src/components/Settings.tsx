@@ -206,10 +206,15 @@ function Settings({ userRole, initialSection }: SettingsProps) {
 
   useEffect(() => {
     if (!activeCategoryConfig || !activePanelConfig) return;
-    const nextHash = `${activeCategoryConfig.id}.${activePanelConfig.id}`;
-    const nextUrl = `/settings#${nextHash}`;
-    if (window.location.pathname === '/settings' && window.location.hash !== `#${nextHash}`) {
-      window.history.replaceState({ section: nextHash }, '', nextUrl);
+    const nextSection = `${activeCategoryConfig.id}.${activePanelConfig.id}`;
+    const currentSection = new URLSearchParams(window.location.search).get('section') ||
+      (window.location.hash ? window.location.hash.slice(1) : null);
+
+    if (window.location.pathname === '/settings' && currentSection !== nextSection) {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.set('section', nextSection);
+      nextUrl.hash = '';
+      window.history.replaceState({ section: nextSection }, '', `${nextUrl.pathname}${nextUrl.search}`);
     }
   }, [activeCategoryConfig, activePanelConfig]);
 
