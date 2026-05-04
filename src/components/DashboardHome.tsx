@@ -15,6 +15,7 @@ import FailureWatchWidget, { FailureWatchRow } from './dashboard/widgets/Failure
 import FleetAlertsWidget, { FleetAlertsData } from './dashboard/widgets/FleetAlertsWidget';
 import PrintStatusMqttWidget, { MqttPrinterRow } from './dashboard/widgets/PrintStatusMqttWidget';
 import MaterialUsageWidget from './dashboard/widgets/MaterialUsageWidget';
+import QueuePressureWidget from './dashboard/widgets/QueuePressureWidget';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import './DashboardHome.css';
@@ -477,6 +478,41 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     backgroundJobsQuery.data || []
   ), [backgroundJobsQuery.data]);
 
+  const queuePressureSummary = useMemo(() => {
+    const offlinePrinters = Math.max(0, printers.length - printers.filter((printer) => printer.online).length);
+    const activeJobs = backgroundJobRows.length;
+    const overdueTasks = (maintenanceQuery.data || []).filter((task) => task.isOverdue).length;
+    const activePrints = printers.filter((printer) => printer.online && printer.currentPrint).length;
+
+    const pressureScore = Math.max(
+      0,
+      Math.min(100, Math.round((activePrints * 16) + (overdueTasks * 14) + (offlinePrinters * 18) + (activeJobs * 22)))
+    );
+
+    let recommendation = 'Queue load is healthy. Keep current cadence.';
+    if (pressureScore >= 75) {
+      recommendation = 'High pressure: prioritize overdue maintenance and reduce concurrent starts.';
+    } else if (pressureScore >= 45) {
+      recommendation = 'Moderate pressure: watch printer uptime and clear near-due tasks.';
+    }
+
+    return {
+      pressureScore,
+      activeJobs,
+      overdueTasks,
+      offlinePrinters,
+      recommendation,
+    };
+  }, [printers, maintenanceQuery.data, backgroundJobRows.length]);
+
+  const refreshQueueInputs = useCallback(() => {
+    void printersQuery.refetch();
+    void maintenanceQuery.refetch();
+    if (visibleWidgetIds.includes('backgroundJobs')) {
+      void backgroundJobsQuery.refetch();
+    }
+  }, [printersQuery, maintenanceQuery, backgroundJobsQuery, visibleWidgetIds]);
+
   const operationalSnapshot = useMemo(() => {
     const onlinePrinters = printers.filter((printer) => printer.online).length;
     const activePrints = printers.filter((printer) => printer.online && printer.currentPrint).length;
@@ -659,6 +695,20 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   allTimeWeight={materialUsage.allTimeWeight}
                   successSharePct={materialUsage.successSharePct}
                   sampleSize={materialUsage.sampleSize}
+                />
+              </WidgetShell>
+            </div>
+          ) : null}
+
+          {visibleWidgetIds.includes('queuePressure') ? (
+            <div key="queuePressure" className="h-full">
+              <WidgetShell title="Queue Pressure" isEditMode={isEditMode} onHide={() => hideWidget('queuePressure')}>
+                <QueuePressureWidget
+                  summary={queuePressureSummary}
+                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'queuePressure')}
+                  onRefresh={refreshQueueInputs}
+                  onOpenMaintenance={() => onNavigate('maintenance')}
+                  onOpenPrinters={() => onNavigate('printers')}
                 />
               </WidgetShell>
             </div>
