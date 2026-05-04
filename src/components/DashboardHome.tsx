@@ -17,6 +17,8 @@ import BackupTelemetryWidget, { BackupTelemetrySummary } from './dashboard/widge
 import LivePrintersWidget, { LivePrinterRow } from './dashboard/widgets/LivePrintersWidget';
 import DuplicatePressureWidget, { DuplicatePressureSummary } from './dashboard/widgets/DuplicatePressureWidget';
 import BackgroundJobsWidget, { BackgroundJobRow } from './dashboard/widgets/BackgroundJobsWidget';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 import './DashboardHome.css';
 
 interface DashboardHomeProps {

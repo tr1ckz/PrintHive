@@ -28,7 +28,7 @@ function App() {
 
   const loadFooterVersion = async () => {
     try {
-      const response = await fetch('/version.json', { cache: 'no-store' });
+      const response = await fetchWithRetry(API_ENDPOINTS.SYSTEM.VERSION, { credentials: 'include' });
       if (!response.ok) {
         return;
       }
