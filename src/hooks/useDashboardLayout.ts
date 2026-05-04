@@ -29,6 +29,11 @@ interface UseDashboardLayoutOptions {
   saveDebounceMs?: number;
 }
 
+type SnapProfile = {
+  widths: number[];
+  heights: number[];
+};
+
 const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = [
   'healthSummary',
   'activityStream',
@@ -99,6 +104,21 @@ export const defaultDashboardLayouts: Layouts = {
 
 const BREAKPOINT_ORDER: Array<keyof Layouts> = ['lg', 'md', 'sm', 'xs', 'xxs'];
 
+const DEFAULT_SNAP_PROFILE: SnapProfile = {
+  widths: [2, 3, 4, 5, 6, 7, 8, 10, 12],
+  heights: [4, 5, 6, 7, 8, 10, 12],
+};
+
+const WIDGET_SNAP_PROFILES: Record<DashboardWidgetId, SnapProfile> = {
+  healthSummary: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
+  activityStream: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10, 12] },
+  heatmap: { widths: [4, 6, 7, 8, 10, 12], heights: [5, 6, 7, 8] },
+  storageTrend: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10] },
+  upcomingSchedule: { widths: [4, 5, 6, 7, 8], heights: [5, 6, 7, 8, 10] },
+  queuePressure: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
+  backupTelemetry: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
+};
+
 function isWidgetId(value: string): value is DashboardWidgetId {
   return DASHBOARD_WIDGET_IDS.includes(value as DashboardWidgetId);
 }
@@ -109,15 +129,35 @@ function parseNumber(input: unknown, fallback: number, min: number, max: number)
   return Math.max(min, Math.min(max, parsed));
 }
 
+function nearestSnap(value: number, options: number[], fallback: number): number {
+  if (!options.length) return fallback;
+  let best = options[0];
+  let bestDistance = Math.abs(options[0] - value);
+  for (let index = 1; index < options.length; index += 1) {
+    const distance = Math.abs(options[index] - value);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = options[index];
+    }
+  }
+  return best;
+}
+
 function sanitizeLayoutItem(item: Partial<Layout>, fallback: Layout): Layout {
+  const snapProfile = isWidgetId(fallback.i) ? WIDGET_SNAP_PROFILES[fallback.i] : DEFAULT_SNAP_PROFILE;
+  const minW = parseNumber(item.minW, fallback.minW || 1, 1, 24);
+  const minH = parseNumber(item.minH, fallback.minH || 2, 2, 24);
+  const rawW = parseNumber(item.w, fallback.w, minW, 24);
+  const rawH = parseNumber(item.h, fallback.h, minH, 24);
+
   return {
     i: fallback.i,
     x: parseNumber(item.x, fallback.x, 0, 24),
     y: parseNumber(item.y, fallback.y, 0, 999),
-    w: parseNumber(item.w, fallback.w, 1, 24),
-    h: parseNumber(item.h, fallback.h, 2, 24),
-    minW: parseNumber(item.minW, fallback.minW || 1, 1, 24),
-    minH: parseNumber(item.minH, fallback.minH || 2, 2, 24),
+    w: Math.max(minW, nearestSnap(rawW, snapProfile.widths, fallback.w)),
+    h: Math.max(minH, nearestSnap(rawH, snapProfile.heights, fallback.h)),
+    minW,
+    minH,
   };
 }
 
@@ -293,6 +333,10 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     setHiddenWidgetIds([]);
   }, []);
 
+  const snapAllWidgets = useCallback(() => {
+    setLayouts((current) => normalizeLayouts(current));
+  }, []);
+
   return {
     widgetRegistry: dashboardWidgetRegistry,
     layouts,
@@ -303,6 +347,7 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     hideWidget,
     showWidget,
     setAllVisible,
+    snapAllWidgets,
   };
 }
 

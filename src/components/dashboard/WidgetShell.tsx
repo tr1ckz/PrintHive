@@ -9,13 +9,13 @@ interface WidgetShellProps {
 
 function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShellProps) {
   return (
-    <article className="h-full overflow-hidden rounded-md border border-white/15 bg-[linear-gradient(180deg,rgba(18,20,25,0.98),rgba(11,13,18,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_22px_rgba(0,0,0,0.25)]">
+    <article className="h-full overflow-hidden rounded-lg border border-white/14 bg-[linear-gradient(180deg,rgba(18,20,25,0.98),rgba(11,13,18,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_14px_24px_rgba(0,0,0,0.25)]">
       <header className="flex items-center justify-between gap-2 border-b border-white/10 bg-white/[0.02] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           {isEditMode ? (
             <button
               type="button"
-              className="widget-drag-handle inline-flex h-5 w-5 items-center justify-center rounded border border-white/20 bg-black/20 text-[10px] font-bold text-white/70"
+              className="widget-drag-handle inline-flex h-5 w-5 items-center justify-center rounded border border-white/20 bg-black/30 text-[10px] font-bold text-white/70"
               title="Drag widget"
             >
               ::

@@ -9,6 +9,7 @@ interface HealthMetric {
 interface HealthSummaryWidgetProps {
   fleetMetrics: HealthMetric[];
   qualityMetrics: HealthMetric[];
+  density?: 'compact' | 'comfortable' | 'expanded';
 }
 
 const toneClassMap: Record<HealthMetric['tone'], string> = {
@@ -18,13 +19,15 @@ const toneClassMap: Record<HealthMetric['tone'], string> = {
   neutral: 'border-white/20 bg-white/5 text-white/80',
 };
 
-function HealthSummaryWidget({ fleetMetrics, qualityMetrics }: HealthSummaryWidgetProps) {
+function HealthSummaryWidget({ fleetMetrics, qualityMetrics, density = 'comfortable' }: HealthSummaryWidgetProps) {
   const [tab, setTab] = useState<'fleet' | 'quality'>('fleet');
 
   const currentMetrics = useMemo(
     () => (tab === 'fleet' ? fleetMetrics : qualityMetrics),
     [tab, fleetMetrics, qualityMetrics]
   );
+
+  const visibleMetrics = density === 'compact' ? currentMetrics.slice(0, 3) : currentMetrics;
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -50,8 +53,8 @@ function HealthSummaryWidget({ fleetMetrics, qualityMetrics }: HealthSummaryWidg
           No health metrics available.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {currentMetrics.map((metric) => (
+        <div className={`grid gap-2 ${density === 'compact' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+          {visibleMetrics.map((metric) => (
             <div key={metric.label} className={`rounded border p-2 ${toneClassMap[metric.tone]}`}>
               <p className="text-[10px] uppercase tracking-[0.12em]">{metric.label}</p>
               <p className="mt-1 text-sm font-semibold">{metric.value}</p>

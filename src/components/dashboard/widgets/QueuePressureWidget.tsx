@@ -8,10 +8,13 @@ export interface QueuePressureSummary {
 
 interface QueuePressureWidgetProps {
   summary: QueuePressureSummary;
+  density?: 'compact' | 'comfortable' | 'expanded';
   onRefresh: () => void;
+  onOpenMaintenance: () => void;
+  onOpenPrinters: () => void;
 }
 
-function QueuePressureWidget({ summary, onRefresh }: QueuePressureWidgetProps) {
+function QueuePressureWidget({ summary, density = 'comfortable', onRefresh, onOpenMaintenance, onOpenPrinters }: QueuePressureWidgetProps) {
   const tone =
     summary.pressureScore >= 75
       ? 'text-rose-200 border-rose-400/45 bg-rose-500/10'
@@ -27,7 +30,7 @@ function QueuePressureWidget({ summary, onRefresh }: QueuePressureWidgetProps) {
         <p className="mt-1 text-[11px] text-white/80">{summary.recommendation}</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-center">
+      <div className={`grid gap-2 text-center ${density === 'compact' ? 'grid-cols-3' : 'grid-cols-3'}`}>
         <div className="rounded border border-white/15 bg-white/[0.03] p-2">
           <p className="text-[10px] uppercase tracking-[0.08em] text-white/45">Active</p>
           <p className="mt-1 text-sm font-semibold text-white/90">{summary.activeJobs}</p>
@@ -42,13 +45,33 @@ function QueuePressureWidget({ summary, onRefresh }: QueuePressureWidgetProps) {
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onRefresh}
-        className="mt-auto rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80 hover:border-white/35"
-      >
-        Refresh Inputs
-      </button>
+      <div className="mt-auto grid grid-cols-1 gap-2">
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80 hover:border-white/35"
+        >
+          Refresh Inputs
+        </button>
+        {density !== 'compact' ? (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={onOpenPrinters}
+              className="rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
+            >
+              Printers
+            </button>
+            <button
+              type="button"
+              onClick={onOpenMaintenance}
+              className="rounded border border-white/20 bg-white/5 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/75 hover:border-white/35"
+            >
+              Maintenance
+            </button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

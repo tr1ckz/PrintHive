@@ -10,14 +10,15 @@ export interface BackupTelemetrySummary {
 
 interface BackupTelemetryWidgetProps {
   summary: BackupTelemetrySummary;
+  density?: 'compact' | 'comfortable' | 'expanded';
 }
 
-function BackupTelemetryWidget({ summary }: BackupTelemetryWidgetProps) {
+function BackupTelemetryWidget({ summary, density = 'comfortable' }: BackupTelemetryWidgetProps) {
   const [showDetails, setShowDetails] = useState(false);
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid gap-2 ${density === 'compact' ? 'grid-cols-1' : 'grid-cols-2'}`}>
         <div className="rounded border border-white/15 bg-white/[0.03] p-2">
           <p className="text-[10px] uppercase tracking-[0.08em] text-white/45">Schedule</p>
           <p className="mt-1 text-xs font-semibold text-white/90">{summary.scheduleEnabled ? 'Enabled' : 'Disabled'}</p>

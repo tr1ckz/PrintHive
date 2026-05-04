@@ -111,6 +111,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const queryClient = useQueryClient();
   const [isEditMode, setIsEditMode] = useState(false);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [currentBreakpoint, setCurrentBreakpoint] = useState<keyof Layouts>('lg');
 
   const printersQuery = useQuery({
     queryKey: ['dashboard', 'printers'],
@@ -192,6 +193,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     showWidget,
     hideWidget,
     setAllVisible,
+    snapAllWidgets,
     handleLayoutsChange,
   } = useDashboardLayout({
     backendState: dashboardLayoutSettingsQuery.data,
@@ -409,12 +411,16 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     backupSettingsQuery.isLoading;
 
   const renderWidget = (widgetId: DashboardWidgetId) => {
+    const currentLayout = (visibleLayouts[currentBreakpoint] || []).find((entry) => entry.i === widgetId);
+    const area = (currentLayout?.w || 4) * (currentLayout?.h || 5);
+    const density: 'compact' | 'comfortable' | 'expanded' = area <= 24 ? 'compact' : area <= 42 ? 'comfortable' : 'expanded';
+
     if (widgetId === 'healthSummary') {
-      return <HealthSummaryWidget fleetMetrics={[...healthSummary.fleet]} qualityMetrics={[...healthSummary.quality]} />;
+      return <HealthSummaryWidget fleetMetrics={[...healthSummary.fleet]} qualityMetrics={[...healthSummary.quality]} density={density} />;
     }
 
     if (widgetId === 'activityStream') {
-      return <ActivityStreamWidget rows={activityRows} />;
+      return <ActivityStreamWidget rows={activityRows} density={density} />;
     }
 
     if (widgetId === 'heatmap') {
@@ -422,25 +428,28 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     }
 
     if (widgetId === 'storageTrend') {
-      return <StorageTrendWidget points={storageTrendSeries} />;
+      return <StorageTrendWidget points={storageTrendSeries} density={density} />;
     }
 
     if (widgetId === 'upcomingSchedule') {
-      return <UpcomingScheduleWidget items={upcomingScheduleItems} />;
+      return <UpcomingScheduleWidget items={upcomingScheduleItems} density={density} />;
     }
 
     if (widgetId === 'queuePressure') {
       return (
         <QueuePressureWidget
           summary={queuePressureSummary}
+          density={density}
           onRefresh={() => {
             void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
           }}
+          onOpenMaintenance={() => onNavigate('maintenance')}
+          onOpenPrinters={() => onNavigate('printers')}
         />
       );
     }
 
-    return <BackupTelemetryWidget summary={backupSummary} />;
+    return <BackupTelemetryWidget summary={backupSummary} density={density} />;
   };
 
   return (
@@ -467,6 +476,16 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             >
               {isEditMode ? 'Done Editing' : 'Edit Dashboard'}
             </button>
+
+            {isEditMode ? (
+              <button
+                type="button"
+                onClick={snapAllWidgets}
+                className="rounded border border-white/20 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/80 hover:border-white/35"
+              >
+                Snap Layout
+              </button>
+            ) : null}
 
             {isEditMode ? (
               <button
@@ -547,7 +566,11 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           isDraggable={isEditMode}
           isResizable={isEditMode}
           compactType="vertical"
+          preventCollision={false}
+          isBounded
+          resizeHandles={['se']}
           draggableHandle=".widget-drag-handle"
+          onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as keyof Layouts)}
           onLayoutChange={(_currentLayout, allLayouts) => handleLayoutsChange(allLayouts as Layouts)}
         >
           {widgetRegistry.map((widget) => {
