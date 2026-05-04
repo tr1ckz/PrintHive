@@ -3154,6 +3154,13 @@ const defaultDashboardWidgetPrefs = {
     quickStats: 1,
     quickActions: 1,
   },
+  widgetLayout: {
+    activePrints: { x: 0, y: 0, w: 8, h: 5, minW: 4, minH: 3 },
+    printers: { x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 3 },
+    recentPrints: { x: 0, y: 5, w: 6, h: 6, minW: 4, minH: 4 },
+    quickStats: { x: 6, y: 5, w: 3, h: 4, minW: 3, minH: 3 },
+    quickActions: { x: 9, y: 5, w: 3, h: 4, minW: 3, minH: 3 },
+  },
 };
 
 const dashboardStatIds = new Set(['printersOnline', 'totalPrints', 'successRate', 'libraryCount']);
@@ -3196,6 +3203,31 @@ function sanitizeDashboardWidgetPrefs(raw = {}) {
     widgetSpan[id] = parsed === 2 ? 2 : 1;
   }
 
+  const rawLayout = safe.widgetLayout && typeof safe.widgetLayout === 'object' ? safe.widgetLayout : {};
+  const widgetLayout = {};
+  for (const id of dashboardWidgetIds) {
+    const fallback = defaultDashboardWidgetPrefs.widgetLayout[id];
+    const item = rawLayout[id] && typeof rawLayout[id] === 'object' ? rawLayout[id] : {};
+    const minWParsed = Number.parseInt(String(item.minW ?? fallback.minW), 10);
+    const minHParsed = Number.parseInt(String(item.minH ?? fallback.minH), 10);
+    const minW = Number.isFinite(minWParsed) ? Math.max(2, Math.min(12, minWParsed)) : fallback.minW;
+    const minH = Number.isFinite(minHParsed) ? Math.max(2, Math.min(12, minHParsed)) : fallback.minH;
+
+    const xParsed = Number.parseInt(String(item.x ?? fallback.x), 10);
+    const yParsed = Number.parseInt(String(item.y ?? fallback.y), 10);
+    const wParsed = Number.parseInt(String(item.w ?? fallback.w), 10);
+    const hParsed = Number.parseInt(String(item.h ?? fallback.h), 10);
+
+    widgetLayout[id] = {
+      x: Number.isFinite(xParsed) ? Math.max(0, Math.min(11, xParsed)) : fallback.x,
+      y: Number.isFinite(yParsed) ? Math.max(0, yParsed) : fallback.y,
+      w: Number.isFinite(wParsed) ? Math.max(minW, Math.min(12, wParsed)) : fallback.w,
+      h: Number.isFinite(hParsed) ? Math.max(minH, Math.min(12, hParsed)) : fallback.h,
+      minW,
+      minH,
+    };
+  }
+
   const density = safe.density === 'comfortable' ? 'comfortable' : 'compact';
   const refreshParsed = Number.parseInt(String(safe.refreshSeconds ?? defaultDashboardWidgetPrefs.refreshSeconds), 10);
   const refreshSeconds = Number.isFinite(refreshParsed) ? Math.max(10, Math.min(300, refreshParsed)) : 30;
@@ -3210,6 +3242,7 @@ function sanitizeDashboardWidgetPrefs(raw = {}) {
     widgetOrder,
     widgetHidden,
     widgetSpan,
+    widgetLayout,
   };
 }
 

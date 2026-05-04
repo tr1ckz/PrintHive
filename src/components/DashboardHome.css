@@ -184,6 +184,14 @@
   text-transform: uppercase;
 }
 
+.customize-help {
+  margin: 0 0 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .customize-row {
   display: flex;
   justify-content: space-between;
@@ -321,9 +329,33 @@
 }
 
 .widgets-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+  width: 100%;
+}
+
+.widgets-grid .layout {
+  min-height: 280px;
+}
+
+.widgets-grid .react-grid-item {
+  transition: transform 120ms ease;
+}
+
+.widgets-grid .react-grid-item.cssTransforms {
+  transition-property: transform;
+}
+
+.widgets-grid .react-grid-item > .react-resizable-handle {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.widgets-grid-customize .react-grid-item > .react-resizable-handle {
+  opacity: 1;
+}
+
+.widgets-grid .react-grid-item > .react-resizable-handle::after {
+  border-right: 2px solid rgba(var(--theme-accent-rgb), 0.85);
+  border-bottom: 2px solid rgba(var(--theme-accent-rgb), 0.85);
 }
 
 .widget {
@@ -332,6 +364,9 @@
   background: linear-gradient(180deg, rgba(17, 19, 24, 0.98), rgba(12, 14, 18, 0.98));
   overflow: hidden;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 24px rgba(0, 0, 0, 0.24);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .widget.widget-span-2 {
@@ -346,6 +381,11 @@
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.09);
   background: rgba(255, 255, 255, 0.018);
+  cursor: default;
+}
+
+.widgets-grid-customize .widget-header {
+  cursor: move;
 }
 
 .widget-header h3 {
@@ -377,6 +417,50 @@
 
 .widget-content {
   padding: 12px;
+  flex: 1;
+  overflow: auto;
+}
+
+.widget-size-small .widget-content {
+  padding: 8px;
+}
+
+.widget-size-small .quick-actions-grid,
+.widget-size-small .quick-stats-grid {
+  grid-template-columns: 1fr;
+}
+
+.widget-size-small .quick-action,
+.widget-size-small .quick-stat {
+  padding: 8px 6px;
+}
+
+.widget-size-small .recent-print-cover {
+  aspect-ratio: 1.35;
+}
+
+.widget-size-small .print-title,
+.widget-size-small .recent-print-title,
+.widget-size-small .printer-name,
+.widget-size-small .quick-stat-value {
+  font-size: 0.74rem;
+}
+
+.widget-size-large .widget-content {
+  padding: 14px;
+}
+
+.widget-size-large .active-prints-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.widget-size-large .quick-action,
+.widget-size-large .quick-stat {
+  padding: 12px 10px;
+}
+
+.widget-size-large .recent-print-cover {
+  aspect-ratio: 1;
 }
 
 .widget-empty {
@@ -561,6 +645,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.widget-size-small .printer-progress {
+  display: none;
+}
+
 .quick-stat,
 .quick-action {
   padding: 10px 8px;
@@ -616,8 +704,8 @@
     grid-template-columns: 1fr;
   }
 
-  .widget.widget-span-2 {
-    grid-column: span 1;
+  .widgets-grid .layout {
+    min-height: 220px;
   }
 }
 

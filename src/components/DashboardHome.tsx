@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import GridLayout, { Layout } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 import './DashboardHome.css';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
@@ -36,6 +39,15 @@ interface DashboardStats {
 type StatId = 'printersOnline' | 'totalPrints' | 'successRate' | 'libraryCount';
 type WidgetId = 'activePrints' | 'printers' | 'recentPrints' | 'quickStats' | 'quickActions';
 
+interface WidgetLayoutItem {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW: number;
+  minH: number;
+}
+
 interface DashboardWidgetPrefs {
   version: number;
   density: 'compact' | 'comfortable';
@@ -46,6 +58,7 @@ interface DashboardWidgetPrefs {
   widgetOrder: WidgetId[];
   widgetHidden: WidgetId[];
   widgetSpan: Record<WidgetId, 1 | 2>;
+  widgetLayout: Record<WidgetId, WidgetLayoutItem>;
 }
 
 interface DashboardHomeProps {
@@ -58,6 +71,16 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   recentPrints: 'Recent Prints',
   quickStats: 'Statistics',
   quickActions: 'Quick Actions',
+};
+
+const WIDGET_IDS: WidgetId[] = ['activePrints', 'printers', 'recentPrints', 'quickStats', 'quickActions'];
+
+const DEFAULT_WIDGET_LAYOUT: Record<WidgetId, WidgetLayoutItem> = {
+  activePrints: { x: 0, y: 0, w: 8, h: 5, minW: 4, minH: 3 },
+  printers: { x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 3 },
+  recentPrints: { x: 0, y: 5, w: 6, h: 6, minW: 4, minH: 4 },
+  quickStats: { x: 6, y: 5, w: 3, h: 4, minW: 3, minH: 3 },
+  quickActions: { x: 9, y: 5, w: 3, h: 4, minW: 3, minH: 3 },
 };
 
 const DEFAULT_PREFS: DashboardWidgetPrefs = {
@@ -76,6 +99,7 @@ const DEFAULT_PREFS: DashboardWidgetPrefs = {
     quickStats: 1,
     quickActions: 1,
   },
+  widgetLayout: DEFAULT_WIDGET_LAYOUT,
 };
 
 const clampRefresh = (value: number) => Math.max(10, Math.min(300, value));
@@ -84,7 +108,7 @@ const sanitizePrefs = (raw: Partial<DashboardWidgetPrefs> | null | undefined): D
   const source = raw || {};
 
   const validStatIds: StatId[] = ['printersOnline', 'totalPrints', 'successRate', 'libraryCount'];
-  const validWidgetIds: WidgetId[] = ['activePrints', 'printers', 'recentPrints', 'quickStats', 'quickActions'];
+  const validWidgetIds: WidgetId[] = WIDGET_IDS;
 
   const normalizeOrder = <T extends string>(incoming: unknown, valid: T[], fallback: T[]) => {
     const result: T[] = [];
@@ -131,6 +155,36 @@ const sanitizePrefs = (raw: Partial<DashboardWidgetPrefs> | null | undefined): D
     widgetSpan[key] = value === 2 ? 2 : 1;
   });
 
+  const incomingLayout = source.widgetLayout && typeof source.widgetLayout === 'object' ? source.widgetLayout as Record<string, unknown> : {};
+  const widgetLayout = { ...DEFAULT_WIDGET_LAYOUT };
+  WIDGET_IDS.forEach((id) => {
+    const raw = incomingLayout[id];
+    if (!raw || typeof raw !== 'object') {
+      return;
+    }
+
+    const item = raw as Record<string, unknown>;
+    const fallback = DEFAULT_WIDGET_LAYOUT[id];
+    const parsedMinW = Number.parseInt(String(item.minW ?? fallback.minW), 10);
+    const parsedMinH = Number.parseInt(String(item.minH ?? fallback.minH), 10);
+    const minW = Number.isFinite(parsedMinW) ? Math.max(2, Math.min(12, parsedMinW)) : fallback.minW;
+    const minH = Number.isFinite(parsedMinH) ? Math.max(2, Math.min(12, parsedMinH)) : fallback.minH;
+
+    const parsedW = Number.parseInt(String(item.w ?? fallback.w), 10);
+    const parsedH = Number.parseInt(String(item.h ?? fallback.h), 10);
+    const parsedX = Number.parseInt(String(item.x ?? fallback.x), 10);
+    const parsedY = Number.parseInt(String(item.y ?? fallback.y), 10);
+
+    widgetLayout[id] = {
+      x: Number.isFinite(parsedX) ? Math.max(0, Math.min(11, parsedX)) : fallback.x,
+      y: Number.isFinite(parsedY) ? Math.max(0, parsedY) : fallback.y,
+      w: Number.isFinite(parsedW) ? Math.max(minW, Math.min(12, parsedW)) : fallback.w,
+      h: Number.isFinite(parsedH) ? Math.max(minH, Math.min(12, parsedH)) : fallback.h,
+      minW,
+      minH,
+    };
+  });
+
   return {
     version: 1,
     density: source.density === 'comfortable' ? 'comfortable' : 'compact',
@@ -141,6 +195,7 @@ const sanitizePrefs = (raw: Partial<DashboardWidgetPrefs> | null | undefined): D
     widgetOrder: normalizeOrder(source.widgetOrder, validWidgetIds, DEFAULT_PREFS.widgetOrder),
     widgetHidden: normalizeHidden(source.widgetHidden, validWidgetIds),
     widgetSpan,
+    widgetLayout,
   };
 };
 
@@ -369,6 +424,66 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
 
   const visibleStats = effectivePrefs.statsOrder.filter((id) => !effectivePrefs.statsHidden.includes(id));
   const visibleWidgets = effectivePrefs.widgetOrder.filter((id) => !effectivePrefs.widgetHidden.includes(id));
+  const renderedWidgets = visibleWidgets.filter((id) => !(id === 'activePrints' && activePrints.length === 0));
+
+  const gridLayout = useMemo<Layout[]>(() => (
+    renderedWidgets.map((id) => {
+      const saved = effectivePrefs.widgetLayout[id] || DEFAULT_WIDGET_LAYOUT[id];
+      return {
+        i: id,
+        x: saved.x,
+        y: saved.y,
+        w: saved.w,
+        h: saved.h,
+        minW: saved.minW,
+        minH: saved.minH,
+      };
+    })
+  ), [effectivePrefs.widgetLayout, renderedWidgets]);
+
+  const applyGridLayout = (layout: Layout[]) => {
+    if (!isCustomizeMode) return;
+
+    updateDraft((current) => {
+      const nextLayout = { ...current.widgetLayout };
+      const orderedVisible: WidgetId[] = [...layout]
+        .sort((a, b) => (a.y === b.y ? a.x - b.x : a.y - b.y))
+        .map((item) => item.i)
+        .filter((id): id is WidgetId => WIDGET_IDS.includes(id as WidgetId));
+
+      layout.forEach((item) => {
+        if (!WIDGET_IDS.includes(item.i as WidgetId)) {
+          return;
+        }
+        const widgetId = item.i as WidgetId;
+        const previous = nextLayout[widgetId] || DEFAULT_WIDGET_LAYOUT[widgetId];
+        const minW = previous.minW;
+        const minH = previous.minH;
+        nextLayout[widgetId] = {
+          ...previous,
+          x: Math.max(0, item.x),
+          y: Math.max(0, item.y),
+          w: Math.max(minW, Math.min(12, item.w)),
+          h: Math.max(minH, Math.min(12, item.h)),
+        };
+      });
+
+      const hiddenOrNotRendered = current.widgetOrder.filter((id) => !orderedVisible.includes(id));
+      return {
+        ...current,
+        widgetLayout: nextLayout,
+        widgetOrder: [...orderedVisible, ...hiddenOrNotRendered],
+      };
+    });
+  };
+
+  const getWidgetSizeClass = (widgetId: WidgetId) => {
+    const item = effectivePrefs.widgetLayout[widgetId] || DEFAULT_WIDGET_LAYOUT[widgetId];
+    const area = item.w * item.h;
+    if (area <= 18) return 'widget-size-small';
+    if (area <= 32) return 'widget-size-medium';
+    return 'widget-size-large';
+  };
 
   if (loading || prefsLoading) {
     return (
@@ -481,24 +596,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
 
             <div className="customize-group">
               <h4>Widgets</h4>
-              {draftPrefs.widgetOrder.map((id, index) => (
+              <p className="customize-help">Drag widget headers and use bottom-right handles to resize.</p>
+              {draftPrefs.widgetOrder.map((id) => (
                 <div key={id} className="customize-item-row">
                   <span>{WIDGET_LABELS[id]}</span>
                   <div className="item-actions">
-                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, widgetOrder: moveItem(current.widgetOrder, index, -1) }))}>Up</button>
-                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, widgetOrder: moveItem(current.widgetOrder, index, 1) }))}>Down</button>
-                    <button
-                      type="button"
-                      onClick={() => updateDraft((current) => ({
-                        ...current,
-                        widgetSpan: {
-                          ...current.widgetSpan,
-                          [id]: current.widgetSpan[id] === 2 ? 1 : 2,
-                        },
-                      }))}
-                    >
-                      {draftPrefs.widgetSpan[id] === 2 ? 'Span 1' : 'Span 2'}
-                    </button>
                     <button
                       type="button"
                       onClick={() => updateDraft((current) => ({
@@ -509,6 +611,18 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                       }))}
                     >
                       {draftPrefs.widgetHidden.includes(id) ? 'Show' : 'Hide'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateDraft((current) => ({
+                        ...current,
+                        widgetLayout: {
+                          ...current.widgetLayout,
+                          [id]: DEFAULT_WIDGET_LAYOUT[id],
+                        },
+                      }))}
+                    >
+                      Reset
                     </button>
                   </div>
                 </div>
@@ -541,145 +655,155 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
         })}
       </div>
 
-      <div className="widgets-grid grid grid-cols-1 gap-3 xl:grid-cols-2">
-        {visibleWidgets.map((widgetId) => {
-          if (widgetId === 'activePrints' && activePrints.length === 0) {
-            return null;
-          }
-
-          if (widgetId === 'activePrints') {
-            return (
-              <div key={widgetId} className={`widget active-prints-widget ${effectivePrefs.widgetSpan.activePrints === 2 ? 'widget-span-2' : ''}`}>
-                <div className="widget-header"><h3>Currently Printing</h3></div>
-                <div className="widget-content">
-                  <div className="active-prints-grid">
-                    {activePrints.map((printer) => (
-                      <div key={printer.id} className="active-print-card" onClick={() => onNavigate('printers')}>
-                        <div className="printer-badge">{printer.name}</div>
-                        <div className="print-title">{printer.currentPrint}</div>
-                        {printer.progress !== undefined ? (
-                          <div className="print-progress-bar">
-                            <div className="progress-fill" style={{ width: `${printer.progress}%` }}></div>
-                            <span className="progress-text">{printer.progress}%</span>
-                          </div>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
-          if (widgetId === 'printers') {
-            return (
-              <div key={widgetId} className={`widget printers-widget ${effectivePrefs.widgetSpan.printers === 2 ? 'widget-span-2' : ''}`}>
-                <div className="widget-header"><h3>Printers</h3></div>
-                <div className="widget-content">
-                  {printers.length === 0 ? (
-                    <div className="widget-empty">
-                      <p>No printers configured</p>
-                      <button onClick={() => onNavigate('settings')}>Configure Printer</button>
-                    </div>
-                  ) : (
-                    <div className="printers-list">
-                      {printers.map((printer) => (
-                        <div key={printer.id} className={`printer-item ${printer.online ? 'online' : 'offline'}`} onClick={() => onNavigate('printers')}>
-                          <div className="printer-status-dot"></div>
-                          <div className="printer-info">
-                            <span className="printer-name">{printer.name}</span>
-                            <span className="printer-model">{printer.model}</span>
-                          </div>
-                          {printer.progress !== undefined && printer.progress > 0 ? (
-                            <div className="printer-progress">
-                              <div className="progress-bar"><div className="progress-fill" style={{ width: `${printer.progress}%` }}></div></div>
-                              <span>{printer.progress}%</span>
+      <div className={`widgets-grid ${isCustomizeMode ? 'widgets-grid-customize' : ''}`}>
+        <GridLayout
+          className="layout"
+          cols={12}
+          rowHeight={34}
+          margin={[12, 12]}
+          containerPadding={[0, 0]}
+          layout={gridLayout}
+          isDraggable={isCustomizeMode}
+          isResizable={isCustomizeMode}
+          compactType="vertical"
+          draggableHandle=".widget-header"
+          onLayoutChange={applyGridLayout}
+        >
+          {renderedWidgets.map((widgetId) => {
+            if (widgetId === 'activePrints') {
+              return (
+                <div key={widgetId} className={`widget active-prints-widget ${getWidgetSizeClass(widgetId)}`}>
+                  <div className="widget-header"><h3>Currently Printing</h3></div>
+                  <div className="widget-content">
+                    <div className="active-prints-grid">
+                      {activePrints.map((printer) => (
+                        <div key={printer.id} className="active-print-card" onClick={() => onNavigate('printers')}>
+                          <div className="printer-badge">{printer.name}</div>
+                          <div className="print-title">{printer.currentPrint}</div>
+                          {printer.progress !== undefined ? (
+                            <div className="print-progress-bar">
+                              <div className="progress-fill" style={{ width: `${printer.progress}%` }}></div>
+                              <span className="progress-text">{printer.progress}%</span>
                             </div>
                           ) : null}
                         </div>
                       ))}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            );
-          }
+              );
+            }
 
-          if (widgetId === 'recentPrints') {
-            return (
-              <div key={widgetId} className={`widget recent-prints-widget ${effectivePrefs.widgetSpan.recentPrints === 2 ? 'widget-span-2' : ''}`}>
-                <div className="widget-header">
-                  <h3>Recent Prints</h3>
-                  <button className="widget-action" onClick={() => onNavigate('history')}>View All</button>
-                </div>
-                <div className="widget-content">
-                  {recentPrints.length === 0 ? (
-                    <div className="widget-empty">
-                      <p>No print history yet</p>
-                      <button onClick={() => onNavigate('history')}>Sync Print History</button>
-                    </div>
-                  ) : (
-                    <div className="recent-prints-grid">
-                      {recentPrints.slice(0, 5).map((print) => (
-                        <div key={print.id} className="recent-print-card" onClick={() => onNavigate('history')}>
-                          <div className="recent-print-cover">
-                            {print.cover ? <img src={print.cover} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : <span className="cover-placeholder">N/A</span>}
-                            <span className="print-status-badge" style={{ backgroundColor: getStatusColor(Number(print.status || 0)) }}>
-                              {getStatusText(Number(print.status || 0))}
-                            </span>
+            if (widgetId === 'printers') {
+              return (
+                <div key={widgetId} className={`widget printers-widget ${getWidgetSizeClass(widgetId)}`}>
+                  <div className="widget-header"><h3>Printers</h3></div>
+                  <div className="widget-content">
+                    {printers.length === 0 ? (
+                      <div className="widget-empty">
+                        <p>No printers configured</p>
+                        <button onClick={() => onNavigate('settings')}>Configure Printer</button>
+                      </div>
+                    ) : (
+                      <div className="printers-list">
+                        {printers.map((printer) => (
+                          <div key={printer.id} className={`printer-item ${printer.online ? 'online' : 'offline'}`} onClick={() => onNavigate('printers')}>
+                            <div className="printer-status-dot"></div>
+                            <div className="printer-info">
+                              <span className="printer-name">{printer.name}</span>
+                              <span className="printer-model">{printer.model}</span>
+                            </div>
+                            {printer.progress !== undefined && printer.progress > 0 ? (
+                              <div className="printer-progress">
+                                <div className="progress-bar"><div className="progress-fill" style={{ width: `${printer.progress}%` }}></div></div>
+                                <span>{printer.progress}%</span>
+                              </div>
+                            ) : null}
                           </div>
-                          <div className="recent-print-info">
-                            <span className="recent-print-title">{print.title || 'Untitled'}</span>
-                            <span className="recent-print-date">{print.startTime ? new Date(print.startTime).toLocaleDateString() : 'Unknown date'}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          }
+              );
+            }
 
-          if (widgetId === 'quickStats') {
-            return (
-              <div key={widgetId} className={`widget quick-stats-widget ${effectivePrefs.widgetSpan.quickStats === 2 ? 'widget-span-2' : ''}`}>
-                <div className="widget-header">
-                  <h3>Statistics</h3>
-                  <button className="widget-action" onClick={() => onNavigate('statistics')}>View Details</button>
+            if (widgetId === 'recentPrints') {
+              return (
+                <div key={widgetId} className={`widget recent-prints-widget ${getWidgetSizeClass(widgetId)}`}>
+                  <div className="widget-header">
+                    <h3>Recent Prints</h3>
+                    <button className="widget-action" onClick={() => onNavigate('history')}>View All</button>
+                  </div>
+                  <div className="widget-content">
+                    {recentPrints.length === 0 ? (
+                      <div className="widget-empty">
+                        <p>No print history yet</p>
+                        <button onClick={() => onNavigate('history')}>Sync Print History</button>
+                      </div>
+                    ) : (
+                      <div className="recent-prints-grid">
+                        {recentPrints.slice(0, 5).map((print) => (
+                          <div key={print.id} className="recent-print-card" onClick={() => onNavigate('history')}>
+                            <div className="recent-print-cover">
+                              {print.cover ? <img src={print.cover} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : <span className="cover-placeholder">N/A</span>}
+                              <span className="print-status-badge" style={{ backgroundColor: getStatusColor(Number(print.status || 0)) }}>
+                                {getStatusText(Number(print.status || 0))}
+                              </span>
+                            </div>
+                            <div className="recent-print-info">
+                              <span className="recent-print-title">{print.title || 'Untitled'}</span>
+                              <span className="recent-print-date">{print.startTime ? new Date(print.startTime).toLocaleDateString() : 'Unknown date'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+              );
+            }
+
+            if (widgetId === 'quickStats') {
+              return (
+                <div key={widgetId} className={`widget quick-stats-widget ${getWidgetSizeClass(widgetId)}`}>
+                  <div className="widget-header">
+                    <h3>Statistics</h3>
+                    <button className="widget-action" onClick={() => onNavigate('statistics')}>View Details</button>
+                  </div>
+                  <div className="widget-content">
+                    <div className="quick-stats-grid">
+                      <div className="quick-stat">
+                        <span className="quick-stat-icon">TM</span>
+                        <span className="quick-stat-value">{stats?.totalTime ? formatDuration(stats.totalTime) : '0h'}</span>
+                        <span className="quick-stat-label">Print Time</span>
+                      </div>
+                      <div className="quick-stat">
+                        <span className="quick-stat-icon">FL</span>
+                        <span className="quick-stat-value">{stats?.filamentUsed ? `${(stats.filamentUsed / 1000).toFixed(1)}kg` : '0g'}</span>
+                        <span className="quick-stat-label">Filament</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div key={widgetId} className={`widget quick-actions-widget ${getWidgetSizeClass(widgetId)}`}>
+                <div className="widget-header"><h3>Quick Actions</h3></div>
                 <div className="widget-content">
-                  <div className="quick-stats-grid">
-                    <div className="quick-stat">
-                      <span className="quick-stat-icon">TM</span>
-                      <span className="quick-stat-value">{stats?.totalTime ? formatDuration(stats.totalTime) : '0h'}</span>
-                      <span className="quick-stat-label">Print Time</span>
-                    </div>
-                    <div className="quick-stat">
-                      <span className="quick-stat-icon">FL</span>
-                      <span className="quick-stat-value">{stats?.filamentUsed ? `${(stats.filamentUsed / 1000).toFixed(1)}kg` : '0g'}</span>
-                      <span className="quick-stat-label">Filament</span>
-                    </div>
+                  <div className="quick-actions-grid">
+                    <button className="quick-action" onClick={() => onNavigate('library')}><span className="action-icon">UP</span><span>Upload Model</span></button>
+                    <button className="quick-action" onClick={() => onNavigate('history')}><span className="action-icon">SY</span><span>Sync Prints</span></button>
+                    <button className="quick-action" onClick={() => onNavigate('duplicates')}><span className="action-icon">DP</span><span>Find Duplicates</span></button>
+                    <button className="quick-action" onClick={() => onNavigate('maintenance')}><span className="action-icon">MT</span><span>Maintenance</span></button>
                   </div>
                 </div>
               </div>
             );
-          }
-
-          return (
-            <div key={widgetId} className={`widget quick-actions-widget ${effectivePrefs.widgetSpan.quickActions === 2 ? 'widget-span-2' : ''}`}>
-              <div className="widget-header"><h3>Quick Actions</h3></div>
-              <div className="widget-content">
-                <div className="quick-actions-grid">
-                  <button className="quick-action" onClick={() => onNavigate('library')}><span className="action-icon">UP</span><span>Upload Model</span></button>
-                  <button className="quick-action" onClick={() => onNavigate('history')}><span className="action-icon">SY</span><span>Sync Prints</span></button>
-                  <button className="quick-action" onClick={() => onNavigate('duplicates')}><span className="action-icon">DP</span><span>Find Duplicates</span></button>
-                  <button className="quick-action" onClick={() => onNavigate('maintenance')}><span className="action-icon">MT</span><span>Maintenance</span></button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+          })}
+        </GridLayout>
       </div>
     </div>
   );
