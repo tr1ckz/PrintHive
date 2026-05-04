@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Layout, Layouts, ResponsiveGridLayout } from 'react-grid-layout';
+import { useEffect, useMemo, useState } from 'react';
+import { ResponsiveGridLayout, noCompactor, useContainerWidth } from 'react-grid-layout';
 import { LayoutGrid, Plus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINTS } from '../config/api';
@@ -95,8 +95,9 @@ interface BackgroundJobStatusResponse {
   skipped?: number;
 }
 
-const BREAKPOINTS = { lg: 1320, md: 1100, sm: 860, xs: 620, xxs: 0 };
-const COLUMNS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
+const BREAKPOINTS = { lg: 1320, md: 1100, sm: 860, xs: 620, xxs: 0 } as const;
+const COLUMNS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 } as const;
+type Breakpoint = keyof typeof BREAKPOINTS;
 
 async function fetchJson<T>(url: string, fallback: T): Promise<T> {
   try {
@@ -145,7 +146,7 @@ function mapStatus(status: number): string {
   return 'Unknown';
 }
 
-function widgetDensity(layouts: Layouts, breakpoint: keyof Layouts, id: string): 'compact' | 'comfortable' | 'expanded' {
+function widgetDensity(layouts: Record<string, Array<{ i: string; w?: number; h?: number }>>, breakpoint: string, id: string): 'compact' | 'comfortable' | 'expanded' {
   const entry = (layouts[breakpoint] || []).find((l) => l.i === id);
   const area = (entry?.w || 4) * (entry?.h || 5);
   return area <= 24 ? 'compact' : area <= 42 ? 'comfortable' : 'expanded';
@@ -155,37 +156,8 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const queryClient = useQueryClient();
   const [isEditMode, setIsEditMode] = useState(true);
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
-  const [currentBreakpoint, setCurrentBreakpoint] = useState<keyof Layouts>('lg');
-  const gridContainerRef = useRef<HTMLDivElement | null>(null);
-  const [gridWidth, setGridWidth] = useState(1320);
-
-  useEffect(() => {
-    const element = gridContainerRef.current;
-    if (!element) {
-      return;
-    }
-
-    const updateWidth = () => {
-      const width = Math.floor(element.getBoundingClientRect().width);
-      if (Number.isFinite(width) && width > 0) {
-        setGridWidth(width);
-      }
-    };
-
-    updateWidth();
-
-    const observer = new ResizeObserver(() => {
-      updateWidth();
-    });
-
-    observer.observe(element);
-    window.addEventListener('resize', updateWidth);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', updateWidth);
-    };
-  }, []);
+  const [currentBreakpoint, setCurrentBreakpoint] = useState<Breakpoint>('lg');
+  const { width: gridWidth, containerRef: gridContainerRef, mounted: gridMounted } = useContainerWidth({ initialWidth: 1320 });
 
   const printersQuery = useQuery({
     queryKey: ['dashboard', 'printers'],
@@ -671,6 +643,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       ) : null}
 
       <div className="relative" ref={gridContainerRef}>
+        {gridMounted && (
         <ResponsiveGridLayout
           className="command-center-grid"
           width={gridWidth}
@@ -679,18 +652,14 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           rowHeight={30}
           margin={[12, 12]}
           containerPadding={[0, 0]}
-          layouts={visibleLayouts}
-          isDraggable
-          isResizable
-          compactType={null}
-          preventCollision={false}
-          isBounded={false}
-          resizeHandles={['se', 'sw', 'ne', 'nw']}
-          draggableHandle=".widget-drag-handle"
-          onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as keyof Layouts)}
-          onLayoutChange={(_currentLayout, allLayouts) => handleLayoutsChange(allLayouts as Layouts)}
-          onDragStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
-          onResizeStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
+          layouts={visibleLayouts as never}
+          compactor={noCompactor}
+          dragConfig={{ enabled: true, handle: '.widget-drag-handle' }}
+          resizeConfig={{ enabled: true, handles: ['se', 'sw'] as never }}
+          onBreakpointChange={(nextBreakpoint: string) => setCurrentBreakpoint(nextBreakpoint as Breakpoint)}
+          onLayoutChange={(_layout: unknown, allLayouts: unknown) => handleLayoutsChange(allLayouts as never)}
+          onDragStop={(layout: unknown) => snapBreakpointLayout(currentBreakpoint, layout as never)}
+          onResizeStop={(layout: unknown) => snapBreakpointLayout(currentBreakpoint, layout as never)}
         >
           {visibleWidgetIds.includes('livePrinters') ? (
             <div key="livePrinters" className="h-full">
@@ -807,6 +776,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             </div>
           ) : null}
         </ResponsiveGridLayout>
+        )}
 
         {isEditMode && showWidgetLibrary ? (
           <aside className="absolute right-0 top-0 z-10 w-64 rounded-lg border border-white/15 bg-[rgba(10,12,17,0.97)] p-3 shadow-xl">

@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Layout, Layouts } from 'react-grid-layout';
+
+// Local grid types — intentionally decoupled from react-grid-layout version
+export interface GridItem {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+}
+export type GridLayouts = Partial<Record<string, GridItem[]>>;
+
+// Legacy aliases so callers that import Layout / Layouts still compile
+type Layout = GridItem;
+type Layouts = GridLayouts;
 
 export type DashboardWidgetId =
   | 'livePrinters'
