@@ -67,26 +67,35 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
         </button>
       </div>
 
-      <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+      <div className="space-y-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
         {visibleRows.map((printer) => (
-          <div key={printer.id} className="ops-clickable-card rounded-[3px] border border-transparent px-2 py-4 last:border-b-0">
+          <div key={printer.id} className="ops-clickable-card rounded-[3px] border border-transparent px-2 py-2.5 last:border-b-0">
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold leading-tight text-white/90">{printer.name}</p>
-                <p className="mt-1 truncate ops-tertiary-text">{printer.model}</p>
+              <div className="min-w-0 flex items-center gap-1.5">
+                {printer.online && printer.currentPrint ? (
+                  <span className="ops-pulse-dot inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+                ) : printer.online ? (
+                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600" aria-hidden />
+                ) : (
+                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-600" aria-hidden />
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold leading-tight text-white/90">{printer.name}</p>
+                  <p className="truncate ops-tertiary-text">{printer.model}</p>
+                </div>
               </div>
               <span
-                className={`rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-emerald-500/55 text-emerald-400' : 'border-rose-500/50 text-rose-500'}`}
+                className={`shrink-0 rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-emerald-500/55 text-emerald-400' : 'border-rose-500/50 text-rose-500'}`}
               >
                 {printer.online ? 'Online' : 'Offline'}
               </span>
             </div>
 
-            <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
               <div className={`h-full ${printer.online ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
             </div>
 
-            <div className="mt-2 flex items-center justify-between ops-tertiary-text">
+            <div className="mt-1.5 flex items-center justify-between ops-tertiary-text">
               <span className="truncate">{printer.currentPrint || printer.status || 'Idle'}</span>
               <span className="ops-data-value">{Math.max(0, Math.min(100, printer.progress || 0))}%</span>
             </div>

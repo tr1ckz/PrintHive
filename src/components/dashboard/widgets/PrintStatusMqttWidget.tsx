@@ -41,11 +41,11 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
           No printer telemetry available.
         </div>
       ) : (
-        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+        <div className="space-y-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
           {visibleRows.map((row) => {
             const progress = Math.max(0, Math.min(100, Number(row.progress || 0)));
             return (
-              <article key={row.id} className="ops-clickable-card rounded-[3px] border border-transparent px-2 py-4 last:border-b-0">
+              <article key={row.id} className="ops-clickable-card rounded-[3px] border border-transparent px-2 py-2.5 last:border-b-0">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold leading-tight text-white">{row.name}</p>
@@ -58,14 +58,14 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
                   </span>
                 </div>
 
-                <div className="mt-2 h-2 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
                   <div className={`h-full ${row.mqttConnected ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${progress}%` }} />
                 </div>
 
-                <div className="mt-2.5 flex items-center justify-between ops-tertiary-text">
+                <div className="mt-1.5 flex items-center justify-between ops-tertiary-text">
                   <span className="ops-data-value">{progress}%</span>
                   <span className="ops-data-value">
-                    N {Math.round(Number(row.nozzleTemp || 0))}C / B {Math.round(Number(row.bedTemp || 0))}C
+                    N {Math.round(Number(row.nozzleTemp || 0))}°C / B {Math.round(Number(row.bedTemp || 0))}°C
                   </span>
                 </div>
               </article>

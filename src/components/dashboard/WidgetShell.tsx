@@ -9,7 +9,7 @@ interface WidgetShellProps {
 
 function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShellProps) {
   return (
-    <article className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950 transition-[border-color,transform] duration-200 hover:-translate-y-[2px] hover:border-neutral-600">
+    <article className="widget-shell-outer group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950 transition-[border-color,transform] duration-200 hover:-translate-y-[2px] hover:border-neutral-600">
       <header className="widget-drag-handle flex shrink-0 cursor-grab items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-950 px-5 py-3 active:cursor-grabbing">
         <div className="flex min-w-0 items-center gap-2">
           <span

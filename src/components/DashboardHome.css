@@ -302,3 +302,36 @@
     min-height: 420px;
   }
 }
+
+/* Widget shell: orange left accent edge + top gradient shimmer */
+.widget-shell-outer {
+  border-left-color: rgba(251, 146, 60, 0.38) !important;
+  border-left-width: 2px !important;
+}
+
+.widget-shell-outer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.5) 0%, transparent 52%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Pulsing status dot for live/active states */
+@keyframes ops-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.75); }
+}
+
+.ops-pulse-dot {
+  animation: ops-pulse-dot 2s ease-in-out infinite;
+}
+
+/* Status-tinted card backgrounds */
+.ops-card-tint-success { background-color: rgba(6, 78, 59, 0.25) !important; }
+.ops-card-tint-warning { background-color: rgba(120, 53, 15, 0.22) !important; }
+.ops-card-tint-failure { background-color: rgba(76, 5, 25, 0.25) !important; }

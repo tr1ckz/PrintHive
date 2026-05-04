@@ -17,7 +17,7 @@ interface QueuePressureWidgetProps {
 function QueuePressureWidget({ summary, density = 'comfortable', onRefresh, onOpenMaintenance, onOpenPrinters }: QueuePressureWidgetProps) {
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
         <p className="ops-secondary-text">Queue Pressure</p>
         <p className="mt-1.5 text-3xl font-bold leading-tight text-white">{summary.pressureScore}%</p>
         <div className="mt-2 h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">

@@ -37,7 +37,7 @@ function MaterialUsageWidget({
         {cards.map((card) => {
           const widthPct = Math.max(8, Math.min(100, Math.round((card.value / maxWindowWeight) * 100)));
           return (
-            <article key={card.id} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+            <article key={card.id} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
               <p className="ops-secondary-text">{card.label}</p>
               <p className="mt-2 text-xl font-bold leading-tight text-white">{formatWeight(card.value)}</p>
               <div className="mt-2 h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
@@ -51,7 +51,7 @@ function MaterialUsageWidget({
         })}
       </div>
 
-      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="ops-secondary-text">All-Time Filament Used</p>
           <p className="ops-tertiary-text">{Math.max(0, Math.min(100, Math.round(successSharePct)))}% successful</p>

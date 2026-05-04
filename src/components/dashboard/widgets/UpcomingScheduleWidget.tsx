@@ -43,20 +43,27 @@ function UpcomingScheduleWidget({ items, density = 'comfortable' }: UpcomingSche
           No scheduled maintenance tasks.
         </div>
       ) : (
-        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
-          {visibleItems.map((item) => (
-            <div key={item.id} className="border-b border-neutral-800 py-3 last:border-b-0">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-white">{item.title}</p>
-                  <p className="mt-1 truncate text-neutral-500 text-xs">{item.printer}</p>
+        <div className="space-y-1 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
+          {visibleItems.map((item) => {
+            const dueBadgeClass = item.overdue
+              ? 'border-rose-500/50 text-rose-400'
+              : item.hoursUntilDue !== null && item.hoursUntilDue <= 168
+              ? 'border-amber-500/50 text-amber-400'
+              : 'border-neutral-700 text-neutral-400';
+            return (
+              <div key={item.id} className="border-b border-neutral-800 py-2.5 last:border-b-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-white">{item.title}</p>
+                    <p className="mt-0.5 truncate text-neutral-500 text-xs">{item.printer}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-[3px] border px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] ${dueBadgeClass}`}>
+                    {item.dueLabel}
+                  </span>
                 </div>
-                <span className="rounded-[3px] border border-neutral-700 px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] text-neutral-300">
-                  {item.dueLabel}
-                </span>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {filtered.length > limit ? (
             <p className="text-[10px] uppercase tracking-[0.08em] text-white/45">Showing {limit} of {filtered.length} tasks.</p>
