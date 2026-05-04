@@ -26,13 +26,13 @@ function UpcomingScheduleWidget({ items, density = 'comfortable' }: UpcomingSche
   const visibleItems = filtered.slice(0, limit);
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full flex-col gap-2.5">
       <div className="flex items-center justify-between gap-2">
         <p className="ops-secondary-text">Maintenance Queue</p>
         <button
           type="button"
           onClick={() => setShowOverdueOnly((current) => !current)}
-          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
         >
           {showOverdueOnly ? 'All' : 'Overdue'}
         </button>
@@ -43,7 +43,7 @@ function UpcomingScheduleWidget({ items, density = 'comfortable' }: UpcomingSche
           No scheduled maintenance tasks.
         </div>
       ) : (
-        <div className="space-y-1 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
+        <div className="space-y-1 rounded-[4px] border border-neutral-800 bg-neutral-900 p-2.5">
           {visibleItems.map((item) => {
             const dueBadgeClass = item.overdue
               ? 'border-rose-500/50 text-rose-400'
@@ -51,7 +51,7 @@ function UpcomingScheduleWidget({ items, density = 'comfortable' }: UpcomingSche
               ? 'border-amber-500/50 text-amber-400'
               : 'border-neutral-700 text-neutral-400';
             return (
-              <div key={item.id} className="border-b border-neutral-800 py-2.5 last:border-b-0">
+              <div key={item.id} className="border-b border-neutral-800 py-2 last:border-b-0">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-white">{item.title}</p>

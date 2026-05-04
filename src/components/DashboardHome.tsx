@@ -650,8 +650,8 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           margin={[12, 12]}
           containerPadding={[0, 0]}
           layouts={visibleLayouts as ResponsiveLayouts}
-          isDraggable
-          isResizable
+          isDraggable={isEditMode}
+          isResizable={isEditMode}
           compactType="vertical"
           preventCollision={false}
           isBounded={false}

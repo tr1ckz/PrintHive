@@ -384,14 +384,6 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   } = options;
 
   const localState = useMemo(() => readLocalState(storageKey), [storageKey]);
-  const localHasCustomState = useMemo(() => {
-    if (!localState) {
-      return false;
-    }
-
-    return !layoutsEqual(localState.layouts, DEFAULT_NORMALIZED_LAYOUTS)
-      || !hiddenIdsEqual(localState.hiddenWidgetIds, DEFAULT_HIDDEN_WIDGET_IDS);
-  }, [localState]);
   const [layouts, setLayouts] = useState<Layouts>(localState?.layouts || normalizeLayouts(defaultDashboardLayouts));
   const [hiddenWidgetIds, setHiddenWidgetIds] = useState<DashboardWidgetId[]>(localState?.hiddenWidgetIds || [...DEFAULT_HIDDEN_WIDGET_IDS]);
 
@@ -415,16 +407,18 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
       const backendHiddenIds = withDefaultHidden(normalizeHiddenIds(backendState.hiddenWidgetIds), backendVersion);
       const backendLooksDefault = layoutsEqual(backendLayouts, DEFAULT_NORMALIZED_LAYOUTS)
         && hiddenIdsEqual(backendHiddenIds, DEFAULT_HIDDEN_WIDGET_IDS);
+      const currentLooksCustom = !layoutsEqual(layouts, DEFAULT_NORMALIZED_LAYOUTS)
+        || !hiddenIdsEqual(hiddenWidgetIds, DEFAULT_HIDDEN_WIDGET_IDS);
 
-      // Keep local customized layout if backend still only has generated defaults.
-      if (!(localHasCustomState && backendLooksDefault)) {
+      // Keep current customized layout if backend still only has generated defaults.
+      if (!(currentLooksCustom && backendLooksDefault)) {
         setLayouts(backendLayouts);
         setHiddenWidgetIds(backendHiddenIds);
       }
     }
 
     didHydrateBackendRef.current = true;
-  }, [backendReady, backendState, localHasCustomState]);
+  }, [backendReady, backendState, layouts, hiddenWidgetIds]);
 
   useEffect(() => {
     const payload: DashboardLayoutPreferences = {

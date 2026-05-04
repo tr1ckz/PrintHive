@@ -250,7 +250,7 @@
 }
 
 .widget-shell-body {
-  padding: 16px !important;
+  padding: 10px !important;
 }
 
 /* Unified dark scrollbars for widget scroll regions. */
@@ -289,7 +289,7 @@
 
 @media (max-width: 860px) {
   .widget-shell-body {
-    padding: 12px !important;
+    padding: 8px !important;
   }
 }
 

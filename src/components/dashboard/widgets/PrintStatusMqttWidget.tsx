@@ -24,15 +24,15 @@ function PrintStatusMqttWidget({ rows, density = 'comfortable', onOpenPrinters }
   const printing = rows.filter((row) => (row.status || '').toUpperCase() === 'RUNNING').length;
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="ops-clickable-card rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+    <div className="flex h-full flex-col gap-2.5">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="ops-clickable-card rounded-[4px] border border-neutral-800 bg-neutral-900 p-2.5">
           <p className="ops-secondary-text">MQTT Links</p>
-          <p className={`ops-data-value mt-1.5 text-2xl font-bold leading-tight ${mqttConnected === (rows.length || 0) ? 'text-emerald-400' : 'text-amber-400'}`}>{mqttConnected}/{rows.length || 0}</p>
+          <p className={`ops-data-value mt-1 text-2xl font-bold leading-tight ${mqttConnected === (rows.length || 0) ? 'text-emerald-400' : 'text-amber-400'}`}>{mqttConnected}/{rows.length || 0}</p>
         </div>
-        <div className="ops-clickable-card rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+        <div className="ops-clickable-card rounded-[4px] border border-neutral-800 bg-neutral-900 p-2.5">
           <p className="ops-secondary-text">Printing</p>
-          <p className={`ops-data-value mt-1.5 text-2xl font-bold leading-tight ${printing > 0 ? 'text-emerald-400' : 'text-white'}`}>{printing}</p>
+          <p className={`ops-data-value mt-1 text-2xl font-bold leading-tight ${printing > 0 ? 'text-emerald-400' : 'text-white'}`}>{printing}</p>
         </div>
       </div>
 

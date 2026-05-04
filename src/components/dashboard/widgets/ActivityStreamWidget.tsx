@@ -39,8 +39,8 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap gap-1.5 rounded-[4px] border border-neutral-800 bg-neutral-900 p-2">
         {(['all', 'running', 'success', 'failed'] as const).map((filter) => (
           <button
             key={filter}
@@ -53,7 +53,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
         ))}
       </div>
 
-      <div className={`grid gap-3 ${density === 'compact' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+      <div className={`grid gap-2 ${density === 'compact' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
       {visibleRows.map((row) => {
         const statusKey = row.status.toLowerCase();
         const isSuccess = statusKey === 'success' || statusKey === 'finished' || statusKey === 'complete' || statusKey === 'completed';
@@ -74,7 +74,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
         const progressPct = Math.max(6, Math.min(100, row.progressPct ?? (isRunning ? 50 : 100)));
 
         return (
-          <article key={row.id} className={`ops-clickable-card ${cardTint} relative rounded-[4px] border border-neutral-800 border-l-[3px] ${cardLeftBorder} bg-neutral-900 p-4`}>
+          <article key={row.id} className={`ops-clickable-card ${cardTint} relative rounded-[4px] border border-neutral-800 border-l-[3px] ${cardLeftBorder} bg-neutral-900 p-2.5`}>
             <span className={`absolute right-2 top-2 z-10 shrink-0 rounded-[3px] border bg-neutral-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${badgeClass}`}>
               {isRunning ? (
                 <span className="inline-flex items-center gap-1">
@@ -84,7 +84,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
               ) : row.status}
             </span>
 
-            <div className="relative mb-3 h-24 overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950">
+            <div className="relative mb-2 h-20 overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950">
               {row.thumbnailUrl ? (
                 <img
                   src={row.thumbnailUrl}
@@ -100,7 +100,7 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
               <div className="absolute inset-0 bg-black/25" />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-start justify-between gap-2 pr-20">
                 <p className="truncate text-sm font-bold text-white">{row.title}</p>
               </div>
