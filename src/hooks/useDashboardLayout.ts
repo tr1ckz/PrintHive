@@ -48,7 +48,7 @@ const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = [
 
 export const dashboardWidgetRegistry: DashboardWidgetRegistryItem[] = [
   { id: 'livePrinters', title: 'Live Printers' },
-  { id: 'healthSummary', title: 'Health Summary' },
+  { id: 'healthSummary', title: 'Quick Stats' },
   { id: 'fleetAlerts', title: 'Fleet Alerts' },
   { id: 'backgroundJobs', title: 'Background Jobs' },
   { id: 'activityStream', title: 'Activity Stream' },

@@ -6,7 +6,7 @@ import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import useDashboardLayout, { DashboardLayoutPreferences, dashboardWidgetRegistry } from '../hooks/useDashboardLayout';
 import WidgetShell from './dashboard/WidgetShell';
-import HealthSummaryWidget from './dashboard/widgets/HealthSummaryWidget';
+import QuickStatsWidget from './dashboard/widgets/QuickStatsWidget';
 import ActivityStreamWidget, { ActivityRow } from './dashboard/widgets/ActivityStreamWidget';
 import UpcomingScheduleWidget, { ScheduleItem } from './dashboard/widgets/UpcomingScheduleWidget';
 import LivePrintersWidget, { LivePrinterRow } from './dashboard/widgets/LivePrintersWidget';
@@ -47,7 +47,9 @@ interface StatisticsResponse {
 
 interface PrintActivityApiRow {
   id: number;
+  modelId?: string;
   title: string;
+  cover?: string | null;
   status: number;
   startTime?: string;
   deviceName?: string;
@@ -269,55 +271,16 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     return Array.isArray(value) ? value : [];
   }, [activityQuery.data]);
 
-  const healthSummary = useMemo(() => {
+  const quickStats = useMemo(() => {
     const onlinePrinters = printers.filter((printer) => printer.online).length;
     const activeJobs = printers.filter((printer) => printer.online && printer.currentPrint).length;
 
     return {
-      fleet: [
-        {
-          label: 'Online Ratio',
-          value: `${onlinePrinters}/${printers.length || 0}`,
-          tone: onlinePrinters < Math.max(1, printers.length) ? 'warn' : 'good',
-        },
-        {
-          label: 'Active Jobs',
-          value: `${activeJobs}`,
-          tone: activeJobs > 0 ? 'good' : 'neutral',
-        },
-        {
-          label: 'Library Size',
-          value: `${libraryQuery.data?.length || 0}`,
-          tone: 'neutral',
-        },
-        {
-          label: 'Maintenance Alerts',
-          value: `${(maintenanceQuery.data || []).filter((task) => task.isOverdue).length}`,
-          tone: (maintenanceQuery.data || []).some((task) => task.isOverdue) ? 'bad' : 'good',
-        },
-      ] as const,
-      quality: [
-        {
-          label: 'Success Rate',
-          value: `${Math.round(stats?.successRate || 0)}%`,
-          tone: (stats?.successRate || 0) >= 90 ? 'good' : (stats?.successRate || 0) >= 75 ? 'warn' : 'bad',
-        },
-        {
-          label: 'Failed Prints',
-          value: `${stats?.failedPrints || 0}`,
-          tone: (stats?.failedPrints || 0) > 10 ? 'bad' : (stats?.failedPrints || 0) > 0 ? 'warn' : 'good',
-        },
-        {
-          label: 'Total Prints',
-          value: `${stats?.totalPrints || 0}`,
-          tone: 'neutral',
-        },
-        {
-          label: 'Print Hours',
-          value: formatDuration(stats?.totalTime || 0),
-          tone: 'neutral',
-        },
-      ] as const,
+      printersOnlineLabel: `${onlinePrinters}/${printers.length || 0}`,
+      totalPrints: Number(stats?.totalPrints || 0),
+      successRate: Math.round(stats?.successRate || 0),
+      libraryModels: Number(libraryQuery.data?.length || 0),
+      activeJobs,
     };
   }, [printers, libraryQuery.data, maintenanceQuery.data, stats]);
 
@@ -330,6 +293,8 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       startedAt: formatDateLabel(row.startTime),
       durationLabel: formatDuration(row.costTime),
       weightLabel: row.weight && row.weight > 0 ? `${Math.round(row.weight)}g` : 'n/a',
+      thumbnailUrl: row.cover || (row.modelId ? `/images/covers/${row.modelId}.jpg` : null),
+      progressPct: Number(row.status || 0) === 1 || Number(row.status || 0) === 4 ? 55 : 100,
     }));
   }, [activityRaw]);
 
@@ -573,13 +538,12 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
 
           {visibleWidgetIds.includes('healthSummary') ? (
             <div key="healthSummary" className="h-full">
-              <WidgetShell title="Health Summary" isEditMode={isEditMode} onHide={() => hideWidget('healthSummary')}>
-                <HealthSummaryWidget
-                  fleetMetrics={[...healthSummary.fleet]}
-                  qualityMetrics={[...healthSummary.quality]}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'healthSummary')}
-                  onOpenPrinters={() => onNavigate('printers')}
-                  onOpenMaintenance={() => onNavigate('maintenance')}
+              <WidgetShell title="Quick Stats" isEditMode={isEditMode} onHide={() => hideWidget('healthSummary')}>
+                <QuickStatsWidget
+                  printersOnlineLabel={quickStats.printersOnlineLabel}
+                  totalPrints={quickStats.totalPrints}
+                  successRate={quickStats.successRate}
+                  libraryModels={quickStats.libraryModels}
                 />
               </WidgetShell>
             </div>
