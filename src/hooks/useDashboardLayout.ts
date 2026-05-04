@@ -309,7 +309,7 @@ function readLocalState(storageKey: string): DashboardLayoutPreferences | null {
 
 export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   const {
-    storageKey = 'printhive.command-center.layout.v2',
+    storageKey = 'printhive.command-center.layout.v3',
     backendState,
     backendReady,
     onPersist,
