@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import './DashboardHome.css';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import { useRealtimeTick } from '../hooks/useRealtimeTick';
 
 interface PrinterStatus {
   id: string;
@@ -50,6 +51,14 @@ interface DashboardWidgetPrefs {
 interface DashboardHomeProps {
   onNavigate: (tab: string) => void;
 }
+
+const WIDGET_LABELS: Record<WidgetId, string> = {
+  activePrints: 'Active Prints',
+  printers: 'Printers',
+  recentPrints: 'Recent Prints',
+  quickStats: 'Statistics',
+  quickActions: 'Quick Actions',
+};
 
 const DEFAULT_PREFS: DashboardWidgetPrefs = {
   version: 1,
@@ -252,6 +261,10 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
     };
   }, [effectivePrefs.refreshSeconds, loadDashboardData]);
 
+  useRealtimeTick(() => {
+    void loadDashboardData();
+  }, { minIntervalMs: 5000 });
+
   const updateDraft = (updater: (current: DashboardWidgetPrefs) => DashboardWidgetPrefs) => {
     setDraftPrefs((current) => {
       const next = sanitizePrefs(updater(current));
@@ -448,8 +461,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
                 <div key={id} className="customize-item-row">
                   <span>{statConfigs[id].label}</span>
                   <div className="item-actions">
-                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, statsOrder: moveItem(current.statsOrder, index, -1) }))}>?</button>
-                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, statsOrder: moveItem(current.statsOrder, index, 1) }))}>?</button>
+                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, statsOrder: moveItem(current.statsOrder, index, -1) }))}>Up</button>
+                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, statsOrder: moveItem(current.statsOrder, index, 1) }))}>Down</button>
                     <button
                       type="button"
                       onClick={() => updateDraft((current) => ({
@@ -470,10 +483,10 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigate }) => {
               <h4>Widgets</h4>
               {draftPrefs.widgetOrder.map((id, index) => (
                 <div key={id} className="customize-item-row">
-                  <span>{id}</span>
+                  <span>{WIDGET_LABELS[id]}</span>
                   <div className="item-actions">
-                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, widgetOrder: moveItem(current.widgetOrder, index, -1) }))}>?</button>
-                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, widgetOrder: moveItem(current.widgetOrder, index, 1) }))}>?</button>
+                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, widgetOrder: moveItem(current.widgetOrder, index, -1) }))}>Up</button>
+                    <button type="button" onClick={() => updateDraft((current) => ({ ...current, widgetOrder: moveItem(current.widgetOrder, index, 1) }))}>Down</button>
                     <button
                       type="button"
                       onClick={() => updateDraft((current) => ({

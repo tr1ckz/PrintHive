@@ -5,6 +5,7 @@ import './Statistics.css';
 import LoadingScreen from './LoadingScreen';
 import { formatNumber, formatCurrency, formatWeight, formatDuration, formatPercentage } from '../utils/formatters';
 import { exportToCSV } from '../utils/csvExport';
+import { useRealtimeTick } from '../hooks/useRealtimeTick';
 
 interface StatisticsData {
   totalPrints: number;
@@ -129,6 +130,10 @@ const Statistics: React.FC = () => {
   useEffect(() => {
     void fetchStatistics();
   }, [fetchStatistics]);
+
+  useRealtimeTick(() => {
+    void fetchStatistics();
+  }, { minIntervalMs: 12000 });
 
   const materialRows = useMemo<MaterialRowData[]>(() => {
     if (!stats) return [];

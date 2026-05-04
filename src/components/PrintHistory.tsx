@@ -9,6 +9,7 @@ import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { formatDuration, formatWeight } from '../utils/formatters';
 import { exportToCSV } from '../utils/csvExport';
+import { useRealtimeTick } from '../hooks/useRealtimeTick';
 interface Print {
   id: number;
   modelId: string;
@@ -169,6 +170,10 @@ const PrintHistory: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  useRealtimeTick(() => {
+    void fetchPrints();
+  }, { minIntervalMs: 10000 });
 
   const handleSync = async () => {
     try {

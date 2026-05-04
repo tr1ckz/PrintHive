@@ -5,6 +5,7 @@ import './Maintenance.css';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useEscapeKey } from '../hooks/useKeyboardShortcut';
+import { useRealtimeTick } from '../hooks/useRealtimeTick';
 
 interface MaintenanceTask {
   id: number;
@@ -105,6 +106,10 @@ function Maintenance() {
     
     return () => clearInterval(refreshInterval);
   }, []);
+
+  useRealtimeTick(() => {
+    void loadTasks();
+  }, { minIntervalMs: 12000 });
 
   useEffect(() => {
     // Set first printer as default when printers load

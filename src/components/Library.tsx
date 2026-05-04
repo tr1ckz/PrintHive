@@ -11,6 +11,7 @@ import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useDebounce } from '../hooks/useDebounce';
 import { formatFileSize } from '../utils/formatters';
 import { useEscapeKey } from '../hooks/useKeyboardShortcut';
+import { useRealtimeTick } from '../hooks/useRealtimeTick';
 
 interface LibraryFile {
   id: number;
@@ -102,6 +103,10 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   useEffect(() => {
     fetchFiles();
   }, [fetchFiles]);
+
+  useRealtimeTick(() => {
+    void fetchFiles();
+  }, { minIntervalMs: 10000 });
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
