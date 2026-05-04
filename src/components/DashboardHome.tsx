@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useRealtimeTick } from '../hooks/useRealtimeTick';
-import useDashboardLayout, { DashboardLayoutPreferences, DashboardWidgetId, dashboardWidgetRegistry } from '../hooks/useDashboardLayout';
+import useDashboardLayout, { DashboardLayoutPreferences, dashboardWidgetRegistry } from '../hooks/useDashboardLayout';
 import WidgetShell from './dashboard/WidgetShell';
 import HealthSummaryWidget from './dashboard/widgets/HealthSummaryWidget';
 import ActivityStreamWidget, { ActivityRow } from './dashboard/widgets/ActivityStreamWidget';
@@ -546,7 +546,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
 
   if (isInitialLoading) {
     return (
-      <div className="flex min-h-[38vh] items-center justify-center rounded-md border border-white/10 bg-black/20 text-sm text-white/60">
+      <div className="flex min-h-[50vh] items-center justify-center text-base text-white/50">
         Loading command center data...
       </div>
     );
