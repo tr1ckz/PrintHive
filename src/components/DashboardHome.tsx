@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import ReactGridLayout, { Layouts } from 'react-grid-layout';
+import { Layouts, ResponsiveGridLayout } from 'react-grid-layout';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
@@ -69,8 +69,6 @@ interface DatabaseSettings {
   remoteBackupEnabled: boolean;
   lastBackupDate?: string | null;
 }
-
-const ResponsiveGridLayout = ReactGridLayout.WidthProvider(ReactGridLayout.Responsive);
 
 const BREAKPOINTS = { lg: 1320, md: 1100, sm: 860, xs: 620, xxs: 0 };
 const COLUMNS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
