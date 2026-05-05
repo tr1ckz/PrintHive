@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Layout, ResponsiveLayouts, Responsive, WidthProvider } from 'react-grid-layout/legacy';
+import { ResponsiveLayouts, Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import { LayoutGrid, Plus } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { API_ENDPOINTS } from '../config/api';
@@ -261,7 +261,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     hideWidget,
     snapAllWidgets,
     flushPersist,
-    handleLayoutsChange,
   } = useDashboardLayout({
     backendState: dashboardLayoutSettingsQuery.data,
     backendReady: dashboardLayoutSettingsQuery.isFetched || dashboardLayoutSettingsQuery.isError,
@@ -667,7 +666,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           draggableHandle=".widget-drag-handle"
           draggableCancel=".widget-no-drag,.react-resizable-handle,button,a,input,textarea,select"
           onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as Breakpoint)}
-          onLayoutChange={(_currentLayout, allLayouts) => handleLayoutsChange(allLayouts as unknown as Record<string, Layout[]>)}
           onDragStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
           onResizeStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
         >

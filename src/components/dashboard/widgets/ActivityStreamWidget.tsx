@@ -90,6 +90,8 @@ function ActivityStreamWidget({ rows, density = 'comfortable' }: ActivityStreamW
                   src={row.thumbnailUrl}
                   alt={row.title}
                   loading="lazy"
+                  decoding="async"
+                  fetchPriority="low"
                   className="h-full w-full object-cover object-center"
                   onError={(event) => {
                     event.currentTarget.style.display = 'none';

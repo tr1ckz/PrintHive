@@ -39,6 +39,19 @@ type SnapProfile = {
   heights: number[];
 };
 
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
+};
+
+function runWhenIdle(callback: () => void): void {
+  const idleWindow = window as IdleWindow;
+  if (typeof idleWindow.requestIdleCallback === 'function') {
+    idleWindow.requestIdleCallback(callback, { timeout: 800 });
+    return;
+  }
+  window.setTimeout(callback, 0);
+}
+
 const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = [
   'livePrinters',
   'healthSummary',
@@ -455,7 +468,9 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
 
     persistTimerRef.current = window.setTimeout(() => {
       lastPersistSignatureRef.current = payloadSignature;
-      onPersistRef.current?.(payload);
+      runWhenIdle(() => {
+        onPersistRef.current?.(payload);
+      });
     }, saveDebounceMs);
 
     return () => {
