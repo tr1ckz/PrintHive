@@ -516,6 +516,13 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     }
   }, [printersQuery, maintenanceQuery, backgroundJobsQuery, visibleWidgetIds]);
 
+  const commitWidgetLayoutInteraction = useCallback((currentLayout: Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>) => {
+    snapBreakpointLayout(currentBreakpoint, currentLayout as unknown as Parameters<typeof snapBreakpointLayout>[1]);
+    window.setTimeout(() => {
+      flushPersist();
+    }, 0);
+  }, [snapBreakpointLayout, currentBreakpoint, flushPersist]);
+
   const operationalSnapshot = useMemo(() => {
     const onlinePrinters = printers.filter((printer) => printer.online).length;
     const activePrints = printers.filter((printer) => printer.online && printer.currentPrint).length;
@@ -666,8 +673,8 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
           draggableHandle=".widget-drag-handle"
           draggableCancel=".widget-no-drag,.react-resizable-handle,button,a,input,textarea,select"
           onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as Breakpoint)}
-          onDragStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
-          onResizeStop={(currentLayout) => snapBreakpointLayout(currentBreakpoint, currentLayout as Layout[])}
+          onDragStop={(currentLayout) => commitWidgetLayoutInteraction(currentLayout as Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>)}
+          onResizeStop={(currentLayout) => commitWidgetLayoutInteraction(currentLayout as Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>)}
         >
           {visibleWidgetIds.includes('livePrinters') ? (
             <div key="livePrinters" className="h-full">

@@ -399,6 +399,8 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   const localState = useMemo(() => readLocalState(storageKey), [storageKey]);
   const [layouts, setLayouts] = useState<Layouts>(localState?.layouts || normalizeLayouts(defaultDashboardLayouts));
   const [hiddenWidgetIds, setHiddenWidgetIds] = useState<DashboardWidgetId[]>(localState?.hiddenWidgetIds || [...DEFAULT_HIDDEN_WIDGET_IDS]);
+  const layoutsRef = useRef<Layouts>(localState?.layouts || normalizeLayouts(defaultDashboardLayouts));
+  const hiddenWidgetIdsRef = useRef<DashboardWidgetId[]>(localState?.hiddenWidgetIds || [...DEFAULT_HIDDEN_WIDGET_IDS]);
 
   const didHydrateBackendRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
@@ -416,6 +418,14 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   }, [onPersist]);
 
   useEffect(() => {
+    layoutsRef.current = layouts;
+  }, [layouts]);
+
+  useEffect(() => {
+    hiddenWidgetIdsRef.current = hiddenWidgetIds;
+  }, [hiddenWidgetIds]);
+
+  useEffect(() => {
     if (!backendReady || didHydrateBackendRef.current) {
       return;
     }
@@ -431,6 +441,8 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
 
       // Keep current customized layout if backend still only has generated defaults.
       if (!(currentLooksCustom && backendLooksDefault)) {
+        layoutsRef.current = backendLayouts;
+        hiddenWidgetIdsRef.current = backendHiddenIds;
         setLayouts(backendLayouts);
         setHiddenWidgetIds(backendHiddenIds);
       }
@@ -525,6 +537,8 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
         [breakpoint]: Array.from(byId.values()),
       });
 
+      layoutsRef.current = next;
+
       return layoutsEqual(current, next) ? current : next;
     });
   }, []);
@@ -532,27 +546,35 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   const hideWidget = useCallback((widgetId: DashboardWidgetId) => {
     setHiddenWidgetIds((current) => {
       if (current.includes(widgetId)) return current;
-      return [...current, widgetId];
+      const next = [...current, widgetId];
+      hiddenWidgetIdsRef.current = next;
+      return next;
     });
   }, []);
 
   const showWidget = useCallback((widgetId: DashboardWidgetId) => {
-    setHiddenWidgetIds((current) => current.filter((id) => id !== widgetId));
+    setHiddenWidgetIds((current) => {
+      const next = current.filter((id) => id !== widgetId);
+      hiddenWidgetIdsRef.current = next;
+      return next;
+    });
   }, []);
 
   const setAllVisible = useCallback(() => {
+    hiddenWidgetIdsRef.current = [];
     setHiddenWidgetIds([]);
   }, []);
 
   const snapAllWidgets = useCallback(() => {
     setLayouts((current) => {
       const next = normalizeLayouts(current);
+      layoutsRef.current = next;
       return layoutsEqual(current, next) ? current : next;
     });
   }, []);
 
   const flushPersist = useCallback(() => {
-    const payload = buildPayload(layouts, hiddenWidgetIds);
+    const payload = buildPayload(layoutsRef.current, hiddenWidgetIdsRef.current);
     const payloadSignature = JSON.stringify(payload);
 
     try {
@@ -573,7 +595,7 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
 
     lastPersistSignatureRef.current = payloadSignature;
     onPersistRef.current(payload);
-  }, [layouts, hiddenWidgetIds, storageKey, backendReady, buildPayload]);
+  }, [storageKey, backendReady, buildPayload]);
 
   return {
     widgetRegistry: dashboardWidgetRegistry,

@@ -10,10 +10,10 @@ interface WidgetShellProps {
 function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShellProps) {
   return (
     <article className="widget-shell-outer group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950 transition-[border-color,transform] duration-200 hover:-translate-y-[2px] hover:border-neutral-600">
-      <header className="widget-drag-handle flex shrink-0 cursor-grab items-center justify-between gap-2 border-b border-neutral-800 bg-neutral-950 px-3 py-2 active:cursor-grabbing">
+      <header className={`${isEditMode ? 'widget-drag-handle cursor-grab active:cursor-grabbing' : 'cursor-default'} flex shrink-0 items-center justify-between gap-2 border-b border-neutral-800 bg-neutral-950 px-3 py-2`}>
         <div className="flex min-w-0 items-center gap-2">
           <span
-            className="inline-flex h-4 w-4 select-none items-center justify-center rounded-[3px] border border-neutral-700 bg-neutral-950 text-[9px] font-bold text-neutral-500"
+            className={`inline-flex h-4 w-4 select-none items-center justify-center rounded-[3px] border bg-neutral-950 text-[9px] font-bold ${isEditMode ? 'border-neutral-700 text-neutral-500' : 'border-neutral-800 text-neutral-700'}`}
             aria-hidden
           >
             ⠿
