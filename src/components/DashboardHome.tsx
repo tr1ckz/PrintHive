@@ -145,7 +145,7 @@ function widgetDensity(layouts: Record<string, Array<{ i: string; w?: number; h?
 }
 
 function DashboardHome({ onNavigate }: DashboardHomeProps) {
-  const [isEditMode, setIsEditMode] = useState(true);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
   const [currentBreakpoint, setCurrentBreakpoint] = useState<Breakpoint>('lg');
   const [isPageVisible, setIsPageVisible] = useState<boolean>(() => (
@@ -260,6 +260,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     showWidget,
     hideWidget,
     snapAllWidgets,
+    flushPersist,
     handleLayoutsChange,
   } = useDashboardLayout({
     backendState: dashboardLayoutSettingsQuery.data,
@@ -570,9 +571,16 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             <button
               type="button"
               onClick={() => {
-                const next = !isEditMode;
-                setIsEditMode(next);
-                setShowWidgetLibrary(next);
+                if (isEditMode) {
+                  snapAllWidgets();
+                  flushPersist();
+                  setIsEditMode(false);
+                  setShowWidgetLibrary(false);
+                  return;
+                }
+
+                setIsEditMode(true);
+                setShowWidgetLibrary(true);
               }}
               className={`inline-flex items-center gap-1.5 rounded-[4px] border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] ${isEditMode ? 'border-orange-500 bg-orange-500 text-white' : 'border-neutral-800 bg-neutral-900 text-white hover:border-neutral-700'}`}
             >

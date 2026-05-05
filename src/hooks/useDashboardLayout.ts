@@ -392,6 +392,12 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   const onPersistRef = useRef(onPersist);
   const lastPersistSignatureRef = useRef('');
 
+  const buildPayload = useCallback((nextLayouts: Layouts, nextHiddenWidgetIds: DashboardWidgetId[]): DashboardLayoutPreferences => ({
+    version: 3,
+    layouts: nextLayouts,
+    hiddenWidgetIds: nextHiddenWidgetIds,
+  }), []);
+
   useEffect(() => {
     onPersistRef.current = onPersist;
   }, [onPersist]);
@@ -421,11 +427,7 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   }, [backendReady, backendState, layouts, hiddenWidgetIds]);
 
   useEffect(() => {
-    const payload: DashboardLayoutPreferences = {
-      version: 3,
-      layouts,
-      hiddenWidgetIds,
-    };
+    const payload = buildPayload(layouts, hiddenWidgetIds);
     const payloadSignature = JSON.stringify(payload);
 
     try {
@@ -461,7 +463,7 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
         window.clearTimeout(persistTimerRef.current);
       }
     };
-  }, [layouts, hiddenWidgetIds, storageKey, backendReady, saveDebounceMs]);
+  }, [layouts, hiddenWidgetIds, storageKey, backendReady, saveDebounceMs, buildPayload]);
 
   const visibleWidgetIds = useMemo(
     () => DASHBOARD_WIDGET_IDS.filter((id) => !hiddenWidgetIds.includes(id)),
@@ -534,6 +536,30 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     });
   }, []);
 
+  const flushPersist = useCallback(() => {
+    const payload = buildPayload(layouts, hiddenWidgetIds);
+    const payloadSignature = JSON.stringify(payload);
+
+    try {
+      window.localStorage.setItem(storageKey, payloadSignature);
+    } catch {
+      // Ignore storage errors and continue with in-memory layout.
+    }
+
+    if (!backendReady || !didHydrateBackendRef.current || !onPersistRef.current) {
+      lastPersistSignatureRef.current = payloadSignature;
+      return;
+    }
+
+    if (persistTimerRef.current) {
+      window.clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+
+    lastPersistSignatureRef.current = payloadSignature;
+    onPersistRef.current(payload);
+  }, [layouts, hiddenWidgetIds, storageKey, backendReady, buildPayload]);
+
   return {
     widgetRegistry: dashboardWidgetRegistry,
     layouts,
@@ -546,6 +572,7 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     showWidget,
     setAllVisible,
     snapAllWidgets,
+    flushPersist,
   };
 }
 
