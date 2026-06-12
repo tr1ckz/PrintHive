@@ -143,7 +143,7 @@ function Login({ onLoginSuccess }: LoginProps) {
                 <span className="login-divider-text">or</span>
                 <span className="login-divider-line"></span>
               </div>
-              
+
               {oauthProvider === 'google' && (
                 <a href="/auth/google" className="btn-oauth btn-google">
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>

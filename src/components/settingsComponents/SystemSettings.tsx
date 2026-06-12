@@ -835,17 +835,17 @@ export function SystemSettings() {
           </div>
 
           {/* Restore */}
-          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(var(--theme-accent-rgb), 0.2)' }}>
             <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>♻️ Restore from Backup</h4>
-            
+
             {backupStats.count > 0 && (
-              <div style={{ padding: '1rem', background: 'rgba(0, 212, 255, 0.1)', borderRadius: '8px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-around', fontSize: '0.9rem' }}>
+              <div style={{ padding: '1rem', background: 'rgba(var(--theme-accent-rgb), 0.1)', borderRadius: '8px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-around', fontSize: '0.9rem' }}>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#00d4ff' }}>{backupStats.count}</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--theme-accent)' }}>{backupStats.count}</div>
                   <div style={{ color: 'rgba(255,255,255,0.7)' }}>Backups</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#00d4ff' }}>{backupStats.totalSizeFormatted}</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--theme-accent)' }}>{backupStats.totalSizeFormatted}</div>
                   <div style={{ color: 'rgba(255,255,255,0.7)' }}>Total Size</div>
                 </div>
               </div>

@@ -135,10 +135,10 @@ export function OAuthSettings() {
               />
             </div>
             
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,212,255,0.1)', borderRadius: '8px', fontSize: '0.9rem' }}>
+            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(var(--theme-accent-rgb), 0.1)', borderRadius: '8px', fontSize: '0.9rem' }}>
               <strong>Setup Instructions:</strong>
               <ol style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
-                <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style={{ color: '#00d4ff' }}>Google Cloud Console</a></li>
+                <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style={{ color: 'var(--theme-accent)' }}>Google Cloud Console</a></li>
                 <li>Create OAuth 2.0 credentials</li>
                 <li>Add authorized redirect URI: <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>{publicHostname || window.location.origin}/auth/google/callback</code></li>
               </ol>

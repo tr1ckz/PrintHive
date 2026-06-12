@@ -4,9 +4,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #09090b;
+  background: var(--bg-base, #09090b);
   z-index: 9999;
-  animation: fadeIn 0.3s ease-out;
+  animation: ph-fade-in 0.3s ease-out;
   overflow: hidden;
 }
 
@@ -14,8 +14,8 @@
   position: relative;
   inset: auto;
   min-height: 320px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-primary);
   box-shadow: var(--shadow-lg);
 }
 
@@ -23,7 +23,9 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(9, 9, 11, 0.88) 0%, rgba(9, 9, 11, 0.95) 100%);
+  background:
+    radial-gradient(640px 420px at 50% 30%, rgba(var(--theme-accent-rgb), 0.1) 0%, transparent 65%),
+    linear-gradient(135deg, rgba(9, 9, 11, 0.9) 0%, rgba(9, 9, 11, 0.96) 100%);
   z-index: 1;
 }
 
@@ -32,10 +34,16 @@
   position: absolute;
   inset: 0;
   background: url('/images/splash.png') center / cover no-repeat;
-  opacity: 0.15;
+  opacity: 0.12;
   transform: translateZ(0);
   will-change: transform;
   z-index: 0;
+  animation: loading-bg-drift 24s ease-in-out infinite alternate;
+}
+
+@keyframes loading-bg-drift {
+  from { transform: scale(1) translateZ(0); }
+  to { transform: scale(1.06) translateZ(0); }
 }
 
 .loading-content {
@@ -44,32 +52,60 @@
   text-align: center;
   max-width: 420px;
   width: min(90%, 420px);
-  animation: slideUp 0.6s ease-out;
+  animation: ph-fade-up 0.7s var(--ease-out) both;
 }
 
 .loading-kicker {
   display: inline-block;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.3);
+  background: rgba(var(--theme-accent-rgb), 0.08);
   color: var(--color-accent);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
 }
 
 .logo-container {
   position: relative;
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 1.5rem;
-  animation: logoFloat 3s ease-in-out infinite;
+  width: 124px;
+  height: 124px;
+  margin: 0 auto 1.6rem;
+  animation: logoFloat 3.4s ease-in-out infinite;
+}
+
+/* Orbital ring sweeping around the logo */
+.logo-container::before {
+  content: '';
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: rgba(var(--theme-accent-rgb), 0.9);
+  border-right-color: rgba(var(--theme-accent-rgb), 0.25);
+  animation: ph-spin 1.4s linear infinite;
+  z-index: 3;
+}
+
+.logo-container::after {
+  content: '';
+  position: absolute;
+  inset: -28px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.16);
+  border-bottom-color: rgba(var(--theme-accent-rgb), 0.55);
+  animation: ph-spin 3.2s linear infinite reverse;
+  z-index: 3;
 }
 
 .loading-logo {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.35));
   position: relative;
   z-index: 2;
 }
@@ -79,41 +115,47 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 140px;
-  height: 140px;
-  background: radial-gradient(circle, rgba(249, 115, 22, 0.28) 0%, transparent 70%);
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(var(--theme-accent-rgb), 0.3) 0%, transparent 70%);
   border-radius: 50%;
-  animation: pulse 2s ease-in-out infinite;
+  animation: ph-pulse-glow 2.2s ease-in-out infinite;
   z-index: 1;
 }
 
 .loading-title {
-  font-size: 2rem;
+  font-size: 2.1rem;
   font-weight: 700;
+  letter-spacing: -0.03em;
   color: white;
   margin-bottom: 0.45rem;
+  animation: ph-fade-up 0.7s var(--ease-out) 0.1s both;
 }
 
 .loading-message {
   font-size: 1rem;
-  color: rgba(255, 255, 255, 0.86);
+  color: var(--text-tertiary);
   margin-bottom: 1.8rem;
   font-weight: 500;
   line-height: 1.5;
+  animation: ph-fade-up 0.7s var(--ease-out) 0.18s both;
 }
 
 .loading-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 1.25rem;
+  animation: ph-fade-up 0.7s var(--ease-out) 0.26s both;
 }
 
 .loading-bar-track {
   position: relative;
-  width: 100%;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.10);
-  border-radius: 10px;
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
   overflow: hidden;
-  margin-bottom: 0.5rem;
 }
 
 .loading-bar-fill {
@@ -121,9 +163,10 @@
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 100%);
-  border-radius: 10px;
-  transition: width 0.3s ease-out;
+  background: var(--gradient-accent);
+  border-radius: var(--radius-full);
+  box-shadow: 0 0 14px rgba(var(--theme-accent-rgb), 0.6);
+  transition: width 0.3s var(--ease-out);
 }
 
 .loading-bar-shine {
@@ -142,9 +185,12 @@
 
 .loading-percentage {
   display: inline-block;
-  font-size: 0.875rem;
-  color: white;
+  min-width: 3.2ch;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
   font-weight: 600;
+  text-align: right;
 }
 
 .loading-dots {
@@ -154,9 +200,9 @@
 }
 
 .loading-dots span {
-  width: 8px;
-  height: 8px;
-  background: white;
+  width: 7px;
+  height: 7px;
+  background: rgba(var(--theme-accent-rgb), 0.9);
   border-radius: 50%;
   animation: bounce 1.4s infinite ease-in-out;
 }
@@ -169,36 +215,9 @@
   animation-delay: -0.16s;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(30px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
 @keyframes logoFloat {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0.5;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  50% {
-    opacity: 0.85;
-    transform: translate(-50%, -50%) scale(1.08);
-  }
 }
 
 @keyframes shine {

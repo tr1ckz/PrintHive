@@ -38,6 +38,7 @@ function GlobalLayout({
   appName = 'PrintHive',
   pageTitle,
   pageDescription,
+  pageEyebrow,
   breadcrumbs = ['Workspace', pageTitle],
   navItems,
   activeId,
@@ -119,15 +120,21 @@ function GlobalLayout({
               }}
               title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
             >
-              {sidebarCollapsed ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-              )}
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ transform: sidebarCollapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s ease' }}
+              >
+                <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </button>
           </div>
 
           <nav className="global-nav" aria-label="Primary navigation">
+            <span className="global-nav-section-label">Workspace</span>
             {navItems.map((item) => (
               <button
                 key={item.id}
@@ -151,6 +158,7 @@ function GlobalLayout({
       <div className="global-main-shell p-4 md:p-5 lg:p-6">
         <header className="global-topbar rounded-2xl p-4 md:p-5 lg:p-6" style={topbarStyle}>
           <div className="global-topbar-copy min-w-0">
+            {pageEyebrow ? <span className="global-topbar-kicker">{pageEyebrow}</span> : null}
             {breadcrumbs.length ? (
               <div className="global-breadcrumbs" aria-label="Breadcrumb">
                 {breadcrumbs.map((crumb, index) => (
@@ -188,7 +196,15 @@ function GlobalLayout({
               onClick={onToggleMobileMenu}
               aria-label="Toggle navigation"
             >
-              {mobileMenuOpen ? '✕' : '☰'}
+              {mobileMenuOpen ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
             </button>
           </div>
         </header>
@@ -208,7 +224,7 @@ function GlobalLayout({
             <div className="flex items-center gap-3">
               <img src="/images/logo.png" alt="PrintHive" className="h-9 w-9 object-contain" />
               <div>
-                <span className="block text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-orange-300/80">3D Print Ops</span>
+                <span className="global-brand-kicker block">3D Print Ops</span>
                 <strong className="text-sm text-white">{appName}</strong>
               </div>
             </div>
@@ -244,7 +260,7 @@ function GlobalLayout({
             <button
               key={`bottom-${item.id}`}
               type="button"
-              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[0.68rem] font-semibold transition-colors ${activeId === item.id ? 'bg-orange-500/20 text-white ring-1 ring-orange-400/40' : 'text-zinc-300 hover:bg-white/5'}`}
+              className={`global-bottomnav-item flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[0.68rem] font-semibold transition-colors ${activeId === item.id ? 'active text-white' : 'text-zinc-300 hover:bg-white/5'}`}
               onClick={() => handleMobileSelect(item.id)}
             >
               <span className="global-nav-icon">{item.icon}</span>

@@ -1036,7 +1036,7 @@
 .filter-group select:focus,
 .filter-group input:focus {
   outline: none;
-  border-color: #00d4ff;
+  border-color: var(--theme-accent);
 }
 
 .filter-range {
@@ -1099,9 +1099,9 @@
   align-self: flex-start;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(249, 115, 22, 0.14);
-  border: 1px solid rgba(249, 115, 22, 0.22);
-  color: #fdba74;
+  background: rgba(var(--theme-accent-rgb), 0.14);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.22);
+  color: var(--theme-accent-strong);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1203,8 +1203,8 @@
 .btn-filter-toggle:hover,
 .btn-filter-toggle.active,
 .btn-select-all:hover {
-  border-color: rgba(249, 115, 22, 0.3);
-  background: rgba(249, 115, 22, 0.10);
+  border-color: rgba(var(--theme-accent-rgb), 0.3);
+  background: rgba(var(--theme-accent-rgb), 0.10);
   color: #fff;
 }
 
@@ -1246,15 +1246,15 @@
 }
 
 .upload-dropzone:hover {
-  border-color: rgba(249, 115, 22, 0.28);
+  border-color: rgba(var(--theme-accent-rgb), 0.28);
   background: linear-gradient(180deg, rgba(28, 20, 14, 0.98) 0%, rgba(14, 14, 18, 0.98) 100%);
   transform: translateY(-2px);
 }
 
 .upload-dropzone.dragging {
-  border-color: rgba(249, 115, 22, 0.4);
-  background: rgba(249, 115, 22, 0.08);
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.22), var(--shadow-lg);
+  border-color: rgba(var(--theme-accent-rgb), 0.4);
+  background: rgba(var(--theme-accent-rgb), 0.08);
+  box-shadow: 0 0 0 1px rgba(var(--theme-accent-rgb), 0.22), var(--shadow-lg);
 }
 
 .dropzone-icon {
@@ -1276,7 +1276,7 @@
 .btn-scan:hover,
 .btn-auto-tag:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(249, 115, 22, 0.18);
+  box-shadow: 0 10px 24px rgba(var(--theme-accent-rgb), 0.18);
 }
 
 .btn-scan.cancel,
@@ -1290,7 +1290,7 @@
   padding: 2px 6px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
-  color: #fdba74;
+  color: var(--theme-accent-strong);
 }
 
 .auto-tag-progress {
@@ -1313,19 +1313,22 @@
 
 .file-card {
   background: linear-gradient(180deg, rgba(24, 24, 27, 0.94) 0%, rgba(14, 14, 18, 0.98) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-image: var(--gradient-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   backdrop-filter: none;
+  animation: ph-fade-up var(--duration-slow) var(--ease-out) both;
 }
 
 .file-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(249, 115, 22, 0.3);
-  box-shadow: var(--shadow-lg);
+  border-color: rgba(var(--theme-accent-rgb), 0.3);
+  box-shadow: var(--shadow-lg), 0 0 24px rgba(var(--theme-accent-rgb), 0.08);
 }
 
 .file-preview {
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.14) 0%, rgba(34, 211, 238, 0.08) 100%);
+  background: linear-gradient(135deg, rgba(var(--theme-accent-rgb), 0.14) 0%, rgba(var(--theme-accent-rgb), 0.04) 100%);
 }
 
 .view-3d-overlay {
@@ -1344,9 +1347,9 @@
   width: fit-content;
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
-  background: rgba(249, 115, 22, 0.12);
-  border: 1px solid rgba(249, 115, 22, 0.18);
-  color: #fdba74;
+  background: rgba(var(--theme-accent-rgb), 0.12);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.18);
+  color: var(--theme-accent-strong);
 }
 
 .file-size,
@@ -1376,8 +1379,8 @@
 }
 
 .file-actions button:hover {
-  border-color: rgba(249, 115, 22, 0.28);
-  background: rgba(249, 115, 22, 0.10);
+  border-color: rgba(var(--theme-accent-rgb), 0.28);
+  background: rgba(var(--theme-accent-rgb), 0.10);
 }
 
 .empty-state {

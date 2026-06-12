@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* ============================================================
+   PrintHive Design System
+   Token-driven dark theme with a dynamic accent. All component
+   styles should consume these variables — never hardcode hues.
+   ============================================================ */
+
 :root {
   color-scheme: dark;
 
@@ -18,13 +24,13 @@
   --color-accent-soft: rgba(var(--theme-accent-rgb), 0.12);
 
   /* Premium dark surfaces */
-  --bg-base: #09090b;
-  --bg-elevated: #111215;
-  --bg-surface: #18181b;
-  --bg-surface-2: #1f1f23;
-  --bg-dark: rgba(17, 18, 21, 0.94);
-  --bg-overlay: rgba(9, 9, 11, 0.88);
-  --bg-card: rgba(24, 24, 27, 0.92);
+  --bg-base: #0a0a0c;
+  --bg-elevated: #121216;
+  --bg-surface: #17171c;
+  --bg-surface-2: #1e1e24;
+  --bg-dark: rgba(18, 18, 22, 0.94);
+  --bg-overlay: rgba(10, 10, 12, 0.88);
+  --bg-card: rgba(23, 23, 28, 0.92);
   --bg-hover: rgba(var(--theme-accent-rgb), 0.10);
   --bg-hover-intense: rgba(var(--theme-accent-rgb), 0.16);
   --bg-modal: rgba(0, 0, 0, 0.55);
@@ -37,9 +43,9 @@
   --text-disabled: #71717a;
 
   /* Borders */
-  --border-primary: rgba(255, 255, 255, 0.08);
-  --border-secondary: rgba(255, 255, 255, 0.12);
-  --border-tertiary: rgba(255, 255, 255, 0.18);
+  --border-primary: rgba(255, 255, 255, 0.07);
+  --border-secondary: rgba(255, 255, 255, 0.11);
+  --border-tertiary: rgba(255, 255, 255, 0.17);
   --border-hover: rgba(var(--theme-accent-rgb), 0.4);
   --border-focus: var(--theme-accent);
   --border-dark: #27272a;
@@ -52,26 +58,38 @@
   --status-error-dark: #e11d48;
   --status-info: #22d3ee;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
-  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.18);
-  --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.22);
-  --shadow-xl: 0 18px 42px rgba(0, 0, 0, 0.28);
+  /* Radii */
+  --radius-xs: 8px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
 
+  /* Shadows + glows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.26);
+  --shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.32);
+  --shadow-xl: 0 24px 60px rgba(0, 0, 0, 0.42);
+  --shadow-glow: 0 0 0 1px rgba(var(--theme-accent-rgb), 0.22), 0 8px 32px rgba(var(--theme-accent-rgb), 0.18);
+  --shadow-glow-strong: 0 0 0 1px rgba(var(--theme-accent-rgb), 0.32), 0 12px 44px rgba(var(--theme-accent-rgb), 0.28);
+  --ring-focus: 0 0 0 3px rgba(var(--theme-accent-rgb), 0.28);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --duration-fast: 0.16s;
+  --duration-base: 0.26s;
+  --duration-slow: 0.45s;
+  --transition-fast: var(--duration-fast) var(--ease-out);
+  --transition-base: var(--duration-base) var(--ease-out);
+
+  /* Gradients */
   --gradient-primary: linear-gradient(135deg, rgba(var(--theme-accent-rgb), 0.18) 0%, color-mix(in srgb, var(--theme-accent-strong) 18%, transparent) 100%);
-  --gradient-background: linear-gradient(180deg, #09090b 0%, #0f1014 100%);
-  --gradient-dark: linear-gradient(180deg, rgba(18, 18, 22, 0.96) 0%, rgba(11, 11, 15, 0.98) 100%);
-
-  /* Typography */
-  --font-sans: 'Space Grotesk', 'DM Sans', 'Segoe UI', 'Helvetica Neue', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, 'Cascadia Code', monospace;
-
-  /* Radius scale */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --gradient-accent: linear-gradient(135deg, var(--theme-accent) 0%, var(--theme-accent-strong) 100%);
+  --gradient-background: linear-gradient(180deg, #0a0a0c 0%, #0e0f13 100%);
+  --gradient-dark: linear-gradient(180deg, rgba(19, 19, 23, 0.96) 0%, rgba(11, 11, 15, 0.98) 100%);
+  --gradient-card: linear-gradient(160deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.008) 45%, transparent 100%);
 }
 
 * {
@@ -80,21 +98,96 @@
   box-sizing: border-box;
 }
 
+html {
+  text-size-adjust: 100%;
+}
+
 body {
-  font-family: var(--font-sans);
-  font-size: 13px;
+  font-family: Inter, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   background: var(--gradient-background);
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
 }
 
+/* Ambient backdrop: a faint accent aurora + dot grid that sits
+   behind everything and reacts to the active theme color. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(820px 520px at 12% -8%, rgba(var(--theme-accent-rgb), 0.085) 0%, transparent 62%),
+    radial-gradient(900px 600px at 95% 4%, rgba(var(--theme-accent-rgb), 0.05) 0%, transparent 58%),
+    radial-gradient(720px 520px at 50% 108%, rgba(var(--theme-accent-rgb), 0.045) 0%, transparent 60%);
+  transition: background 0.6s ease;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 0%, transparent 75%);
+}
+
 #root {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   width: 100%;
   overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+::selection {
+  background: rgba(var(--theme-accent-rgb), 0.32);
+  color: #fff;
+}
+
+/* ---------- Scrollbars ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--theme-accent-rgb), 0.45);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* Mobile viewport fixes */
@@ -104,11 +197,13 @@ body {
   }
 }
 
-/* Global form input styling for dark theme */
+/* ---------- Forms ---------- */
 input, textarea, select {
   background: var(--bg-card, rgba(30, 30, 30, 0.95));
   color: var(--text-primary, #ffffff);
   border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.1));
+  accent-color: var(--theme-accent);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
 }
 
 input::placeholder,
@@ -120,12 +215,24 @@ input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  border-color: var(--color-primary, #00d4ff);
+  border-color: rgba(var(--theme-accent-rgb), 0.65);
+  box-shadow: var(--ring-focus);
 }
 
-/* Ensure buttons have proper colors */
 button {
   color: var(--text-primary, #ffffff);
+  font-family: inherit;
+}
+
+/* Keyboard focus ring — visible, on-theme, never on mouse click */
+:focus-visible {
+  outline: 2px solid rgba(var(--theme-accent-rgb), 0.7);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* Fix autofill background for dark theme */
@@ -136,4 +243,93 @@ input:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 30px rgba(30, 30, 30, 0.95) inset !important;
   -webkit-text-fill-color: #ffffff !important;
   transition: background-color 5000s ease-in-out 0s;
+}
+
+/* ---------- Shared keyframes ---------- */
+@keyframes ph-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ph-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ph-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes ph-shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+@keyframes ph-pulse-glow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes ph-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Shared primitives ---------- */
+
+/* Skeleton shimmer for loading placeholders */
+.ph-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+}
+
+.ph-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.06) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: ph-shimmer 1.6s linear infinite;
+}
+
+/* Card surface used across pages */
+.ph-card {
+  background: var(--bg-card);
+  background-image: var(--gradient-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
+}
+
+.ph-card-interactive:hover {
+  border-color: rgba(var(--theme-accent-rgb), 0.32);
+  box-shadow: var(--shadow-lg), 0 0 24px rgba(var(--theme-accent-rgb), 0.08);
+  transform: translateY(-2px);
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

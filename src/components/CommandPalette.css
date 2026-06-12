@@ -4,40 +4,31 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
+  background: rgba(5, 5, 7, 0.72);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 20vh;
+  padding-top: 18vh;
   z-index: 10000;
-  animation: fadeIn 0.15s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  animation: ph-fade-in 0.15s ease-out;
 }
 
 .command-palette {
   width: 90%;
   max-width: 640px;
-  background: var(--bg-overlay);
-  border: 1px solid var(--border-primary);
-  border-radius: 16px;
-  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(180deg, rgba(24, 24, 29, 0.97) 0%, rgba(13, 13, 16, 0.98) 100%);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl), 0 0 80px rgba(var(--theme-accent-rgb), 0.07);
   overflow: hidden;
-  animation: slideDown 0.2s ease-out;
+  animation: palette-in 0.22s var(--ease-spring);
 }
 
-@keyframes slideDown {
+@keyframes palette-in {
   from {
     opacity: 0;
-    transform: translateY(-20px) scale(0.95);
+    transform: translateY(-16px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -50,7 +41,7 @@
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-dark);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .search-icon {
@@ -63,9 +54,15 @@
   background: transparent;
   border: none;
   outline: none;
+  box-shadow: none;
   color: var(--text-primary);
   font-size: 16px;
   font-weight: 500;
+}
+
+.command-search input:focus {
+  border: none;
+  box-shadow: none;
 }
 
 .command-search input::placeholder {
@@ -74,9 +71,9 @@
 
 .shortcut-hint {
   padding: 4px 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-dark);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-secondary);
+  border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
@@ -89,19 +86,6 @@
   padding: 8px;
 }
 
-.command-results::-webkit-scrollbar {
-  width: 8px;
-}
-
-.command-results::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.command-results::-webkit-scrollbar-thumb {
-  background: var(--border-primary);
-  border-radius: 4px;
-}
-
 .command-category {
   margin-bottom: 12px;
 }
@@ -112,7 +96,7 @@
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.08em;
 }
 
 .command-item {
@@ -122,22 +106,23 @@
   gap: 12px;
   padding: 10px 12px;
   background: transparent;
-  border: none;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
   text-align: left;
   color: var(--text-primary);
 }
 
-.command-item:hover,
-.command-item.selected {
-  background: var(--bg-card);
+.command-item:hover {
+  background: rgba(255, 255, 255, 0.05);
   transform: translateX(2px);
 }
 
 .command-item.selected {
-  box-shadow: 0 0 0 2px var(--color-primary);
+  background: rgba(var(--theme-accent-rgb), 0.12);
+  border-color: rgba(var(--theme-accent-rgb), 0.35);
+  transform: translateX(2px);
 }
 
 .command-icon {
@@ -160,8 +145,8 @@
 
 .command-footer {
   padding: 12px 20px;
-  border-top: 1px solid var(--border-dark);
-  background: var(--bg-card);
+  border-top: 1px solid var(--border-primary);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .footer-hint {
@@ -174,12 +159,13 @@
 
 .footer-hint kbd {
   padding: 2px 6px;
-  background: var(--bg-overlay);
-  border: 1px solid var(--border-dark);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-secondary);
+  border-bottom-width: 2px;
+  border-radius: 5px;
   font-size: 11px;
   font-weight: 600;
-  font-family: monospace;
+  font-family: ui-monospace, monospace;
 }
 
 @media (max-width: 768px) {
@@ -187,11 +173,11 @@
     width: 95%;
     max-width: none;
   }
-  
+
   .command-search {
     padding: 12px 16px;
   }
-  
+
   .command-results {
     max-height: 60vh;
   }

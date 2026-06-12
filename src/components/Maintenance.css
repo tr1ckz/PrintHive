@@ -59,20 +59,26 @@
 }
 
 .summary-card {
-  background: rgba(30, 41, 59, 0.6);
-  border-radius: 12px;
+  background: var(--bg-card);
+  background-image: var(--gradient-card);
+  border-radius: var(--radius-md);
   padding: 1.25rem;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid rgba(0, 212, 255, 0.2);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: all var(--transition-base);
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-md);
+  animation: ph-fade-up var(--duration-slow) var(--ease-out) both;
 }
 
+.summary-card:nth-child(2) { animation-delay: 0.05s; }
+.summary-card:nth-child(3) { animation-delay: 0.1s; }
+.summary-card:nth-child(4) { animation-delay: 0.15s; }
+
 .summary-card:hover {
-  background: rgba(30, 41, 59, 0.8);
+  background: var(--bg-surface-2);
   transform: translateY(-2px);
-  border-color: rgba(0, 212, 255, 0.4);
+  border-color: rgba(var(--theme-accent-rgb), 0.4);
 }
 
 .summary-card.overdue {
@@ -112,8 +118,8 @@
 }
 
 .filter-btn {
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(0, 212, 255, 0.2);
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
   color: rgba(255, 255, 255, 0.7);
   padding: 0.5rem 1rem;
   border-radius: 8px;
@@ -123,9 +129,9 @@
 }
 
 .filter-btn:hover {
-  background: rgba(30, 41, 59, 0.8);
+  background: var(--bg-surface-2);
   color: white;
-  border-color: rgba(0, 212, 255, 0.4);
+  border-color: rgba(var(--theme-accent-rgb), 0.4);
 }
 
 .filter-btn.active {
@@ -138,9 +144,9 @@
 .no-tasks {
   text-align: center;
   padding: 4rem 2rem;
-  background: rgba(30, 41, 59, 0.6);
+  background: var(--bg-card);
   border-radius: 12px;
-  border: 1px solid rgba(0, 212, 255, 0.2);
+  border: 1px solid var(--border-primary);
 }
 
 .no-tasks-icon {
@@ -165,17 +171,19 @@
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  background: rgba(30, 41, 59, 0.6);
-  border-radius: 12px;
+  background: var(--bg-card);
+  background-image: var(--gradient-card);
+  border-radius: var(--radius-md);
   padding: 1.25rem;
-  border: 1px solid rgba(0, 212, 255, 0.2);
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-primary);
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-md);
+  animation: ph-fade-up var(--duration-slow) var(--ease-out) both;
 }
 
 .task-card:hover {
-  background: rgba(30, 41, 59, 0.8);
-  border-color: rgba(0, 212, 255, 0.4);
+  background: var(--bg-surface-2);
+  border-color: rgba(var(--theme-accent-rgb), 0.4);
 }
 
 .task-card.overdue {
@@ -195,10 +203,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(10, 10, 14, 0.6);
   border-radius: 10px;
   flex-shrink: 0;
-  border: 1px solid rgba(0, 212, 255, 0.1);
+  border: 1px solid var(--border-primary);
 }
 
 .task-content {
@@ -261,9 +269,9 @@
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.6);
   padding: 0.75rem;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(10, 10, 14, 0.6);
   border-radius: 8px;
-  border: 1px solid rgba(0, 212, 255, 0.1);
+  border: 1px solid var(--border-primary);
   margin-top: 0.5rem;
 }
 
@@ -550,7 +558,7 @@
 
 .summary-card:hover,
 .task-card:hover {
-  border-color: rgba(249, 115, 22, 0.26);
+  border-color: rgba(var(--theme-accent-rgb), 0.26);
   box-shadow: var(--shadow-lg);
 }
 
@@ -583,8 +591,8 @@
 }
 
 .task-icon {
-  background: rgba(249, 115, 22, 0.10);
-  border-color: rgba(249, 115, 22, 0.18);
+  background: rgba(var(--theme-accent-rgb), 0.10);
+  border-color: rgba(var(--theme-accent-rgb), 0.18);
 }
 
 .task-description,

@@ -268,12 +268,12 @@
 }
 
 .error-container {
-  color: #dc2626;
+  color: var(--status-error);
   font-weight: 600;
 }
 
 .empty-state svg {
-  color: #cbd5e1;
+  color: var(--text-muted);
   margin-bottom: 16px;
 }
 
@@ -284,7 +284,7 @@
 }
 
 .empty-state p {
-  color: #888;
+  color: var(--text-muted);
 }
 
 .prints-grid {
@@ -294,15 +294,17 @@
 }
 
 .print-card {
-  background: rgba(24, 24, 27, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
+  background: var(--bg-card);
+  background-image: var(--gradient-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: var(--shadow-md);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
   cursor: pointer;
   content-visibility: auto;
   contain-intrinsic-size: 460px;
+  animation: ph-fade-up var(--duration-slow) var(--ease-out) both;
 }
 
 @keyframes scaleIn {
@@ -317,9 +319,17 @@
 }
 
 .print-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
-  border-color: rgba(255, 255, 255, 0.14);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg), 0 0 24px rgba(var(--theme-accent-rgb), 0.08);
+  border-color: rgba(var(--theme-accent-rgb), 0.28);
+}
+
+.print-card .print-image img {
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+
+.print-card:hover .print-image img {
+  transform: scale(1.04);
 }
 
 .print-image {
@@ -409,7 +419,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .meta-item:last-child {
