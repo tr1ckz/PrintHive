@@ -92,10 +92,16 @@
   --gradient-card: linear-gradient(160deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.008) 45%, transparent 100%);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* Base reset lives in @layer base so Tailwind's utility layer
+   (px-*, py-*, p-*, m-*) can still override it. Unlayered, a bare
+   `* { padding: 0 }` beats every layered Tailwind utility and
+   silently crushes component padding. */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 html {
