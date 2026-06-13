@@ -773,6 +773,11 @@ const app = express();
 let httpServer = null; // Store reference for graceful shutdown
 let realtimeWss = null;
 const mqttClients = new Map(); // Store MQTT clients per printer
+// Track recent failed MQTT connection attempts so an unreachable printer
+// isn't re-dialed on every status poll (which spawns zombie auto-reconnecting
+// clients and floods the log with connack-timeout errors).
+const mqttConnectFailures = new Map(); // clientKey -> timestamp of last failure
+const MQTT_RECONNECT_COOLDOWN_MS = 60000;
 const REALTIME_SOCKET_PATH = '/ws/printers';
 const PORT = process.env.PORT || 3000;
 
@@ -4175,20 +4180,34 @@ app.get('/api/printers', async (req, res) => {
         if (deviceIp && deviceAccessCode && deviceSerial) {
           const clientKey = `${deviceIp}:${device.dev_id}`;
           
-          // Create or get existing MQTT client for this printer
-          if (!mqttClients.has(clientKey)) {
+          // Create or get existing MQTT client for this printer.
+          // Skip if a recent attempt failed — avoids re-dialing an unreachable
+          // printer on every poll and leaking zombie auto-reconnecting clients.
+          const lastFailure = mqttConnectFailures.get(clientKey);
+          const inCooldown = lastFailure && (Date.now() - lastFailure) < MQTT_RECONNECT_COOLDOWN_MS;
+          if (!mqttClients.has(clientKey) && !inCooldown) {
             try {
               const mqttClient = new BambuMqttClient(deviceIp, deviceSerial, deviceAccessCode, device.name || 'Local Printer');
-              
+
+              // Tear down the underlying client so it stops auto-reconnecting,
+              // then remove it from the registry and start the cooldown.
+              const teardownMqttClient = () => {
+                mqttConnectFailures.set(clientKey, Date.now());
+                if (mqttClients.get(clientKey) === mqttClient) {
+                  mqttClients.delete(clientKey);
+                }
+                try { mqttClient.disconnect(); } catch (_e) { /* already closed */ }
+              };
+
               // Handle connection errors gracefully
               mqttClient.on('error', (error) => {
                 logger.warn(`MQTT error for ${device.dev_id}: ${error.message}`);
-                mqttClients.delete(clientKey);
+                teardownMqttClient();
               });
-              
+
               mqttClient.on('disconnected', () => {
                 logger.info(`MQTT disconnected for ${device.dev_id}`);
-                mqttClients.delete(clientKey);
+                teardownMqttClient();
               });
 
               attachRealtimeBridgeToMqttClient(mqttClient, clientKey, deviceData);
@@ -4266,12 +4285,21 @@ app.get('/api/printers', async (req, res) => {
               
               await mqttClient.connect();
               mqttClients.set(clientKey, mqttClient);
+              mqttConnectFailures.delete(clientKey); // connected cleanly — clear cooldown
               logger.info(`Created MQTT client for ${device.dev_id}`);
-              
+
               // Wait briefly for initial MQTT message with AMS data
               await new Promise(resolve => setTimeout(resolve, 500));
             } catch (error) {
               logger.warn(`Could not connect MQTT for ${device.dev_id}: ${error.message}`);
+              // Start the cooldown and ensure the client is fully torn down so it
+              // doesn't keep auto-reconnecting in the background.
+              mqttConnectFailures.set(clientKey, Date.now());
+              const failed = mqttClients.get(clientKey);
+              if (failed) {
+                mqttClients.delete(clientKey);
+                try { failed.disconnect(); } catch (_e) { /* already closed */ }
+              }
             }
           }
           

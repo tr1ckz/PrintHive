@@ -446,7 +446,11 @@ class BambuMqttClient extends EventEmitter {
     this.lastEmittedJobData = null;
 
     if (this.client) {
-      this.client.end();
+      // Force-close so a client stuck in a connack-timeout reconnect loop
+      // stops retrying immediately instead of waiting on in-flight work.
+      this.client.end(true);
+      this.client.removeAllListeners();
+      this.client = null;
       this.connected = false;
       this.currentJobData = null;
     }
