@@ -375,22 +375,21 @@
 .error-message {
   background: #171717;
   border: 1px solid #262626;
-  border-left: 3px solid #f97316;
+  border-left: 3px solid var(--status-error);
   color: #ffffff;
 }
 
 .btn-primary {
-  background: #f97316;
-  border: 1px solid #f97316;
-  border-radius: 4px;
-  box-shadow: none;
+  background: var(--gradient-accent);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-glow);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #ea580c;
-  border-color: #ea580c;
-  transform: none;
-  box-shadow: none;
+  background: var(--gradient-accent);
+  border-color: transparent;
+  box-shadow: var(--shadow-glow-strong);
 }
 
 .btn-primary:active:not(:disabled),
@@ -437,6 +436,6 @@
 }
 
 .login-admin-link {
-  color: #f97316;
+  color: var(--theme-accent);
   text-decoration: none;
 }

@@ -1,4 +1,4 @@
-.docs-page {
+﻿.docs-page {
   color: var(--text-primary);
   max-width: 1480px;
   margin: 0 auto;
@@ -516,7 +516,7 @@
 .docs-table code {
   background: #171717;
   border: 1px solid #262626;
-  color: #f97316;
+  color: var(--theme-accent);
 }
 
 .docs-anchor-link,
@@ -533,8 +533,8 @@
 .docs-anchor-link-primary,
 .docs-button-primary,
 .docs-callout.warning {
-  background: #f97316;
-  border-color: #f97316;
+  background: var(--theme-accent);
+  border-color: var(--theme-accent);
   color: #ffffff;
 }
 
@@ -548,8 +548,8 @@
 }
 
 .docs-anchor-link-primary:hover {
-  background: #ea580c;
-  border-color: #ea580c;
+  background: var(--theme-accent-strong);
+  border-color: var(--theme-accent-strong);
 }
 
 .docs-search-input,

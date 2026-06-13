@@ -1,4 +1,4 @@
-.duplicates-container {
+﻿.duplicates-container {
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
@@ -587,15 +587,15 @@
 .btn-warning,
 .btn-delete-selected,
 .duplicates-progress-fill {
-  background: #f97316;
-  border: 1px solid #f97316;
+  background: var(--theme-accent);
+  border: 1px solid var(--theme-accent);
   color: #ffffff;
 }
 
 .caution-banner .btn-warning:hover,
 .btn-delete-selected:hover {
-  background: #ea580c;
-  border-color: #ea580c;
+  background: var(--theme-accent-strong);
+  border-color: var(--theme-accent-strong);
   transform: none;
   box-shadow: none;
 }
@@ -628,10 +628,10 @@
 .group-type-badge {
   background: #171717;
   border: 1px solid #262626;
-  color: #f97316;
+  color: var(--theme-accent);
 }
 
 .duplicates-container input[type='checkbox'] {
-  accent-color: #f97316;
+  accent-color: var(--theme-accent);
 }
 

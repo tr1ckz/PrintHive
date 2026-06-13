@@ -1,4 +1,4 @@
-.maintenance {
+﻿.maintenance {
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
@@ -719,15 +719,15 @@
 
 .filter-btn.active,
 .btn-success {
-  background: #f97316;
-  border-color: #f97316;
+  background: var(--theme-accent);
+  border-color: var(--theme-accent);
   color: #ffffff;
 }
 
 .filter-btn.active:hover,
 .btn-success:hover {
-  background: #ea580c;
-  border-color: #ea580c;
+  background: var(--theme-accent-strong);
+  border-color: var(--theme-accent-strong);
 }
 
 .maintenance-modal .form-group input:focus,
@@ -762,7 +762,7 @@
 
 .maintenance-history-status {
   font-weight: 600;
-  color: #f97316;
+  color: var(--theme-accent);
 }
 
 .maintenance-history-notes {

@@ -1,4 +1,4 @@
-.library-container {
+﻿.library-container {
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
@@ -1508,8 +1508,8 @@
 .btn-primary,
 .file-input::file-selector-button,
 .page-number.active {
-  background: #f97316;
-  border: 1px solid #f97316;
+  background: var(--theme-accent);
+  border: 1px solid var(--theme-accent);
   color: #ffffff;
 }
 
@@ -1542,8 +1542,8 @@
 .btn-auto-tag:hover:not(:disabled),
 .btn-primary:hover,
 .page-number.active:hover {
-  background: #ea580c;
-  border-color: #ea580c;
+  background: var(--theme-accent-strong);
+  border-color: var(--theme-accent-strong);
 }
 
 .file-preview,
@@ -1565,7 +1565,7 @@
 .file-type,
 .file-desc .read-more,
 .scan-info code {
-  color: #f97316;
+  color: var(--theme-accent);
   text-shadow: none;
 }
 
@@ -1636,7 +1636,7 @@
 .auto-tag-progress .progress-fill,
 .scan-progress-fill,
 .library-summary-bar-fill {
-  background: #f97316;
+  background: var(--theme-accent);
 }
 
 .modal-header,
