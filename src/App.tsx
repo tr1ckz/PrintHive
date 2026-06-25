@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import LoadingScreen from './components/LoadingScreen';
 import ErrorBoundary from './components/ErrorBoundary';
-import Docs from './components/Docs';
 import { ModalProvider } from './components/ModalProvider';
+
+// Lazy so the public docs route shares the same split chunk as the in-app Docs
+// page instead of being pulled into the initial bundle.
+const Docs = lazy(() => import('./components/Docs'));
 import { API_ENDPOINTS } from './config/api';
 import { fetchWithRetry } from './utils/fetchWithRetry';
 import { usePrinterStore } from './stores/usePrinterStore';
@@ -134,7 +137,9 @@ function App() {
         <div className="app">
           <div className="app-content">
             {isDocsRoute && !isAuthenticated ? (
-              <Docs standalone />
+              <Suspense fallback={<LoadingScreen message="Loading docs..." title="PrintHive" />}>
+                <Docs standalone />
+              </Suspense>
             ) : isAuthenticated ? (
               <Dashboard onLogout={handleLogout} />
             ) : (

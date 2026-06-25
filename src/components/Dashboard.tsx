@@ -1,20 +1,25 @@
-import { useState, useEffect } from 'react';
-import PrintHistory from './PrintHistory';
-import Library from './Library';
-import Duplicates from './Duplicates';
-import Settings from './Settings';
-import DashboardHome from './DashboardHome';
-import Maintenance from './Maintenance';
-import Printers from './Printers';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import CommandPalette from './CommandPalette';
-import Statistics from './Statistics';
-import Docs from './Docs';
 import BackgroundJobTracker from './BackgroundJobTracker';
 import BuyMeACoffee from './BuyMeACoffee';
 import GlobalLayout from './GlobalLayout';
+import Spinner from './Spinner';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import './Dashboard.css';
+
+// Route-level code splitting: each page (and its heavy deps like three.js via
+// the model viewer, react-grid-layout, etc.) loads only when first opened,
+// instead of shipping in the initial bundle.
+const DashboardHome = lazy(() => import('./DashboardHome'));
+const PrintHistory = lazy(() => import('./PrintHistory'));
+const Library = lazy(() => import('./Library'));
+const Duplicates = lazy(() => import('./Duplicates'));
+const Settings = lazy(() => import('./Settings'));
+const Maintenance = lazy(() => import('./Maintenance'));
+const Printers = lazy(() => import('./Printers'));
+const Statistics = lazy(() => import('./Statistics'));
+const Docs = lazy(() => import('./Docs'));
 
 interface DashboardProps {
   onLogout: () => void;
@@ -290,7 +295,9 @@ function Dashboard({ onLogout }: DashboardProps) {
         sidebarFooter={!hideBmc ? <BuyMeACoffee /> : null}
         rightSlot={rightSlot}
       >
-        {renderActiveView()}
+        <Suspense fallback={<Spinner size="large" message="Loading…" />}>
+          {renderActiveView()}
+        </Suspense>
       </GlobalLayout>
 
       <BackgroundJobTracker />

@@ -450,7 +450,9 @@
 
 .status-metric-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* auto-fit so metrics reflow (3 → 2 → 1 up) instead of staying cramped at
+     three columns in the 769–1180px tablet/landscape-phone range */
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
 }
 

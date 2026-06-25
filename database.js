@@ -132,6 +132,7 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_library_fileName ON library(fileName);
   CREATE INDEX IF NOT EXISTS idx_library_fileType ON library(fileType);
+  CREATE INDEX IF NOT EXISTS idx_library_createdAt ON library(createdAt);
 
   CREATE TABLE IF NOT EXISTS config (
     key TEXT PRIMARY KEY,

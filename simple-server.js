@@ -847,8 +847,8 @@ function buildRealtimePrinterPayload(device, jobData = null, overrides = {}) {
       ...overrides,
       dev_id: printerId,
       name: overrides.name || latestConfig.name || device?.name || printerId,
-      online: overrides.online ?? device?.online ?? true,
-      print_status: overrides.print_status || device?.print_status || mergedTask?.gcode_state || 'ONLINE',
+      online: overrides.online ?? device?.online ?? false,
+      print_status: overrides.print_status || device?.print_status || mergedTask?.gcode_state || 'OFFLINE',
       camera_rtsp_url: overrides.camera_rtsp_url ?? latestConfig.camera_rtsp_url ?? device?.camera_rtsp_url ?? null,
       ams: overrides.ams ?? mergedTask?.ams ?? device?.ams,
       current_task: mergedTask || undefined,
@@ -4295,11 +4295,13 @@ app.get('/api/printers', async (req, res) => {
               // Start the cooldown and ensure the client is fully torn down so it
               // doesn't keep auto-reconnecting in the background.
               mqttConnectFailures.set(clientKey, Date.now());
-              const failed = mqttClients.get(clientKey);
-              if (failed) {
+              // The client was never added to the registry (that only happens on
+              // success), so tear down the local reference directly instead of a
+              // no-op registry lookup that would leak an auto-reconnecting client.
+              if (mqttClients.get(clientKey) === mqttClient) {
                 mqttClients.delete(clientKey);
-                try { failed.disconnect(); } catch (_e) { /* already closed */ }
               }
+              try { mqttClient.disconnect(); } catch (_e) { /* already closed */ }
             }
           }
           
@@ -4525,16 +4527,20 @@ app.get('/api/prints', async (req, res) => {
       LIMIT ?
     `).all(limit);
     
-    // Resolve local cover paths
+    // Resolve local cover paths. List the cache dir once instead of doing two
+    // synchronous fs.existsSync() probes per row (up to 100 blocking stats/req).
     const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
+    let coverFiles = new Set();
+    try {
+      coverFiles = new Set(fs.readdirSync(coverCacheDir));
+    } catch (_e) { /* dir may not exist yet */ }
+
     const printsWithCovers = prints.map(print => {
       let coverUrl = null;
       if (print.modelId) {
-        const jpgPath = path.join(coverCacheDir, `${print.modelId}.jpg`);
-        const pngPath = path.join(coverCacheDir, `${print.modelId}.png`);
-        if (fs.existsSync(jpgPath)) {
+        if (coverFiles.has(`${print.modelId}.jpg`)) {
           coverUrl = `/images/covers/${print.modelId}.jpg`;
-        } else if (fs.existsSync(pngPath)) {
+        } else if (coverFiles.has(`${print.modelId}.png`)) {
           coverUrl = `/images/covers/${print.modelId}.png`;
         }
       }
@@ -5526,10 +5532,20 @@ app.get('/api/printer-transfer-status', (req, res) => {
 });
 
 // Statistics endpoint
+// Short-lived cache for the statistics aggregation. It loads every print into
+// memory and parses JSON per row, so recomputing on every dashboard load is
+// expensive; stats change slowly, so a 15s TTL is imperceptible to users.
+let statisticsCache = { at: 0, data: null };
+const STATISTICS_CACHE_TTL_MS = 15000;
+
 app.get('/api/statistics', (req, res) => {
   try {
+    if (statisticsCache.data && (Date.now() - statisticsCache.at) < STATISTICS_CACHE_TTL_MS) {
+      return res.json(statisticsCache.data);
+    }
+
     const prints = getAllPrintsFromDb();
-    
+
     if (!prints || prints.length === 0) {
       return res.json({
         totalPrints: 0,
@@ -5614,6 +5630,7 @@ app.get('/api/statistics', (req, res) => {
     stats.successRate = ((stats.totalPrints - stats.failedPrints) / stats.totalPrints) * 100;
     stats.averagePrintTime = stats.totalTime / stats.totalPrints;
 
+    statisticsCache = { at: Date.now(), data: stats };
     res.json(stats);
   } catch (error) {
     console.error('Statistics error:', error.message);
@@ -6809,29 +6826,20 @@ app.get('/api/library/download/:id', async (req, res) => {
 
 // Thumbnail endpoint - generates and caches thumbnails
 app.get('/api/library/thumbnail/:id', async (req, res) => {
-  console.log('=== THUMBNAIL ENDPOINT CALLED ===');
-  console.log('Request ID:', req.params.id);
-  console.log('Authenticated:', req.session.authenticated);
-  
   if (!req.session.authenticated) {
-    console.log('Not authenticated, returning 401');
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
   try {
     const file = db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id);
-    
+
     if (!file) {
-      console.log('File not found in database');
       return res.status(404).json({ error: 'File not found' });
     }
 
-    console.log('Found file:', file.originalName, 'type:', file.fileType);
-    
     // Generate or get cached thumbnail (now async)
     const thumbnail = await getThumbnail(file);
-    
-    console.log('Thumbnail generated, size:', thumbnail.length, 'bytes');
+
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
     res.send(thumbnail);

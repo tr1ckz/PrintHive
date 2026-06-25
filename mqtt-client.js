@@ -11,6 +11,10 @@ class BambuMqttClient extends EventEmitter {
     this.printerName = printerName || serialNumber;
     this.client = null;
     this.connected = false;
+    this.everConnected = false; // true once we've had at least one successful connect
+    this.connectTimer = null;
+    this.statusHeartbeatTimer = null;
+    this.statusHeartbeatMs = 30000; // re-request status periodically so idle printers don't go stale
     this.currentJobData = null;
     this.lastGcodeState = null; // Track state changes
     this.lastPrintError = 0;
@@ -36,7 +40,8 @@ class BambuMqttClient extends EventEmitter {
         protocol: 'mqtts',
         rejectUnauthorized: false, // Bambu uses self-signed certs
         reconnectPeriod: 5000,
-        connectTimeout: 10000
+        connectTimeout: 10000,
+        keepalive: 30 // detect dead links and keep NAT/AP state warm
       };
 
       logger.info(`Connecting to Bambu printer MQTT at ${this.printerIp}:8883`);
@@ -45,7 +50,9 @@ class BambuMqttClient extends EventEmitter {
       this.client.on('connect', () => {
         logger.info('Connected to Bambu printer MQTT');
         this.connected = true;
-        
+        this.everConnected = true;
+        this.clearConnectTimer();
+
         // Subscribe to printer status updates
         const topic = `device/${this.serialNumber}/report`;
         this.client.subscribe(topic, (err) => {
@@ -54,9 +61,12 @@ class BambuMqttClient extends EventEmitter {
             reject(err);
           } else {
             logger.debug(`Subscribed to ${topic}`);
-            
-            // Request current status
+
+            // Request current status and start a periodic heartbeat re-poll so
+            // idle printers (which go quiet) don't show stale data, and so a
+            // half-open socket is detected via the keepalive/publish path.
             this.requestStatus();
+            this.startStatusHeartbeat();
             resolve();
           }
         });
@@ -74,24 +84,67 @@ class BambuMqttClient extends EventEmitter {
       });
 
       this.client.on('error', (error) => {
+        // mqtt.js emits `error` for recoverable conditions too (single connack
+        // timeout, TLS hiccup, publish error). Don't flip lifecycle here — let
+        // `close` be the authoritative "socket is gone" signal. Only surface an
+        // error to the server when we've never managed to connect (unreachable
+        // printer), so it can apply the connect cooldown.
         logger.error('MQTT error:', error);
-        this.connected = false;
-        this.emit('error', error);
+        if (!this.everConnected) {
+          this.emit('error', error);
+        }
       });
 
       this.client.on('close', () => {
         logger.info('MQTT connection closed');
         this.connected = false;
-        this.emit('disconnected');
+        this.stopStatusHeartbeat();
+        // If we were connected before, this is a transient drop — let mqtt.js's
+        // built-in reconnectPeriod recover it. Only report `disconnected` (which
+        // triggers teardown + cooldown server-side) when we never connected.
+        if (!this.everConnected) {
+          this.emit('disconnected');
+        } else {
+          this.emit('connection_lost');
+        }
       });
 
-      // Timeout if connection takes too long
-      setTimeout(() => {
+      // Timeout if the *initial* connection takes too long. Stored so it can be
+      // cleared on connect/close instead of firing a late spurious reject.
+      this.connectTimer = setTimeout(() => {
         if (!this.connected) {
+          this.clearConnectTimer();
+          this.emit('disconnected'); // never connected → teardown + cooldown
           reject(new Error('MQTT connection timeout'));
         }
       }, 15000);
     });
+  }
+
+  clearConnectTimer() {
+    if (this.connectTimer) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
+  }
+
+  startStatusHeartbeat() {
+    this.stopStatusHeartbeat();
+    this.statusHeartbeatTimer = setInterval(() => {
+      if (this.connected) {
+        this.requestStatus();
+      }
+    }, this.statusHeartbeatMs);
+    if (this.statusHeartbeatTimer.unref) {
+      this.statusHeartbeatTimer.unref();
+    }
+  }
+
+  stopStatusHeartbeat() {
+    if (this.statusHeartbeatTimer) {
+      clearInterval(this.statusHeartbeatTimer);
+      this.statusHeartbeatTimer = null;
+    }
   }
 
   handleMessage(data) {
@@ -435,6 +488,9 @@ class BambuMqttClient extends EventEmitter {
   }
 
   disconnect() {
+    this.clearConnectTimer();
+    this.stopStatusHeartbeat();
+
     if (this.pendingJobTimer) {
       clearTimeout(this.pendingJobTimer);
       this.pendingJobTimer = null;

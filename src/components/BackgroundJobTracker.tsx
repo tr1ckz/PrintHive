@@ -18,12 +18,29 @@ const BackgroundJobTracker: React.FC = () => {
   const [jobs, setJobs] = useState<JobStatus[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Poll fast (2s) only while jobs are active; back off to 10s when idle so the
+  // component isn't firing 4 requests/second around the clock.
+  const ACTIVE_INTERVAL = 2000;
+  const IDLE_INTERVAL = 10000;
+
   useEffect(() => {
-    const interval = setInterval(checkAllJobs, 1000);
-    return () => clearInterval(interval);
+    let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+
+    const tick = async () => {
+      const hasActiveJobs = await checkAllJobs();
+      if (cancelled) return;
+      timer = setTimeout(tick, hasActiveJobs ? ACTIVE_INTERVAL : IDLE_INTERVAL);
+    };
+
+    void tick();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, []);
 
-  const checkAllJobs = async () => {
+  const checkAllJobs = async (): Promise<boolean> => {
     try {
       const statuses = await Promise.all([
         fetchJobStatus('video-match', API_ENDPOINTS.VIDEO.MATCH_STATUS),
@@ -32,9 +49,12 @@ const BackgroundJobTracker: React.FC = () => {
         fetchJobStatus('bulk-delete', API_ENDPOINTS.LIBRARY.BULK_DELETE_STATUS),
       ]);
 
-      setJobs(statuses.filter(s => s !== null) as JobStatus[]);
+      const active = statuses.filter(s => s !== null) as JobStatus[];
+      setJobs(active);
+      return active.length > 0;
     } catch (error) {
       console.error('Failed to check background jobs:', error);
+      return false;
     }
   };
 

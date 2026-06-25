@@ -253,9 +253,9 @@ function GlobalLayout({
           </nav>
         </aside>
 
-        <main ref={mainContentRef} className="global-page-content pb-24 md:pb-4">{children}</main>
+        <main ref={mainContentRef} className="global-page-content pb-24 lg:pb-4">{children}</main>
 
-        <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl backdrop-blur-xl md:hidden" aria-label="Quick mobile navigation">
+        <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl backdrop-blur-xl lg:hidden" aria-label="Quick mobile navigation">
           {mobilePrimaryItems.map((item) => (
             <button
               key={`bottom-${item.id}`}

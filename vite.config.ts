@@ -25,6 +25,16 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
     minify: 'esbuild',
-    chunkSizeWarningLimit: 1500
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          three: ['three'],
+          grid: ['react-grid-layout'],
+          query: ['@tanstack/react-query']
+        }
+      }
+    }
   }
 })

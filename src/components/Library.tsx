@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo, lazy, Suspense } from 'react';
 import './Library.css';
-import ModelViewer from './ModelViewer';
+// Lazy so three.js (~600KB) only downloads when a model is actually opened.
+const ModelViewer = lazy(() => import('./ModelViewer'));
 import TagsInput from './TagsInput';
 import Toast from './Toast';
 import LoadingScreen from './LoadingScreen';
@@ -679,12 +680,14 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       )}
       
       {viewingModel && (
-        <ModelViewer
-          fileId={viewingModel.id}
-          fileName={viewingModel.originalName}
-          fileType={viewingModel.fileType}
-          onClose={() => setViewingModel(null)}
-        />
+        <Suspense fallback={<Spinner size="large" message="Loading 3D viewer…" />}>
+          <ModelViewer
+            fileId={viewingModel.id}
+            fileName={viewingModel.originalName}
+            fileType={viewingModel.fileType}
+            onClose={() => setViewingModel(null)}
+          />
+        </Suspense>
       )}
 
       {editingFile && (

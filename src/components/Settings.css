@@ -725,7 +725,8 @@
 
 .printer-ftp-form-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  /* reflow to one column on narrow screens instead of two ~150px fields */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
 }
 
@@ -804,7 +805,7 @@
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: var(--radius-sm);
   padding: 20px 22px;
-  min-width: 300px;
+  min-width: min(300px, 90vw);
   max-width: 380px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.60);
   animation: slideUp 0.2s ease;
