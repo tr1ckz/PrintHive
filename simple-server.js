@@ -3,8 +3,6 @@ const logger = require('./logger');
 const path = require('path');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const helmet = require('helmet');
-const { rateLimit } = require('express-rate-limit');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const axios = require('axios');
@@ -42,6 +40,9 @@ const {
 } = require('./database');
 const { getThumbnail, clearThumbnailCache } = require('./thumbnail-generator');
 const { autoDescribeModel } = require('./ai-describer');
+const { PORT, BCRYPT_ROUNDS, isBcryptHash, loadSessionSecret, getBambuApiBase } = require('./server/config');
+const { securityHeaders, appHeaders, rejectCrossSite, loginRateLimiter } = require('./server/middleware/security');
+const { requireAuth, requireAdmin } = require('./server/middleware/requireAuth');
 
 // Helper function to clean HTML-encoded descriptions (handles double/triple encoding)
 function cleanDescription(rawDescription) {
@@ -72,15 +73,11 @@ function cleanDescription(rawDescription) {
   
   return result;
 }
-const bambuFtp = require('./src/services/bambuFtp');
-const backgroundSync = require('./src/services/backgroundSync');
+const bambuFtp = require('./server/services/bambuFtp');
+const backgroundSync = require('./server/services/backgroundSync');
 const videoConverter = require('./video-converter');
-const BambuMqttClient = require('./mqtt-client');
+const BambuMqttClient = require('./server/services/mqtt-client');
 const coverImageFetcher = require('./cover-image-fetcher');
-
-function getBambuApiBase(region = 'global') {
-  return region === 'china' ? 'https://api.bambulab.cn' : 'https://api.bambulab.com';
-}
 
 const go2rtcConfigDir = path.join(dataDir, 'go2rtc');
 const go2rtcConfigPath = path.join(go2rtcConfigDir, 'go2rtc.yaml');
@@ -784,7 +781,6 @@ const mqttClients = new Map(); // Store MQTT clients per printer
 const mqttConnectFailures = new Map(); // clientKey -> timestamp of last failure
 const MQTT_RECONNECT_COOLDOWN_MS = 60000;
 const REALTIME_SOCKET_PATH = '/ws/printers';
-const PORT = process.env.PORT || 3000;
 
 function sendRealtimeMessage(socket, payload) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -1049,22 +1045,8 @@ const upload = multer({
 // Middleware
 app.use(express.json());
 
-// Security headers middleware
-app.use((req, res, next) => {
-  // Prevent clickjacking
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  // Prevent MIME sniffing
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Enable XSS protection
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  // Referrer Policy
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Content Security Policy - allow inline scripts for viewer but restrict external resources
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self'; media-src 'self' http: https: blob: data:; connect-src 'self' http: https: ws: wss: blob: https://cdn.jsdelivr.net https://cloudflareinsights.com");
-  // Permissions Policy (formerly Feature Policy)
-  res.setHeader('Permissions-Policy', 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()');
-  next();
-});
+// App-specific headers (CSP + Permissions-Policy); generic ones come from helmet below.
+app.use(appHeaders);
 
 // Initialize logger level from DB if present
 try {
@@ -1088,31 +1070,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Standard security headers. CSP stays off until the Vite bundle is audited
-// for inline styles/scripts; COEP/CORP off so camera streams and cover
-// images from other local devices keep loading.
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: false,
-}));
-
-// Session secret precedence: env var > persisted random secret. The secret
-// file keeps sessions valid across restarts without requiring configuration.
-function loadSessionSecret() {
-  if (process.env.SESSION_SECRET) {
-    return process.env.SESSION_SECRET;
-  }
-  const secretFile = path.join(dataDir, 'session-secret');
-  try {
-    const existing = fs.readFileSync(secretFile, 'utf8').trim();
-    if (existing) return existing;
-  } catch { /* first boot */ }
-  const secret = crypto.randomBytes(32).toString('hex');
-  fs.writeFileSync(secretFile, secret, { mode: 0o600 });
-  console.log('Generated new session secret at', secretFile);
-  return secret;
-}
+// Standard security headers (helmet)
+app.use(securityHeaders);
 
 app.use(session({
   store: new FileStore({
@@ -1137,37 +1096,12 @@ app.use(session({
   }
 }));
 
-// Cross-site defense-in-depth for a same-origin SPA: sameSite=lax already
-// keeps the session cookie off cross-site POSTs; this also rejects any
-// mutating request whose Origin hostname differs from the Host (hostname
-// only, so the Vite dev proxy on another port keeps working).
-app.use((req, res, next) => {
-  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
-    return next();
-  }
-  const site = req.headers['sec-fetch-site'];
-  if (site && site !== 'same-origin' && site !== 'same-site' && site !== 'none') {
-    return res.status(403).json({ error: 'Cross-site request rejected' });
-  }
-  const origin = req.headers.origin;
-  if (origin && origin !== 'null') {
-    try {
-      const originHost = new URL(origin).hostname;
-      const requestHost = String(req.headers.host || '').split(':')[0];
-      if (originHost && requestHost && originHost !== requestHost) {
-        return res.status(403).json({ error: 'Cross-site request rejected' });
-      }
-    } catch { /* malformed Origin — let it through, sec-fetch-site already checked */ }
-  }
-  return next();
-});
+// Cross-site defense-in-depth for mutating requests (see middleware/security.js)
+app.use(rejectCrossSite);
 
 // Password hashing. One-time startup migration: any legacy plaintext row
 // (including the auto-created default admin) is hashed in place, so login
 // only ever compares against bcrypt hashes.
-const BCRYPT_ROUNDS = 12;
-const isBcryptHash = (value) => typeof value === 'string' && /^\$2[aby]\$/.test(value);
-
 (function migratePlaintextPasswords() {
   try {
     const users = db.prepare("SELECT id, password FROM users WHERE password IS NOT NULL AND password != ''").all();
@@ -1663,15 +1597,6 @@ console.log('Serving static files from:', staticDir);
 app.use(express.static(staticDir));
 
 // Simple local login
-// Brute-force protection for credential submission
-const loginRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Too many login attempts. Try again later.' },
-});
-
 app.post('/auth/login', loginRateLimiter, async (req, res) => {
   const { username, password } = req.body;
   console.log(`Login attempt for user: ${username}`);
@@ -8188,24 +8113,6 @@ async function generateAllThumbnails() {
     console.error('Error generating thumbnails:', err.message);
   }
 }
-
-// Middleware to check if user is admin
-const requireAdmin = (req, res, next) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-    next();
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
 
 // Get current user info
 app.get('/api/user/me', (req, res) => {

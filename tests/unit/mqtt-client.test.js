@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import BambuMqttClient from '../../mqtt-client.js';
+import BambuMqttClient from '../../server/services/mqtt-client.js';
 import { startFakePrinter } from '../helpers/fakePrinterBroker.js';
 
 function once(emitter, event, timeoutMs = 10000) {

@@ -1,5 +1,5 @@
 const mqtt = require('mqtt');
-const logger = require('./logger');
+const logger = require('../../logger');
 const EventEmitter = require('events');
 
 class BambuMqttClient extends EventEmitter {
