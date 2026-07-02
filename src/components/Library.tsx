@@ -7,6 +7,8 @@ import Toast from './Toast';
 import LoadingScreen from './LoadingScreen';
 import Spinner from './Spinner';
 import ConfirmModal from './ConfirmModal';
+import Modal from './common/Modal';
+import ProgressDisplay from './common/ProgressDisplay';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useDebounce } from '../hooks/useDebounce';
@@ -691,13 +693,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       )}
 
       {editingFile && (
-        <div className="modal-overlay" onClick={() => setEditingFile(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>✏️ Edit File</h2>
-              <button className="modal-close" onClick={() => setEditingFile(null)}>✕</button>
-            </div>
-            <div className="modal-body">
+        <Modal title="✏️ Edit File" onClose={() => setEditingFile(null)}>
               <div className="form-group">
                 <label>Filename</label>
                 <input 
@@ -749,17 +745,15 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                 >
                   Cancel
                 </button>
-                <button 
-                  onClick={handleSaveEdit} 
+                <button
+                  onClick={handleSaveEdit}
                   className="btn-primary"
                   disabled={saving}
                 >
                   {saving ? '💾 Saving...' : '💾 Save Changes'}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <section className="library-hero">
@@ -824,13 +818,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
 
       {/* Bulk Tags Modal */}
       {bulkTagsModal && (
-        <div className="modal-overlay" onClick={() => setBulkTagsModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🏷️ Add Tags to {selectedFiles.size} Files</h2>
-              <button className="modal-close" onClick={() => setBulkTagsModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
+        <Modal title={<>🏷️ Add Tags to {selectedFiles.size} Files</>} onClose={() => setBulkTagsModal(false)}>
               <div className="form-group">
                 <label>Tags to add</label>
                 <TagsInput
@@ -846,9 +834,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                   {bulkTagging ? 'Adding...' : 'Add Tags'}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <div className="search-bar">
@@ -1013,44 +999,24 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
               )}
             </div>
             {scanProgress && (
-              <div className="auto-tag-progress">
-                <div className="progress-header">
-                  <span>🔄 Scanning library...</span>
-                  <span>{scanProgress.added} added / {scanProgress.skipped} skipped</span>
-                </div>
-                <div className="progress-bar">
-                  <div 
-                    className="progress-fill" 
-                    style={{ width: `${scanProgress.percentComplete}%` }}
-                  />
-                </div>
-                <div className="progress-text">
-                  {scanProgress.processed}/{scanProgress.total} files ({scanProgress.percentComplete}%)
-                  {scanProgress.currentFile && (
-                    <span className="current-file"> - {scanProgress.currentFile.substring(0, 40)}{scanProgress.currentFile.length > 40 ? '...' : ''}</span>
-                  )}
-                </div>
-              </div>
+              <ProgressDisplay
+                label="🔄 Scanning library..."
+                stats={<>{scanProgress.added} added / {scanProgress.skipped} skipped</>}
+                percentComplete={scanProgress.percentComplete}
+                processed={scanProgress.processed}
+                total={scanProgress.total}
+                currentFile={scanProgress.currentFile}
+              />
             )}
             {autoTagProgress && (
-              <div className="auto-tag-progress">
-                <div className="progress-header">
-                  <span>✨ Auto-tagging files...</span>
-                  <span>{autoTagProgress.updated} updated / {autoTagProgress.errors} errors</span>
-                </div>
-                <div className="progress-bar">
-                  <div 
-                    className="progress-fill" 
-                    style={{ width: `${autoTagProgress.percentComplete}%` }}
-                  />
-                </div>
-                <div className="progress-text">
-                  {autoTagProgress.processed}/{autoTagProgress.total} files ({autoTagProgress.percentComplete}%)
-                  {autoTagProgress.currentFile && (
-                    <span className="current-file"> - {autoTagProgress.currentFile.substring(0, 40)}{autoTagProgress.currentFile.length > 40 ? '...' : ''}</span>
-                  )}
-                </div>
-              </div>
+              <ProgressDisplay
+                label="✨ Auto-tagging files..."
+                stats={<>{autoTagProgress.updated} updated / {autoTagProgress.errors} errors</>}
+                percentComplete={autoTagProgress.percentComplete}
+                processed={autoTagProgress.processed}
+                total={autoTagProgress.total}
+                currentFile={autoTagProgress.currentFile}
+              />
             )}
           </div>
           <p className="help-text">Mount your local folder to <code>/app/library</code> in Docker</p>
@@ -1220,18 +1186,10 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       )}
 
       {descriptionModal && (
-        <div className="modal-overlay" onClick={() => setDescriptionModal(null)}>
-          <div className="modal-content description-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📖 Full Description</h2>
-              <button className="modal-close" onClick={() => setDescriptionModal(null)}>✕</button>
-            </div>
-            <div className="modal-body">
+        <Modal title="📖 Full Description" onClose={() => setDescriptionModal(null)} contentClassName="description-modal">
               <p className="file-name">{descriptionModal.fileName}</p>
               <p className="description-text">{descriptionModal.description}</p>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {toast && (
