@@ -41,8 +41,10 @@ const {
 const { getThumbnail, clearThumbnailCache } = require('./thumbnail-generator');
 const { autoDescribeModel } = require('./ai-describer');
 const { PORT, BCRYPT_ROUNDS, isBcryptHash, loadSessionSecret, getBambuApiBase } = require('./server/config');
-const { securityHeaders, appHeaders, rejectCrossSite, loginRateLimiter } = require('./server/middleware/security');
+const { securityHeaders, appHeaders, rejectCrossSite } = require('./server/middleware/security');
 const { requireAuth, requireAdmin } = require('./server/middleware/requireAuth');
+const { configureOIDC, getOidcConfig } = require('./server/services/oidcProvider');
+const authRoutes = require('./server/routes/auth');
 
 // Helper function to clean HTML-encoded descriptions (handles double/triple encoding)
 function cleanDescription(rawDescription) {
@@ -1175,70 +1177,6 @@ app.get(`${go2rtcProxyPath}/*`, async (req, res) => {
   }
 });
 
-// OIDC configuration cache
-let oidcConfig = null;
-
-// Configure OIDC Client (using openid-client v6.x API)
-async function configureOIDC() {
-  const settings = db.prepare('SELECT key, value FROM config WHERE key LIKE ?').all('oauth_%');
-  const oauthConfig = {};
-  settings.forEach(row => {
-    const key = row.key.replace('oauth_', '');
-    oauthConfig[key] = row.value || '';
-  });
-
-  if (oauthConfig.provider === 'oidc' && oauthConfig.oidcIssuer && oauthConfig.oidcClientId) {
-    try {
-      // Keep the issuer URL exactly as configured (including trailing slash)
-      const issuerUrl = oauthConfig.oidcIssuer;
-      
-      const publicUrl = oauthConfig.publicHostname || process.env.PUBLIC_URL || 'http://localhost:3000';
-      
-      console.log('Discovering OIDC configuration from:', issuerUrl);
-      
-      // Fetch the .well-known configuration manually to get endpoints
-      const wellKnownUrl = issuerUrl.endsWith('/') 
-        ? `${issuerUrl}.well-known/openid-configuration`
-        : `${issuerUrl}/.well-known/openid-configuration`;
-      
-      const axios = require('axios');
-      const response = await axios.get(wellKnownUrl);
-      const metadata = response.data;
-      
-      console.log('Discovered issuer:', metadata.issuer);
-      console.log('Authorization endpoint:', metadata.authorization_endpoint);
-      console.log('Token endpoint:', metadata.token_endpoint);
-      console.log('UserInfo endpoint:', metadata.userinfo_endpoint);
-      
-      // Create a Configuration object with server metadata, client ID, and client secret
-      const server = new oidc.Configuration(
-        metadata, // server metadata from .well-known
-        oauthConfig.oidcClientId, // client ID
-        oauthConfig.oidcClientSecret // client secret (can be string or object)
-      );
-      
-      // Store configuration for use in routes
-      oidcConfig = {
-        server,
-        clientId: oauthConfig.oidcClientId,
-        clientSecret: oauthConfig.oidcClientSecret,
-        redirectUri: `${publicUrl}/auth/oidc/callback`,
-        issuerUrl: metadata.issuer
-      };
-      
-      console.log('✓ OIDC client configured successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ Failed to configure OIDC:', error.message);
-      oidcConfig = null;
-      return false;
-    }
-  } else {
-    console.log('OIDC not configured (missing provider, issuer, or client ID)');
-    oidcConfig = null;
-    return false;
-  }
-}
 // System controls: get/set log level (after session middleware)
 app.get('/api/log-level', (req, res) => {
   if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
@@ -1292,195 +1230,8 @@ app.post('/api/settings/restart', (req, res) => {
   }
 });
 
-// OAuth routes (MUST be before static middleware to catch callbacks)
-app.get('/auth/oidc', async (req, res) => {
-  console.log('=== OIDC AUTH START ===');
-  
-  if (!oidcConfig) {
-    console.error('OIDC client not configured');
-    return res.redirect('/admin?error=oidc_not_configured');
-  }
-  
-  try {
-    // Generate PKCE code verifier and state
-    const code_verifier = oidc.randomPKCECodeVerifier();
-    const code_challenge = await oidc.calculatePKCECodeChallenge(code_verifier);
-    const state = oidc.randomState();
-    
-    // Store in session for callback
-    req.session.oidc_code_verifier = code_verifier;
-    req.session.oidc_state = state;
-    
-    await new Promise((resolve, reject) => {
-      req.session.save((err) => err ? reject(err) : resolve());
-    });
-    
-    // Build authorization URL using v6.x API
-    const authUrl = oidc.buildAuthorizationUrl(oidcConfig.server, {
-      redirect_uri: oidcConfig.redirectUri,
-      scope: 'openid profile email',
-      code_challenge,
-      code_challenge_method: 'S256',
-      state,
-    });
-    
-    console.log('Redirecting to:', authUrl.href);
-    res.redirect(authUrl.href);
-  } catch (error) {
-    console.error('OIDC auth error:', error);
-    res.redirect('/admin?error=oidc_auth_failed');
-  }
-});
-
-app.get('/auth/oidc/callback', async (req, res) => {
-  console.log('=== OIDC CALLBACK RECEIVED ===');
-  console.log('Query:', req.query);
-  console.log('Session ID:', req.sessionID);
-  
-  if (!oidcConfig) {
-    console.error('OIDC client not configured');
-    return res.redirect('/admin?error=oidc_not_configured');
-  }
-  
-  try {
-    // Get code verifier and state from session
-    const code_verifier = req.session.oidc_code_verifier;
-    const saved_state = req.session.oidc_state;
-    
-    if (!code_verifier) {
-      console.error('No code verifier in session');
-      return res.redirect('/admin?error=invalid_session');
-    }
-    
-    // Build current URL for callback
-    const currentUrl = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
-    
-    console.log('Calling authorizationCodeGrant...');
-    
-    // Exchange authorization code for tokens using v6.x API
-    // In v6.x, authorizationCodeGrant validates the response automatically
-    const tokens = await oidc.authorizationCodeGrant(
-      oidcConfig.server,
-      currentUrl,
-      {
-        pkceCodeVerifier: code_verifier,
-        expectedState: saved_state
-      }
-    );
-    
-    console.log('Token exchange successful');
-
-    // Get claims from ID token
-    const claims = tokens.claims();
-    
-    // Extract user information from claims
-    const sub = claims.sub;
-    const email = claims.email || claims.preferred_username;
-    const username = claims.preferred_username || claims.username || email?.split('@')[0] || sub;
-    const name = claims.name || username;
-    
-    console.log('Extracted data:');
-    console.log('  Sub:', sub);
-    console.log('  Email:', email);
-    console.log('  Username:', username);
-    console.log('  Name:', name);
-    
-    // Check if user exists by OAuth ID
-    let user = db.prepare('SELECT * FROM users WHERE oauth_provider = ? AND oauth_id = ?').get('oidc', sub);
-    console.log('Existing user by OAuth ID:', user ? user.username : 'none');
-    
-    if (!user && email) {
-      // Check by email
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-      console.log('Existing user by email:', user ? user.username : 'none');
-      
-      if (user) {
-        // Link existing user to OAuth and update display name
-        console.log('Linking existing user to OAuth');
-        db.prepare('UPDATE users SET oauth_provider = ?, oauth_id = ?, display_name = ? WHERE id = ?').run('oidc', sub, name, user.id);
-      }
-    }
-    
-    // Determine role based on Authentik groups
-    let role = 'user';
-    if (claims.groups) {
-      const groups = Array.isArray(claims.groups) ? claims.groups : [claims.groups];
-      console.log('User groups from Authentik:', groups);
-      
-      // Check for admin groups (case-insensitive) - only Admin/Admins get superadmin
-      if (groups.some(g => g.toLowerCase().includes('admin'))) {
-        role = 'superadmin';
-        console.log('User is in Admin group - assigning superadmin role');
-      } else {
-        role = 'user';
-        console.log('User is not in Admin group - assigning user role');
-      }
-    }
-    
-    if (!user) {
-      // Create new user with role based on groups
-      console.log('Creating new OIDC user:', username, email, 'with role:', role);
-      const result = db.prepare(
-        'INSERT INTO users (username, email, oauth_provider, oauth_id, role, password, display_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).run(
-        username,
-        email || '',
-        'oidc',
-        sub,
-        role,
-        '', // No password for OAuth users
-        name
-      );
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-      console.log('New user created with ID:', user.id);
-    } else {
-      // Update existing user role based on current groups
-      if (user.role !== 'superadmin' || role === 'superadmin') {
-        console.log('Updating user role from', user.role, 'to', role, 'based on groups');
-        db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
-        user.role = role;
-      }
-    }
-    
-    console.log('=== OIDC AUTH SUCCESS ===');
-    console.log('User:', user.username, 'Role:', user.role);
-    
-    // Set session for compatibility with existing auth system
-    req.session.authenticated = true;
-    req.session.userId = user.id;
-    req.session.username = user.username;
-    req.session.role = user.role || 'user';
-    
-    // Clean up OIDC session data
-    delete req.session.oidc_code_verifier;
-    delete req.session.oidc_state;
-    
-    await new Promise((resolve, reject) => {
-      req.session.save((err) => err ? reject(err) : resolve());
-    });
-    
-    console.log('Session saved successfully, redirecting to /');
-    res.redirect('/');
-  } catch (error) {
-    console.error('=== OIDC CALLBACK ERROR ===');
-    console.error('Error:', error.message);
-    console.error('Stack:', error.stack);
-    
-    // Clean up session on error
-    delete req.session.oidc_code_verifier;
-    delete req.session.oidc_state;
-    
-    res.redirect('/admin?error=oidc_callback_failed');
-  }
-});
-
-app.get('/auth/google', (req, res) => {
-  res.status(501).send('Google OAuth not yet implemented. Configure OIDC instead or install passport-google-oauth20.');
-});
-
-app.get('/auth/google/callback', (req, res) => {
-  res.redirect('/admin');
-});
+// Auth routes: OIDC login/callback, local login, logout, check-auth, user/me
+app.use(authRoutes);
 
 // Middleware to ensure Bambu token is loaded from global config
 app.use((req, res, next) => {
@@ -1518,9 +1269,9 @@ app.get('/', (req, res) => {
   try {
     const providerRow = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_provider');
     console.log('OAuth provider:', providerRow?.value);
-    console.log('oidcConfig exists:', !!oidcConfig);
-    
-    if (providerRow?.value === 'oidc' && oidcConfig) {
+    console.log('oidcConfig exists:', !!getOidcConfig());
+
+    if (providerRow?.value === 'oidc' && getOidcConfig()) {
       // Auto-redirect to OIDC login
       console.log('Redirecting to /auth/oidc');
       return res.redirect('/auth/oidc');
@@ -1596,48 +1347,6 @@ const staticDir = distExists ? 'dist' : 'public';
 console.log('Serving static files from:', staticDir);
 app.use(express.static(staticDir));
 
-// Simple local login
-app.post('/auth/login', loginRateLimiter, async (req, res) => {
-  const { username, password } = req.body;
-  console.log(`Login attempt for user: ${username}`);
-
-  try {
-    const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-    // OAuth-only accounts have an empty password column and can never
-    // password-login; bcrypt.compare against a non-hash is always false.
-    const user = (row && row.password && isBcryptHash(row.password)
-      && await bcrypt.compare(String(password || ''), row.password)) ? row : null;
-
-    if (user) {
-      console.log('Login successful for user:', user.username);
-      req.session.userId = user.id;
-      req.session.username = user.username;
-      req.session.role = user.role || 'user';
-      req.session.authenticated = true;
-      
-      // Load global Bambu credentials if they exist
-      const token = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_token');
-      const region = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_region');
-      if (token && token.value) {
-        req.session.token = token.value;
-        req.session.region = region?.value || 'global';
-      }
-      req.session.save((err) => {
-        if (err) {
-          console.error('Session save error:', err);
-          return res.json({ success: false, error: 'Session save failed' });
-        }
-        res.json({ success: true });
-      });
-    } else {
-      console.log('Invalid credentials for user:', username);
-      res.json({ success: false, error: 'Invalid username or password' });
-    }
-  } catch (error) {
-    console.error('Login error:', error);
-    res.json({ success: false, error: 'Login failed' });
-  }
-});
 
 // Request verification code from Bambu Lab
 app.post('/api/settings/request-code', async (req, res) => {
@@ -3814,45 +3523,6 @@ app.get('/api/debug/videos', (req, res) => {
 });
 
 
-// Check authentication status
-app.get('/api/check-auth', (req, res) => {
-  console.log('=== CHECK AUTH ===');
-  console.log('Session ID:', req.sessionID);
-  console.log('Session data:', req.session);
-  console.log('Cookies:', req.headers.cookie);
-  console.log('Authenticated:', req.session.authenticated);
-  console.log('User ID:', req.session.userId);
-  console.log('Has token:', !!req.session.token);
-  
-  if (req.session.authenticated && req.session.userId) {
-    // Fetch current user role from database to ensure it's up to date
-    try {
-      const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-      const currentRole = user ? user.role : (req.session.role || 'user');
-      
-      // Update session if role changed
-      if (user && req.session.role !== currentRole) {
-        req.session.role = currentRole;
-        console.log(`Updated session role to: ${currentRole}`);
-      }
-      
-      res.json({ 
-        authenticated: true, 
-        username: req.session.username,
-        role: currentRole
-      });
-    } catch (e) {
-      console.error('Error fetching user role:', e);
-      res.json({ 
-        authenticated: true, 
-        username: req.session.username,
-        role: req.session.role || 'user'
-      });
-    }
-  } else {
-    res.json({ authenticated: false });
-  }
-});
 
 app.post('/api/client-telemetry', (req, res) => {
   try {
@@ -3901,111 +3571,7 @@ app.get('/api/client-telemetry/recent', (req, res) => {
   res.json({ events: recent });
 });
 
-// Logout endpoint
-app.post('/auth/logout', (req, res) => {
-  console.log('=== LOGOUT ===');
-  console.log('Session ID:', req.sessionID);
-  
-  // Check if user logged in via OIDC
-  const isOidcUser = req.session.userId ? (() => {
-    try {
-      const user = db.prepare('SELECT oauth_provider FROM users WHERE id = ?').get(req.session.userId);
-      return user?.oauth_provider === 'oidc';
-    } catch (err) {
-      console.error('Error checking OAuth provider:', err);
-      return false;
-    }
-  })() : false;
-  
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Session destroy error:', err);
-      res.json({ success: false, error: 'Failed to logout' });
-    } else {
-      // If OIDC user, return the end-session URL for redirect
-      if (isOidcUser) {
-        try {
-          const publicHostname = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_publicHostname');
-          const configuredEndSessionUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcEndSessionUrl');
-          const publicUrl = publicHostname?.value || process.env.PUBLIC_URL || 'http://localhost:3000';
-          
-          let endSessionUrl;
-          
-          // Use configured end-session URL if provided
-          if (configuredEndSessionUrl?.value) {
-            // Build full logout URL with post_logout_redirect_uri parameter
-            const logoutUrl = new URL(configuredEndSessionUrl.value);
-            // Add flag to prevent auto-redirect after logout
-            logoutUrl.searchParams.set('post_logout_redirect_uri', `${publicUrl}/admin?logout=1`);
-            endSessionUrl = logoutUrl.href;
-            console.log('OIDC logout using configured URL:', endSessionUrl);
-          } else if (oidcConfig) {
-            // Fallback: try to build from OIDC discovery
-            try {
-              const builtUrl = oidc.buildEndSessionUrl(oidcConfig.server, {
-                post_logout_redirect_uri: `${publicUrl}/admin?logout=1`,
-              });
-              endSessionUrl = builtUrl.href;
-              console.log('OIDC logout using discovered URL:', endSessionUrl);
-            } catch (buildErr) {
-              console.error('Failed to build end-session URL:', buildErr);
-              // Manual fallback - construct from issuer
-              const issuer = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcIssuer');
-              if (issuer?.value) {
-                endSessionUrl = `${issuer.value}${issuer.value.endsWith('/') ? '' : '/'}end-session/?post_logout_redirect_uri=${encodeURIComponent(`${publicUrl}/admin?logout=1`)}`;
-                console.log('OIDC logout using manual URL:', endSessionUrl);
-              }
-            }
-          }
-          
-          if (endSessionUrl) {
-            res.json({ success: true, oidcLogout: true, endSessionUrl });
-          } else {
-            console.log('No OIDC logout URL available, doing local logout only');
-            res.json({ success: true });
-          }
-        } catch (err) {
-          console.error('Error building end-session URL:', err);
-          res.json({ success: true });
-        }
-      } else {
-        res.json({ success: true });
-      }
-    }
-  });
-});
 
-// Request new email verification code
-app.post('/auth/request-code', async (req, res) => {
-  const { email, region } = req.body;
-  
-  console.log('=== REQUEST NEW CODE ===');
-  console.log('Email:', email);
-  
-  const apiUrl = region === 'china'
-    ? 'https://api.bambulab.cn/v1/user-service/user/sendemail/code'
-    : 'https://api.bambulab.com/v1/user-service/user/sendemail/code';
-  
-  try {
-    await axios.post(apiUrl, {
-      email: email,
-      type: 'codeLogin'
-    }, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log('Verification code requested successfully');
-    res.json({ success: true, message: 'Verification code sent to your email' });
-  } catch (error) {
-    console.error('Request code error:', error.response?.data || error.message);
-    res.json({ 
-      success: false, 
-      error: error.response?.data?.message || 'Failed to send verification code' 
-    });
-  }
-});
 
 function buildConfiguredPrinterDevice(printer) {
   return {
@@ -8114,35 +7680,6 @@ async function generateAllThumbnails() {
   }
 }
 
-// Get current user info
-app.get('/api/user/me', (req, res) => {
-  if (!req.session.authenticated || !req.session.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    // Try with all columns, fall back if columns don't exist
-    let user;
-    try {
-      user = db.prepare('SELECT id, username, email, role, display_name FROM users WHERE id = ?').get(req.session.userId);
-    } catch (e) {
-      if (e.message.includes('no such column')) {
-        user = db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(req.session.userId);
-        user.email = null;
-        user.display_name = null;
-      } else {
-        throw e;
-      }
-    }
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    res.json(user);
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 // Admin: Get all users
 app.get('/api/admin/users', requireAdmin, (req, res) => {
