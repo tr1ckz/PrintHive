@@ -1,6 +1,10 @@
 const express = require('express');
 const logger = require('./logger');
 const path = require('path');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const helmet = require('helmet');
+const { rateLimit } = require('express-rate-limit');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const axios = require('axios');
@@ -1083,28 +1087,104 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
+
+// Standard security headers. CSP stays off until the Vite bundle is audited
+// for inline styles/scripts; COEP/CORP off so camera streams and cover
+// images from other local devices keep loading.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
+}));
+
+// Session secret precedence: env var > persisted random secret. The secret
+// file keeps sessions valid across restarts without requiring configuration.
+function loadSessionSecret() {
+  if (process.env.SESSION_SECRET) {
+    return process.env.SESSION_SECRET;
+  }
+  const secretFile = path.join(dataDir, 'session-secret');
+  try {
+    const existing = fs.readFileSync(secretFile, 'utf8').trim();
+    if (existing) return existing;
+  } catch { /* first boot */ }
+  const secret = crypto.randomBytes(32).toString('hex');
+  fs.writeFileSync(secretFile, secret, { mode: 0o600 });
+  console.log('Generated new session secret at', secretFile);
+  return secret;
+}
+
 app.use(session({
   store: new FileStore({
     path: './sessions',
     ttl: 7 * 24 * 60 * 60, // 7 days in seconds
     retries: 0,  // Don't retry reading non-existent files
-    reapInterval: -1  // Disable automatic session cleanup
+    reapInterval: 3600  // Sweep expired session files hourly
   }),
   name: 'bambu.sid', // Custom session cookie name
-  secret: 'simple-secret',
+  secret: loadSessionSecret(),
   resave: true,  // Force save even if unmodified (helps with proxy)
   saveUninitialized: false,  // Don't create session until something stored
   rolling: true, // Reset expiry on every request
   proxy: true, // Trust reverse proxy
   cookie: {
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    secure: false, // Set to false to work with both HTTP and HTTPS
+    secure: process.env.COOKIE_SECURE === 'true', // opt-in: HTTPS-only cookies for TLS/proxy installs
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
     domain: undefined // Don't set domain, let browser handle it
   }
 }));
+
+// Cross-site defense-in-depth for a same-origin SPA: sameSite=lax already
+// keeps the session cookie off cross-site POSTs; this also rejects any
+// mutating request whose Origin hostname differs from the Host (hostname
+// only, so the Vite dev proxy on another port keeps working).
+app.use((req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return next();
+  }
+  const site = req.headers['sec-fetch-site'];
+  if (site && site !== 'same-origin' && site !== 'same-site' && site !== 'none') {
+    return res.status(403).json({ error: 'Cross-site request rejected' });
+  }
+  const origin = req.headers.origin;
+  if (origin && origin !== 'null') {
+    try {
+      const originHost = new URL(origin).hostname;
+      const requestHost = String(req.headers.host || '').split(':')[0];
+      if (originHost && requestHost && originHost !== requestHost) {
+        return res.status(403).json({ error: 'Cross-site request rejected' });
+      }
+    } catch { /* malformed Origin — let it through, sec-fetch-site already checked */ }
+  }
+  return next();
+});
+
+// Password hashing. One-time startup migration: any legacy plaintext row
+// (including the auto-created default admin) is hashed in place, so login
+// only ever compares against bcrypt hashes.
+const BCRYPT_ROUNDS = 12;
+const isBcryptHash = (value) => typeof value === 'string' && /^\$2[aby]\$/.test(value);
+
+(function migratePlaintextPasswords() {
+  try {
+    const users = db.prepare("SELECT id, password FROM users WHERE password IS NOT NULL AND password != ''").all();
+    let migrated = 0;
+    for (const user of users) {
+      if (!isBcryptHash(user.password)) {
+        db.prepare('UPDATE users SET password = ? WHERE id = ?').run(bcrypt.hashSync(user.password, BCRYPT_ROUNDS), user.id);
+        migrated++;
+      }
+    }
+    if (migrated > 0) {
+      console.log(`✓ Hashed ${migrated} plaintext password(s) with bcrypt`);
+    }
+  } catch (error) {
+    console.error('Password hash migration failed:', error);
+  }
+})();
 
 // Initialize Passport
 app.use(passport.initialize());
@@ -1355,12 +1435,9 @@ app.get('/auth/oidc/callback', async (req, res) => {
     );
     
     console.log('Token exchange successful');
-    console.log('Access token received:', !!tokens.access_token);
-    console.log('ID token received:', !!tokens.id_token);
-    
+
     // Get claims from ID token
     const claims = tokens.claims();
-    console.log('ID Token Claims:', JSON.stringify(claims, null, 2));
     
     // Extract user information from claims
     const sub = claims.sub;
@@ -1586,22 +1663,28 @@ console.log('Serving static files from:', staticDir);
 app.use(express.static(staticDir));
 
 // Simple local login
-app.post('/auth/login', async (req, res) => {
-  console.log('=== LOGIN REQUEST RECEIVED ===');
-  console.log('Request body:', req.body);
-  console.log('Session ID at login start:', req.sessionID);
-  console.log('Session object:', req.session);
-  
+// Brute-force protection for credential submission
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many login attempts. Try again later.' },
+});
+
+app.post('/auth/login', loginRateLimiter, async (req, res) => {
   const { username, password } = req.body;
-  console.log('Extracted username:', username, 'password length:', password?.length);
-  
+  console.log(`Login attempt for user: ${username}`);
+
   try {
-    console.log('About to query database...');
-    const user = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?').get(username, password);
-    console.log('Database query completed. User found:', !!user);
-    
+    const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    // OAuth-only accounts have an empty password column and can never
+    // password-login; bcrypt.compare against a non-hash is always false.
+    const user = (row && row.password && isBcryptHash(row.password)
+      && await bcrypt.compare(String(password || ''), row.password)) ? row : null;
+
     if (user) {
-      console.log('User found:', user.username);
+      console.log('Login successful for user:', user.username);
       req.session.userId = user.id;
       req.session.username = user.username;
       req.session.role = user.role || 'user';
@@ -1614,21 +1697,15 @@ app.post('/auth/login', async (req, res) => {
         req.session.token = token.value;
         req.session.region = region?.value || 'global';
       }
-      
-      console.log('Session before save:', req.session);
-      
       req.session.save((err) => {
         if (err) {
           console.error('Session save error:', err);
           return res.json({ success: false, error: 'Session save failed' });
         }
-        console.log('Session saved successfully. Session ID:', req.sessionID);
-        console.log('Set-Cookie header should be sent');
-        console.log('Session cookie:', req.session.cookie);
         res.json({ success: true });
       });
     } else {
-      console.log('Invalid credentials');
+      console.log('Invalid credentials for user:', username);
       res.json({ success: false, error: 'Invalid username or password' });
     }
   } catch (error) {
@@ -1953,32 +2030,34 @@ app.post('/api/bambu/accounts/:id/primary', (req, res) => {
 });
 
 // Change password
-app.post('/api/settings/change-password', (req, res) => {
+app.post('/api/settings/change-password', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  
+
   const { currentPassword, newPassword } = req.body;
-  
+
   if (!currentPassword || !newPassword) {
     return res.json({ success: false, error: 'Current password and new password are required' });
   }
-  
+
   if (newPassword.length < 4) {
     return res.json({ success: false, error: 'New password must be at least 4 characters' });
   }
-  
+
   try {
     // Verify current password
-    const user = db.prepare('SELECT * FROM users WHERE id = ? AND password = ?').get(req.session.userId, currentPassword);
-    
-    if (!user) {
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.userId);
+    const currentMatches = user && user.password && isBcryptHash(user.password)
+      && await bcrypt.compare(String(currentPassword), user.password);
+
+    if (!currentMatches) {
       return res.json({ success: false, error: 'Current password is incorrect' });
     }
-    
+
     // Update password
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(newPassword, req.session.userId);
-    
+    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(await bcrypt.hash(String(newPassword), BCRYPT_ROUNDS), req.session.userId);
+
     res.json({ success: true });
   } catch (error) {
     console.error('Password change error:', error);
@@ -2014,17 +2093,13 @@ app.get('/api/settings/printer-ftp', (req, res) => {
 // Save printer FTP settings
 app.post('/api/settings/printer-ftp', (req, res) => {
   console.log('=== SAVE PRINTER FTP SETTINGS ===');
-  console.log('Authenticated:', req.session.authenticated);
-  console.log('User ID:', req.session.userId);
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
-  
+
   if (!req.session.authenticated) {
-    console.log('ERROR: Not authenticated');
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  
+
   const { printerIp, printerAccessCode, cameraRtspUrl, serialNumber } = req.body;
-  console.log('Parsed values:', { printerIp, printerAccessCode, cameraRtspUrl: cameraRtspUrl ? '***' : null, serialNumber });
+  console.log('Parsed values:', { printerIp, printerAccessCode: printerAccessCode ? '***' : null, cameraRtspUrl: cameraRtspUrl ? '***' : null, serialNumber });
   
   try {
     // Save to global config
@@ -4091,8 +4166,7 @@ function mergeConfiguredPrinters(devices = []) {
 app.get('/api/printers', async (req, res) => {
   logger.info('Printers request');
   logger.debug('Auth:', req.session.authenticated, 'Token present:', !!req.session.token);
-  logger.debug('Token preview:', req.session.token ? req.session.token.substring(0, 20) + '...' : 'N/A');
-  
+
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -8268,6 +8342,8 @@ app.post('/api/admin/migrate-bambu-accounts', requireAdmin, (req, res) => {
 });
 
 // Admin: Get OAuth settings
+const SECRET_MASK = '••••••••';
+
 app.get('/api/settings/oauth', requireAdmin, (req, res) => {
   try {
     const settings = db.prepare('SELECT key, value FROM config WHERE key LIKE ?').all('oauth_%');
@@ -8289,7 +8365,12 @@ app.get('/api/settings/oauth', requireAdmin, (req, res) => {
         oauthConfig[key] = row.value || '';
       }
     });
-    
+
+    // Never return stored secrets; the UI shows a mask and sends it back
+    // unchanged unless the admin types a new value.
+    if (oauthConfig.oidcClientSecret) oauthConfig.oidcClientSecret = SECRET_MASK;
+    if (oauthConfig.googleClientSecret) oauthConfig.googleClientSecret = SECRET_MASK;
+
     res.json(oauthConfig);
   } catch (error) {
     console.error('Error fetching OAuth settings:', error);
@@ -8331,11 +8412,18 @@ app.post('/api/settings/save-oauth', requireAdmin, async (req, res) => {
     upsert.run('oauth_provider', provider, provider);
     upsert.run('oauth_publicHostname', publicHostname, publicHostname);
     upsert.run('oauth_googleClientId', googleClientId, googleClientId);
-    upsert.run('oauth_googleClientSecret', googleClientSecret, googleClientSecret);
     upsert.run('oauth_oidcIssuer', oidcIssuer, oidcIssuer);
     upsert.run('oauth_oidcClientId', oidcClientId, oidcClientId);
-    upsert.run('oauth_oidcClientSecret', oidcClientSecret, oidcClientSecret);
     upsert.run('oauth_oidcEndSessionUrl', oidcEndSessionUrl || '', oidcEndSessionUrl || '');
+
+    // The GET endpoint masks stored secrets; a masked or empty value coming
+    // back means "keep the existing secret".
+    if (googleClientSecret && googleClientSecret !== SECRET_MASK) {
+      upsert.run('oauth_googleClientSecret', googleClientSecret, googleClientSecret);
+    }
+    if (oidcClientSecret && oidcClientSecret !== SECRET_MASK) {
+      upsert.run('oauth_oidcClientSecret', oidcClientSecret, oidcClientSecret);
+    }
     
     // Reconfigure OIDC client with new settings
     if (provider === 'oidc') {

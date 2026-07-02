@@ -403,7 +403,8 @@ try {
 // Create default superadmin user if no users exist
 const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
 if (userCount.count === 0) {
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', 'admin', 'superadmin');
+  const bcrypt = require('bcryptjs');
+  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', bcrypt.hashSync('admin', 12), 'superadmin');
   console.log('✓ Created default superadmin user (username: admin, password: admin)');
 }
 
