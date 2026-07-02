@@ -94,6 +94,10 @@ class BambuMqttClient extends EventEmitter {
         logger.error('MQTT error:', error);
         if (!this.everConnected) {
           this.emit('error', error);
+          // Settle connect() here as well: the 'error' listener above may tear
+          // this client down (removeAllListeners), in which case 'close' never
+          // reaches our handler and the promise would hang forever.
+          reject(error);
         }
       });
 
@@ -106,6 +110,10 @@ class BambuMqttClient extends EventEmitter {
         // triggers teardown + cooldown server-side) when we never connected.
         if (!this.everConnected) {
           this.emit('disconnected');
+          // Settle the connect() promise now. Without this, the server-side
+          // teardown triggered by 'disconnected' clears the connect timer and
+          // the awaited connect() never resolves — hanging the caller.
+          reject(new Error('MQTT connection failed'));
         } else {
           this.emit('connection_lost');
         }
@@ -508,6 +516,9 @@ class BambuMqttClient extends EventEmitter {
       // stops retrying immediately instead of waiting on in-flight work.
       this.client.end(true);
       this.client.removeAllListeners();
+      // A connack/keepalive timer inside mqtt.js can still fire after end();
+      // with all listeners removed that 'error' would crash the process.
+      this.client.on('error', () => {});
       this.client = null;
       this.connected = false;
       this.currentJobData = null;

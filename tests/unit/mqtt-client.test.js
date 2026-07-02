@@ -108,7 +108,9 @@ describe('BambuMqttClient LAN-mode semantics', () => {
     client = new BambuMqttClient('127.0.0.1', 'NOPE', 'code', 'Test', { port: 59999, connectTimeoutMs: 1500 });
     client.on('error', () => {}); // the server always attaches an error handler; mirror that
     const disconnected = once(client, 'disconnected', 5000);
-    await expect(client.connect()).rejects.toThrow(/timeout/i);
+    // Rejects promptly with the underlying socket error (was: hung until the
+    // 15s connect timer — or forever once server-side teardown cleared it).
+    await expect(client.connect()).rejects.toThrow(/ECONNREFUSED|failed|timeout/i);
     await disconnected;
     expect(client.everConnected).toBe(false);
   });

@@ -45,6 +45,14 @@ const { securityHeaders, appHeaders, rejectCrossSite } = require('./server/middl
 const { requireAuth, requireAdmin } = require('./server/middleware/requireAuth');
 const { configureOIDC, getOidcConfig } = require('./server/services/oidcProvider');
 const { sendNotification, sendDiscordNotification, sendTelegramNotification, sendSlackNotification } = require('./server/services/notifications');
+const PrinterConnectionManager = require('./server/services/printerConnectionManager');
+const {
+  REALTIME_SOCKET_PATH,
+  broadcastRealtimeMessage,
+  attachRealtimeBridgeToMqttClient,
+  setupRealtimeServer,
+  closeRealtimeServer,
+} = require('./server/realtime/wsServer');
 const authRoutes = require('./server/routes/auth');
 const maintenanceRoutes = require('./server/routes/maintenance');
 
@@ -505,7 +513,7 @@ function setupFtpAutoSync() {
         try {
           // Check if printer is currently printing via MQTT
           const clientKey = `${printer.ip_address}:${printer.dev_id}`;
-          const mqttClient = mqttClients.get(clientKey);
+          const mqttClient = printerManager.getClient(clientKey);
           
           if (mqttClient && mqttClient.connected) {
             const currentJob = mqttClient.getCurrentJob();
@@ -777,167 +785,15 @@ function setupAutoVideoMatching() {
 
 const app = express();
 let httpServer = null; // Store reference for graceful shutdown
-let realtimeWss = null;
-const mqttClients = new Map(); // Store MQTT clients per printer
-// Track recent failed MQTT connection attempts so an unreachable printer
-// isn't re-dialed on every status poll (which spawns zombie auto-reconnecting
-// clients and floods the log with connack-timeout errors).
-const mqttConnectFailures = new Map(); // clientKey -> timestamp of last failure
-const MQTT_RECONNECT_COOLDOWN_MS = 60000;
-const REALTIME_SOCKET_PATH = '/ws/printers';
 
-function sendRealtimeMessage(socket, payload) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    return;
-  }
-
-  try {
-    socket.send(JSON.stringify({
-      sentAt: new Date().toISOString(),
-      ...payload,
-    }));
-  } catch (error) {
-    logger.debug('[Realtime] Failed to send websocket message:', error.message);
-  }
-}
-
-function broadcastRealtimeMessage(payload) {
-  if (!realtimeWss) {
-    return;
-  }
-
-  realtimeWss.clients.forEach((client) => {
-    sendRealtimeMessage(client, payload);
-  });
-}
-
-function buildRealtimePrinterPayload(device, jobData = null, overrides = {}) {
-  const printerId = device?.dev_id || overrides.dev_id || null;
-  if (!printerId) {
-    return null;
-  }
-
-  let latestConfig = {};
-  try {
-    latestConfig = db.prepare(`
-      SELECT dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url
-      FROM printers
-      WHERE dev_id = ?
-    `).get(printerId) || {};
-
-    // Fallback: if no camera URL found by dev_id, look for a record matching by serial number
-    // (handles ghost manual_* records that haven't been migrated yet).
-    if (!latestConfig.camera_rtsp_url && device?.serial_number) {
-      const bySerial = db.prepare(`
-        SELECT camera_rtsp_url FROM printers WHERE serial_number = ? AND camera_rtsp_url IS NOT NULL AND TRIM(camera_rtsp_url) != ''
-      `).get(device.serial_number);
-      if (bySerial?.camera_rtsp_url) {
-        latestConfig.camera_rtsp_url = bySerial.camera_rtsp_url;
-      }
-    }
-  } catch (error) {
-    logger.debug('[Realtime] Failed to load printer config snapshot:', error.message);
-  }
-
-  const mergedTask = jobData
-    ? { ...(device?.current_task || {}), ...jobData, ...(overrides.current_task || {}) }
-    : overrides.current_task || device?.current_task;
-
-  return {
-    type: 'printer.telemetry',
-    printerId,
-    payload: {
-      ...device,
-      ...latestConfig,
-      ...overrides,
-      dev_id: printerId,
-      name: overrides.name || latestConfig.name || device?.name || printerId,
-      online: overrides.online ?? device?.online ?? false,
-      print_status: overrides.print_status || device?.print_status || mergedTask?.gcode_state || 'OFFLINE',
-      camera_rtsp_url: overrides.camera_rtsp_url ?? latestConfig.camera_rtsp_url ?? device?.camera_rtsp_url ?? null,
-      ams: overrides.ams ?? mergedTask?.ams ?? device?.ams,
-      current_task: mergedTask || undefined,
-    },
-  };
-}
-
-function attachRealtimeBridgeToMqttClient(mqttClient, clientKey, device) {
-  mqttClient.realtimeDevice = {
-    ...(mqttClient.realtimeDevice || {}),
-    ...device,
-  };
-
-  if (mqttClient.__realtimeBridgeAttached) {
-    return;
-  }
-
-  mqttClient.__realtimeBridgeAttached = true;
-
-  mqttClient.on('job_update', (jobData) => {
-    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, jobData, {
-      online: true,
-      print_status: jobData?.gcode_state || mqttClient.realtimeDevice?.print_status || 'ONLINE',
-    });
-
-    if (payload) {
-      broadcastRealtimeMessage(payload);
-    }
-  });
-
-  mqttClient.on('disconnected', () => {
-    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
-      online: false,
-      print_status: 'OFFLINE',
-    });
-
-    if (payload) {
-      broadcastRealtimeMessage(payload);
-    }
-  });
-
-  mqttClient.on('error', () => {
-    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
-      online: false,
-      print_status: 'OFFLINE',
-    });
-
-    if (payload) {
-      broadcastRealtimeMessage(payload);
-    }
-  });
-}
-
-function setupRealtimeServer(server) {
-  if (!server || realtimeWss) {
-    return;
-  }
-
-  realtimeWss = new WebSocketServer({
-    server,
-    path: REALTIME_SOCKET_PATH,
-  });
-
-  realtimeWss.on('connection', (socket) => {
-    sendRealtimeMessage(socket, {
-      type: 'realtime.welcome',
-      payload: { status: 'connected' },
-    });
-
-    for (const mqttClient of mqttClients.values()) {
-      const payload = buildRealtimePrinterPayload(
-        mqttClient.realtimeDevice || {},
-        mqttClient.getCurrentJob(),
-        { online: mqttClient.connected }
-      );
-
-      if (payload) {
-        sendRealtimeMessage(socket, payload);
-      }
-    }
-  });
-
-  logger.info(`[Realtime] WebSocket bridge ready at ${REALTIME_SOCKET_PATH}`);
-}
+// LAN-mode MQTT lifecycle: registry, cooldown, teardown ordering all live in
+// the manager; realtime broadcast + print notifications are injected hooks.
+const printerManager = new PrinterConnectionManager({
+  logger,
+  sendNotification,
+  findRecentPrintByJobName: (jobName) => findRecentPrintByJobName(jobName),
+  attachRealtimeBridge: attachRealtimeBridgeToMqttClient,
+});
 
 function setupGo2RtcWebSocketProxy(server) {
   if (!server) {
@@ -3027,135 +2883,12 @@ app.get('/api/printers', async (req, res) => {
         const deviceSerial = deviceData.serial_number || device.dev_id;
 
         if (deviceIp && deviceAccessCode && deviceSerial) {
-          const clientKey = `${deviceIp}:${device.dev_id}`;
-          
-          // Create or get existing MQTT client for this printer.
-          // Skip if a recent attempt failed — avoids re-dialing an unreachable
-          // printer on every poll and leaking zombie auto-reconnecting clients.
-          const lastFailure = mqttConnectFailures.get(clientKey);
-          const inCooldown = lastFailure && (Date.now() - lastFailure) < MQTT_RECONNECT_COOLDOWN_MS;
-          if (!mqttClients.has(clientKey) && !inCooldown) {
-            try {
-              const mqttClient = new BambuMqttClient(deviceIp, deviceSerial, deviceAccessCode, device.name || 'Local Printer');
-
-              // Tear down the underlying client so it stops auto-reconnecting,
-              // then remove it from the registry and start the cooldown.
-              const teardownMqttClient = () => {
-                mqttConnectFailures.set(clientKey, Date.now());
-                if (mqttClients.get(clientKey) === mqttClient) {
-                  mqttClients.delete(clientKey);
-                }
-                try { mqttClient.disconnect(); } catch (_e) { /* already closed */ }
-              };
-
-              // Handle connection errors gracefully
-              mqttClient.on('error', (error) => {
-                logger.warn(`MQTT error for ${device.dev_id}: ${error.message}`);
-                teardownMqttClient();
-              });
-
-              mqttClient.on('disconnected', () => {
-                logger.info(`MQTT disconnected for ${device.dev_id}`);
-                teardownMqttClient();
-              });
-
-              attachRealtimeBridgeToMqttClient(mqttClient, clientKey, deviceData);
-              
-              // Handle print state changes for Discord notifications
-              mqttClient.on('print_completed', async (data) => {
-                // Look up actual design title from database using existing print columns
-                const print = findRecentPrintByJobName(data.jobName);
-                
-                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
-                
-                logger.info(`Print completed on ${data.printerName}: ${data.jobName} (${designName})`);
-                await sendNotification('printer', {
-                  status: 'completed',
-                  printerName: data.printerName,
-                  jobName: data.jobName,
-                  modelName: designName,
-                  progress: data.progress,
-                  message: `Print job "${data.jobName}" has completed successfully!`
-                });
-              });
-              
-              mqttClient.on('print_failed', async (data) => {
-                // Look up actual design title from database using existing print columns
-                const print = findRecentPrintByJobName(data.jobName);
-                
-                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
-                
-                logger.warn(`Print FAILED on ${data.printerName}: ${data.jobName} (${designName})`);
-                await sendNotification('printer', {
-                  status: 'failed',
-                  printerName: data.printerName,
-                  jobName: data.jobName,
-                  modelName: designName,
-                  errorCode: data.errorCode ? `0x${data.errorCode.toString(16).toUpperCase()}` : undefined,
-                  progress: data.progress,
-                  message: `Print job "${data.jobName}" has FAILED at ${data.progress}%!`
-                });
-              });
-              
-              mqttClient.on('print_error', async (data) => {
-                // Look up actual design title from database using existing print columns
-                const print = findRecentPrintByJobName(data.jobName);
-                
-                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
-                
-                logger.warn(`Print ERROR on ${data.printerName}: ${data.jobName} (${designName})`);
-                await sendNotification('printer', {
-                  status: 'error',
-                  printerName: data.printerName,
-                  jobName: data.jobName,
-                  modelName: designName,
-                  errorCode: data.errorCode ? `0x${data.errorCode.toString(16).toUpperCase()}` : undefined,
-                  progress: data.progress,
-                  message: `Printer error detected during "${data.jobName}" at ${data.progress}%`
-                });
-              });
-              
-              mqttClient.on('print_paused', async (data) => {
-                // Look up actual design title from database using existing print columns
-                const print = findRecentPrintByJobName(data.jobName);
-                
-                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
-                
-                logger.info(`Print paused on ${data.printerName}: ${data.jobName} (${designName})`);
-                await sendNotification('printer', {
-                  status: 'paused',
-                  printerName: data.printerName,
-                  jobName: data.jobName,
-                  modelName: designName,
-                  progress: data.progress,
-                  message: `Print job "${data.jobName}" has been paused at ${data.progress}%`
-                });
-              });
-              
-              await mqttClient.connect();
-              mqttClients.set(clientKey, mqttClient);
-              mqttConnectFailures.delete(clientKey); // connected cleanly — clear cooldown
-              logger.info(`Created MQTT client for ${device.dev_id}`);
-
-              // Wait briefly for initial MQTT message with AMS data
-              await new Promise(resolve => setTimeout(resolve, 500));
-            } catch (error) {
-              logger.warn(`Could not connect MQTT for ${device.dev_id}: ${error.message}`);
-              // Start the cooldown and ensure the client is fully torn down so it
-              // doesn't keep auto-reconnecting in the background.
-              mqttConnectFailures.set(clientKey, Date.now());
-              // The client was never added to the registry (that only happens on
-              // success), so tear down the local reference directly instead of a
-              // no-op registry lookup that would leak an auto-reconnecting client.
-              if (mqttClients.get(clientKey) === mqttClient) {
-                mqttClients.delete(clientKey);
-              }
-              try { mqttClient.disconnect(); } catch (_e) { /* already closed */ }
-            }
-          }
+          // Create/reuse the MQTT client for this printer (lazy connect +
+          // cooldown semantics live in PrinterConnectionManager).
+          const clientKey = await printerManager.ensureClient(deviceData, { deviceIp, deviceAccessCode, deviceSerial });
           
           // Get current job data from MQTT client
-          const mqttClient = mqttClients.get(clientKey);
+          const mqttClient = printerManager.getClient(clientKey);
           if (mqttClient) {
             attachRealtimeBridgeToMqttClient(mqttClient, clientKey, deviceData);
           }
@@ -3313,7 +3046,7 @@ app.get('/api/printers/status', async (req, res) => {
     const printers = devices.map(device => {
       const deviceIp = device.ip_address || legacyPrinterIp;
       const clientKey = `${deviceIp || ''}:${device.dev_id}`;
-      const mqttClient = mqttClients.get(clientKey);
+      const mqttClient = printerManager.getClient(clientKey);
       const mqttJob = mqttClient?.connected ? mqttClient.getCurrentJob() : null;
 
       return {
@@ -3418,7 +3151,7 @@ app.get('/api/job-cover/:dev_id', async (req, res) => {
     }
     
     // Get MQTT client for this printer
-    const mqttClient = mqttClients.get(dev_id);
+    const mqttClient = printerManager.getClient(dev_id);
     if (!mqttClient || !mqttClient.connected) {
       // Silent 404 - expected when printer offline
       return res.status(404).end();
@@ -8187,7 +7920,7 @@ httpServer = app.listen(PORT, async () => {
   await generateAllThumbnails();
 });
 
-setupRealtimeServer(httpServer);
+setupRealtimeServer(httpServer, printerManager);
 setupGo2RtcWebSocketProxy(httpServer);
 
 // Graceful shutdown handler
@@ -8205,13 +7938,7 @@ const gracefulShutdown = (signal) => {
   } catch (e) {}
   
   // Disconnect all MQTT clients
-  for (const [key, client] of mqttClients.entries()) {
-    console.log(`Disconnecting MQTT client for ${key}`);
-    try {
-      client.disconnect();
-    } catch (e) {}
-  }
-  mqttClients.clear();
+  printerManager.disconnectAll();
   
   // Close database
   if (db) {
@@ -8221,13 +7948,7 @@ const gracefulShutdown = (signal) => {
     } catch (e) {}
   }
   
-  if (realtimeWss) {
-    try {
-      realtimeWss.clients.forEach((client) => client.close());
-      realtimeWss.close();
-      console.log('Realtime websocket server closed');
-    } catch (e) {}
-  }
+  closeRealtimeServer();
 
   // Close HTTP server
   if (httpServer) {
