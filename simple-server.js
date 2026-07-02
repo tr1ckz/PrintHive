@@ -38,13 +38,15 @@ const {
   videosDir,
   db
 } = require('./database');
-const { getThumbnail, clearThumbnailCache } = require('./thumbnail-generator');
+// Thumbnails render in a dedicated worker_thread (canvas CPU work off the event loop)
+const { getThumbnail, clearThumbnailCache } = require('./server/jobs/thumbnailClient');
 const { autoDescribeModel } = require('./ai-describer');
 const { PORT, BCRYPT_ROUNDS, isBcryptHash, loadSessionSecret, getBambuApiBase } = require('./server/config');
 const { securityHeaders, appHeaders, rejectCrossSite } = require('./server/middleware/security');
 const { requireAuth, requireAdmin } = require('./server/middleware/requireAuth');
 const { configureOIDC, getOidcConfig } = require('./server/services/oidcProvider');
 const { sendNotification, sendDiscordNotification, sendTelegramNotification, sendSlackNotification } = require('./server/services/notifications');
+const jobManager = require('./server/jobs/jobManager');
 const PrinterConnectionManager = require('./server/services/printerConnectionManager');
 const {
   REALTIME_SOCKET_PATH,
@@ -8313,9 +8315,13 @@ app.post('/api/settings/database/backup', async (req, res) => {
     // Continue processing below
   }
   
+  // Serialize with other heavy work (ffmpeg conversions) so two
+  // disk-intensive jobs never run at once.
+  const releaseHeavyLane = await jobManager.acquireLane('heavy');
+
   // Perform backup
   try {
-    
+
     console.log(`Creating backup archive at ${backupFile}...`);
     console.log(`Options: Videos=${includeVideos}, Library=${includeLibrary}, Covers=${includeCovers}`);
     
@@ -8654,6 +8660,8 @@ app.post('/api/settings/database/backup', async (req, res) => {
     if (!async) {
       res.status(500).json({ success: false, error: error.message || 'Unknown backup error' });
     }
+  } finally {
+    releaseHeavyLane();
   }
 });
 

@@ -152,7 +152,10 @@ class BackgroundSyncService {
         if (fs.existsSync(mp4Path)) continue;
         
         try {
-          await videoConverter.getMp4Path(aviPath);
+          // Serialize conversions through the shared heavy lane so an ffmpeg
+          // run never overlaps a backup/restore or another conversion.
+          const jobManager = require('../jobs/jobManager');
+          await jobManager.runInLane('heavy', () => videoConverter.getMp4Path(aviPath));
           convertedCount++;
           console.log(`    ✓ Converted ${aviFile}`);
           
