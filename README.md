@@ -1,6 +1,6 @@
 # PrintHive - 3D Printer Management
 
-**Version: 1.3.27** | [View Changelog](#changelog)
+**Version: 1.4.39** | [View Changelog](#changelog)
 
 A comprehensive web application for managing 3D printers, including print history tracking, model library management, real-time printer monitoring via MQTT, cloud synchronization with Bambu MakerWorld, and complete database backup & maintenance tools.
 
@@ -122,11 +122,14 @@ See [README-ENV.md](README-ENV.md) for detailed environment variable documentati
 
 ### Required Environment Variables
 
-- `SESSION_SECRET`: Random secret key for session encryption
 - `PUBLIC_URL`: Your application's public URL
 
 ### Optional Environment Variables
 
+- `SESSION_SECRET`: Secret key for session encryption. If unset, PrintHive generates a random 32-byte secret on first boot and persists it to `data/session-secret`, so sessions survive restarts without any configuration. Set it explicitly when you want to share one secret across multiple instances.
+- `COOKIE_SECURE`: Set to `true` to mark the session cookie `Secure` (HTTPS-only). Leave unset/`false` for plain-HTTP LAN deployments. Default: `false`.
+- `PRINTHIVE_DATA_DIR`: Override the data directory (database, sessions secret, videos, thumbnails, backups). Default: `./data`.
+- `PRINTHIVE_LIBRARY_DIR`: Override the model library directory. Default: `./library`.
 - `OAUTH_ISSUER`: OIDC provider URL
 - `OAUTH_CLIENT_ID`: OAuth client ID
 - `OAUTH_CLIENT_SECRET`: OAuth client secret
@@ -159,6 +162,12 @@ PrintHive does not require an external MQTT broker for Bambu printer monitoring.
 - The printer can still report online or idle state when no job is running
 - Detailed telemetry such as temperatures, fans, Wi-Fi signal, and some AMS details only appear after the printer publishes those fields
 - If the UI shows **Awaiting telemetry**, that usually means the specific detailed fields have not arrived yet, not that MQTT is necessarily disconnected
+
+**Real-time updates to the browser:**
+- The server pushes live printer telemetry to the UI over a WebSocket at `/ws/printers` (no polling)
+- MQTT connections are managed lazily: a printer is dialed when it first appears in a status poll, and an unreachable printer enters a 60-second cooldown so it is not re-dialed on every poll
+- Transient network drops are recovered automatically by the MQTT client; only genuinely unreachable printers are marked offline
+- If you run PrintHive behind a reverse proxy, make sure it forwards WebSocket upgrade headers (see the Nginx example below)
 
 ### Authentication & Authorization
 
@@ -376,6 +385,9 @@ npm install
 # Start development server (frontend + backend)
 npm run dev
 
+# Run the test suite (contract snapshots, MQTT lifecycle, job manager)
+npm test
+
 # Build for production
 npm run build
 
@@ -386,14 +398,37 @@ npm start
 npm run reset-admin
 ```
 
+### Backend Architecture
+
+The backend is organised under `server/` rather than a single monolith:
+
+- `server/config.js` — port, bcrypt policy, data-dir paths, session-secret loader
+- `server/middleware/` — auth guards (`requireAuth`, `requireAdmin`) and security middleware (helmet, login rate limit, cross-site checks)
+- `server/routes/` — Express routers grouped by domain (`auth`, `settings`, `maintenance`, …)
+- `server/services/` — `printerConnectionManager` (LAN-mode MQTT lifecycle), `oidcProvider`, `notifications`, `bambuFtp`, `backgroundSync`, `mqtt-client`
+- `server/realtime/wsServer.js` — the `/ws/printers` WebSocket telemetry bridge
+- `server/jobs/` — an in-process job manager plus a worker thread for CPU-heavy thumbnail rendering
+
+`simple-server.js` remains the entry point and wires these modules together.
+
+### Testing
+
+The repo uses [Vitest](https://vitest.dev/). `npm test` runs:
+
+- **Contract snapshots** that pin the JSON shape of ~40 API endpoints against a throwaway database
+- **A fake Bambu printer** (an in-process TLS MQTT broker) that exercises the LAN-mode connect/cooldown/reconnect lifecycle without hardware
+- **Unit tests** for the printer connection manager, job manager, and thumbnail worker
+
 ## Tech Stack
 
-- **Backend**: Node.js, Express.js
+- **Backend**: Node.js, Express.js (modular `server/` layout)
 - **Frontend**: React 19.2, Vite 7.2, TypeScript
-- **Database**: SQLite (printhive.db)
-- **Authentication**: OpenID Connect (OIDC)
-- **Real-time**: MQTT for printer monitoring
+- **Database**: SQLite (`printhive.db`, via better-sqlite3)
+- **Authentication**: OpenID Connect (OIDC), bcrypt-hashed local passwords
+- **Real-time**: direct `mqtts` to each printer, pushed to the browser over a WebSocket bridge
+- **Background work**: in-process job manager with a serialized "heavy" lane; thumbnail rendering in a worker thread
 - **Backup**: SFTP & FTP support
+- **Testing**: Vitest (contract snapshots + fake-printer MQTT harness)
 - **Container**: Docker with multi-architecture support
 
 ## Contributing
@@ -407,13 +442,31 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Security
 
-- Never commit your `.env` file with actual credentials
-- Use strong, random `SESSION_SECRET` in production
-- Configure HTTPS in production deployments
-- Passwords in database settings are masked (only updated if explicitly changed)
-- Remote backup credentials are stored encrypted in config
+- **Password hashing**: local account passwords are hashed with bcrypt. Any legacy plaintext passwords are migrated to bcrypt automatically on first boot after upgrading.
+- **Session secret**: generated and persisted automatically if `SESSION_SECRET` is not set (no more shared default secret). Set it explicitly to share sessions across instances.
+- **Login rate limiting**: repeated failed logins are throttled (10 attempts / 15 minutes / IP) to slow brute-force attempts.
+- **Security headers**: applied via [helmet](https://helmetjs.github.io/) plus a strict Content-Security-Policy and Permissions-Policy.
+- **Cross-site protection**: state-changing requests from a foreign origin are rejected (defense-in-depth alongside `SameSite=Lax` cookies).
+- **Secret redaction**: OIDC client secrets and Bambu Cloud tokens are never returned in API responses; settings show a mask and keep the stored value unless you enter a new one.
+- Never commit your `.env` file with actual credentials.
+- Configure HTTPS in production and set `COOKIE_SECURE=true` so session cookies are only sent over TLS.
+
+> **Upgrade note:** the first boot after upgrading generates a new session secret and re-hashes stored passwords, which invalidates existing sessions — all users will need to log in again once. Take a database backup before upgrading.
+
+See [SECURITY.md](SECURITY.md) for the full security posture.
 
 ## Changelog
+
+### Architecture & Security Hardening (2026-07)
+- 🏗️ Refactored the backend monolith into a modular `server/` layout (config, middleware, routers, services, realtime, jobs)
+- 🔌 Extracted a dedicated `PrinterConnectionManager` and `/ws/printers` WebSocket bridge, decoupling MQTT logic from the web routes (LAN-mode connect/cooldown/reconnect behavior unchanged)
+- 🔐 Hashed local passwords with bcrypt (auto-migrates legacy plaintext on first boot)
+- 🔐 Auto-generated & persisted session secret; removed the hardcoded default
+- 🔐 Added login rate limiting, helmet security headers, and cross-site request rejection
+- 🔐 Redacted OIDC client secrets and Bambu tokens from API responses
+- ⚙️ Moved thumbnail rendering to a worker thread and serialized ffmpeg/backup work through an in-process job manager
+- ✅ Added a Vitest test suite: API contract snapshots and a fake-printer MQTT harness that verifies LAN-mode behavior without hardware
+- 🐛 Fixed two latent LAN-mode bugs surfaced during the refactor (a 500 on unreachable-printer connect timeouts, and a leaked pending request per poll)
 
 ### v1.1.0 (2026-01-08)
 - ✨ Added 10-second countdown to restart splash screen with manual refresh fallback
@@ -632,7 +685,7 @@ server {
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port $server_port;
         
-        # WebSocket support (for future features)
+        # WebSocket support (required for live printer telemetry at /ws/printers)
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         

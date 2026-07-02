@@ -35,10 +35,21 @@ npm run dev
 
 ## Testing
 
+- Run the test suite before submitting: `npm test` (Vitest — API contract snapshots, MQTT lifecycle, job manager)
+- If you change an API response shape intentionally, update the snapshots: `npm test -- -u`
 - Test your changes locally before submitting
 - Verify Docker build works: `docker-compose build`
 - Check for console errors in browser developer tools
 - Test with different printer models if possible
+
+## Project Layout
+
+- `simple-server.js` — backend entry point; wires together the modules under `server/`
+- `server/` — backend modules: `config`, `middleware/`, `routes/`, `services/`, `realtime/`, `jobs/`
+- `src/` — React + TypeScript frontend (`components/`, `hooks/`, `stores/`, `utils/`)
+- `tests/` — Vitest suites and helpers (including the fake-printer MQTT broker)
+
+When adding backend functionality, prefer extending the relevant `server/` module over growing `simple-server.js`.
 
 ## Pull Request Guidelines
 

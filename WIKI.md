@@ -123,5 +123,5 @@ The wiki is also available as markdown files in `PrintHive.wiki/` directory for 
 
 ---
 
-**Last Updated**: April 11, 2026  
-**Version**: 1.3.27
+**Last Updated**: July 2, 2026  
+**Version**: 1.4.39
