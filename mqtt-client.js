@@ -3,12 +3,14 @@ const logger = require('./logger');
 const EventEmitter = require('events');
 
 class BambuMqttClient extends EventEmitter {
-  constructor(printerIp, serialNumber, accessCode, printerName = null) {
+  constructor(printerIp, serialNumber, accessCode, printerName = null, options = {}) {
     super();
     this.printerIp = printerIp;
     this.serialNumber = serialNumber;
     this.accessCode = accessCode;
     this.printerName = printerName || serialNumber;
+    this.port = options.port || 8883;
+    this.connectTimeoutMs = options.connectTimeoutMs || 15000;
     this.client = null;
     this.connected = false;
     this.everConnected = false; // true once we've had at least one successful connect
@@ -44,8 +46,8 @@ class BambuMqttClient extends EventEmitter {
         keepalive: 30 // detect dead links and keep NAT/AP state warm
       };
 
-      logger.info(`Connecting to Bambu printer MQTT at ${this.printerIp}:8883`);
-      this.client = mqtt.connect(`mqtts://${this.printerIp}:8883`, options);
+      logger.info(`Connecting to Bambu printer MQTT at ${this.printerIp}:${this.port}`);
+      this.client = mqtt.connect(`mqtts://${this.printerIp}:${this.port}`, options);
 
       this.client.on('connect', () => {
         logger.info('Connected to Bambu printer MQTT');
@@ -117,7 +119,7 @@ class BambuMqttClient extends EventEmitter {
           this.emit('disconnected'); // never connected → teardown + cooldown
           reject(new Error('MQTT connection timeout'));
         }
-      }, 15000);
+      }, this.connectTimeoutMs);
     });
   }
 

@@ -4,7 +4,8 @@ const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const AdmZip = require('adm-zip');
 
-const CACHE_DIR = path.join(__dirname, 'data', 'cover-cache');
+const { dataDir } = require('./database');
+const CACHE_DIR = path.join(dataDir, 'cover-cache');
 
 // Ensure cache directory exists
 if (!fs.existsSync(CACHE_DIR)) {

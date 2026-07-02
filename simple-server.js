@@ -31,6 +31,7 @@ const {
   downloadCoverImage,
   downloadTimelapseVideo,
   updatePrintVideoPath,
+  dataDir,
   libraryDir,
   videosDir,
   db
@@ -77,7 +78,7 @@ function getBambuApiBase(region = 'global') {
   return region === 'china' ? 'https://api.bambulab.cn' : 'https://api.bambulab.com';
 }
 
-const go2rtcConfigDir = path.join(__dirname, 'data', 'go2rtc');
+const go2rtcConfigDir = path.join(dataDir, 'go2rtc');
 const go2rtcConfigPath = path.join(go2rtcConfigDir, 'go2rtc.yaml');
 const unifiedCameraRelayStreamName = 'printhive_camera';
 const go2rtcInternalBaseUrl = process.env.GO2RTC_INTERNAL_URL || 'http://127.0.0.1:1984';
@@ -523,7 +524,7 @@ function setupFtpAutoSync() {
           
           // Sync timelapses
           try {
-            const videosDir = path.join(__dirname, 'data', 'videos');
+            const videosDir = path.join(dataDir, 'videos');
             const timelapses = await bambuFtp.downloadAllTimelapses(videosDir, false);
             const newTimelapses = timelapses.filter(t => !t.skipped).length;
             if (newTimelapses > 0) {
@@ -1541,18 +1542,18 @@ app.get('/admin', (req, res) => {
 });
 
 // Serve logo and other data assets
-app.use('/favicon.svg', express.static(path.join(__dirname, 'data', 'logo.png')));
-app.use('/logo.png', express.static(path.join(__dirname, 'data', 'logo.png')));
+app.use('/favicon.svg', express.static(path.join(dataDir, 'logo.png')));
+app.use('/logo.png', express.static(path.join(dataDir, 'logo.png')));
 
 // Buy Me a Coffee brand assets
 app.get('/data/bmc-brand-logo.svg', (req, res) => {
-  res.sendFile(path.join(__dirname, 'data', 'bmc-brand-logo.svg'));
+  res.sendFile(path.join(dataDir, 'bmc-brand-logo.svg'));
 });
 
 // Serve cover images from data directory with on-demand download fallback
 app.get('/images/covers/:modelId.:ext', async (req, res) => {
   const { modelId, ext } = req.params;
-  const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
+  const coverCacheDir = path.join(dataDir, 'cover-cache');
   const filePath = path.join(coverCacheDir, `${modelId}.${ext}`);
   
   // If file exists, serve it
@@ -3600,7 +3601,7 @@ app.post('/api/match-videos', (req, res) => {
   }
   
   try {
-    const videosDir = path.join(__dirname, 'data', 'videos');
+    const videosDir = path.join(dataDir, 'videos');
     
     // Get all video files
     const videoFiles = fs.existsSync(videosDir) 
@@ -4529,7 +4530,7 @@ app.get('/api/prints', async (req, res) => {
     
     // Resolve local cover paths. List the cache dir once instead of doing two
     // synchronous fs.existsSync() probes per row (up to 100 blocking stats/req).
-    const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
+    const coverCacheDir = path.join(dataDir, 'cover-cache');
     let coverFiles = new Set();
     try {
       coverFiles = new Set(fs.readdirSync(coverCacheDir));
@@ -5162,7 +5163,7 @@ app.post('/api/download-missing-covers', async (req, res) => {
   void (async () => {
     try {
       const prints = getAllPrintsFromDb();
-      const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
+      const coverCacheDir = path.join(dataDir, 'cover-cache');
 
       const targets = prints.filter((print) => {
         if (!print.cover || !print.modelId) return false;
@@ -5639,7 +5640,7 @@ app.get('/api/statistics', (req, res) => {
 });
 
 // Geometry extraction function
-const geometryCache = path.join(__dirname, 'data', 'geometry');
+const geometryCache = path.join(dataDir, 'geometry');
 if (!fs.existsSync(geometryCache)) {
   fs.mkdirSync(geometryCache, { recursive: true });
 }
@@ -7290,8 +7291,8 @@ async function processBulkDeleteQueue() {
       db.prepare('DELETE FROM library WHERE id = ?').run(fileId);
       
       // Delete associated thumbnail and geometry cache
-      const thumbPath = path.join(__dirname, 'data', 'thumbnails', `${fileId}.png`);
-      const geoPath = path.join(__dirname, 'data', 'geometry', `${fileId}.stl`);
+      const thumbPath = path.join(dataDir, 'thumbnails', `${fileId}.png`);
+      const geoPath = path.join(dataDir, 'geometry', `${fileId}.stl`);
       
       const [thumbExists, geoExists] = await Promise.all([
         fs.promises.access(thumbPath).then(() => true).catch(() => false),
@@ -7352,7 +7353,7 @@ async function processAutoTagQueue() {
         const possiblePaths = [
           fileData.filePath,
           path.join(libraryDir, fileData.fileName),
-          path.join(__dirname, 'library', fileData.fileName),
+          path.join(libraryDir, fileData.fileName),
           `/app/library/${fileData.fileName}`
         ];
         
@@ -7366,7 +7367,7 @@ async function processAutoTagQueue() {
         if (!actualFilePath) {
           // Try to find by ID prefix
           const fileIdPrefix = fileData.fileName.split('-')[0];
-          const searchDirs = [libraryDir, path.join(__dirname, 'library'), '/app/library'];
+          const searchDirs = [libraryDir, '/app/library'];
           for (const dir of searchDirs) {
             if (fs.existsSync(dir)) {
               try {
@@ -7988,7 +7989,7 @@ app.get('/api/camera-snapshot', async (req, res) => {
   const { spawn } = require('child_process');
   
   // Create temp directory if it doesn't exist
-  const tempDir = path.join(__dirname, 'data', 'temp');
+  const tempDir = path.join(dataDir, 'temp');
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }
@@ -10420,7 +10421,7 @@ httpServer = app.listen(PORT, async () => {
   
   // Clean up old camera temp files on startup
   try {
-    const tempDir = path.join(__dirname, 'data', 'temp');
+    const tempDir = path.join(dataDir, 'temp');
     if (fs.existsSync(tempDir)) {
       const files = fs.readdirSync(tempDir);
       const oldFiles = files.filter(f => f.startsWith('camera-temp-'));
@@ -10796,7 +10797,7 @@ app.post('/api/settings/database/vacuum', async (req, res) => {
   }
 
   if (!queueDatabaseMaintenanceJob('vacuum', async () => {
-    const dbPath = path.join(__dirname, 'data', 'printhive.db');
+    const dbPath = path.join(dataDir, 'printhive.db');
     const sizeBefore = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
     const startTime = Date.now();
     db.exec('VACUUM');
@@ -10925,7 +10926,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
   const tar = require('tar');
   
   // Create backup directory if it doesn't exist
-  const backupDir = path.join(__dirname, 'data', 'backups');
+  const backupDir = path.join(dataDir, 'backups');
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
   }
@@ -10978,8 +10979,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
     
     // Prepare list of files/folders to include in backup
     const filesToBackup = [];
-    const dataDir = path.join(__dirname, 'data');
-    
+
     // Always include the database (only add shm/wal if they exist)
     filesToBackup.push('printhive.db');
     if (fs.existsSync(path.join(dataDir, 'printhive.db-shm'))) {
@@ -11008,7 +11008,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
     
     // Include library files if requested (library is at project root: /app/library)
     if (includeLibrary) {
-      const libraryPath = path.join(__dirname, 'library');
+      const libraryPath = libraryDir;
       if (fs.existsSync(libraryPath)) {
         // Recursively count files in library directory (filtering by known extensions)
         const allowedExts = new Set(['.3mf', '.stl', '.gcode']);
@@ -11085,7 +11085,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
     
     // Merge in optional archives (library, covers) by extracting and repacking
     const extraArchives = [];
-    if (includeLibrary && libraryCount > 0 && fs.existsSync(path.join(__dirname, 'library'))) {
+    if (includeLibrary && libraryCount > 0 && fs.existsSync(libraryDir)) {
       const libraryBackupPath = path.join(backupDir, `library_temp_${Date.now()}.tar.gz`);
       await tar.create(
         {
@@ -11411,7 +11411,7 @@ app.delete('/api/settings/database/backups/:filename', (req, res) => {
       return res.status(400).json({ error: 'Invalid filename' });
     }
     
-    const backupDir = path.join(__dirname, 'data', 'backups');
+    const backupDir = path.join(dataDir, 'backups');
     const backupFile = path.join(backupDir, filename);
     
     if (!fs.existsSync(backupFile)) {
@@ -11441,7 +11441,7 @@ app.get('/api/settings/database/backups', (req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
-    const backupDir = path.join(__dirname, 'data', 'backups');
+    const backupDir = path.join(dataDir, 'backups');
     
     if (!fs.existsSync(backupDir)) {
       return res.json({ success: true, backups: [], stats: { count: 0, totalSize: 0, totalSizeFormatted: '0 B' } });
@@ -11540,7 +11540,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     const fs = require('fs');
     const path = require('path');
     const tar = require('tar');
-    const backupPath = path.join(__dirname, 'data', 'backups', backupFile);
+    const backupPath = path.join(dataDir, 'backups', backupFile);
     
     if (!fs.existsSync(backupPath)) {
       return res.status(404).json({ success: false, error: 'Backup file not found' });
@@ -11557,7 +11557,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     db.close();
     
     // Create a temporary extraction directory
-    const tempExtractDir = path.join(__dirname, 'data', 'temp_restore');
+    const tempExtractDir = path.join(dataDir, 'temp_restore');
     if (fs.existsSync(tempExtractDir)) {
       fs.rmSync(tempExtractDir, { recursive: true, force: true });
     }
@@ -11573,7 +11573,6 @@ app.post('/api/settings/database/restore', async (req, res) => {
     restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Restoring database...', progress: 30 });
     
     // Restore database files
-    const dataDir = path.join(__dirname, 'data');
     if (fs.existsSync(path.join(tempExtractDir, 'printhive.db'))) {
       fs.copyFileSync(path.join(tempExtractDir, 'printhive.db'), path.join(dataDir, 'printhive.db'));
       console.log('✓ Database restored');
@@ -11607,7 +11606,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     // Restore library files if present (to project root /library)
     const libraryBackupPath = path.join(tempExtractDir, 'library');
     if (fs.existsSync(libraryBackupPath)) {
-      const libraryDirPath = path.join(__dirname, 'library');
+      const libraryDirPath = libraryDir;
       if (!fs.existsSync(libraryDirPath)) {
         fs.mkdirSync(libraryDirPath, { recursive: true });
       }
@@ -11655,7 +11654,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     
     // Reconnect to database
     const Database = require('better-sqlite3');
-    const dbPath = path.join(__dirname, 'data', 'printhive.db');
+    const dbPath = path.join(dataDir, 'printhive.db');
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     
@@ -11699,7 +11698,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     // Try to reconnect to database even if restore failed
     try {
       const Database = require('better-sqlite3');
-      const dbPath = path.join(__dirname, 'data', 'printhive.db');
+      const dbPath = path.join(dataDir, 'printhive.db');
       db = new Database(dbPath);
       db.pragma('journal_mode = WAL');
     } catch (reconnectError) {

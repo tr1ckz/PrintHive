@@ -3,7 +3,8 @@ const fs = require('fs');
 const { createCanvas } = require('@napi-rs/canvas');
 
 // Cache directory for thumbnails
-const THUMB_DIR = path.join(__dirname, 'data', 'thumbnails');
+const { dataDir } = require('./database');
+const THUMB_DIR = path.join(dataDir, 'thumbnails');
 const THUMB_SIZE = 256;
 const PNG_OPTIONS = { compressionLevel: 9 };
 const MAX_MODEL_VERTICES = 18000;
@@ -572,7 +573,7 @@ async function getThumbnail(file) {
     thumbnail = generateGCodeThumbnail(file);
   } else {
     // For 3MF and STL, try to render actual model
-    const libraryDir = path.join(__dirname, 'library');
+    const { libraryDir } = require('./database');
     const filePath = path.join(libraryDir, file.fileName);
     
     if (fs.existsSync(filePath)) {

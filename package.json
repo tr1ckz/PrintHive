@@ -9,6 +9,8 @@
     "dev:frontend": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "reset-admin": "node reset-admin.js",
     "docker:build": "docker build -t printhive:latest .",
     "docker:run": "docker run -d --name printhive -p 3000:3000 -v printhive_data:/app/data -v printhive_library:/app/library -v printhive_sessions:/app/sessions printhive:latest"
@@ -60,8 +62,10 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
+    "aedes": "^1.1.1",
     "nodemon": "^3.0.1",
-    "tailwindcss": "^4.2.2"
+    "tailwindcss": "^4.2.2",
+    "vitest": "^4.1.9"
   },
   "overrides": {
     "async": "^3.2.6",
