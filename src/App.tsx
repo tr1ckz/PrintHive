@@ -13,7 +13,6 @@ import { fetchWithRetry } from './utils/fetchWithRetry';
 import { usePrinterStore } from './stores/usePrinterStore';
 import { applyThemeScheme } from './utils/theme';
 import packageInfo from '../package.json';
-import './App.css';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -134,8 +133,8 @@ function App() {
   return (
     <ErrorBoundary>
       <ModalProvider>
-        <div className="app">
-          <div className="app-content">
+        <div className="min-h-dvh flex flex-col">
+          <div className="flex-1 min-h-0">
             {isDocsRoute && !isAuthenticated ? (
               <Suspense fallback={<LoadingScreen message="Loading docs..." title="PrintHive" />}>
                 <Docs standalone />
@@ -147,14 +146,15 @@ function App() {
             )}
           </div>
 
-          <footer className="app-footer">
-            <div className="app-footer-inner">
-              <span className="app-footer-version">PrintHive v{footerVersion}</span>
-              <div className="app-footer-meta">
-                <span className="app-footer-caption">3D print ops workspace</span>
-                <span className="app-footer-separator">•</span>
+          {/* Desktop-only footer: mobile gives the space to content + tab bar */}
+          <footer className="hidden md:block shrink-0 border-t border-line bg-base/90 px-6 py-3">
+            <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 text-xs">
+              <span className="font-semibold text-fg-soft">PrintHive v{footerVersion}</span>
+              <div className="flex items-center gap-2 text-muted">
+                <span>3D print ops workspace</span>
+                <span aria-hidden className="opacity-50">•</span>
                 <a
-                  className="app-footer-link"
+                  className="font-semibold text-accent hover:text-accent-strong transition-colors"
                   href="https://github.com/tr1ckz"
                   target="_blank"
                   rel="noopener noreferrer"
