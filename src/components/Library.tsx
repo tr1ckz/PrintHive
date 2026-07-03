@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback, memo, lazy, Suspense } from 'react';
-import './Library.css';
 // Lazy so three.js (~600KB) only downloads when a model is actually opened.
 const ModelViewer = lazy(() => import('./ModelViewer'));
 import TagsInput from './TagsInput';
@@ -672,7 +671,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   }
 
   return (
-    <div className="library-container">
+    <div className="space-y-5">
       {toast && (
         <Toast
           message={toast.message}
@@ -694,17 +693,17 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
 
       {editingFile && (
         <Modal title="✏️ Edit File" onClose={() => setEditingFile(null)}>
-              <div className="form-group">
+              <div className="mb-4 space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&_input]:w-full [&_textarea]:w-full [&_select]:w-full">
                 <label>Filename</label>
                 <input 
                   type="text" 
                   value={editingFile.originalName} 
                   disabled 
-                  className="library-modal-readonly"
+                  className="opacity-60"
                 />
               </div>
               
-              <div className="form-group">
+              <div className="mb-4 space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&_input]:w-full [&_textarea]:w-full [&_select]:w-full">
                 <label>Description</label>
                 <textarea
                   value={editDescription}
@@ -715,7 +714,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                 />
               </div>
               
-              <div className="form-group">
+              <div className="mb-4 space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&_input]:w-full [&_textarea]:w-full [&_select]:w-full">
                 <label>Tags</label>
                 <TagsInput
                   value={editTags}
@@ -723,31 +722,31 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                   disabled={saving || autoTagging}
                   placeholder="Add tags..."
                 />
-                <small className="library-tags-hint">
+                <small className="text-xs text-muted">
                   Type and press Enter or comma to add. Click × to remove.
                 </small>
               </div>
               
               <button 
                 onClick={handleAutoTag} 
-                className="btn-auto-tag"
+                className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent/10 text-accent hover:bg-accent/20"
                 disabled={saving || autoTagging}
                 style={{ width: '100%', marginBottom: '1rem' }}
               >
                 {autoTagging ? '🔄 Analyzing...' : '✨ Auto-Generate Description & Tags'}
               </button>
               
-              <div className="modal-actions">
+              <div className="mt-5 flex justify-end gap-2">
                 <button 
                   onClick={() => setEditingFile(null)} 
-                  className="btn-secondary"
+                  className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
                   disabled={saving}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="btn-primary"
+                  className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
                   disabled={saving}
                 >
                   {saving ? '💾 Saving...' : '💾 Save Changes'}
@@ -756,10 +755,10 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
         </Modal>
       )}
 
-      <section className="library-hero">
-        <div className="library-hero-copy">
-          <span className="library-kicker">Model workspace</span>
-          <div className="library-chip-row">
+      <section className="space-y-4">
+        <div className="space-y-2">
+          <span className="text-xs font-semibold uppercase tracking-widest text-accent">Model workspace</span>
+          <div className="flex flex-wrap gap-1.5 text-xs [&>span]:rounded-full [&>span]:bg-white/5 [&>span]:px-2.5 [&>span]:py-1 [&>span]:text-muted">
             {(fileTypeBreakdown.length > 0 ? fileTypeBreakdown : ['3MF · STL · G-code support']).map((item) => (
               <span key={item}>{item}</span>
             ))}
@@ -768,19 +767,19 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
           </div>
         </div>
 
-        <div className="library-summary-grid">
-          <article className="library-summary-card">
-            <span className="library-summary-label">Total files</span>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <article className="rounded-lg bg-card p-4 shadow-sm [&>strong]:mt-1 [&>strong]:block [&>strong]:text-2xl [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-fg [&>small]:mt-1 [&>small]:block [&>small]:text-xs [&>small]:text-muted">
+            <span className="text-xs text-muted">Total files</span>
             <strong>{files.length}</strong>
             <small>Uploads plus auto-imported models</small>
           </article>
-          <article className="library-summary-card">
-            <span className="library-summary-label">Selected</span>
+          <article className="rounded-lg bg-card p-4 shadow-sm [&>strong]:mt-1 [&>strong]:block [&>strong]:text-2xl [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-fg [&>small]:mt-1 [&>small]:block [&>small]:text-xs [&>small]:text-muted">
+            <span className="text-xs text-muted">Selected</span>
             <strong>{selectedFiles.size}</strong>
             <small>Ready for bulk tags or delete</small>
           </article>
-          <article className="library-summary-card">
-            <span className="library-summary-label">Page</span>
+          <article className="rounded-lg bg-card p-4 shadow-sm [&>strong]:mt-1 [&>strong]:block [&>strong]:text-2xl [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-fg [&>small]:mt-1 [&>small]:block [&>small]:text-xs [&>small]:text-muted">
+            <span className="text-xs text-muted">Page</span>
             <strong>{Math.max(totalPages, 1) === 0 ? 1 : currentPage}/{Math.max(totalPages, 1)}</strong>
             <small>Current filtered view</small>
           </article>
@@ -789,26 +788,26 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
 
       {/* Bulk Action Bar */}
       {selectedFiles.size > 0 && (
-        <div className="bulk-action-bar">
-          <span className="bulk-count">{selectedFiles.size} selected</span>
-          <div className="bulk-actions">
+        <div className="sticky top-16 z-10 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-elevated px-4 py-2.5 shadow-md">
+          <span className="text-sm font-medium text-accent">{selectedFiles.size} selected</span>
+          <div className="flex flex-wrap gap-2">
             <button 
               onClick={() => setBulkTagsModal(true)} 
-              className="btn-bulk"
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
               disabled={bulkDeleting}
             >
               🏷️ Add Tags
             </button>
             <button 
               onClick={handleBulkDelete} 
-              className="btn-bulk btn-bulk-danger"
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25"
               disabled={bulkDeleting}
             >
               {bulkDeleting ? '🗑️ Deleting...' : '🗑️ Delete'}
             </button>
             <button 
               onClick={() => setSelectedFiles(new Set())} 
-              className="btn-bulk btn-bulk-secondary"
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
             >
               ✕ Clear Selection
             </button>
@@ -819,7 +818,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       {/* Bulk Tags Modal */}
       {bulkTagsModal && (
         <Modal title={<>🏷️ Add Tags to {selectedFiles.size} Files</>} onClose={() => setBulkTagsModal(false)}>
-              <div className="form-group">
+              <div className="mb-4 space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&_input]:w-full [&_textarea]:w-full [&_select]:w-full">
                 <label>Tags to add</label>
                 <TagsInput
                   value={bulkTags}
@@ -828,19 +827,19 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                   placeholder="Add tags to apply..."
                 />
               </div>
-              <div className="modal-actions">
-                <button onClick={() => setBulkTagsModal(false)} className="btn-secondary">Cancel</button>
-                <button onClick={handleBulkAddTags} className="btn-primary" disabled={bulkTagging}>
+              <div className="mt-5 flex justify-end gap-2">
+                <button onClick={() => setBulkTagsModal(false)} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg">Cancel</button>
+                <button onClick={handleBulkAddTags} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" disabled={bulkTagging}>
                   {bulkTagging ? 'Adding...' : 'Add Tags'}
                 </button>
               </div>
         </Modal>
       )}
 
-      <div className="search-bar">
+      <div className="flex items-center gap-2">
         <button 
           onClick={selectAllVisible} 
-          className="btn-select-all"
+          className="inline-flex size-11 md:size-9 shrink-0 items-center justify-center rounded-md bg-white/5 text-fg-soft transition-colors hover:bg-white/10"
           title={selectedFiles.size === paginatedFiles.length ? 'Deselect All' : 'Select All'}
         >
           {selectedFiles.size === paginatedFiles.length && paginatedFiles.length > 0 ? '☑' : '☐'}
@@ -850,11 +849,11 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="🔍 Search by filename, description, or tags..."
-          className="search-input"
+          className="min-h-11 md:min-h-10 flex-1"
         />
         <button 
           onClick={() => setShowFilters(!showFilters)} 
-          className={`btn-filter-toggle ${showFilters ? 'active' : ''}`}
+          className={`inline-flex min-h-11 md:min-h-9 shrink-0 items-center rounded-md px-3 text-sm font-medium transition-colors ${showFilters ? 'bg-accent/15 text-accent' : 'bg-white/5 text-fg-soft hover:bg-white/10'}`}
           title="Toggle Filters"
         >
           🔧 Filters
@@ -862,7 +861,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
         {searchQuery && (
           <button 
             onClick={() => setSearchQuery('')} 
-            className="btn-clear-search"
+            className="inline-flex size-11 md:size-9 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/5 hover:text-fg"
           >
             ✕
           </button>
@@ -871,8 +870,8 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
 
       {/* Advanced Filters */}
       {showFilters && (
-        <div className="filters-panel">
-          <div className="filter-group">
+        <div className="grid grid-cols-2 gap-3 rounded-lg bg-card p-4 shadow-sm sm:grid-cols-4 lg:grid-cols-5">
+          <div className="space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&_input]:w-full [&_textarea]:w-full [&_select]:w-full">
             <label>File Type</label>
             <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
               <option value="all">All Types</option>
@@ -882,9 +881,9 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
             </select>
           </div>
           
-          <div className="filter-group">
+          <div className="space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&_input]:w-full [&_textarea]:w-full [&_select]:w-full">
             <label>Size (MB)</label>
-            <div className="filter-range">
+            <div className="flex items-center gap-2 [&>span]:text-xs [&>span]:text-muted">
               <input
                 type="number"
                 placeholder="Min"
@@ -903,7 +902,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
             </div>
           </div>
           
-          <div className="filter-group">
+          <div className="space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&_input]:w-full [&_textarea]:w-full [&_select]:w-full">
             <label>Sort By</label>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as 'date' | 'name' | 'size')}>
               <option value="date">Date Added</option>
@@ -912,7 +911,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
             </select>
           </div>
           
-          <div className="filter-group">
+          <div className="space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&_input]:w-full [&_textarea]:w-full [&_select]:w-full">
             <label>Order</label>
             <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}>
               <option value="desc">Descending</option>
@@ -921,7 +920,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
           </div>
           
           <button 
-            className="btn-clear-filters"
+            className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg self-end"
             onClick={() => {
               setFilterType('all');
               setFilterSizeMin('');
@@ -935,18 +934,18 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
         </div>
       )}
 
-      <div className="library-actions">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div 
-          className={`upload-dropzone ${isDragging ? 'dragging' : ''}`}
+          className={`rounded-lg p-6 text-center transition-colors ${isDragging ? 'bg-accent/10 ring-1 ring-accent/40' : 'bg-card shadow-sm'}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <div className="dropzone-content">
-            <div className="dropzone-icon">📦</div>
+          <div className="flex flex-col items-center gap-1.5 [&>h3]:text-base [&>h3]:font-semibold [&>h3]:text-fg [&>p]:text-sm [&>p]:text-muted">
+            <div className="text-3xl">📦</div>
             <h3>Drag & Drop Files Here</h3>
             <p>or click to browse</p>
-            <p className="dropzone-hint">Supports .3mf, .stl, and .gcode files</p>
+            <p className="!text-xs !text-muted">Supports .3mf, .stl, and .gcode files</p>
             <input 
               type="file" 
               id="file-input"
@@ -955,7 +954,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
               onChange={(e) => e.target.files && uploadFiles(e.target.files)}
               style={{ display: 'none' }}
             />
-            <label htmlFor="file-input" className="btn-browse">
+            <label htmlFor="file-input" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong mt-2 cursor-pointer">
               {uploading ? (
                 <>
                   <Spinner size="small" color="currentColor" /> Uploading...
@@ -967,17 +966,17 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
           </div>
         </div>
 
-        <div className="scan-section">
+        <div className="rounded-lg bg-card p-6 shadow-sm [&>h3]:text-base [&>h3]:font-semibold [&>h3]:text-fg">
           <h3>Auto-Import from Library Folder</h3>
-          <div className="scan-info">
+          <div className="mt-2 space-y-3 [&_code]:rounded [&_code]:bg-white/10 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&>p]:text-sm [&>p]:text-muted">
             <p>📂 Files in <code>/app/library</code> are automatically scanned</p>
-            <div className="scan-buttons">
+            <div className="flex flex-wrap gap-2">
               {!scanProgress ? (
-                <button onClick={handleScanFolder} disabled={scanning} className="btn-scan">
+                <button onClick={handleScanFolder} disabled={scanning} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg">
                   {scanning ? '⏳ Starting...' : '🔄 Refresh Library'}
                 </button>
               ) : (
-                <button onClick={handleCancelScan} className="btn-scan cancel">
+                <button onClick={handleCancelScan} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25">
                   ✕ Cancel Scan
                 </button>
               )}
@@ -985,14 +984,14 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                 <button 
                   onClick={handleAutoTagAll} 
                   disabled={autoTaggingAll || files.length === 0} 
-                  className="btn-auto-tag"
+                  className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent/10 text-accent hover:bg-accent/20"
                 >
                   {autoTaggingAll ? '⏳ Starting...' : '✨ Auto-Tag All Files'}
                 </button>
               ) : (
                 <button 
                   onClick={handleCancelAutoTag} 
-                  className="btn-auto-tag cancel"
+                  className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25"
                 >
                   ✕ Cancel
                 </button>
@@ -1019,39 +1018,39 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
               />
             )}
           </div>
-          <p className="help-text">Mount your local folder to <code>/app/library</code> in Docker</p>
+          <p className="mt-3 text-xs text-muted">Mount your local folder to <code>/app/library</code> in Docker</p>
         </div>
       </div>
 
-      <div className="files-grid">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {files.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">📚</div>
+          <div className="col-span-full flex flex-col items-center gap-2 py-16 text-center [&>h3]:text-base [&>h3]:font-semibold [&>h3]:text-fg [&>p]:text-sm [&>p]:text-muted">
+            <div className="text-4xl">📚</div>
             <h3>No files in library</h3>
             <p>Upload files or scan a folder to get started</p>
           </div>
         ) : (
           paginatedFiles.map(file => (
-            <div key={file.id} className={`file-card ${selectedFiles.has(file.id) ? 'selected' : ''}`}>
+            <div key={file.id} className={`group relative flex flex-col overflow-hidden rounded-lg bg-card shadow-sm transition hover:bg-surface-2 hover:shadow-md ${selectedFiles.has(file.id) ? 'ring-1 ring-accent/50' : ''}`}>
               {/* Selection checkbox */}
-              <label className="file-select-checkbox" onClick={e => e.stopPropagation()}>
+              <label className="absolute left-1.5 top-1.5 z-10 flex size-11 md:size-9 cursor-pointer items-center justify-center [&>input]:size-5" onClick={e => e.stopPropagation()}>
                 <input
                   type="checkbox"
                   checked={selectedFiles.has(file.id)}
                   onChange={() => toggleSelectFile(file.id)}
                 />
-                <span className="checkmark"></span>
+                
               </label>
               
               <div 
-                className="file-preview" 
+                className="relative aspect-square w-full overflow-hidden bg-white/[0.03]" 
                 onClick={() => handleView3D(file)}
                 style={{ cursor: (file.fileType === 'stl' || file.fileType === '3mf') ? 'pointer' : 'default' }}
               >
                 <img 
                   src={`/api/library/thumbnail/${file.id}`} 
                   alt={file.originalName}
-                  className="file-thumbnail"
+                  className="h-full w-full object-cover"
                   loading="lazy"
                   decoding="async"
                   onError={(e) => {
@@ -1059,55 +1058,55 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                   }}
                 />
                 {(file.fileType === 'stl' || file.fileType === '3mf') && (
-                  <div className="view-3d-overlay">
+                  <div className="absolute inset-0 flex items-center justify-center bg-overlay opacity-0 transition-opacity group-hover:opacity-100 [&_span]:text-xs [&_span]:font-medium [&_span]:text-fg">
                     <span>🔍 View in 3D</span>
                   </div>
                 )}
               </div>
-              <div className="file-info">
+              <div className="flex flex-1 flex-col gap-1 p-3 [&>h4]:truncate [&>h4]:text-sm [&>h4]:font-medium [&>h4]:text-fg">
                 <h4>{file.originalName}</h4>
-                <p className="file-type">{file.fileType.toUpperCase()}</p>
-                <p className="file-size">{formatFileSize(file.fileSize)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">{file.fileType.toUpperCase()}</p>
+                <p className="text-xs tabular-nums text-muted">{formatFileSize(file.fileSize)}</p>
                 {file.description && (
-                  <p className="file-desc" onClick={() => setDescriptionModal({ description: file.description, fileName: file.originalName })}>
+                  <p className="line-clamp-2 cursor-pointer text-xs text-fg-faint" onClick={() => setDescriptionModal({ description: file.description, fileName: file.originalName })}>
                     {file.description}
-                    {file.description.length > 150 && <span className="read-more"> ...Read more</span>}
+                    {file.description.length > 150 && <span className="text-accent"> ...Read more</span>}
                   </p>
                 )}
                 {file.tags && (
-                  <div className="file-tags">
+                  <div className="flex flex-wrap gap-1">
                     {file.tags.split(',').map((tag, i) => (
-                      <span key={i} className="tag">{tag.trim()}</span>
+                      <span key={i} className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-muted">{tag.trim()}</span>
                     ))}
                   </div>
                 )}
-                <p className="file-date">{new Date(file.createdAt).toLocaleDateString()}</p>
+                <p className="mt-auto text-[10px] text-muted">{new Date(file.createdAt).toLocaleDateString()}</p>
               </div>
-              <div className="file-actions">
+              <div className="flex flex-wrap gap-1 p-2 pt-0">
                 {(file.fileType === 'stl' || file.fileType === '3mf') && (
                   <button 
                     onClick={() => handleShare(file)}
-                    className="btn-view-3d"
+                    className="min-h-9 flex-1 rounded bg-white/5 px-1.5 text-[11px] font-medium text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
                   >
                     🔗 Share
                   </button>
                 )}
                 <button 
                   onClick={() => handleEditFile(file)}
-                  className="btn-edit"
+                  className="min-h-9 flex-1 rounded bg-white/5 px-1.5 text-[11px] font-medium text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
                 >
                   ✏️ Edit
                 </button>
                 <button 
                   onClick={() => handleDownload(file.id, file.originalName)}
-                  className="btn-download"
+                  className="min-h-9 flex-1 rounded bg-white/5 px-1.5 text-[11px] font-medium text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
                 >
                   ⬇ Download
                 </button>
                 {isAdmin && (
                   <button 
                     onClick={() => handleDeleteClick(file.id)}
-                    className="btn-delete"
+                    className="min-h-9 flex-1 rounded bg-danger/10 px-1.5 text-[11px] font-medium text-danger transition-colors hover:bg-danger/20"
                   >
                     🗑 Delete
                   </button>
@@ -1119,20 +1118,20 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       </div>
 
       {totalPages > 1 && (
-        <div className="pagination">
+        <div className="flex flex-wrap items-center justify-center gap-2">
           <button 
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="btn-page"
+            className="inline-flex min-h-11 md:min-h-9 items-center justify-center rounded-md bg-white/5 px-3 text-sm text-fg-soft transition-colors hover:bg-white/10 disabled:opacity-40"
           >
             ← Previous
           </button>
           
-          <div className="pagination-info">
+          <div className="text-xs tabular-nums text-muted">
             Page {currentPage} of {totalPages} ({filteredFiles.length} files)
           </div>
           
-          <div className="page-numbers">
+          <div className="flex items-center gap-1">
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter(page => {
                 // Show first page, last page, current page, and 2 pages around current
@@ -1145,10 +1144,10 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                 const showEllipsis = index > 0 && page - array[index - 1] > 1;
                 return (
                   <React.Fragment key={page}>
-                    {showEllipsis && <span className="page-ellipsis">...</span>}
+                    {showEllipsis && <span className="px-1 text-muted">...</span>}
                     <button
                       onClick={() => setCurrentPage(page)}
-                      className={`btn-page ${currentPage === page ? 'active' : ''}`}
+                      className={`inline-flex min-h-11 md:min-h-9 min-w-9 items-center justify-center rounded-md px-3 text-sm tabular-nums transition-colors ${currentPage === page ? 'bg-accent/15 text-accent' : 'bg-white/5 text-fg-soft hover:bg-white/10'}`}
                     >
                       {page}
                     </button>
@@ -1160,7 +1159,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
           <button 
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="btn-page"
+            className="inline-flex min-h-11 md:min-h-9 items-center justify-center rounded-md bg-white/5 px-3 text-sm text-fg-soft transition-colors hover:bg-white/10 disabled:opacity-40"
           >
             Next →
           </button>
@@ -1168,27 +1167,20 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       )}
 
       {/* Delete Confirmation */}
-      {deleteConfirm && (
-        <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Confirm Delete</h3>
-            <p>Are you sure you want to delete this file? This action cannot be undone.</p>
-            <div className="modal-actions">
-              <button onClick={() => setDeleteConfirm(null)} className="btn-cancel">
-                Cancel
-              </button>
-              <button onClick={handleDeleteConfirm} className="btn-delete">
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={deleteConfirm !== null}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this file? This action cannot be undone."
+        confirmText="Delete"
+        confirmButtonClass="btn-delete"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteConfirm(null)}
+      />
 
       {descriptionModal && (
-        <Modal title="📖 Full Description" onClose={() => setDescriptionModal(null)} contentClassName="description-modal">
-              <p className="file-name">{descriptionModal.fileName}</p>
-              <p className="description-text">{descriptionModal.description}</p>
+        <Modal title="📖 Full Description" onClose={() => setDescriptionModal(null)}>
+              <p className="text-sm font-medium text-fg">{descriptionModal.fileName}</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-fg-soft">{descriptionModal.description}</p>
         </Modal>
       )}
 
@@ -1202,6 +1194,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       
       {confirmModal && (
         <ConfirmModal
+          isOpen
           title={confirmModal.title}
           message={confirmModal.message}
           onConfirm={() => {
