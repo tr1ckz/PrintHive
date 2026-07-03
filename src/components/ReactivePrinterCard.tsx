@@ -1,10 +1,14 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { CameraMode, CameraStreamType, Printer } from '../types';
 import { API_ENDPOINTS } from '../config/api';
-import FrigateCamera from './FrigateCamera';
-import RTSPCamera from './RTSPCamera';
 import { usePrinterStore } from '../stores/usePrinterStore';
+import Card from './common/Card';
+import StatusBadge, { statusToVariant } from './common/StatusBadge';
+import ProgressBar from './common/ProgressBar';
+import TemperatureGauge from './common/TemperatureGauge';
+import CameraFeed from './printers/CameraFeed';
+import AmsTray from './printers/AmsTray';
 
 const normalizeProgress = (value: number | undefined | null) => {
   if (value === null || value === undefined || Number.isNaN(value)) return 0;
@@ -14,16 +18,6 @@ const normalizeProgress = (value: number | undefined | null) => {
 
   normalized = Math.max(0, Math.min(100, normalized));
   return Math.round(normalized);
-};
-
-const formatBitrate = (bps?: number) => {
-  if (!bps || Number.isNaN(bps)) return null;
-
-  const mbps = bps / (1024 * 1024);
-  if (mbps >= 1) return `${mbps.toFixed(1)} Mbps`;
-
-  const kbps = bps / 1024;
-  return `${Math.round(kbps)} Kbps`;
 };
 
 const getSpeedMode = (mode?: string | number, factor?: number) => {
@@ -74,20 +68,12 @@ interface ReactivePrinterCardProps {
   onOpenHardware: (printerId: string) => void;
 }
 
-function TelemetryTile({ label, value }: { label: string; value: string | null }) {
-  if (!value) {
-    return null;
-  }
+const SectionLabel = ({ children }: { children: ReactNode }) => (
+  <h4 className="text-xs font-semibold uppercase tracking-widest text-muted">{children}</h4>
+);
 
-  return (
-    <div className="telemetry-tile">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function ReactiveStatusPanel({ printerId }: { printerId: string }) {
+/** Status + progress + ETA. The lead section on every viewport. */
+function StatusSection({ printerId }: { printerId: string }) {
   const {
     online,
     printStatus,
@@ -123,65 +109,59 @@ function ReactiveStatusPanel({ printerId }: { printerId: string }) {
     };
   }));
 
+  const running = String(printStatus).toUpperCase() === 'RUNNING';
+
   return (
-    <section className="printer-panel status-panel">
-      <div className="panel-header-inline">
-        <div>
-          <span className="panel-kicker">Current Print</span>
-          <h4>Status & ETA</h4>
-        </div>
-        <span className={`printer-state-chip ${String(printStatus || '').toLowerCase()}`}>
+    <section>
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>Current Print</SectionLabel>
+        <StatusBadge variant={statusToVariant(printStatus, online)}>
           {formatStatusLabel(printStatus || (online ? 'ONLINE' : 'OFFLINE'))}
-        </span>
+        </StatusBadge>
       </div>
 
-      <div className="status-job-name">{taskName || (online ? 'No active print job' : 'Printer offline')}</div>
-      {layerNum && totalLayers ? (
-        <div className="status-job-meta">Layer {layerNum} of {totalLayers}</div>
-      ) : (
-        <div className="status-job-meta">State: {gcodeState || formatStatusLabel(printStatus)}</div>
-      )}
+      <p className="mt-2 truncate text-sm font-medium text-fg">
+        {taskName || (online ? 'No active print job' : 'Printer offline')}
+      </p>
+      <p className="text-xs text-muted tabular-nums">
+        {layerNum && totalLayers ? `Layer ${layerNum} of ${totalLayers}` : `State: ${gcodeState || formatStatusLabel(printStatus)}`}
+      </p>
 
-      <div className="printer-progress-track printer-progress-bar">
-        <div className="printer-progress-fill" style={{ width: `${progress}%` }}></div>
+      <ProgressBar value={progress} size="md" tone={running ? 'accent' : 'success'} className="mt-3" />
+
+      <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
+        <div>
+          <p className="text-xs text-muted">Progress</p>
+          <p className="text-lg font-semibold tabular-nums text-fg">{progress}%</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">Remaining</p>
+          <p className="text-lg font-semibold tabular-nums text-fg">{formatRemainingTime(remainingTime)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">Mode</p>
+          <p className="text-lg font-semibold text-fg">{speedMode || 'Standard'}</p>
+        </div>
+        {endTime ? (
+          <div>
+            <p className="text-xs text-muted">ETA</p>
+            <p className="text-lg font-semibold tabular-nums text-fg">
+              {new Date(endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        ) : null}
       </div>
 
-      <div className="status-metric-grid">
-        <div className="status-metric-card">
-          <span>Progress</span>
-          <strong>{progress}%</strong>
-        </div>
-        <div className="status-metric-card">
-          <span>Remaining</span>
-          <strong>{formatRemainingTime(remainingTime)}</strong>
-        </div>
-        <div className="status-metric-card">
-          <span>Mode</span>
-          <strong>{speedMode || 'Standard'}</strong>
-        </div>
-      </div>
-
-      {endTime || errorMessage ? (
-        <div className="status-detail-row">
-          {endTime ? (
-            <span>ETA {new Date(endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-          ) : null}
-          {errorMessage ? <span title={errorMessage}>{errorMessage}</span> : null}
-        </div>
+      {errorMessage ? (
+        <p className="mt-2 rounded-md bg-danger/10 px-2.5 py-1.5 text-xs text-danger" title={errorMessage}>
+          {errorMessage}
+        </p>
       ) : null}
-
-      <div className="status-telemetry-section">
-        <div className="status-subsection-header">
-          <span className="panel-kicker">Telemetry</span>
-          <h5>Temps, Fans & Signals</h5>
-        </div>
-        <ReactiveTelemetryPanel printerId={printerId} embedded />
-      </div>
 
       {has3mf && modelId ? (
         <a
           href={API_ENDPOINTS.MODELS.LOCAL_DOWNLOAD(modelId)}
-          className="printer-ghost-btn printer-inline-link"
+          className="mt-3 inline-flex min-h-11 md:min-h-9 items-center rounded-md bg-white/5 px-3 text-xs font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
           title="Download 3MF file"
           download
         >
@@ -192,90 +172,80 @@ function ReactiveStatusPanel({ printerId }: { printerId: string }) {
   );
 }
 
-function ReactiveTelemetryPanel({ printerId, embedded = false }: { printerId: string; embedded?: boolean }) {
+/** Live temps (gauges) + secondary signals. */
+function TelemetrySection({ printerId }: { printerId: string }) {
   const {
-    nozzleValue,
-    bedValue,
-    chamberValue,
-    wifiValue,
-    speedValue,
-    zHeightValue,
-    fansValue,
+    nozzleTemp, nozzleTarget, bedTemp, bedTarget, chamberTemp,
+    wifiValue, speedValue, zHeightValue, fansValue,
   } = usePrinterStore(useShallow((state) => {
     const task = state.printersById[printerId]?.current_task;
 
-    const nozzleValue = typeof task?.nozzle_temp === 'number'
-      ? `${Math.round(task.nozzle_temp)}°${typeof task?.nozzle_target === 'number' && task.nozzle_target > 0 ? ` / ${Math.round(task.nozzle_target)}°` : ''}`
-      : null;
-    const bedValue = typeof task?.bed_temp === 'number'
-      ? `${Math.round(task.bed_temp)}°${typeof task?.bed_target === 'number' && task.bed_target > 0 ? ` / ${Math.round(task.bed_target)}°` : ''}`
-      : null;
-    const chamberValue = typeof task?.chamber_temp === 'number' ? `${Math.round(task.chamber_temp)}°C` : null;
-    const wifiValue = typeof task?.wifi_signal === 'number' ? `${task.wifi_signal} dBm` : null;
-    const speedValue = typeof task?.speed_factor === 'number' ? `${Math.round(task.speed_factor)}%` : null;
-    const zHeightValue = typeof task?.z_height === 'number' ? `${task.z_height.toFixed(2)} mm` : null;
-    const fansValue =
-      typeof task?.cooling_fan !== 'number' &&
-      typeof task?.aux_fan !== 'number' &&
-      typeof task?.chamber_fan !== 'number'
-        ? null
-        : [
-            typeof task?.cooling_fan === 'number' ? `Part ${fanToPercent(task.cooling_fan)}%` : null,
-            typeof task?.aux_fan === 'number' ? `Aux ${fanToPercent(task.aux_fan)}%` : null,
-            typeof task?.chamber_fan === 'number' ? `Chamber ${fanToPercent(task.chamber_fan)}%` : null,
-          ].filter(Boolean).join(' • ');
-
     return {
-      nozzleValue,
-      bedValue,
-      chamberValue,
-      wifiValue,
-      speedValue,
-      zHeightValue,
-      fansValue,
+      nozzleTemp: typeof task?.nozzle_temp === 'number' ? task.nozzle_temp : null,
+      nozzleTarget: typeof task?.nozzle_target === 'number' ? task.nozzle_target : null,
+      bedTemp: typeof task?.bed_temp === 'number' ? task.bed_temp : null,
+      bedTarget: typeof task?.bed_target === 'number' ? task.bed_target : null,
+      chamberTemp: typeof task?.chamber_temp === 'number' ? task.chamber_temp : null,
+      wifiValue: typeof task?.wifi_signal === 'number' ? `${task.wifi_signal} dBm` : null,
+      speedValue: typeof task?.speed_factor === 'number' ? `${Math.round(task.speed_factor)}%` : null,
+      zHeightValue: typeof task?.z_height === 'number' ? `${task.z_height.toFixed(2)} mm` : null,
+      fansValue:
+        typeof task?.cooling_fan !== 'number' &&
+        typeof task?.aux_fan !== 'number' &&
+        typeof task?.chamber_fan !== 'number'
+          ? null
+          : [
+              typeof task?.cooling_fan === 'number' ? `Part ${fanToPercent(task.cooling_fan)}%` : null,
+              typeof task?.aux_fan === 'number' ? `Aux ${fanToPercent(task.aux_fan)}%` : null,
+              typeof task?.chamber_fan === 'number' ? `Chamber ${fanToPercent(task.chamber_fan)}%` : null,
+            ].filter(Boolean).join(' • '),
     };
   }));
 
-  const hasAnyTelemetry = Boolean(
-    nozzleValue || bedValue || chamberValue || wifiValue || speedValue || zHeightValue || fansValue
-  );
+  const hasTemps = nozzleTemp !== null || bedTemp !== null || chamberTemp !== null;
+  const extras = [
+    ['Wi‑Fi', wifiValue],
+    ['Speed', speedValue],
+    ['Z Height', zHeightValue],
+    ['Fans', fansValue],
+  ].filter(([, v]) => v) as Array<[string, string]>;
 
-  const content = hasAnyTelemetry ? (
-        <div className={`telemetry-mini-grid ${embedded ? 'status-telemetry-grid' : ''}`.trim()}>
-          <TelemetryTile label="Nozzle" value={nozzleValue} />
-          <TelemetryTile label="Bed" value={bedValue} />
-          <TelemetryTile label="Chamber" value={chamberValue} />
-          <TelemetryTile label="Wi‑Fi" value={wifiValue} />
-          <TelemetryTile label="Speed" value={speedValue} />
-          <TelemetryTile label="Z Height" value={zHeightValue} />
-          <TelemetryTile label="Fans" value={fansValue} />
-        </div>
-      ) : (
-        <div className={`panel-empty compact ${embedded ? 'telemetry-inline-empty' : ''}`.trim()}>
-          <strong>Awaiting telemetry</strong>
-          <span>Values will appear as soon as the printer publishes them.</span>
-        </div>
-      );
-
-  if (embedded) {
-    return content;
+  if (!hasTemps && extras.length === 0) {
+    return (
+      <section>
+        <SectionLabel>Telemetry</SectionLabel>
+        <p className="mt-2 text-sm font-medium text-fg-soft">Awaiting telemetry</p>
+        <p className="text-xs text-muted">Values will appear as soon as the printer publishes them.</p>
+      </section>
+    );
   }
 
   return (
-    <section className="printer-panel telemetry-panel">
-      <div className="panel-header-inline">
-        <div>
-          <span className="panel-kicker">Live Telemetry</span>
-          <h4>Temps, Fans & Signals</h4>
+    <section>
+      <SectionLabel>Telemetry</SectionLabel>
+      {hasTemps && (
+        <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+          <TemperatureGauge label="Nozzle" current={nozzleTemp} target={nozzleTarget} max={320} />
+          <TemperatureGauge label="Bed" current={bedTemp} target={bedTarget} max={120} />
+          {chamberTemp !== null && <TemperatureGauge label="Chamber" current={chamberTemp} max={80} />}
         </div>
-      </div>
-
-      {content}
+      )}
+      {extras.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5">
+          {extras.map(([label, value]) => (
+            <div key={label} className="text-xs">
+              <span className="text-muted">{label} </span>
+              <span className="font-medium tabular-nums text-fg-soft">{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
-function ReactiveAmsPanel({ printerId }: { printerId: string }) {
+/** AMS filament overview. */
+function AmsSection({ printerId }: { printerId: string }) {
   const { trays, activeTray } = usePrinterStore(useShallow((state) => {
     const printer = state.printersById[printerId];
     const taskAms = printer?.current_task?.ams;
@@ -288,60 +258,41 @@ function ReactiveAmsPanel({ printerId }: { printerId: string }) {
   }));
 
   return (
-    <section className="printer-panel ams-panel">
-      <div className="panel-header-inline">
-        <div>
-          <span className="panel-kicker">Filament</span>
-          <h4>AMS Overview</h4>
-        </div>
+    <section>
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>Filament · AMS</SectionLabel>
         {typeof activeTray === 'number' && activeTray !== 255 ? (
-          <span className="panel-inline-chip active">Slot {activeTray}</span>
+          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">Slot {activeTray}</span>
         ) : null}
       </div>
 
       {trays.length > 0 ? (
-        <div className="ams-unified-grid">
-          {trays.map((tray) => {
-            const isActive = typeof activeTray === 'number' && activeTray !== 255 && Number(tray.slot) === activeTray;
-            const colorHex = tray.color ? `#${tray.color.substring(0, 6)}` : '#71717a';
-            const remainPercent = tray.remain != null && tray.remain >= 0 ? tray.remain : null;
-            return (
-              <div key={`${printerId}-${tray.slot}`} className={`ams-slot-card ${isActive ? 'active' : ''}`}>
-                <div className="ams-slot-header">
-                  <span>Slot {tray.slot}</span>
-                  {remainPercent != null ? <strong>{remainPercent}%</strong> : <strong>—</strong>}
-                </div>
-                <div className="ams-slot-color-track">
-                  <div
-                    className="ams-slot-color-fill"
-                    style={{
-                      background: colorHex,
-                      width: remainPercent != null ? `${remainPercent <= 0 ? 0 : Math.max(remainPercent, 6)}%` : '100%',
-                    }}
-                  />
-                </div>
-                <div className="ams-slot-name">{tray.sub_brands || tray.type || 'Empty'}</div>
-                <div className="ams-slot-meta">
-                  {typeof tray.humidity === 'number' ? `💧 ${Math.round(tray.humidity)}%` : 'Humidity —'}
-                </div>
-              </div>
-            );
-          })}
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {trays.map((tray) => (
+            <AmsTray
+              key={`${printerId}-${tray.slot}`}
+              slot={tray.slot}
+              color={tray.color}
+              type={tray.type}
+              subBrands={tray.sub_brands}
+              remain={tray.remain}
+              humidity={tray.humidity}
+              active={typeof activeTray === 'number' && activeTray !== 255 && Number(tray.slot) === activeTray}
+            />
+          ))}
         </div>
       ) : (
-        <div className="panel-empty compact">
-          <strong>No AMS data</strong>
-          <span>Static hardware details stay hidden until you need them.</span>
-        </div>
+        <p className="mt-2 text-xs text-muted">No AMS data reported.</p>
       )}
     </section>
   );
 }
 
-function ReactiveCameraPanel({
+/** Camera section: wraps CameraFeed with the store-fed props. */
+function CameraSection({
   printerId,
   printerName,
-  cameraMode = 'frigate',
+  cameraMode,
   cameraStreamType,
   frigateStreamUrl,
   rtspUrl,
@@ -363,65 +314,37 @@ function ReactiveCameraPanel({
     };
   }));
 
-  const effectiveRtspUrl = printerCameraRtspUrl?.trim() || rtspUrl;
-  const hasAssignedRtsp = Boolean(printerCameraRtspUrl?.trim());
-  const useRtspStream = hasAssignedRtsp || cameraMode === 'native-rtsp';
-  const streamConfigured = useRtspStream
-    ? Boolean(effectiveRtspUrl?.trim())
-    : Boolean(frigateStreamUrl?.trim());
-
   return (
-    <section className="printer-panel camera-panel">
-      <div className="panel-header-inline">
-        <div>
-          <span className="panel-kicker">Live View</span>
-          <h4>Camera Feed</h4>
-        </div>
+    <section>
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>Live View</SectionLabel>
         {ipcamStatus ? (
-          <span className={`panel-inline-chip ${ipcamStatus.toLowerCase()}`}>
+          <span className={`text-xs font-medium ${ipcamStatus.toUpperCase() === 'ON' ? 'text-success' : 'text-muted'}`}>
             {ipcamStatus}
           </span>
         ) : null}
       </div>
-
-      {streamConfigured ? (
-        <div className="printer-camera-shell">
-          {useRtspStream ? (
-            <RTSPCamera
-              rtspUrl={effectiveRtspUrl}
-              printerId={printerId}
-              printerName={printerName}
-            />
-          ) : (
-            <FrigateCamera
-              streamType={cameraStreamType}
-              streamUrl={frigateStreamUrl}
-              printerName={printerName}
-            />
-          )}
-          <div className="camera-meta">
-            {typeof ipcamBitrate === 'number' && ipcamBitrate > 0 ? (
-              <span className="camera-bitrate">{formatBitrate(ipcamBitrate)}</span>
-            ) : null}
-            <span className="camera-source-badge">
-              {useRtspStream
-                ? (printerCameraRtspUrl?.trim() ? 'Assigned RTSP' : 'Native RTSP')
-                : cameraStreamType === 'frigate-webrtc'
-                  ? 'Frigate WebRTC'
-                  : 'Frigate HLS'}
-            </span>
-          </div>
-        </div>
-      ) : (
-        <div className="panel-empty">
-          <strong>No camera stream configured</strong>
-          <span>Add a global camera in Settings → Camera Stream Integration, or assign an RTSP camera directly to this printer in Local Printer / FTP.</span>
-        </div>
-      )}
+      <div className="mt-2">
+        <CameraFeed
+          printerId={printerId}
+          printerName={printerName}
+          cameraMode={cameraMode}
+          cameraStreamType={cameraStreamType}
+          frigateStreamUrl={frigateStreamUrl}
+          rtspUrl={rtspUrl}
+          assignedRtspUrl={printerCameraRtspUrl}
+          ipcamBitrate={ipcamBitrate}
+        />
+      </div>
     </section>
   );
 }
 
+/**
+ * One printer = one card. Sections are whitespace-separated (no nested
+ * boxes). DOM order is the mobile priority order — Status > Temps >
+ * Camera > AMS — and xl rearranges into camera-left/status-right.
+ */
 function ReactivePrinterCardComponent({
   printerId,
   cameraMode,
@@ -440,39 +363,46 @@ function ReactivePrinterCardComponent({
   }));
 
   return (
-    <article className="printer-bento-card">
-      <div className="printer-card-top">
-        <div className="printer-card-heading">
-          <div className="printer-title-row">
-            <h3>{name}</h3>
-            <span className={`printer-connection-badge ${online ? 'online' : 'offline'}`}>
-              <span className="status-dot"></span>
-              {online ? 'Online' : 'Offline'}
-            </span>
+    <Card glow={online} className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <h3 className="truncate text-lg font-semibold tracking-tight text-fg">{name}</h3>
+            <StatusBadge variant={online ? 'success' : 'offline'}>{online ? 'Online' : 'Offline'}</StatusBadge>
           </div>
-          <p>{productName}</p>
+          <p className="text-xs text-muted">{productName}</p>
         </div>
-
-        <div className="printer-card-actions">
-          <button type="button" className="printer-ghost-btn" onClick={() => onOpenHardware(printerId)}>
-            Hardware Info
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => onOpenHardware(printerId)}
+          className="shrink-0 min-h-11 md:min-h-9 rounded-md bg-white/5 px-3 text-xs font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
+        >
+          Hardware Info
+        </button>
       </div>
 
-      <div className="printer-bento-grid grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_minmax(0,1fr)]">
-        <ReactiveCameraPanel
-          printerId={printerId}
-          printerName={name}
-          cameraMode={cameraMode}
-          cameraStreamType={cameraStreamType}
-          frigateStreamUrl={frigateStreamUrl}
-          rtspUrl={rtspUrl}
-        />
-        <ReactiveStatusPanel printerId={printerId} />
-        <ReactiveAmsPanel printerId={printerId} />
+      {/* Body: mobile stacks in priority order; xl = camera left / status+temps right, AMS full width */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_minmax(0,1fr)]">
+        <div className="space-y-5 xl:order-2">
+          <StatusSection printerId={printerId} />
+          <TelemetrySection printerId={printerId} />
+        </div>
+        <div className="xl:order-1">
+          <CameraSection
+            printerId={printerId}
+            printerName={name}
+            cameraMode={cameraMode}
+            cameraStreamType={cameraStreamType}
+            frigateStreamUrl={frigateStreamUrl}
+            rtspUrl={rtspUrl}
+          />
+        </div>
+        <div className="xl:order-3 xl:col-span-2">
+          <AmsSection printerId={printerId} />
+        </div>
       </div>
-    </article>
+    </Card>
   );
 }
 

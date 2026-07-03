@@ -5,7 +5,6 @@ import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
 import { useModal } from './ModalProvider';
 import { usePrinterStore } from '../stores/usePrinterStore';
-import './Printers.css';
 import LoadingScreen from './LoadingScreen';
 import ReactivePrinterCard from './ReactivePrinterCard';
 
@@ -80,9 +79,9 @@ function Printers() {
       title: `${printer.name} hardware info`,
       description: 'Static identifiers are tucked into a modal so the live dashboard stays focused on what is changing right now.',
       content: (
-        <div className="hardware-modal-grid">
+        <div className="space-y-1">
           {details.map((detail) => (
-            <div key={detail.label} className="hardware-modal-row">
+            <div key={detail.label} className="flex items-center justify-between gap-4 rounded-md bg-white/[0.03] px-3 py-2 text-sm [&>span]:text-muted [&>strong]:text-fg-soft [&>strong]:font-medium [&>strong]:truncate">
               <span>{detail.label}</span>
               <strong>{detail.value}</strong>
             </div>
@@ -113,22 +112,22 @@ function Printers() {
   const reconnectAccounts = accountErrors.filter((a) => a.needsReconnect);
 
   return (
-    <div className="printers-container px-0 sm:px-1">
+    <div className="space-y-5">
       {reconnectAccounts.length > 0 && (
-        <div className="printers-account-banner rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 mb-4 text-sm">
+        <div className="rounded-md bg-warning/10 px-4 py-3 text-sm text-warning">
           <strong>Bambu Cloud sign-in expired.</strong>{' '}
           {reconnectAccounts.map((a) => a.email).join(', ')} could not load printers because the cloud token is no longer valid.{' '}
           Reconnect the account in <strong>Settings → Printer Connection</strong> to restore cloud printers. Local (LAN) printers are unaffected.
         </div>
       )}
-      <div className="page-header printers-page-header">
-        <div className="printers-inline-summary">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
           <span>{onlineCount} online</span>
           <span>{activeJobs} active jobs</span>
           <span>{cameraConfigured ? cameraLabel : 'No camera stream set'}</span>
           <span>Live sync: {socketStatus === 'connected' ? 'Connected' : socketStatus === 'reconnecting' ? 'Reconnecting' : socketStatus === 'connecting' ? 'Connecting' : 'Offline'}</span>
         </div>
-        <button className="btn-refresh" onClick={() => void loadPrinters()}>
+        <button className="inline-flex min-h-11 md:min-h-9 items-center gap-2 rounded-md bg-white/5 px-3 text-xs font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg" onClick={() => void loadPrinters()}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -136,35 +135,35 @@ function Printers() {
         </button>
       </div>
 
-      <div className="printer-summary-grid grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="printer-summary-card">
-          <span className="summary-label">Online printers</span>
-          <strong>{onlineCount}/{totalPrinters || 0}</strong>
-          <p>Live devices ready for monitoring.</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-lg bg-card p-4 shadow-sm">
+          <span className="text-xs text-muted">Online printers</span>
+          <strong className="mt-1 block text-2xl font-semibold tabular-nums text-fg">{onlineCount}/{totalPrinters || 0}</strong>
+          <p className="mt-1 text-xs text-muted">Live devices ready for monitoring.</p>
         </div>
-        <div className="printer-summary-card">
-          <span className="summary-label">Active jobs</span>
-          <strong>{activeJobs}</strong>
-          <p>Current prints surfaced with ETA and progress.</p>
+        <div className="rounded-lg bg-card p-4 shadow-sm">
+          <span className="text-xs text-muted">Active jobs</span>
+          <strong className="mt-1 block text-2xl font-semibold tabular-nums text-fg">{activeJobs}</strong>
+          <p className="mt-1 text-xs text-muted">Current prints surfaced with ETA and progress.</p>
         </div>
-        <div className="printer-summary-card">
-          <span className="summary-label">Camera integration</span>
-          <strong>{cameraConfigured ? 'Configured' : 'Not set'}</strong>
-          <p>Switch between direct Frigate playback and the Native RTSP relay from one global setting.</p>
+        <div className="rounded-lg bg-card p-4 shadow-sm">
+          <span className="text-xs text-muted">Camera integration</span>
+          <strong className="mt-1 block text-2xl font-semibold text-fg">{cameraConfigured ? 'Configured' : 'Not set'}</strong>
+          <p className="mt-1 text-xs text-muted">Switch between direct Frigate playback and the Native RTSP relay from one global setting.</p>
         </div>
       </div>
 
       {printerIds.length === 0 ? (
-        <div className="empty-state">
+        <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted">
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="4" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="2" />
             <path d="M8 20h8M12 16v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
-          <h3>No printers found</h3>
-          <p>Connect your printer to populate the new monitoring dashboard.</p>
+          <h3 className="text-base font-semibold text-fg">No printers found</h3>
+          <p className="text-sm text-muted">Connect your printer to populate the new monitoring dashboard.</p>
         </div>
       ) : (
-        <div className="printers-stack grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {printerIds.map((printerId) => (
             <ReactivePrinterCard
               key={printerId}
