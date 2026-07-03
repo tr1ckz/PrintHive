@@ -385,8 +385,31 @@
 
 /* ---------- Third-party chrome ----------
    The ONLY sanctioned place for styling third-party DOM we don't
-   render ourselves (react-grid-layout drag/resize chrome lands here
-   in the dashboard phase). Keep it token-pure. */
+   render ourselves. Keep it token-pure. */
+
+/* react-grid-layout (dashboard): accent-tinted drag placeholder and
+   resize handle. Structural transforms come from the library's own
+   stylesheet import — never replicate those here. */
+.command-center-grid {
+  min-height: 540px;
+  overflow: visible;
+}
+
+.command-center-grid .react-grid-item:hover {
+  z-index: 2;
+}
+
+.command-center-grid .react-grid-item.react-grid-placeholder {
+  background: rgba(var(--theme-accent-rgb), 0.08);
+  border: 1px dashed rgba(var(--theme-accent-rgb), 0.45);
+  border-radius: var(--radius-md);
+  opacity: 1;
+}
+
+.command-center-grid .react-grid-item > .react-resizable-handle::after {
+  border-right: 2px solid rgba(var(--theme-accent-rgb), 0.55);
+  border-bottom: 2px solid rgba(var(--theme-accent-rgb), 0.55);
+}
 
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {

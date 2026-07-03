@@ -4,7 +4,8 @@ import { LayoutGrid, Plus } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
-import useDashboardLayout, { DashboardLayoutPreferences, dashboardWidgetRegistry } from '../hooks/useDashboardLayout';
+import useDashboardLayout, { DashboardLayoutPreferences, DashboardWidgetId, dashboardWidgetRegistry, MOBILE_WIDGET_PRIORITY } from '../hooks/useDashboardLayout';
+import { useIsDesktop } from '../hooks/useMediaQuery';
 import WidgetShell from './dashboard/WidgetShell';
 import QuickStatsWidget from './dashboard/widgets/QuickStatsWidget';
 import ActivityStreamWidget, { ActivityRow } from './dashboard/widgets/ActivityStreamWidget';
@@ -18,7 +19,6 @@ import MaterialUsageWidget from './dashboard/widgets/MaterialUsageWidget';
 import QueuePressureWidget from './dashboard/widgets/QueuePressureWidget';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-import './DashboardHome.css';
 
 interface DashboardHomeProps {
   onNavigate: (tab: string) => void;
@@ -145,6 +145,8 @@ function widgetDensity(layouts: Record<string, Array<{ i: string; w?: number; h?
 }
 
 function DashboardHome({ onNavigate }: DashboardHomeProps) {
+  // md structural switch: RGL grid on desktop, priority stack on mobile
+  const isDesktop = useIsDesktop();
   const [isEditMode, setIsEditMode] = useState(false);
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
   const [currentBreakpoint, setCurrentBreakpoint] = useState<Breakpoint>('lg');
@@ -561,54 +563,163 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     );
   }
 
+  // ---- Widget bodies, written once and rendered by both branches ----
+  const renderWidget: Record<DashboardWidgetId, () => React.ReactNode> = {
+    livePrinters: () => (
+      <WidgetShell title="Live Printers" isEditMode={isEditMode} onHide={() => hideWidget('livePrinters')}>
+        <LivePrintersWidget
+          printers={livePrintersRows}
+          density={widgetDensity(visibleLayouts, currentBreakpoint, 'livePrinters')}
+          onOpenPrinters={() => onNavigate('printers')}
+        />
+      </WidgetShell>
+    ),
+    healthSummary: () => (
+      <WidgetShell title="Quick Stats" isEditMode={isEditMode} onHide={() => hideWidget('healthSummary')}>
+        <QuickStatsWidget
+          printersOnlineLabel={quickStats.printersOnlineLabel}
+          totalPrints={quickStats.totalPrints}
+          successRate={quickStats.successRate}
+          libraryModels={quickStats.libraryModels}
+        />
+      </WidgetShell>
+    ),
+    materialUsage: () => (
+      <WidgetShell title="Material Usage" isEditMode={isEditMode} onHide={() => hideWidget('materialUsage')}>
+        <MaterialUsageWidget
+          todayWeight={materialUsage.todayWeight}
+          weekWeight={materialUsage.weekWeight}
+          monthWeight={materialUsage.monthWeight}
+          allTimeWeight={materialUsage.allTimeWeight}
+          successSharePct={materialUsage.successSharePct}
+          sampleSize={materialUsage.sampleSize}
+        />
+      </WidgetShell>
+    ),
+    queuePressure: () => (
+      <WidgetShell title="Queue Pressure" isEditMode={isEditMode} onHide={() => hideWidget('queuePressure')}>
+        <QueuePressureWidget
+          summary={queuePressureSummary}
+          density={widgetDensity(visibleLayouts, currentBreakpoint, 'queuePressure')}
+          onRefresh={refreshQueueInputs}
+          onOpenMaintenance={() => onNavigate('maintenance')}
+          onOpenPrinters={() => onNavigate('printers')}
+        />
+      </WidgetShell>
+    ),
+    backgroundJobs: () => (
+      <WidgetShell title="Background Jobs" isEditMode={isEditMode} onHide={() => hideWidget('backgroundJobs')}>
+        <BackgroundJobsWidget
+          jobs={backgroundJobRows}
+          density={widgetDensity(visibleLayouts, currentBreakpoint, 'backgroundJobs')}
+          onOpenLibrary={() => onNavigate('library')}
+          onOpenHistory={() => onNavigate('history')}
+        />
+      </WidgetShell>
+    ),
+    mqttStatus: () => (
+      <WidgetShell title="Print Status (MQTT)" isEditMode={isEditMode} onHide={() => hideWidget('mqttStatus')}>
+        <PrintStatusMqttWidget
+          rows={mqttStatusRows}
+          density={widgetDensity(visibleLayouts, currentBreakpoint, 'mqttStatus')}
+          onOpenPrinters={() => onNavigate('printers')}
+        />
+      </WidgetShell>
+    ),
+    fleetAlerts: () => (
+      <WidgetShell title="Fleet Alerts" isEditMode={isEditMode} onHide={() => hideWidget('fleetAlerts')}>
+        <FleetAlertsWidget
+          data={fleetAlertsData}
+          onOpenMaintenance={() => onNavigate('maintenance')}
+          onOpenPrinters={() => onNavigate('printers')}
+        />
+      </WidgetShell>
+    ),
+    activityStream: () => (
+      <WidgetShell title="Activity Stream" isEditMode={isEditMode} onHide={() => hideWidget('activityStream')}>
+        <ActivityStreamWidget
+          rows={activityRows}
+          density={widgetDensity(visibleLayouts, currentBreakpoint, 'activityStream')}
+        />
+      </WidgetShell>
+    ),
+    upcomingSchedule: () => (
+      <WidgetShell title="Maintenance Upcoming" isEditMode={isEditMode} onHide={() => hideWidget('upcomingSchedule')}>
+        <UpcomingScheduleWidget
+          items={upcomingScheduleItems}
+          density={widgetDensity(visibleLayouts, currentBreakpoint, 'upcomingSchedule')}
+        />
+      </WidgetShell>
+    ),
+    failureWatch: () => (
+      <WidgetShell title="Failure Watch" isEditMode={isEditMode} onHide={() => hideWidget('failureWatch')}>
+        <FailureWatchWidget
+          rows={failureWatchRows}
+          failed24hCount={failure24hCount}
+          onOpenHistory={() => onNavigate('history')}
+        />
+      </WidgetShell>
+    ),
+  };
+
+  const kpiTone = (good: boolean, warn = false) =>
+    warn ? 'text-warning' : good ? 'text-success' : 'text-fg';
+
   return (
-    <section className="dashboard-home command-center-stage px-0">
-      <header className="command-center-hero mb-3">
+    <section className="space-y-4">
+      {/* Hero: flat tier — typography does the hierarchy */}
+      <header className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="ops-secondary-text">Command Center</p>
-            <h2 className="command-center-title mt-1">Operations Grid</h2>
-            <p className="command-center-subtitle mt-1">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-widest text-accent">Command Center</p>
+            <h2 className="mt-0.5 text-2xl font-semibold tracking-tight text-fg">Operations Grid</h2>
+            <p className="mt-0.5 hidden sm:block text-sm text-muted">
               Modular dashboard · drag/resize widgets · persisted layout
             </p>
           </div>
 
-          <div className="command-center-actions flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                if (isEditMode) {
-                  snapAllWidgets();
-                  flushPersist();
-                  setIsEditMode(false);
-                  setShowWidgetLibrary(false);
-                  return;
-                }
+          <div className="flex flex-wrap items-center gap-2">
+            {isDesktop && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isEditMode) {
+                    snapAllWidgets();
+                    flushPersist();
+                    setIsEditMode(false);
+                    setShowWidgetLibrary(false);
+                    return;
+                  }
 
-                setIsEditMode(true);
-                setShowWidgetLibrary(true);
-              }}
-              className={`inline-flex items-center gap-1.5 rounded-[4px] border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] ${isEditMode ? 'border-orange-500 bg-orange-500 text-white' : 'border-neutral-800 bg-neutral-900 text-white hover:border-neutral-700'}`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              {isEditMode ? 'Done Editing' : 'Edit Dashboard'}
-            </button>
+                  setIsEditMode(true);
+                  setShowWidgetLibrary(true);
+                }}
+                className={`inline-flex min-h-11 md:min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors ${
+                  isEditMode
+                    ? 'bg-accent text-accent-contrast hover:bg-accent-strong'
+                    : 'bg-white/5 text-fg-soft hover:text-fg hover:bg-white/10'
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                {isEditMode ? 'Done Editing' : 'Edit Dashboard'}
+              </button>
+            )}
 
-            {isEditMode ? (
+            {isDesktop && isEditMode ? (
               <button
                 type="button"
                 onClick={snapAllWidgets}
-                className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white hover:border-neutral-700"
+                className="min-h-9 rounded-md bg-white/5 px-3 text-xs font-semibold text-fg-soft hover:text-fg hover:bg-white/10 transition-colors"
               >
                 Snap Layout
               </button>
             ) : null}
 
-            {isEditMode ? (
+            {isDesktop && isEditMode ? (
               <button
                 type="button"
                 onClick={() => setShowWidgetLibrary((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white hover:border-neutral-700"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/5 px-3 text-xs font-semibold text-fg-soft hover:text-fg hover:bg-white/10 transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" /> Widget Library
               </button>
@@ -617,217 +728,111 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
             <button
               type="button"
               onClick={() => onNavigate('statistics')}
-              className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+              className="min-h-11 md:min-h-9 rounded-md bg-white/5 px-3 text-xs font-semibold text-fg-soft hover:text-fg hover:bg-white/10 transition-colors"
             >
               Open Full Stats
             </button>
           </div>
         </div>
 
-        <div className="command-center-kpi-grid mt-3">
-          <div className="command-kpi-card">
-            <p className="command-kpi-label">Fleet Online</p>
-            <p className={`command-kpi-value ${operationalSnapshot.onlinePrinters === (printers.length || 0) ? 'text-emerald-400' : 'text-amber-400'}`}>{operationalSnapshot.onlinePrinters}/{printers.length || 0}</p>
+        {/* KPI strip: no boxes — stats separated by whitespace */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:flex-wrap sm:gap-x-10">
+          <div>
+            <p className="text-xs text-muted">Fleet online</p>
+            <p className={`text-2xl font-semibold tabular-nums ${kpiTone(operationalSnapshot.onlinePrinters === (printers.length || 0), operationalSnapshot.onlinePrinters < (printers.length || 0))}`}>
+              {operationalSnapshot.onlinePrinters}<span className="text-sm text-muted">/{printers.length || 0}</span>
+            </p>
           </div>
-          <div className="command-kpi-card">
-            <p className="command-kpi-label">Active Prints</p>
-            <p className={`command-kpi-value ${operationalSnapshot.activePrints > 0 ? 'text-emerald-400' : ''}`}>{operationalSnapshot.activePrints}</p>
+          <div>
+            <p className="text-xs text-muted">Active prints</p>
+            <p className={`text-2xl font-semibold tabular-nums ${operationalSnapshot.activePrints > 0 ? 'text-success' : 'text-fg'}`}>{operationalSnapshot.activePrints}</p>
           </div>
-          <div className="command-kpi-card">
-            <p className="command-kpi-label">Background Jobs</p>
-            <p className="command-kpi-value">{operationalSnapshot.activeJobs}</p>
+          <div>
+            <p className="text-xs text-muted">Background jobs</p>
+            <p className="text-2xl font-semibold tabular-nums text-fg">{operationalSnapshot.activeJobs}</p>
           </div>
-          <div className="command-kpi-card">
-            <p className="command-kpi-label">Maintenance Overdue</p>
-            <p className={`command-kpi-value ${operationalSnapshot.overdueTasks > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{operationalSnapshot.overdueTasks}</p>
+          <div>
+            <p className="text-xs text-muted">Maintenance overdue</p>
+            <p className={`text-2xl font-semibold tabular-nums ${operationalSnapshot.overdueTasks > 0 ? 'text-warning' : 'text-success'}`}>{operationalSnapshot.overdueTasks}</p>
           </div>
-          <div className="command-kpi-card">
-            <p className="command-kpi-label">Failures 24h</p>
-            <p className={`command-kpi-value ${operationalSnapshot.failed24h > 0 ? 'text-rose-500' : 'text-emerald-400'}`}>{operationalSnapshot.failed24h}</p>
+          <div>
+            <p className="text-xs text-muted">Failures 24h</p>
+            <p className={`text-2xl font-semibold tabular-nums ${operationalSnapshot.failed24h > 0 ? 'text-danger' : 'text-success'}`}>{operationalSnapshot.failed24h}</p>
           </div>
         </div>
       </header>
 
       {queryErrorCount > 0 ? (
-        <div className="mb-3 rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-neutral-300">
+        <div className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
           Some data sources are unavailable ({queryErrorCount}). Widgets are showing partial data.
         </div>
       ) : null}
 
-      <div className="relative">
-        <ResponsiveGridLayout
-          className="command-center-grid"
-          measureBeforeMount={false}
-          breakpoints={BREAKPOINTS}
-          cols={COLUMNS}
-          rowHeight={30}
-          margin={[12, 12]}
-          containerPadding={[0, 0]}
-          layouts={visibleLayouts as ResponsiveLayouts}
-          isDraggable={isEditMode}
-          isResizable={isEditMode}
-          compactType="vertical"
-          preventCollision={false}
-          isBounded={false}
-          resizeHandles={['se']}
-          draggableHandle=".widget-drag-handle"
-          draggableCancel=".widget-no-drag,.react-resizable-handle,button,a,input,textarea,select"
-          onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as Breakpoint)}
-          onDragStop={(currentLayout) => commitWidgetLayoutInteraction(currentLayout as Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>)}
-          onResizeStop={(currentLayout) => commitWidgetLayoutInteraction(currentLayout as Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>)}
-        >
-          {visibleWidgetIds.includes('livePrinters') ? (
-            <div key="livePrinters" className="h-full">
-              <WidgetShell title="Live Printers" isEditMode={isEditMode} onHide={() => hideWidget('livePrinters')}>
-                <LivePrintersWidget
-                  printers={livePrintersRows}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'livePrinters')}
-                  onOpenPrinters={() => onNavigate('printers')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
+      {isDesktop ? (
+        <div className="relative">
+          <ResponsiveGridLayout
+            className="command-center-grid"
+            measureBeforeMount={false}
+            breakpoints={BREAKPOINTS}
+            cols={COLUMNS}
+            rowHeight={30}
+            margin={[12, 12]}
+            containerPadding={[0, 0]}
+            layouts={visibleLayouts as ResponsiveLayouts}
+            isDraggable={isEditMode}
+            isResizable={isEditMode}
+            compactType="vertical"
+            preventCollision={false}
+            isBounded={false}
+            resizeHandles={['se']}
+            draggableHandle=".widget-drag-handle"
+            draggableCancel=".widget-no-drag,.react-resizable-handle,button,a,input,textarea,select"
+            onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as Breakpoint)}
+            onDragStop={(currentLayout) => commitWidgetLayoutInteraction(currentLayout as Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>)}
+            onResizeStop={(currentLayout) => commitWidgetLayoutInteraction(currentLayout as Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>)}
+          >
+            {visibleWidgetIds.map((id) => (
+              <div key={id} className="h-full">
+                {renderWidget[id as DashboardWidgetId]?.()}
+              </div>
+            ))}
+          </ResponsiveGridLayout>
 
-          {visibleWidgetIds.includes('healthSummary') ? (
-            <div key="healthSummary" className="h-full">
-              <WidgetShell title="Quick Stats" isEditMode={isEditMode} onHide={() => hideWidget('healthSummary')}>
-                <QuickStatsWidget
-                  printersOnlineLabel={quickStats.printersOnlineLabel}
-                  totalPrints={quickStats.totalPrints}
-                  successRate={quickStats.successRate}
-                  libraryModels={quickStats.libraryModels}
-                />
-              </WidgetShell>
-            </div>
+          {isEditMode && showWidgetLibrary ? (
+            <aside className="absolute right-0 top-0 z-10 w-64 rounded-lg bg-elevated p-4 shadow-xl">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted">Widget Library</h3>
+              <p className="mb-3 mt-0.5 text-xs text-muted">Re-enable hidden widgets</p>
+              <div className="space-y-1">
+                {dashboardWidgetRegistry.map((widget) => {
+                  const hidden = hiddenWidgetIds.includes(widget.id);
+                  return (
+                    <button
+                      key={widget.id}
+                      type="button"
+                      disabled={!hidden}
+                      onClick={() => showWidget(widget.id)}
+                      className={`w-full min-h-9 rounded-md px-2.5 text-left text-sm transition-colors ${
+                        hidden ? 'text-fg-soft hover:text-fg hover:bg-white/5' : 'text-disabled'
+                      }`}
+                    >
+                      {widget.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
           ) : null}
-
-          {visibleWidgetIds.includes('materialUsage') ? (
-            <div key="materialUsage" className="h-full">
-              <WidgetShell title="Material Usage" isEditMode={isEditMode} onHide={() => hideWidget('materialUsage')}>
-                <MaterialUsageWidget
-                  todayWeight={materialUsage.todayWeight}
-                  weekWeight={materialUsage.weekWeight}
-                  monthWeight={materialUsage.monthWeight}
-                  allTimeWeight={materialUsage.allTimeWeight}
-                  successSharePct={materialUsage.successSharePct}
-                  sampleSize={materialUsage.sampleSize}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-
-          {visibleWidgetIds.includes('queuePressure') ? (
-            <div key="queuePressure" className="h-full">
-              <WidgetShell title="Queue Pressure" isEditMode={isEditMode} onHide={() => hideWidget('queuePressure')}>
-                <QueuePressureWidget
-                  summary={queuePressureSummary}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'queuePressure')}
-                  onRefresh={refreshQueueInputs}
-                  onOpenMaintenance={() => onNavigate('maintenance')}
-                  onOpenPrinters={() => onNavigate('printers')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-
-          {visibleWidgetIds.includes('backgroundJobs') ? (
-            <div key="backgroundJobs" className="h-full">
-              <WidgetShell title="Background Jobs" isEditMode={isEditMode} onHide={() => hideWidget('backgroundJobs')}>
-                <BackgroundJobsWidget
-                  jobs={backgroundJobRows}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'backgroundJobs')}
-                  onOpenLibrary={() => onNavigate('library')}
-                  onOpenHistory={() => onNavigate('history')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-
-          {visibleWidgetIds.includes('mqttStatus') ? (
-            <div key="mqttStatus" className="h-full">
-              <WidgetShell title="Print Status (MQTT)" isEditMode={isEditMode} onHide={() => hideWidget('mqttStatus')}>
-                <PrintStatusMqttWidget
-                  rows={mqttStatusRows}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'mqttStatus')}
-                  onOpenPrinters={() => onNavigate('printers')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-
-          {visibleWidgetIds.includes('fleetAlerts') ? (
-            <div key="fleetAlerts" className="h-full">
-              <WidgetShell title="Fleet Alerts" isEditMode={isEditMode} onHide={() => hideWidget('fleetAlerts')}>
-                <FleetAlertsWidget
-                  data={fleetAlertsData}
-                  onOpenMaintenance={() => onNavigate('maintenance')}
-                  onOpenPrinters={() => onNavigate('printers')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-
-          {visibleWidgetIds.includes('activityStream') ? (
-            <div key="activityStream" className="h-full">
-              <WidgetShell title="Activity Stream" isEditMode={isEditMode} onHide={() => hideWidget('activityStream')}>
-                <ActivityStreamWidget
-                  rows={activityRows}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'activityStream')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-
-          {visibleWidgetIds.includes('upcomingSchedule') ? (
-            <div key="upcomingSchedule" className="h-full">
-              <WidgetShell title="Maintenance Upcoming" isEditMode={isEditMode} onHide={() => hideWidget('upcomingSchedule')}>
-                <UpcomingScheduleWidget
-                  items={upcomingScheduleItems}
-                  density={widgetDensity(visibleLayouts, currentBreakpoint, 'upcomingSchedule')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-
-          {visibleWidgetIds.includes('failureWatch') ? (
-            <div key="failureWatch" className="h-full">
-              <WidgetShell title="Failure Watch" isEditMode={isEditMode} onHide={() => hideWidget('failureWatch')}>
-                <FailureWatchWidget
-                  rows={failureWatchRows}
-                  failed24hCount={failure24hCount}
-                  onOpenHistory={() => onNavigate('history')}
-                />
-              </WidgetShell>
-            </div>
-          ) : null}
-        </ResponsiveGridLayout>
-
-        {isEditMode && showWidgetLibrary ? (
-          <aside className="absolute right-0 top-0 z-10 w-64 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3 shadow-xl">
-            <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Widget Library</h3>
-            <p className="mb-2 mt-0.5 text-[10px] text-neutral-500">Re-enable hidden widgets</p>
-            <div className="space-y-2">
-              {dashboardWidgetRegistry.map((widget) => {
-                const hidden = hiddenWidgetIds.includes(widget.id);
-                return (
-                  <button
-                    key={widget.id}
-                    type="button"
-                    disabled={!hidden}
-                    onClick={() => showWidget(widget.id)}
-                    className={`w-full rounded-[4px] border px-2 py-1.5 text-left text-xs ${hidden ? 'border-neutral-700 text-white hover:bg-neutral-800' : 'border-neutral-800 text-neutral-500 opacity-70'}`}
-                  >
-                    {widget.title}
-                  </button>
-                );
-              })}
-            </div>
-          </aside>
-        ) : null}
-      </div>
+        </div>
+      ) : (
+        /* Mobile: fixed priority-ordered single column; RGL never mounts */
+        <div className="flex flex-col gap-4">
+          {MOBILE_WIDGET_PRIORITY.filter((id) => visibleWidgetIds.includes(id)).map((id) => (
+            <div key={id}>{renderWidget[id]?.()}</div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
 export default DashboardHome;
-

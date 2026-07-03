@@ -23,24 +23,24 @@ function QuickStatsWidget({ printersOnlineLabel, totalPrints, successRate, libra
       label: 'Printers Online',
       value: printersOnlineLabel,
       icon: Printer,
-      iconColor: 'text-emerald-400',
-      borderColor: 'border-l-emerald-500/50',
+      iconColor: 'text-success',
+      borderColor: 'border-l-success/50',
     },
     {
       key: 'prints',
       label: 'Total Prints',
       value: `${totalPrints}`,
       icon: Trophy,
-      iconColor: 'text-orange-400',
-      borderColor: 'border-l-orange-500/50',
+      iconColor: 'text-accent',
+      borderColor: 'border-l-accent/50',
     },
     {
       key: 'success',
       label: 'Success Rate',
       value: `${successRate}%`,
       icon: CheckCircle2,
-      iconColor: 'text-emerald-400',
-      borderColor: 'border-l-emerald-500/50',
+      iconColor: 'text-success',
+      borderColor: 'border-l-success/50',
     },
     {
       key: 'library',
@@ -57,12 +57,12 @@ function QuickStatsWidget({ printersOnlineLabel, totalPrints, successRate, libra
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <article key={card.key} className={`ops-clickable-card rounded-[4px] border border-neutral-800 border-l-[3px] ${card.borderColor} bg-neutral-900 p-2.5`}>
+          <article key={card.key} className={`transition-colors hover:bg-white/[0.06] rounded-md border border-line border-l-[3px] ${card.borderColor} bg-white/[0.04] p-2.5`}>
             <div className="flex items-center justify-between gap-2">
-              <p className="ops-secondary-text">{card.label}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">{card.label}</p>
               <Icon className={`h-4 w-4 ${card.iconColor}`} />
             </div>
-            <p className="ops-data-value mt-1 text-4xl font-bold leading-tight text-white">{card.value}</p>
+            <p className="mt-1 text-4xl font-bold leading-tight text-fg">{card.value}</p>
           </article>
         );
       })}

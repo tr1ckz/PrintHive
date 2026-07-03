@@ -37,12 +37,12 @@ function MaterialUsageWidget({
         {cards.map((card) => {
           const widthPct = Math.max(8, Math.min(100, Math.round((card.value / maxWindowWeight) * 100)));
           return (
-            <article key={card.id} className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
-              <p className="ops-secondary-text">{card.label}</p>
-              <p className="mt-2 text-xl font-bold leading-tight text-white">{formatWeight(card.value)}</p>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
+            <article key={card.id} className="rounded-md border border-line bg-white/[0.04] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">{card.label}</p>
+              <p className="mt-2 text-xl font-bold leading-tight text-fg">{formatWeight(card.value)}</p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded border border-line-strong bg-white/10">
                 <div
-                  className="h-full bg-orange-500"
+                  className="h-full bg-accent"
                   style={{ width: `${widthPct}%` }}
                 />
               </div>
@@ -51,13 +51,13 @@ function MaterialUsageWidget({
         })}
       </div>
 
-      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-4">
+      <div className="rounded-md border border-line bg-white/[0.04] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="ops-secondary-text">All-Time Filament Used</p>
-          <p className="ops-tertiary-text">{Math.max(0, Math.min(100, Math.round(successSharePct)))}% successful</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">All-Time Filament Used</p>
+          <p className="text-xs text-muted">{Math.max(0, Math.min(100, Math.round(successSharePct)))}% successful</p>
         </div>
-        <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{formatWeight(allTimeWeight)}</p>
-        <p className="mt-2 ops-tertiary-text">Based on {sampleSize} recent print records with weight data</p>
+        <p className="mt-1.5 text-2xl font-bold leading-tight text-fg">{formatWeight(allTimeWeight)}</p>
+        <p className="mt-2 text-xs text-muted">Based on {sampleSize} recent print records with weight data</p>
       </div>
     </div>
   );

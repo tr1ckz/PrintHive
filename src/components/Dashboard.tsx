@@ -6,7 +6,6 @@ import GlobalLayout from './GlobalLayout';
 import Spinner from './Spinner';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
-import './Dashboard.css';
 
 // Route-level code splitting: each page (and its heavy deps like three.js via
 // the model viewer, react-grid-layout, etc.) loads only when first opened,
@@ -243,9 +242,9 @@ function Dashboard({ onLogout }: DashboardProps) {
   ];
 
   const rightSlot = (
-    <div className="dashboard-status-pills">
-      <span className="dashboard-status-pill">{isAdmin ? 'Admin access' : 'Workspace member'}</span>
-      <span className="dashboard-status-pill subtle">⌘K Command palette</span>
+    <div className="flex items-center gap-2 text-xs">
+      <span className="rounded-full bg-accent/10 px-2.5 py-1 font-medium text-accent">{isAdmin ? 'Admin access' : 'Workspace member'}</span>
+      <span className="rounded-full bg-white/5 px-2.5 py-1 text-muted">⌘K Command palette</span>
     </div>
   );
 
@@ -275,7 +274,7 @@ function Dashboard({ onLogout }: DashboardProps) {
   };
 
   return (
-    <div className="dashboard">
+    <div className="min-h-full">
       <GlobalLayout
         navItems={navItems}
         activeId={activeTab}
