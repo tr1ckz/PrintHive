@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import './LoadingSplash.css';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 
@@ -78,17 +77,20 @@ function LoadingSplash({
   }, [checkServerHealth]);
 
   return (
-    <div className="loading-splash" style={{ backgroundImage: `url(/images/splash.png)` }}>
-      <div className="loading-content">
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center overflow-hidden bg-base bg-cover bg-center animate-[ph-fade-in_0.3s_ease-out]"
+      style={{ backgroundImage: `linear-gradient(var(--bg-overlay), var(--bg-overlay)), url(/images/splash.png)` }}
+    >
+      <div className="relative z-[2] px-8 text-center animate-[ph-fade-up_0.6s_var(--ease-out)_both]">
         {checkServerHealth && !serverReady && (
           <>
-            <div className="loading-countdown">
+            <div className="rounded-lg bg-card px-8 py-4 text-3xl font-bold tabular-nums tracking-tight text-fg shadow-lg ring-1 ring-line animate-[ph-pulse-glow_1s_ease-in-out_infinite]">
               {countdown}s
             </div>
             {showRefreshButton && (
-              <div className="loading-refresh-container">
-                <button 
-                  className="btn btn-primary" 
+              <div className="fixed inset-x-0 bottom-1/4 flex justify-center animate-[ph-fade-up_0.4s_var(--ease-out)_both]">
+                <button
+                  className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-8 text-base font-semibold text-accent-contrast shadow-glow transition-transform hover:-translate-y-0.5"
                   onClick={() => window.location.reload()}
                 >
                   Refresh
@@ -100,13 +102,13 @@ function LoadingSplash({
       </div>
 
       {progress !== undefined && (
-        <div className="loading-progress-container">
-          <div className="loading-progress-bar">
-            <div 
-              className="loading-progress-fill"
+        <div className="absolute inset-x-0 bottom-1/4 z-[2] mx-auto w-[min(90%,400px)]">
+          <div className="h-9 overflow-hidden rounded-full bg-white/6 ring-1 ring-line">
+            <div
+              className="flex h-full items-center justify-center rounded-full bg-accent shadow-glow transition-[width] duration-500"
               style={{ width: `${progress}%` }}
             >
-              <span className="loading-progress-text">{progress}%</span>
+              <span className="text-sm font-bold tabular-nums text-accent-contrast">{progress}%</span>
             </div>
           </div>
         </div>

@@ -6,7 +6,6 @@ import { ThreeMFLoader } from 'threejs-webworker-3mf-loader';
 import ConfirmModal from './ConfirmModal';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
-import './ModelViewer.css';
 
 interface ModelViewerProps {
   fileId: number;
@@ -632,22 +631,26 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
   }, [sliceHeight]);
 
   return (
-    <div className="model-viewer-overlay" onClick={onClose}>
-      <div className="model-viewer-container" onClick={(e) => e.stopPropagation()}>
-        <div className="viewer-header">
-          <div>
-            <h2>{fileName}</h2>
-            <p className="viewer-subtitle">3D Model Viewer</p>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/90 backdrop-blur-md animate-[ph-fade-in_0.2s_ease-out]" onClick={onClose}>
+      <div className="flex h-dvh w-screen max-w-[1400px] flex-col overflow-hidden bg-elevated shadow-xl sm:h-[90vh] sm:w-[90vw] sm:rounded-xl animate-[ph-fade-up_0.3s_var(--ease-out)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-fg sm:text-xl">{fileName}</h2>
+            <p className="text-xs text-muted">3D Model Viewer</p>
           </div>
-          <button className="btn-close-viewer" onClick={onClose}>✕</button>
+          <button
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-white/5 text-lg text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
+            onClick={onClose}
+            aria-label="Close viewer"
+          >✕</button>
         </div>
-        
-        <div ref={containerRef} className="viewer-canvas"></div>
-        
+
+        <div ref={containerRef} className="relative z-[1] min-h-[500px] w-full flex-1 cursor-grab overflow-hidden bg-black active:cursor-grabbing [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!block [&>canvas]:!h-full [&>canvas]:!w-full [&>canvas]:!touch-none"></div>
+
         {/* Viewer Controls Sidebar */}
-        <div className="viewer-sidebar">
-          <button 
-            className={`viewer-btn ${wireframe ? 'active' : ''}`}
+        <div className="absolute right-3 top-24 z-50 flex flex-col gap-2 rounded-xl bg-black/60 p-2 backdrop-blur sm:right-5">
+          <button
+            className={`inline-flex size-9 items-center justify-center rounded-md transition-colors sm:size-11 ${wireframe ? 'bg-accent text-accent-contrast' : 'bg-white/10 text-fg-soft hover:bg-white/20 hover:text-fg'}`}
             onClick={toggleWireframe}
             title="Toggle Wireframe"
           >
@@ -656,8 +659,8 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
             </svg>
           </button>
           
-          <button 
-            className={`viewer-btn ${autoRotate ? 'active' : ''}`}
+          <button
+            className={`inline-flex size-9 items-center justify-center rounded-md transition-colors sm:size-11 ${autoRotate ? 'bg-accent text-accent-contrast' : 'bg-white/10 text-fg-soft hover:bg-white/20 hover:text-fg'}`}
             onClick={() => setAutoRotate(!autoRotate)}
             title="Toggle Auto-Rotate"
           >
@@ -666,8 +669,8 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
             </svg>
           </button>
           
-          <button 
-            className="viewer-btn"
+          <button
+            className="inline-flex size-9 items-center justify-center rounded-md bg-white/10 text-fg-soft transition-colors hover:bg-white/20 hover:text-fg sm:size-11"
             onClick={resetCamera}
             title="Reset Camera"
           >
@@ -675,12 +678,12 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
               <path d="M15 10l-4 4l6 6l4-16l-16 4l6 6l4-4z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
-          
-          <div className="viewer-divider"></div>
-          
-          <div className="slice-control">
-            <button 
-              className={`viewer-btn ${sliceHeight !== null ? 'active' : ''}`}
+
+          <div className="my-1 h-px bg-white/20"></div>
+
+          <div className="flex flex-col items-center gap-2">
+            <button
+              className={`inline-flex size-9 items-center justify-center rounded-md transition-colors sm:size-11 ${sliceHeight !== null ? 'bg-accent text-accent-contrast' : 'bg-white/10 text-fg-soft hover:bg-white/20 hover:text-fg'}`}
               onClick={() => setSliceHeight(sliceHeight === null ? modelHeight : null)}
               title="Toggle Slice View"
             >
@@ -695,28 +698,28 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
                 max={modelHeight}
                 value={sliceHeight}
                 onChange={(e) => setSliceHeight(Number(e.target.value))}
-                className="slice-slider"
+                className="h-32 w-2 cursor-pointer rounded bg-white/10 accent-accent [direction:rtl] [writing-mode:vertical-lr]"
                 title={`Height: ${sliceHeight.toFixed(1)}mm`}
               />
             )}
           </div>
         </div>
-        
+
         {loading && (
-          <div className="viewer-loading">
-            <div className="spinner"></div>
-            <p>Loading 3D model...</p>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-black/80 p-5 text-center">
+            <div className="mx-auto mb-4 size-12 rounded-full border-4 border-white/10 border-t-accent animate-spin"></div>
+            <p className="text-base font-semibold text-fg-soft">Loading 3D model...</p>
           </div>
         )}
 
         {error && (
-          <div className="viewer-error">
-            <p>⚠️ {error}</p>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-[100] max-w-[90%] -translate-x-1/2 -translate-y-1/2 text-center">
+            <p className="rounded-xl bg-danger/10 px-6 py-4 text-base font-semibold text-danger ring-2 ring-danger/30">⚠️ {error}</p>
           </div>
         )}
 
-        <div className="viewer-controls-help">
-          <p>🖱️ Left click + drag to rotate • Scroll to zoom • Right click + drag to pan</p>
+        <div className="border-t border-line bg-black/40 px-6 py-3 text-center">
+          <p className="text-xs font-medium text-muted sm:text-sm">🖱️ Left click + drag to rotate • Scroll to zoom • Right click + drag to pan</p>
         </div>
       </div>
 

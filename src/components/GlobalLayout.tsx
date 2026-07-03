@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import './GlobalLayout.css';
+import { type ReactNode } from 'react';
+import MobileNav from './layout/MobileNav';
+import IconButton from './common/IconButton';
 
 export interface GlobalLayoutNavItem {
   id: string;
@@ -22,8 +23,9 @@ interface GlobalLayoutProps {
   onLogout: () => void;
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
-  mobileMenuOpen: boolean;
-  onToggleMobileMenu: () => void;
+  /** Legacy props from the removed hamburger drawer — accepted for compat, unused */
+  mobileMenuOpen?: boolean;
+  onToggleMobileMenu?: () => void;
   sidebarFooter?: ReactNode;
   rightSlot?: ReactNode;
   children: ReactNode;
@@ -34,6 +36,19 @@ const formatRole = (role?: string) => {
   return role.charAt(0).toUpperCase() + role.slice(1);
 };
 
+/** Ask the CommandPalette singleton to open (mobile search button). */
+const openCommandPalette = () => {
+  window.dispatchEvent(new CustomEvent('printhive:open-command-palette'));
+};
+
+/**
+ * App shell. Structure by breakpoint:
+ *  - base (<md): slim topbar + MobileNav bottom tab bar; no sidebar
+ *  - md: icon rail sidebar
+ *  - lg+: full 280px sidebar (collapsible to icon rail via the header chevron)
+ * De-boxed: the shell separates zones with background shifts and one
+ * hairline under the sticky topbar — no framed panels.
+ */
 function GlobalLayout({
   appName = 'PrintHive',
   pageTitle,
@@ -49,226 +64,174 @@ function GlobalLayout({
   onLogout,
   sidebarCollapsed,
   onToggleSidebar,
-  mobileMenuOpen,
-  onToggleMobileMenu,
   sidebarFooter,
   rightSlot,
   children,
 }: GlobalLayoutProps) {
   const avatarText = userAvatarText || userName?.slice(0, 1)?.toUpperCase() || 'U';
-  const mainContentRef = useRef<HTMLElement | null>(null);
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const mobilePrimaryItems = navItems.filter((item) => ['home', 'printers', 'statistics', 'settings'].includes(item.id));
-
-  useEffect(() => {
-    const contentEl = mainContentRef.current;
-    if (!contentEl) {
-      return;
-    }
-
-    let frameId = 0;
-    const updateProgress = () => {
-      const nextProgress = Math.max(0, Math.min(contentEl.scrollTop / 140, 1));
-      setScrollProgress((current) => (Math.abs(current - nextProgress) > 0.01 ? nextProgress : current));
-    };
-
-    const handleScroll = () => {
-      if (frameId) {
-        window.cancelAnimationFrame(frameId);
-      }
-
-      frameId = window.requestAnimationFrame(updateProgress);
-    };
-
-    updateProgress();
-    contentEl.addEventListener('scroll', handleScroll, { passive: true });
-
-    return () => {
-      if (frameId) {
-        window.cancelAnimationFrame(frameId);
-      }
-      contentEl.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-
-  const topbarStyle = useMemo(() => ({
-    ['--topbar-scroll-progress' as string]: scrollProgress.toFixed(3),
-    ['--topbar-meta-opacity' as string]: Math.max(0, 1 - scrollProgress * 1.35).toFixed(3),
-    ['--topbar-title-scale' as string]: (1 - scrollProgress * 0.16).toFixed(3),
-  }) as CSSProperties, [scrollProgress]);
-
-  const handleMobileSelect = (id: string) => {
-    onSelect(id);
-  };
+  // md shows the icon rail; lg expands unless the user collapsed it
+  const railOnly = sidebarCollapsed;
 
   return (
-    <div className={`global-layout min-h-full ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
-      <aside className="global-sidebar hidden lg:block" aria-label="Desktop navigation">
-        <div className="global-sidebar-inner">
-          <div className="global-brand" onClick={() => onSelect('home')}>
-            <img src="/images/logo.png" alt="PrintHive" className="global-brand-logo" />
-            <div className="global-brand-copy">
-              <span className="global-brand-kicker">3D Print Ops</span>
-              <strong>{appName}</strong>
-            </div>
-            <button
-              type="button"
-              className="global-collapse-btn"
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggleSidebar();
-              }}
-              title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+    <div className="min-h-dvh md:flex">
+      {/* ---- Sidebar (md: icon rail, lg: full unless collapsed) ---- */}
+      <aside
+        aria-label="Desktop navigation"
+        className={`hidden md:flex sticky top-0 h-dvh shrink-0 flex-col bg-elevated/60 transition-[width] duration-250 ease-out ${
+          railOnly ? 'md:w-[76px]' : 'md:w-[76px] lg:w-[264px]'
+        }`}
+      >
+        {/* Brand */}
+        <div className="flex items-center gap-3 px-4 h-16 shrink-0">
+          <button
+            type="button"
+            onClick={() => onSelect('home')}
+            className="flex items-center gap-3 min-w-0 min-h-11"
+            aria-label={`${appName} home`}
+          >
+            <img src="/images/logo.png" alt="" className="size-9 shrink-0 object-contain" />
+            {!railOnly && (
+              <span className="hidden lg:block min-w-0 text-left">
+                <span className="block text-[0.62rem] font-semibold uppercase tracking-widest text-muted">3D Print Ops</span>
+                <span className="block text-sm font-semibold text-fg truncate">{appName}</span>
+              </span>
+            )}
+          </button>
+          {!railOnly && (
+            <IconButton
+              aria-label="Collapse navigation"
+              onClick={onToggleSidebar}
+              className="hidden lg:inline-flex ml-auto"
             >
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ transform: sidebarCollapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s ease' }}
-              >
-                <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </button>
-          </div>
+            </IconButton>
+          )}
+        </div>
 
-          <nav className="global-nav" aria-label="Primary navigation">
-            <span className="global-nav-section-label">Workspace</span>
-            {navItems.map((item) => (
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1" aria-label="Primary navigation">
+          {!railOnly && (
+            <span className="hidden lg:block px-3 pb-2 text-[0.62rem] font-semibold uppercase tracking-widest text-muted">
+              Workspace
+            </span>
+          )}
+          {navItems.map((item) => {
+            const active = activeId === item.id;
+            return (
               <button
                 key={item.id}
                 type="button"
-                className={`global-nav-item ${activeId === item.id ? 'active' : ''}`}
                 onClick={() => onSelect(item.id)}
                 title={item.label}
+                aria-current={active ? 'page' : undefined}
+                className={`flex w-full items-center gap-3 min-h-11 rounded-md px-3 text-sm font-medium transition-colors ${
+                  active
+                    ? 'bg-accent/10 text-accent'
+                    : 'text-fg-soft hover:text-fg hover:bg-white/5'
+                }`}
               >
-                <span className="global-nav-icon">{item.icon}</span>
-                <span className="global-nav-label">{item.label}</span>
+                <span className="shrink-0 [&_svg]:size-5">{item.icon}</span>
+                <span className={railOnly ? 'sr-only' : 'hidden lg:block truncate'}>{item.label}</span>
               </button>
-            ))}
-          </nav>
+            );
+          })}
+          {railOnly && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              title="Expand navigation"
+              className="hidden lg:flex w-full items-center justify-center min-h-11 rounded-md text-muted hover:text-fg hover:bg-white/5 transition-colors"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ transform: 'rotate(180deg)' }}>
+                <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+        </nav>
 
-          <div className="global-sidebar-footer">
-            {sidebarFooter}
-          </div>
-        </div>
+        {/* Footer slot (BuyMeACoffee etc.) */}
+        {sidebarFooter && !railOnly && (
+          <div className="hidden lg:block px-4 py-4 shrink-0">{sidebarFooter}</div>
+        )}
       </aside>
 
-      <div className="global-main-shell p-4 md:p-5 lg:p-6">
-        <header className="global-topbar rounded-2xl p-4 md:p-5 lg:p-6" style={topbarStyle}>
-          <div className="global-topbar-copy min-w-0">
-            {pageEyebrow ? <span className="global-topbar-kicker">{pageEyebrow}</span> : null}
-            {breadcrumbs.length ? (
-              <div className="global-breadcrumbs" aria-label="Breadcrumb">
-                {breadcrumbs.map((crumb, index) => (
-                  <span key={`${crumb}-${index}`} className="global-breadcrumb-item">
-                    {crumb}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            <h1 className="text-2xl md:text-3xl lg:text-4xl">{pageTitle}</h1>
-            {pageDescription ? <p className="global-topbar-description text-sm md:text-base">{pageDescription}</p> : null}
-          </div>
-
-          <div className="global-topbar-actions">
-            {rightSlot ? <div className="global-topbar-slot hidden md:flex">{rightSlot}</div> : null}
-
-            <div className="global-user-chip hidden sm:flex">
-              <div className="global-user-avatar">{avatarText}</div>
-              <div className="global-user-copy">
-                <strong>{userName || 'User'}</strong>
-                <span>{formatRole(userRole)}</span>
+      {/* ---- Main column ---- */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-dvh">
+        {/* Sticky topbar */}
+        <header className="sticky top-0 z-20 bg-base/80 backdrop-blur border-b border-line">
+          <div className="flex items-center gap-3 px-4 sm:px-6 lg:px-8 h-14 md:h-16">
+            <div className="min-w-0 flex-1">
+              {pageEyebrow && (
+                <span className="hidden sm:block text-[0.62rem] font-semibold uppercase tracking-widest text-accent">
+                  {pageEyebrow}
+                </span>
+              )}
+              <div className="flex items-baseline gap-3 min-w-0">
+                <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-fg truncate">{pageTitle}</h1>
+                {breadcrumbs.length > 0 && (
+                  <nav aria-label="Breadcrumb" className="hidden xl:flex items-center gap-1.5 text-xs text-muted min-w-0">
+                    {breadcrumbs.map((crumb, index) => (
+                      <span key={`${crumb}-${index}`} className="flex items-center gap-1.5 truncate">
+                        {index > 0 && <span aria-hidden>/</span>}
+                        {crumb}
+                      </span>
+                    ))}
+                  </nav>
+                )}
               </div>
             </div>
 
-            <button type="button" className="global-logout-btn" onClick={onLogout} title="Log out">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span>Logout</span>
-            </button>
+            {rightSlot && <div className="hidden md:flex items-center shrink-0">{rightSlot}</div>}
 
-            <button
-              type="button"
-              className="global-mobile-menu-btn lg:hidden"
-              onClick={onToggleMobileMenu}
-              aria-label="Toggle navigation"
-            >
-              {mobileMenuOpen ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+            {/* Mobile: search opens the command palette */}
+            <IconButton aria-label="Search and commands" onClick={openCommandPalette} className="md:hidden">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </IconButton>
+
+            {/* Desktop: user chip + logout */}
+            <div className="hidden md:flex items-center gap-2 shrink-0">
+              <div className="hidden lg:flex items-center gap-2.5 pl-2">
+                <div className="flex size-9 items-center justify-center rounded-full bg-accent/15 text-accent text-sm font-semibold">
+                  {avatarText}
+                </div>
+                <div className="min-w-0 leading-tight">
+                  <div className="text-sm font-medium text-fg truncate">{userName || 'User'}</div>
+                  <div className="text-xs text-muted">{formatRole(userRole)}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onLogout}
+                className="flex items-center gap-2 min-h-9 px-3 rounded-md text-sm font-medium text-muted hover:text-fg hover:bg-white/5 transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
-            </button>
+                <span className="hidden lg:inline">Logout</span>
+              </button>
+            </div>
           </div>
+          {pageDescription && (
+            <p className="hidden md:block px-4 sm:px-6 lg:px-8 pb-3 -mt-1 text-sm text-muted max-w-3xl">{pageDescription}</p>
+          )}
         </header>
 
-        <button
-          type="button"
-          className={`fixed inset-0 z-40 bg-black/60 transition-opacity duration-200 lg:hidden ${mobileMenuOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
-          onClick={onToggleMobileMenu}
-          aria-label="Close mobile navigation"
-        />
-
-        <aside
-          className={`fixed inset-y-0 left-0 z-50 flex w-[min(21rem,88vw)] flex-col border-r border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl transition-transform duration-200 lg:hidden ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
-          aria-hidden={!mobileMenuOpen}
-        >
-          <div className="mb-4 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-            <div className="flex items-center gap-3">
-              <img src="/images/logo.png" alt="PrintHive" className="h-9 w-9 object-contain" />
-              <div>
-                <span className="global-brand-kicker block">3D Print Ops</span>
-                <strong className="text-sm text-white">{appName}</strong>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white"
-              onClick={onToggleMobileMenu}
-              aria-label="Close navigation"
-            >
-              ✕
-            </button>
-          </div>
-
-          <nav className="flex flex-1 flex-col gap-2 overflow-y-auto" aria-label="Mobile navigation">
-            {navItems.map((item) => (
-              <button
-                key={`mobile-${item.id}`}
-                type="button"
-                className={`global-mobile-nav-item ${activeId === item.id ? 'active' : ''}`}
-                onClick={() => handleMobileSelect(item.id)}
-              >
-                <span className="global-nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        <main ref={mainContentRef} className="global-page-content pb-24 lg:pb-4">{children}</main>
-
-        <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl backdrop-blur-xl lg:hidden" aria-label="Quick mobile navigation">
-          {mobilePrimaryItems.map((item) => (
-            <button
-              key={`bottom-${item.id}`}
-              type="button"
-              className={`global-bottomnav-item flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[0.68rem] font-semibold transition-colors ${activeId === item.id ? 'active text-white' : 'text-zinc-300 hover:bg-white/5'}`}
-              onClick={() => handleMobileSelect(item.id)}
-            >
-              <span className="global-nav-icon">{item.icon}</span>
-              <span className="truncate">{item.label}</span>
-            </button>
-          ))}
-        </nav>
+        {/* Page content — bottom padding clears the mobile tab bar */}
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-4 md:py-6 pb-24 md:pb-8">{children}</main>
       </div>
+
+      <MobileNav
+        navItems={navItems}
+        activeId={activeId}
+        onSelect={onSelect}
+        userName={userName}
+        userRole={userRole}
+        onLogout={onLogout}
+      />
     </div>
   );
 }

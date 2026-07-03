@@ -16,6 +16,8 @@ PrintHive has undergone a comprehensive security audit. This document outlines o
 
 ### ✅ Authentication & Authorization
 - Session-based authentication required for all protected endpoints
+- Local account passwords hashed with **bcrypt** (legacy plaintext auto-migrated on first boot)
+- **Login rate limiting**: failed logins throttled to 10 attempts / 15 minutes / IP
 - OAuth/OIDC SSO integration support (Authentik, etc.)
 - Share links use cryptographically random hashes (16 bytes)
 - Share link expiration enforced (24-hour TTL)
@@ -23,20 +25,22 @@ PrintHive has undergone a comprehensive security audit. This document outlines o
 
 ### ✅ Secrets Management
 - ✓ No hardcoded credentials or secrets in codebase
-- ✓ Environment variables properly used for all sensitive config
+- ✓ Session secret sourced from `SESSION_SECRET` or an auto-generated 32-byte value persisted to the data directory (no shared default secret)
+- ✓ OIDC client secrets and Bambu Cloud tokens are redacted from all API responses (settings return a mask and retain the stored value unless a new one is entered)
 - `.env` file excluded from git via `.gitignore`
 - `SESSION_SECRET`, `OAUTH_CLIENT_SECRET`, etc. configured via environment
 - Database credentials managed securely
 
 ### ✅ Security Headers
+Applied via [helmet](https://helmetjs.github.io/) plus an app-specific CSP and Permissions-Policy:
 ```
 X-Frame-Options: SAMEORIGIN              (Clickjacking protection)
 X-Content-Type-Options: nosniff           (MIME type sniffing prevention)
-X-XSS-Protection: 1; mode=block           (Legacy XSS filter)
 Referrer-Policy: strict-origin-when-cross-origin
 Content-Security-Policy: restricted       (Only self + trusted CDNs)
 Permissions-Policy: disabled              (Camera, mic, geolocation, etc.)
 ```
+Plus **cross-site request rejection**: state-changing requests with a foreign `Origin`/`Sec-Fetch-Site` are blocked, as defense-in-depth alongside `SameSite=Lax` session cookies.
 
 ### ✅ Dependency Security
 - Zero npm vulnerabilities (verified with `npm audit`)
@@ -47,7 +51,7 @@ Permissions-Policy: disabled              (Camera, mic, geolocation, etc.)
 - Express app trusts proxy headers for X-Forwarded-* 
 - HTTPS recommended in production (via reverse proxy like Nginx)
 - CORS properly configured where needed
-- Session cookies marked as `httpOnly` and `secure`
+- Session cookies marked as `httpOnly` and `SameSite=Lax`; set `COOKIE_SECURE=true` to also mark them `Secure` for HTTPS deployments
 
 ### ✅ Data Privacy
 - Share access tracking (for monitoring)
@@ -162,16 +166,16 @@ server {
 
 ## Known Limitations
 
-1. **Rate Limiting**: Not implemented - should be added at reverse proxy level
-2. **Database Encryption**: Application-level encryption not implemented - use full-disk encryption
-3. **Audit Logging**: Limited - consider implementing detailed audit trails
-4. **DDOS Protection**: Rely on reverse proxy and CDN
-5. **Backup Integrity**: Verify backups regularly
+1. **Database Encryption**: Application-level encryption not implemented - use full-disk encryption
+2. **Audit Logging**: Limited - consider implementing detailed audit trails
+3. **DDOS Protection**: Rely on reverse proxy and CDN for volumetric attacks (application-level login rate limiting is in place)
+4. **Backup Integrity**: Verify backups regularly
 
 ## Security Roadmap
 
 Future security improvements planned:
-- [ ] Rate limiting middleware
+- [x] Login rate limiting *(implemented — 10 attempts / 15 min / IP)*
+- [x] bcrypt password hashing *(implemented — auto-migrates legacy plaintext)*
 - [ ] Request signing for API calls
 - [ ] Database-level encryption
 - [ ] Comprehensive audit logging
@@ -187,5 +191,7 @@ Future security improvements planned:
 - [CWE-89: SQL Injection](https://cwe.mitre.org/data/definitions/89.html)
 
 ## Last Updated
+
+July 2, 2026 - Security hardening: bcrypt password hashing, auto-generated session secret, login rate limiting, helmet headers, cross-site request rejection, and secret redaction from API responses
 
 January 13, 2026 - Comprehensive security audit completed

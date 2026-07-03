@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import './Login.css';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 
@@ -93,22 +92,21 @@ function Login({ onLoginSuccess }: LoginProps) {
   };
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <div className="login-header">
-          <div className="logo">
-            <img src="/images/logo.png" alt="PrintHive" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
-          </div>
-          <h1>PrintHive</h1>
-          <p>Sign in to your account</p>
+    <div className="flex min-h-dvh items-center justify-center bg-base px-4 py-8">
+      <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl sm:p-8">
+        <div className="mb-6 flex flex-col items-center gap-1.5 text-center">
+          <img src="/images/logo.png" alt="PrintHive" className="mb-1 size-20 object-contain" />
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">PrintHive</h1>
+          <p className="text-sm text-muted">Sign in to your account</p>
         </div>
 
-        <form onSubmit={handleLogin} className="login-form">
-          <div className="form-group">
-            <label htmlFor="username">Username</label>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label htmlFor="username" className="mb-1.5 block text-xs font-medium text-muted">Username</label>
             <input
               id="username"
               type="text"
+              className="min-h-11 w-full"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Enter username"
@@ -118,11 +116,12 @@ function Login({ onLoginSuccess }: LoginProps) {
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
+          <div>
+            <label htmlFor="password" className="mb-1.5 block text-xs font-medium text-muted">Password</label>
             <input
               id="password"
               type="password"
+              className="min-h-11 w-full"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -131,22 +130,27 @@ function Login({ onLoginSuccess }: LoginProps) {
             />
           </div>
 
-          {error && <div className="error-message">{error}</div>}
+          {error && <div className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
 
-          <button type="submit" className="btn-primary" disabled={loading}>
+          <button
+            type="submit"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-accent px-3 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-strong disabled:pointer-events-none disabled:opacity-40"
+            disabled={loading}
+          >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
 
           {!isAdminRoute && oauthProvider && oauthProvider !== 'none' && (
             <>
-              <div className="login-divider">
-                <span className="login-divider-text">or</span>
-                <span className="login-divider-line"></span>
+              <div className="flex items-center gap-3" aria-hidden="true">
+                <span className="h-px flex-1 bg-line"></span>
+                <span className="text-xs uppercase tracking-wider text-muted">or</span>
+                <span className="h-px flex-1 bg-line"></span>
               </div>
 
               {oauthProvider === 'google' && (
-                <a href="/auth/google" className="btn-oauth btn-google">
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
+                <a href="/auth/google" className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
                     <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
                     <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
                     <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.593.102-1.17.282-1.709V4.958H.957C.347 6.173 0 7.548 0 9c0 1.452.348 2.827.957 4.042l3.007-2.335z" fill="#FBBC05"/>
@@ -157,8 +161,8 @@ function Login({ onLoginSuccess }: LoginProps) {
               )}
               
               {oauthProvider === 'oidc' && (
-                <a href="/auth/oidc" className="btn-oauth btn-oidc">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
+                <a href="/auth/oidc" className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
                     <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V9h7V2.99c3.72 1.15 6.47 4.82 7 8.94h-7v1.06z" fill="currentColor"/>
                   </svg>
                   Sign in with SSO
@@ -167,11 +171,11 @@ function Login({ onLoginSuccess }: LoginProps) {
             </>
           )}
 
-          <div className="login-footer">
+          <div className="pt-2 text-center text-xs text-muted">
             {isAdminRoute ? (
               <p>Admin login - Default: admin / admin</p>
             ) : (
-              <p>For admin access, visit <a href="/admin" className="login-admin-link">/admin</a></p>
+              <p>For admin access, visit <a href="/admin" className="text-accent underline-offset-2 hover:underline">/admin</a></p>
             )}
           </div>
         </form>

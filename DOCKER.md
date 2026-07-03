@@ -42,7 +42,8 @@ Create a `.env` file or set environment variables. Most settings can also be con
 ```bash
 PORT=3000                   # Change this to use a different port
 HOST_PORT=3000             # For docker-compose: host machine port
-SESSION_SECRET=your-secret  # Required: random secret for sessions
+SESSION_SECRET=your-secret  # Optional: auto-generated & persisted to /app/data if unset
+COOKIE_SECURE=false         # Set to true when serving over HTTPS
 PUBLIC_URL=http://localhost:3000  # Where the app is publicly accessible
 ```
 

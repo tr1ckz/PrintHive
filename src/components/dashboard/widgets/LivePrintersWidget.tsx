@@ -30,12 +30,12 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
 
   if (printers.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 rounded-[4px] border border-dashed border-neutral-800 p-5 text-xs text-neutral-500">
+      <div className="flex h-full flex-col items-center justify-center gap-3 rounded-md border border-dashed border-line p-5 text-xs text-muted">
         <p>No printers configured.</p>
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="ops-micro-btn rounded-[4px] border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.08em] text-white"
+          className="min-h-9 rounded-md border border-line bg-white/[0.04] px-2.5 py-1.5 text-[10px] uppercase tracking-[0.08em] text-fg"
         >
           Open Printers
         </button>
@@ -46,13 +46,13 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
+        <div className="flex flex-wrap gap-2 rounded-md border border-line bg-white/[0.04] p-3">
           {(['all', 'online', 'active'] as const).map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setScope(item)}
-              className={`ops-micro-btn rounded-[3px] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-neutral-800 text-white' : 'text-neutral-400'}`}
+              className={`min-h-9 rounded px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-white/10 text-fg' : 'text-fg-faint'}`}
             >
               {item}
             </button>
@@ -61,50 +61,50 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="ops-micro-btn rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+          className="min-h-9 rounded-md border border-line bg-white/[0.04] px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg hover:border-line-strong"
         >
           Open
         </button>
       </div>
 
-      <div className="space-y-2 rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
+      <div className="space-y-2 rounded-md border border-line bg-white/[0.04] p-3">
         {visibleRows.map((printer) => (
-          <div key={printer.id} className="ops-clickable-card rounded-[3px] border border-transparent px-2 py-2.5 last:border-b-0">
+          <div key={printer.id} className="transition-colors hover:bg-white/[0.06] rounded border border-transparent px-2 py-2.5 last:border-b-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex items-center gap-1.5">
                 {printer.online && printer.currentPrint ? (
-                  <span className="ops-pulse-dot inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+                  <span className="animate-pulse inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success" aria-hidden />
                 ) : printer.online ? (
-                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600" aria-hidden />
+                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" aria-hidden />
                 ) : (
-                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-600" aria-hidden />
+                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-white/25" aria-hidden />
                 )}
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold leading-tight text-white/90">{printer.name}</p>
-                  <p className="truncate ops-tertiary-text">{printer.model}</p>
+                  <p className="truncate text-sm font-semibold leading-tight text-fg/90">{printer.name}</p>
+                  <p className="truncate text-xs text-muted">{printer.model}</p>
                 </div>
               </div>
               <span
-                className={`shrink-0 rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-emerald-500/55 text-emerald-400' : 'border-rose-500/50 text-rose-500'}`}
+                className={`shrink-0 rounded border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-success/55 text-success' : 'border-danger/50 text-danger'}`}
               >
                 {printer.online ? 'Online' : 'Offline'}
               </span>
             </div>
 
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
-              <div className={`h-full ${printer.online ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded border border-line bg-transparent">
+              <div className={`h-full ${printer.online ? 'bg-success' : 'bg-danger'}`} style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
             </div>
 
-            <div className="mt-1.5 flex items-center justify-between ops-tertiary-text">
+            <div className="mt-1.5 flex items-center justify-between text-xs text-muted">
               <span className="truncate">{printer.currentPrint || printer.status || 'Idle'}</span>
-              <span className="ops-data-value">{Math.max(0, Math.min(100, printer.progress || 0))}%</span>
+              <span className="tabular-nums text-fg-soft">{Math.max(0, Math.min(100, printer.progress || 0))}%</span>
             </div>
           </div>
         ))}
       </div>
 
       {filtered.length > limit ? (
-        <p className="text-[10px] uppercase tracking-[0.08em] text-white/45">Showing {limit} of {filtered.length} printers.</p>
+        <p className="text-[10px] uppercase tracking-[0.08em] text-fg/45">Showing {limit} of {filtered.length} printers.</p>
       ) : null}
     </div>
   );

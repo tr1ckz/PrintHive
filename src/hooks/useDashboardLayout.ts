@@ -80,6 +80,26 @@ export const dashboardWidgetRegistry: DashboardWidgetRegistryItem[] = [
   { id: 'failureWatch', title: 'Failure Watch' },
 ];
 
+/**
+ * Fixed stacking order for the mobile (<md) dashboard, honoring
+ * Status > Temps > Camera > Controls. LivePrinters leads because it carries
+ * status/temps/camera per printer; ops widgets follow; feeds trail.
+ * DashboardHome renders this order in a single column below md, where
+ * react-grid-layout is not mounted at all.
+ */
+export const MOBILE_WIDGET_PRIORITY: DashboardWidgetId[] = [
+  'livePrinters',
+  'healthSummary',
+  'fleetAlerts',
+  'queuePressure',
+  'backgroundJobs',
+  'materialUsage',
+  'upcomingSchedule',
+  'activityStream',
+  'failureWatch',
+  'mqttStatus',
+];
+
 export const defaultDashboardLayouts: Layouts = {
   lg: [
     { i: 'livePrinters', x: 0, y: 0, w: 5, h: 7, minW: 4, minH: 5 },

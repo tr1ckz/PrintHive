@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import ConfirmModal from './ConfirmModal';
+import Modal from './common/Modal';
 import Toast from './Toast';
-import './Maintenance.css';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 import { useEscapeKey } from '../hooks/useKeyboardShortcut';
@@ -330,65 +330,64 @@ function Maintenance() {
   });
 
   if (loading) {
-    return <div className="maintenance-loading">Loading maintenance tasks...</div>;
+    return <div className="flex items-center justify-center py-16 text-sm text-muted">Loading maintenance tasks...</div>;
   }
 
   return (
-    <div className="maintenance">
-      <div className="maintenance-header">
-        <div className="maintenance-header-meta">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-muted">
           <span>{tasks.length} scheduled tasks</span>
           <span>{overdueTasks.length} overdue</span>
         </div>
-        <button className="btn btn-primary" onClick={() => { resetForm(); setEditingTask(null); setShowAddModal(true); }}>
+        <button className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" onClick={() => { resetForm(); setEditingTask(null); setShowAddModal(true); }}>
           + Add Task
         </button>
       </div>
 
       {/* Summary Cards */}
-      <div className="maintenance-summary">
-        <div className={`summary-card ${overdueTasks.length > 0 ? 'overdue' : ''}`} onClick={() => setFilter('overdue')}>
-          <span className="summary-icon">⚠️</span>
-          <span className="summary-value">{overdueTasks.length}</span>
-          <span className="summary-label">Overdue</span>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg bg-card p-4 text-center shadow-sm transition hover:bg-surface-2 ${overdueTasks.length > 0 ? 'ring-1 ring-danger/40' : ''}`} onClick={() => setFilter('overdue')}>
+          <span className="text-xl">⚠️</span>
+          <span className="text-2xl font-semibold tabular-nums text-fg">{overdueTasks.length}</span>
+          <span className="text-xs text-muted">Overdue</span>
         </div>
-        <div className={`summary-card ${dueSoonTasks.length > 0 ? 'due-soon' : ''}`} onClick={() => setFilter('due-soon')}>
-          <span className="summary-icon">⏰</span>
-          <span className="summary-value">{dueSoonTasks.length}</span>
-          <span className="summary-label">Due Soon</span>
+        <div className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg bg-card p-4 text-center shadow-sm transition hover:bg-surface-2 ${dueSoonTasks.length > 0 ? 'ring-1 ring-warning/40' : ''}`} onClick={() => setFilter('due-soon')}>
+          <span className="text-xl">⏰</span>
+          <span className="text-2xl font-semibold tabular-nums text-fg">{dueSoonTasks.length}</span>
+          <span className="text-xs text-muted">Due Soon</span>
         </div>
-        <div className="summary-card" onClick={() => setFilter('up-to-date')}>
-          <span className="summary-icon">✅</span>
-          <span className="summary-value">{tasks.length - overdueTasks.length - dueSoonTasks.length}</span>
-          <span className="summary-label">Up to Date</span>
+        <div className="flex cursor-pointer flex-col items-center gap-1 rounded-lg bg-card p-4 text-center shadow-sm transition hover:bg-surface-2" onClick={() => setFilter('up-to-date')}>
+          <span className="text-xl">✅</span>
+          <span className="text-2xl font-semibold tabular-nums text-fg">{tasks.length - overdueTasks.length - dueSoonTasks.length}</span>
+          <span className="text-xs text-muted">Up to Date</span>
         </div>
-        <div className="summary-card" onClick={() => setFilter('all')}>
-          <span className="summary-icon">📋</span>
-          <span className="summary-value">{tasks.length}</span>
-          <span className="summary-label">Total Tasks</span>
+        <div className="flex cursor-pointer flex-col items-center gap-1 rounded-lg bg-card p-4 text-center shadow-sm transition hover:bg-surface-2" onClick={() => setFilter('all')}>
+          <span className="text-xl">📋</span>
+          <span className="text-2xl font-semibold tabular-nums text-fg">{tasks.length}</span>
+          <span className="text-xs text-muted">Total Tasks</span>
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="maintenance-filters">
-        <button className={`filter-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
+      <div className="flex flex-wrap items-center gap-2">
+        <button className={filter === 'all' ? "inline-flex min-h-11 md:min-h-9 items-center rounded-md px-3 text-sm font-medium transition-colors bg-accent/10 text-accent" : "inline-flex min-h-11 md:min-h-9 items-center rounded-md px-3 text-sm font-medium transition-colors bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"} onClick={() => setFilter('all')}>
           All Tasks
         </button>
-        <button className={`filter-btn ${filter === 'overdue' ? 'active' : ''}`} onClick={() => setFilter('overdue')}>
+        <button className={filter === 'overdue' ? "inline-flex min-h-11 md:min-h-9 items-center rounded-md px-3 text-sm font-medium transition-colors bg-accent/10 text-accent" : "inline-flex min-h-11 md:min-h-9 items-center rounded-md px-3 text-sm font-medium transition-colors bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"} onClick={() => setFilter('overdue')}>
           Overdue ({overdueTasks.length})
         </button>
-        <button className={`filter-btn ${filter === 'due-soon' ? 'active' : ''}`} onClick={() => setFilter('due-soon')}>
+        <button className={filter === 'due-soon' ? "inline-flex min-h-11 md:min-h-9 items-center rounded-md px-3 text-sm font-medium transition-colors bg-accent/10 text-accent" : "inline-flex min-h-11 md:min-h-9 items-center rounded-md px-3 text-sm font-medium transition-colors bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"} onClick={() => setFilter('due-soon')}>
           Due Soon ({dueSoonTasks.length})
         </button>
-        <button className={`filter-btn ${filter === 'up-to-date' ? 'active' : ''}`} onClick={() => setFilter('up-to-date')}>
+        <button className={filter === 'up-to-date' ? "inline-flex min-h-11 md:min-h-9 items-center rounded-md px-3 text-sm font-medium transition-colors bg-accent/10 text-accent" : "inline-flex min-h-11 md:min-h-9 items-center rounded-md px-3 text-sm font-medium transition-colors bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"} onClick={() => setFilter('up-to-date')}>
           Up to Date
         </button>
         {printers.length > 1 && (
           <select 
             value={printerFilter} 
             onChange={(e) => setPrinterFilter(e.target.value)}
-            className="printer-filter-dropdown"
-            style={{ marginLeft: 'auto' }}
+            className="min-h-11 md:min-h-9 sm:ml-auto"
           >
             {printers.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
@@ -399,15 +398,15 @@ function Maintenance() {
 
       {/* Tasks List */}
       {filteredTasks.length === 0 ? (
-        <div className="no-tasks">
-          <span className="no-tasks-icon">🔧</span>
+        <div className="flex flex-col items-center gap-3 py-16 text-center text-muted [&>p]:text-sm">
+          <span className="text-3xl">🔧</span>
           <p>No maintenance tasks found</p>
-          <button className="btn btn-secondary" onClick={() => { resetForm(); setEditingTask(null); setShowAddModal(true); }}>
+          <button className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => { resetForm(); setEditingTask(null); setShowAddModal(true); }}>
             Add your first task
           </button>
         </div>
       ) : (
-        <div className="tasks-list">
+        <div className="space-y-3">
           {filteredTasks.map(task => {
             const typeInfo = getTaskTypeInfo(task.task_type);
             const printer = printers.find(p => p.id === task.printer_id);
@@ -415,40 +414,40 @@ function Maintenance() {
             const isDueSoon = task.next_due && !isOverdue && new Date(task.next_due) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
             
             return (
-              <div key={task.id} className={`task-card ${isOverdue ? 'overdue' : isDueSoon ? 'due-soon' : ''}`}>
-                <div className="task-icon">{typeInfo.icon}</div>
-                <div className="task-content">
-                  <div className="task-header">
+              <div key={task.id} className={`flex flex-col gap-3 rounded-lg bg-card p-4 shadow-sm sm:flex-row sm:items-start ${isOverdue ? 'ring-1 ring-danger/40' : isDueSoon ? 'ring-1 ring-warning/40' : ''}`}>
+                <div className="text-2xl sm:mt-0.5">{typeInfo.icon}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg">
                     <h3>{task.task_name}</h3>
-                    <span className="task-type-badge">{typeInfo.label}</span>
-                    {isOverdue && <span className="status-badge overdue">Overdue</span>}
-                    {isDueSoon && !isOverdue && <span className="status-badge due-soon">Due Soon</span>}
+                    <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-fg-soft">{typeInfo.label}</span>
+                    {isOverdue && <span className="rounded-full bg-danger/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-danger">Overdue</span>}
+                    {isDueSoon && !isOverdue && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning">Due Soon</span>}
                   </div>
-                  {task.description && <p className="task-description">{task.description}</p>}
-                  <div className="task-meta">
-                    {printer && <span className="meta-item">🖨️ {printer.name}</span>}
-                    <span className="meta-item">🔄 Every {formatHours(task.interval_hours)}</span>
+                  {task.description && <p className="mt-1 text-sm text-fg-soft">{task.description}</p>}
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                    {printer && <span className="text-xs tabular-nums text-muted">🖨️ {printer.name}</span>}
+                    <span className="text-xs tabular-nums text-muted">🔄 Every {formatHours(task.interval_hours)}</span>
                     <span
-                      className={`meta-item hours-display ${(task.hours_until_due ?? 0) < 0 ? 'is-overdue' : (task.hours_until_due ?? 0) < 50 ? 'is-warning' : 'is-ontrack'}`}
+                      className={`text-xs font-medium tabular-nums ${(task.hours_until_due ?? 0) < 0 ? 'text-danger' : (task.hours_until_due ?? 0) < 50 ? 'text-warning' : 'text-success'}`}
                     >
                       ⏰ {(task.hours_until_due ?? 0) < 0
                         ? `${Math.abs(Math.round(task.hours_until_due ?? 0))} hrs overdue`
                         : `${Math.round(task.hours_until_due ?? 0)} hrs until maintenance`}
                     </span>
-                    <span className="meta-item">📅 Last: {formatDate(task.last_performed)}</span>
+                    <span className="text-xs tabular-nums text-muted">📅 Last: {formatDate(task.last_performed)}</span>
                   </div>
                 </div>
-                <div className="task-actions">
-                  <button className="btn btn-success btn-sm" onClick={() => setCompleteConfirm(task.id)} title="Mark as completed">
+                <div className="flex shrink-0 flex-wrap gap-1.5">
+                  <button className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-success/15 text-success hover:bg-success/25" onClick={() => setCompleteConfirm(task.id)} title="Mark as completed">
                     ✓ Done
                   </button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => loadHistory(task.id)} title="View completion history">
+                  <button className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => loadHistory(task.id)} title="View completion history">
                     📜
                   </button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(task)} title="Edit task">
+                  <button className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleEdit(task)} title="Edit task">
                     ✎
                   </button>
-                  <button className="btn btn-delete btn-sm" onClick={() => setDeleteConfirm(task.id)} title="Delete task">
+                  <button className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25" onClick={() => setDeleteConfirm(task.id)} title="Delete task">
                     🗑️
                   </button>
                 </div>
@@ -460,14 +459,12 @@ function Maintenance() {
 
       {/* Add/Edit Modal */}
       {showAddModal && (
-        <div className="modal-overlay" onClick={() => { setShowAddModal(false); setEditingTask(null); }}>
-          <div className="modal maintenance-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{editingTask ? 'Edit Task' : 'Add Maintenance Task'}</h2>
-              <button className="modal-close" onClick={() => { setShowAddModal(false); setEditingTask(null); }}>×</button>
-            </div>
+        <Modal
+          title={editingTask ? 'Edit Task' : 'Add Maintenance Task'}
+          onClose={() => { setShowAddModal(false); setEditingTask(null); }}
+        >
             <form onSubmit={handleSubmit}>
-              <div className="form-group">
+              <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full [&>textarea]:w-full">
                 <label>Task Name *</label>
                 <input
                   type="text"
@@ -478,8 +475,8 @@ function Maintenance() {
                 />
               </div>
               
-              <div className="form-row">
-                <div className="form-group">
+              <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full [&>textarea]:w-full">
                   <label>Task Type</label>
                   <select
                     value={formData.task_type}
@@ -493,7 +490,7 @@ function Maintenance() {
                   </select>
                 </div>
                 
-                <div className="form-group">
+                <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full [&>textarea]:w-full">
                   <label>Printer *</label>
                   <select
                     value={formData.printer_id}
@@ -508,7 +505,7 @@ function Maintenance() {
                 </div>
               </div>
               
-              <div className="form-group">
+              <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full [&>textarea]:w-full">
                 <label>Interval (hours of printing)</label>
                 <input
                   type="number"
@@ -517,10 +514,10 @@ function Maintenance() {
                   min="1"
                   placeholder="100"
                 />
-                <small className="form-hint">How many hours between each maintenance</small>
+                <small className="mt-1.5 block text-xs text-muted">How many hours between each maintenance</small>
               </div>
               
-              <div className="form-group">
+              <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full [&>textarea]:w-full">
                 <label>Description (optional)</label>
                 <textarea
                   value={formData.description}
@@ -531,14 +528,14 @@ function Maintenance() {
               </div>
               
               {!editingTask && (
-                <div className="preset-tasks">
+                <div className="mb-4 [&>label]:mb-2 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted">
                   <label>Quick Add Presets:</label>
-                  <div className="preset-buttons">
+                  <div className="flex flex-wrap gap-2">
                     {PRESET_TASKS.map((preset, i) => (
                       <button
                         key={i}
                         type="button"
-                        className="preset-btn"
+                        className="inline-flex min-h-9 items-center gap-1 rounded-md bg-white/5 px-2.5 text-xs text-fg-soft transition-colors hover:bg-accent/10 hover:text-accent"
                         onClick={() => handleAddPreset(preset)}
                       >
                         {getTaskTypeInfo(preset.task_type).icon} {preset.task_name}
@@ -548,17 +545,16 @@ function Maintenance() {
                 </div>
               )}
               
-              <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => { setShowAddModal(false); setEditingTask(null); }}>
+              <div className="mt-5 flex justify-end gap-2">
+                <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => { setShowAddModal(false); setEditingTask(null); }}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary">
+                <button type="submit" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong">
                   {editingTask ? 'Save Changes' : 'Add Task'}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Delete Confirmation */}
@@ -585,31 +581,26 @@ function Maintenance() {
 
       {/* History Modal */}
       {viewHistory !== null && (
-        <div className="modal-overlay" onClick={() => setViewHistory(null)}>
-          <div className="modal maintenance-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📜 Completion History</h2>
-              <button className="modal-close" onClick={() => setViewHistory(null)}>×</button>
-            </div>
-            <div className="modal-body maintenance-history-scroll">
+        <Modal title="📜 Completion History" onClose={() => setViewHistory(null)}>
+            <div>
               {taskHistory.length === 0 ? (
-                <p className="maintenance-history-empty">
+                <p className="py-8 text-center text-sm text-muted">
                   No completion history yet
                 </p>
               ) : (
-                <div className="maintenance-history-list">
+                <div className="space-y-3">
                   {taskHistory.map((entry) => (
-                    <div key={entry.id} className="maintenance-history-item">
-                      <div className="maintenance-history-head">
-                        <span className="maintenance-history-status">Completed</span>
-                        <span className="maintenance-history-time">
+                    <div key={entry.id} className="rounded-lg bg-white/[0.03] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-success">Completed</span>
+                        <span className="text-xs tabular-nums text-muted">
                           {new Date(entry.completed_at).toLocaleString()}
                         </span>
                       </div>
-                      <div className="maintenance-history-body">
+                      <div className="mt-1.5 space-y-0.5 text-sm text-fg-soft">
                         <div>Print hours: {entry.print_hours_at_completion?.toFixed(1) || 'N/A'}</div>
                         {entry.notes && (
-                          <div className="maintenance-history-notes">
+                          <div className="text-xs text-muted">
                             Notes: {entry.notes}
                           </div>
                         )}
@@ -619,8 +610,7 @@ function Maintenance() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {toast && (

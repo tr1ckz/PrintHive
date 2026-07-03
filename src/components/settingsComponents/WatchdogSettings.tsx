@@ -57,26 +57,26 @@ export function WatchdogSettings() {
 
   return (
     <CollapsibleSection title="Watchdog / Health Check" icon="🐕">
-      <p className="form-description">
+      <p className="mb-4 text-sm text-fg-soft">
         Keep the application alive and monitor health status
       </p>
       
-      <div className="toggle-group">
-        <label className="toggle-label">
+      <div className="mb-4 space-y-1">
+        <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent">
           <input
             type="checkbox"
             checked={watchdogEnabled}
             onChange={(e) => setWatchdogEnabled(e.target.checked)}
             disabled={watchdogLoading}
           />
-          <span className="toggle-text">Enable Watchdog</span>
+          <span className="select-none">Enable Watchdog</span>
         </label>
-        <p className="toggle-hint">Periodically check application health and ping external services</p>
+        <p className="text-xs text-muted">Periodically check application health and ping external services</p>
       </div>
       
       {watchdogEnabled && (
         <>
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Check Interval (seconds)</label>
             <input
               type="number"
@@ -89,7 +89,7 @@ export function WatchdogSettings() {
             />
           </div>
           
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>External Ping URL (optional)</label>
             <input
               type="url"
@@ -98,7 +98,7 @@ export function WatchdogSettings() {
               placeholder="https://healthchecks.io/ping/your-uuid"
               disabled={watchdogLoading}
             />
-            <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+            <small className="mt-1.5 block text-xs text-muted">
               Optional: URL to ping for external monitoring (Uptime Robot, Healthchecks.io, etc.)
             </small>
           </div>
@@ -107,7 +107,7 @@ export function WatchdogSettings() {
       
       <button 
         type="button" 
-        className="btn btn-primary" 
+        className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" 
         onClick={handleSaveWatchdogSettings}
         disabled={watchdogLoading}
       >

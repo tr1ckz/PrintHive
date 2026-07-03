@@ -1,5 +1,4 @@
 import { useDeferredValue, useId, useState } from 'react';
-import './Docs.css';
 
 interface DocsProps {
   standalone?: boolean;
@@ -130,11 +129,11 @@ function Docs({ standalone = false }: DocsProps) {
   };
 
   return (
-    <div className={`docs-page ${standalone ? 'standalone' : ''}`}>
-      <header className="docs-hero">
-        <div className="docs-hero-copy">
+    <div className={`space-y-8 ${standalone ? 'mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8' : ''}`}>
+      <header className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-4 [&_h1]:mt-2 [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:text-fg [&_h1+p]:mt-2 [&_h1+p]:max-w-prose [&_h1+p]:text-sm [&_h1+p]:leading-relaxed [&_h1+p]:text-fg-soft">
           <div>
-            <span className="docs-badge">/docs</span>
+            <span className="inline-block rounded-full bg-accent/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-widest text-accent">/docs</span>
             {standalone ? (
               <>
                 <h1>PrintHive Documentation</h1>
@@ -146,20 +145,20 @@ function Docs({ standalone = false }: DocsProps) {
             ) : null}
           </div>
 
-          <div className="docs-hero-links">
+          <div className="flex flex-wrap gap-2">
             {visibleTocItems.slice(0, 6).map((item) => (
-              <a key={item.id} href={`#${item.id}`} className="docs-anchor-link">
+              <a key={item.id} href={`#${item.id}`} className="inline-flex min-h-9 items-center rounded-md bg-white/5 px-3 text-xs font-medium text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
                 {item.label}
               </a>
             ))}
             {standalone && (
-              <a href="/" className="docs-anchor-link docs-anchor-link-primary">
+              <a href="/" className="inline-flex min-h-9 items-center rounded-md bg-accent px-3 text-xs font-semibold text-accent-contrast transition-colors hover:bg-accent-strong">
                 Open App
               </a>
             )}
           </div>
 
-          <div className="docs-chip-list docs-chip-list-hero">
+          <div className="flex flex-wrap gap-1.5 [&>span]:rounded-full [&>span]:bg-white/5 [&>span]:px-2.5 [&>span]:py-1 [&>span]:text-[11px] [&>span]:text-muted">
             <span>Docker-ready</span>
             <span>OIDC / SSO</span>
             <span>MQTT live status</span>
@@ -167,24 +166,24 @@ function Docs({ standalone = false }: DocsProps) {
             <span>Cloud + local sync</span>
           </div>
 
-          <div className="docs-search-shell">
-            <label htmlFor={searchId} className="docs-search-label">Search docs</label>
-            <div className="docs-search-row">
+          <div className="space-y-1.5">
+            <label htmlFor={searchId} className="block text-xs font-medium text-muted">Search docs</label>
+            <div className="flex gap-2">
               <input
                 id={searchId}
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="docs-search-input"
+                className="min-h-11 md:min-h-10 w-full max-w-md"
                 placeholder="Search MQTT, access code, Docker, SSO..."
               />
               {searchQuery ? (
-                <button type="button" className="docs-search-clear" onClick={() => setSearchQuery('')}>
+                <button type="button" className="inline-flex min-h-11 md:min-h-10 items-center rounded-md bg-white/5 px-3 text-sm text-fg-soft transition-colors hover:bg-white/10 hover:text-fg" onClick={() => setSearchQuery('')}>
                   Clear
                 </button>
               ) : null}
             </div>
-            <span className="docs-search-meta">
+            <span className="block text-xs text-muted">
               {deferredSearchQuery
                 ? `${visibleTocItems.length} section${visibleTocItems.length === 1 ? '' : 's'} match "${searchQuery.trim()}"`
                 : 'Search filters the table of contents and visible sections in place.'}
@@ -192,19 +191,19 @@ function Docs({ standalone = false }: DocsProps) {
           </div>
         </div>
 
-        <div className="docs-hero-panel">
-          <div className="docs-stack-card">
-            <span className="docs-stack-label">Recommended rollout</span>
-            <ol className="docs-steps docs-hero-steps">
+        <div className="space-y-4">
+          <div className="rounded-lg bg-card p-4 shadow-sm">
+            <span className="text-xs font-semibold uppercase tracking-widest text-accent">Recommended rollout</span>
+            <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-fg-soft [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs">
               <li>Deploy with Docker and mount persistent data volumes.</li>
               <li>Connect Bambu cloud or LAN printers from Settings.</li>
               <li>Enable SSO, backups, and notifications for day-two ops.</li>
             </ol>
           </div>
 
-          <div className="docs-stat-grid">
+          <div className="grid grid-cols-3 gap-2">
             {overviewStats.map((item) => (
-              <article key={item.label} className="docs-stat-card">
+              <article key={item.label} className="flex flex-col gap-0.5 rounded-lg bg-card p-3 text-center shadow-sm [&>strong]:text-sm [&>strong]:font-semibold [&>strong]:text-accent [&>span]:text-[11px] [&>span]:text-muted">
                 <strong>{item.value}</strong>
                 <span>{item.label}</span>
               </article>
@@ -213,44 +212,44 @@ function Docs({ standalone = false }: DocsProps) {
         </div>
       </header>
 
-      <div className="docs-layout">
-        <aside className="docs-sidebar">
-          <div className="docs-sidebar-card">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="hidden lg:block">
+          <div className="sticky top-20 rounded-lg bg-card p-4 shadow-sm [&>h2]:text-xs [&>h2]:font-semibold [&>h2]:uppercase [&>h2]:tracking-widest [&>h2]:text-muted [&>nav]:mt-2 [&>nav]:flex [&>nav]:flex-col [&>nav]:gap-0.5">
             <h2>On this page</h2>
             <nav>
               {visibleTocItems.map((item) => (
-                <a key={item.id} href={`#${item.id}`} className="docs-sidebar-link">
+                <a key={item.id} href={`#${item.id}`} className="flex min-h-8 items-center rounded px-2 text-[13px] text-fg-soft transition-colors hover:bg-white/5 hover:text-fg">
                   {item.label}
                 </a>
               ))}
             </nav>
             {deferredSearchQuery && !hasSearchResults ? (
-              <p className="docs-sidebar-empty">No sections match the current search.</p>
+              <p className="mt-2 text-xs text-muted">No sections match the current search.</p>
             ) : null}
           </div>
         </aside>
 
-        <div className="docs-content">
+        <div className="min-w-0 space-y-10">
           {!hasSearchResults ? (
-            <section className="docs-section docs-empty-state">
+            <section className="py-8 text-center [&>h2]:text-base [&>h2]:font-semibold [&>h2]:text-fg [&>p]:mt-1 [&>p]:text-sm [&>p]:text-muted">
               <h2>No matching sections</h2>
               <p>Try broader terms like printer, mqtt, docker, backup, or oidc.</p>
             </section>
           ) : null}
 
           {shouldShowSection('overview') ? (
-          <section id="overview" className="docs-section">
+          <section id="overview" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>Overview</h2>
             <p>
               PrintHive is a web app for running a Bambu-centered print farm or personal 3D printing setup.
               It combines cloud print history, local printer telemetry, file management, statistics, backups,
               and admin tools into one dashboard.
             </p>
-            <div className="docs-callout">
+            <div className="rounded-lg bg-accent/10 p-4 text-sm leading-relaxed text-fg-soft [&>strong]:text-fg">
               <strong>Best fit:</strong> users who want one place to manage Bambu accounts, LAN printers,
               timelapses, model files, maintenance, and team access.
             </div>
-            <div className="docs-chip-list">
+            <div className="flex flex-wrap gap-1.5 [&>span]:rounded-full [&>span]:bg-white/5 [&>span]:px-2.5 [&>span]:py-1 [&>span]:text-[11px] [&>span]:text-muted">
               <span>Docker-ready</span>
               <span>OIDC / SSO</span>
               <span>MQTT live status</span>
@@ -262,11 +261,11 @@ function Docs({ standalone = false }: DocsProps) {
           ) : null}
 
           {shouldShowSection('features') ? (
-          <section id="features" className="docs-section">
+          <section id="features" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>Features</h2>
-            <div className="docs-grid docs-grid-3 docs-feature-grid">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {featureGroups.map((group) => (
-                <article key={group.title} className="docs-card">
+                <article key={group.title} className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                   <h3>{group.title}</h3>
                   <ul>
                     {group.items.map((item) => (
@@ -280,12 +279,12 @@ function Docs({ standalone = false }: DocsProps) {
           ) : null}
 
           {shouldShowSection('pages') ? (
-          <section id="pages" className="docs-section">
+          <section id="pages" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>Pages & workflows</h2>
-            <div className="docs-grid docs-grid-3 docs-page-grid">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {pageGuide.map(([page, description]) => (
-                <article key={page} className="docs-card docs-page-tile">
-                  <span className="docs-page-label">{page}</span>
+                <article key={page} className="flex flex-col gap-1 rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-accent">{page}</span>
                   <p>{description}</p>
                 </article>
               ))}
@@ -294,19 +293,19 @@ function Docs({ standalone = false }: DocsProps) {
           ) : null}
 
           {shouldShowSection('docker') ? (
-          <section id="docker" className="docs-section">
+          <section id="docker" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>Docker setup</h2>
-            <div className="docs-grid docs-grid-2">
-              <article className="docs-card">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Quick start</h3>
-                <ol className="docs-steps">
+                <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-fg-soft [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs">
                   <li>Pull `tr1ckz/printhive:latest`.</li>
                   <li>Mount persistent volumes for `data`, `library`, and `sessions`.</li>
                   <li>Set `SESSION_SECRET` and `PUBLIC_URL`.</li>
                   <li>Expose port `3000` or your preferred mapped port.</li>
                 </ol>
               </article>
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Persistent paths</h3>
                 <ul>
                   <li><code>/app/data</code> — database, videos, backups, caches</li>
@@ -316,23 +315,23 @@ function Docs({ standalone = false }: DocsProps) {
               </article>
             </div>
 
-            <div className="docs-code-block">
-              <div className="docs-code-title">docker run</div>
+            <div className="overflow-hidden rounded-lg bg-black/30 [&>pre]:overflow-x-auto [&>pre]:p-4 [&>pre]:text-xs [&>pre]:leading-relaxed [&>pre]:text-fg-soft">
+              <div className="bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted">docker run</div>
               <pre>{dockerRunExample}</pre>
             </div>
 
-            <div className="docs-code-block">
-              <div className="docs-code-title">docker-compose.yml</div>
+            <div className="overflow-hidden rounded-lg bg-black/30 [&>pre]:overflow-x-auto [&>pre]:p-4 [&>pre]:text-xs [&>pre]:leading-relaxed [&>pre]:text-fg-soft">
+              <div className="bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted">docker-compose.yml</div>
               <pre>{dockerComposeExample}</pre>
             </div>
 
-            <div className="docs-callout warning">
+            <div className="rounded-lg bg-warning/10 p-4 text-sm leading-relaxed text-fg-soft [&>strong]:text-warning">
               <strong>Important:</strong> if you update or recreate the container without persistent volumes,
               you will lose the database, uploaded files, and sessions.
             </div>
 
-            <div className="docs-table-wrap">
-              <table className="docs-table">
+            <div className="overflow-x-auto rounded-lg bg-card shadow-sm">
+              <table className="w-full min-w-[560px] border-collapse text-sm [&_th]:border-b [&_th]:border-line [&_th]:px-4 [&_th]:py-2.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wider [&_th]:text-muted [&_td]:border-b [&_td]:border-line [&_td]:px-4 [&_td]:py-2.5 [&_td]:text-fg-soft [&_tbody_tr:last-child_td]:border-b-0 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs">
                 <thead>
                   <tr>
                     <th>Variable</th>
@@ -355,24 +354,24 @@ function Docs({ standalone = false }: DocsProps) {
           ) : null}
 
           {shouldShowSection('sso') ? (
-          <section id="sso" className="docs-section">
+          <section id="sso" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>SSO / OIDC setup</h2>
             <p>
               PrintHive supports OpenID Connect providers such as Authentik, Keycloak, Auth0, Okta, and similar systems.
               Configure the provider, then add the values in your container environment or the Settings page.
             </p>
 
-            <div className="docs-grid docs-grid-2">
-              <article className="docs-card">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Provider checklist</h3>
-                <ol className="docs-steps">
+                <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-fg-soft [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs">
                   <li>Create a new OIDC application/client for PrintHive.</li>
                   <li>Set the redirect URI to <code>{'${PUBLIC_URL}/auth/callback'}</code>.</li>
                   <li>Enable the `openid`, `profile`, and `email` scopes.</li>
                   <li>Ensure group membership is exposed, usually through the `groups` claim.</li>
                 </ol>
               </article>
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Role mapping</h3>
                 <ul>
                   <li><strong>Admin</strong> / <strong>Admins</strong> group → <strong>Super Admin</strong></li>
@@ -382,20 +381,20 @@ function Docs({ standalone = false }: DocsProps) {
               </article>
             </div>
 
-            <div className="docs-code-block">
-              <div className="docs-code-title">Example OIDC environment</div>
+            <div className="overflow-hidden rounded-lg bg-black/30 [&>pre]:overflow-x-auto [&>pre]:p-4 [&>pre]:text-xs [&>pre]:leading-relaxed [&>pre]:text-fg-soft">
+              <div className="bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted">Example OIDC environment</div>
               <pre>{ssoExample}</pre>
             </div>
           </section>
           ) : null}
 
           {shouldShowSection('printers') ? (
-          <section id="printers" className="docs-section">
+          <section id="printers" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>Printer setup</h2>
-            <div className="docs-grid docs-grid-2">
-              <article className="docs-card">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>1. Bambu cloud account</h3>
-                <ol className="docs-steps">
+                <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-fg-soft [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs">
                   <li>Open <strong>Settings → Bambu</strong>.</li>
                   <li>Add one or more Bambu accounts and choose the correct region.</li>
                   <li>Mark the main account as primary if you use several accounts.</li>
@@ -403,9 +402,9 @@ function Docs({ standalone = false }: DocsProps) {
                 </ol>
               </article>
 
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>2. Local / LAN printer</h3>
-                <ol className="docs-steps">
+                <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-fg-soft [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs">
                   <li>Open <strong>Settings → Local Printer / FTP</strong>.</li>
                   <li>Enter the printer IP, access code, and serial number from the printer screen.</li>
                   <li>Save the printer so it appears in the <strong>Printers</strong> page and sync jobs.</li>
@@ -413,7 +412,7 @@ function Docs({ standalone = false }: DocsProps) {
                 </ol>
               </article>
 
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>3. SD card import</h3>
                 <p>
                   Use <strong>History → Sync SD Card</strong> to scan `.gcode` and `.3mf` files stored locally on the printer.
@@ -421,7 +420,7 @@ function Docs({ standalone = false }: DocsProps) {
                 </p>
               </article>
 
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>4. Camera / monitoring</h3>
                 <p>
                   The <strong>Printers</strong> page shows online state, active job progress, temperatures, AMS trays,
@@ -430,24 +429,24 @@ function Docs({ standalone = false }: DocsProps) {
               </article>
             </div>
 
-            <div className="docs-callout">
+            <div className="rounded-lg bg-accent/10 p-4 text-sm leading-relaxed text-fg-soft [&>strong]:text-fg">
               <strong>Need for LAN setup:</strong> printer IP, access code, serial number, and network reachability between the app and the printer.
             </div>
           </section>
           ) : null}
 
           {shouldShowSection('mqtt') ? (
-          <section id="mqtt" className="docs-section">
+          <section id="mqtt" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>MQTT & LAN telemetry</h2>
             <p>
               PrintHive talks directly to each Bambu printer over its built-in secure MQTT endpoint. There is no separate MQTT broker to install,
               no broker URL to configure, and no extra topic mapping to maintain.
             </p>
 
-            <div className="docs-grid docs-grid-2">
-              <article className="docs-card">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>How it works</h3>
-                <ol className="docs-steps">
+                <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-fg-soft [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs">
                   <li>PrintHive opens an <code>mqtts</code> connection to <code>PRINTER_IP:8883</code>.</li>
                   <li>It authenticates with username <code>bblp</code> and the printer&apos;s access code.</li>
                   <li>It subscribes to <code>device/SERIAL_NUMBER/report</code> for live status updates.</li>
@@ -455,7 +454,7 @@ function Docs({ standalone = false }: DocsProps) {
                 </ol>
               </article>
 
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>What you must configure</h3>
                 <ul>
                   <li><strong>IP address</strong> of the printer on your LAN.</li>
@@ -465,7 +464,7 @@ function Docs({ standalone = false }: DocsProps) {
                 </ul>
               </article>
 
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>What you do not need</h3>
                 <ul>
                   <li>No Mosquitto, EMQX, or other external broker.</li>
@@ -475,7 +474,7 @@ function Docs({ standalone = false }: DocsProps) {
                 </ul>
               </article>
 
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>What updates to expect</h3>
                 <ul>
                   <li><strong>Idle or online state</strong> can still update even when nothing is printing.</li>
@@ -486,7 +485,7 @@ function Docs({ standalone = false }: DocsProps) {
               </article>
             </div>
 
-            <div className="docs-callout">
+            <div className="rounded-lg bg-accent/10 p-4 text-sm leading-relaxed text-fg-soft [&>strong]:text-fg">
               <strong>About “Awaiting telemetry”:</strong> it means the printer has not published the specific temp, fan, Wi-Fi, or height fields shown in that panel yet.
               It does not automatically mean MQTT is disconnected.
             </div>
@@ -494,10 +493,10 @@ function Docs({ standalone = false }: DocsProps) {
           ) : null}
 
           {shouldShowSection('backups') ? (
-          <section id="backups" className="docs-section">
+          <section id="backups" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>Backups, maintenance, and admin tools</h2>
-            <div className="docs-grid docs-grid-2">
-              <article className="docs-card">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Backups</h3>
                 <ul>
                   <li>Schedule local backups in <strong>Settings → System</strong>.</li>
@@ -506,7 +505,7 @@ function Docs({ standalone = false }: DocsProps) {
                   <li>Restore from backup through the built-in restore UI.</li>
                 </ul>
               </article>
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Database maintenance</h3>
                 <ul>
                   <li>Run Vacuum to reclaim space.</li>
@@ -520,10 +519,10 @@ function Docs({ standalone = false }: DocsProps) {
           ) : null}
 
           {shouldShowSection('integrations') ? (
-          <section id="integrations" className="docs-section">
+          <section id="integrations" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>Integrations</h2>
-            <div className="docs-grid docs-grid-2">
-              <article className="docs-card">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Built-in now</h3>
                 <ul>
                   <li>Discord notifications / webhooks</li>
@@ -532,7 +531,7 @@ function Docs({ standalone = false }: DocsProps) {
                   <li>OIDC / SSO authentication</li>
                 </ul>
               </article>
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Good usage patterns</h3>
                 <ul>
                   <li>Post failure alerts to Discord</li>
@@ -546,10 +545,10 @@ function Docs({ standalone = false }: DocsProps) {
           ) : null}
 
           {shouldShowSection('troubleshooting') ? (
-          <section id="troubleshooting" className="docs-section">
+          <section id="troubleshooting" className="scroll-mt-24 space-y-4 [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:tracking-tight [&>h2]:text-fg [&>p]:max-w-prose [&>p]:text-sm [&>p]:leading-relaxed [&>p]:text-fg-soft">
             <h2>Troubleshooting</h2>
-            <div className="docs-grid docs-grid-2">
-              <article className="docs-card">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Printer not showing up</h3>
                 <ul>
                   <li>Confirm it was saved in <strong>Settings → Local Printer / FTP</strong>.</li>
@@ -558,7 +557,7 @@ function Docs({ standalone = false }: DocsProps) {
                   <li>Make sure port <code>8883</code> is reachable from the PrintHive host.</li>
                 </ul>
               </article>
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>MQTT connected but telemetry is sparse</h3>
                 <ul>
                   <li>Look for overall printer state such as <strong>Online</strong>, <strong>Idle</strong>, or active progress first.</li>
@@ -567,7 +566,7 @@ function Docs({ standalone = false }: DocsProps) {
                   <li>Re-save the printer with the correct serial number if no live updates arrive at all.</li>
                 </ul>
               </article>
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>SSO login not working</h3>
                 <ul>
                   <li>Confirm redirect URI exactly matches the provider config.</li>
@@ -575,7 +574,7 @@ function Docs({ standalone = false }: DocsProps) {
                   <li>Make sure the groups claim is present if you need role mapping.</li>
                 </ul>
               </article>
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Docker issues</h3>
                 <ul>
                   <li>Run <code>docker logs printhive</code> first.</li>
@@ -583,7 +582,7 @@ function Docs({ standalone = false }: DocsProps) {
                   <li>Keep persistent volumes mounted before upgrading.</li>
                 </ul>
               </article>
-              <article className="docs-card">
+              <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>History missing local prints</h3>
                 <ul>
                   <li>Use <strong>Sync SD Card</strong> for locally sliced jobs.</li>

@@ -7,7 +7,9 @@
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'printhive.db');
+const DB_PATH = process.env.DB_PATH
+  || (process.env.PRINTHIVE_DATA_DIR && path.join(process.env.PRINTHIVE_DATA_DIR, 'printhive.db'))
+  || path.join(__dirname, 'data', 'printhive.db');
 
 console.log('====================================');
 console.log('Bambu Lab Admin Reset Script');
@@ -47,7 +49,7 @@ try {
 
   // Show current admin user status
   console.log('Current admin user status:');
-  const currentAdmin = db.prepare('SELECT id, username, password, role, created_at FROM users WHERE username = ?').get('admin');
+  const currentAdmin = db.prepare('SELECT id, username, role, created_at FROM users WHERE username = ?').get('admin');
   if (currentAdmin) {
     console.log(currentAdmin);
   } else {
@@ -57,24 +59,27 @@ try {
 
   // Reset admin user
   console.log('Resetting admin user...');
-  
+
+  const bcrypt = require('bcryptjs');
+  const passwordHash = bcrypt.hashSync('admin', 12);
+
   if (currentAdmin) {
     // Update existing admin user
     db.prepare('UPDATE users SET role = ?, password = ? WHERE username = ?')
-      .run('superadmin', 'admin', 'admin');
+      .run('superadmin', passwordHash, 'admin');
     console.log('✓ Updated existing admin user');
   } else {
     // Create new admin user
     db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
-      .run('admin', 'admin', 'superadmin');
+      .run('admin', passwordHash, 'superadmin');
     console.log('✓ Created new admin user');
   }
-  
+
   console.log('');
 
   // Show updated admin user status
   console.log('Updated admin user status:');
-  const updatedAdmin = db.prepare('SELECT id, username, password, role, created_at FROM users WHERE username = ?').get('admin');
+  const updatedAdmin = db.prepare('SELECT id, username, role, created_at FROM users WHERE username = ?').get('admin');
   console.log(updatedAdmin);
   console.log('');
 

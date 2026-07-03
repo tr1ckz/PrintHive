@@ -174,17 +174,17 @@ export function BambuSettings() {
 
   return (
     <CollapsibleSection title="Bambu Lab Accounts" icon="🔗" defaultExpanded={true}>
-      <p className="form-description">
+      <p className="mb-4 text-sm text-fg-soft">
         Connect multiple Bambu Lab accounts to manage all your printers in one place.
       </p>
 
-      <div className="settings-inline-toolbar">
-        <span className="settings-inline-meta">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <span className="text-xs text-muted">
           {accounts.length > 0 ? `${accounts.length} connected account${accounts.length > 1 ? 's' : ''}` : 'No accounts connected yet'}
         </span>
         {!showAddForm && (
           <button
-            className="btn btn-primary btn-sm"
+            className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
             onClick={() => setShowAddForm(true)}
             disabled={loading}
           >
@@ -195,26 +195,26 @@ export function BambuSettings() {
 
       {/* Connected Accounts List */}
       {accounts.length > 0 && (
-        <div className="bambu-accounts-list">
+        <div className="space-y-3">
           {accounts.map((account) => (
-            <div key={account.id} className={`bambu-account-card ${account.is_primary ? 'is-primary' : ''}`}>
-              <div className="account-card-content">
-                <div className="account-info">
-                  <div className="account-email-row">
-                    {account.is_primary && <span className="account-primary-star">★</span>}
-                    <span className="account-email">{account.email}</span>
+            <div key={account.id} className={`rounded-lg bg-white/[0.03] p-4 ${account.is_primary ? 'ring-1 ring-accent/30' : ''}`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {account.is_primary && <span className="text-accent">★</span>}
+                    <span className="truncate text-sm font-medium text-fg">{account.email}</span>
                     {account.is_primary && (
-                      <span className="primary-badge">Primary</span>
+                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">Primary</span>
                     )}
                   </div>
-                  <span className="account-meta">
+                  <span className="text-xs text-muted">
                     {account.region === 'china' ? 'China' : 'Global'} • Updated {new Date(account.updated_at).toLocaleString()}
                   </span>
                 </div>
-                <div className="account-actions">
+                <div className="flex shrink-0 flex-wrap gap-1.5">
                   {!account.is_primary && (
                     <button
-                      className="btn btn-secondary btn-sm"
+                      className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
                       onClick={() => handleSetPrimary(account.id)}
                       disabled={loading}
                     >
@@ -222,7 +222,7 @@ export function BambuSettings() {
                     </button>
                   )}
                   <button
-                    className="btn btn-danger btn-sm"
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25"
                     onClick={() => handleDisconnect(account.id)}
                     disabled={loading}
                   >
@@ -237,12 +237,12 @@ export function BambuSettings() {
 
       {/* Add Account Form */}
       {showAddForm && (
-        <form onSubmit={codeSent ? handleConnect : handleRequestCode} className="bambu-connect-form">
-          <p className="form-description">
+        <form onSubmit={codeSent ? handleConnect : handleRequestCode} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-white/[0.03] p-4 [&>div]:w-full [&>p]:w-full">
+          <p className="mb-4 text-sm text-fg-soft">
             Connect a Bambu Lab account to access printers
           </p>
 
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Bambu Lab Email</label>
             <input
               type="email"
@@ -254,7 +254,7 @@ export function BambuSettings() {
             />
           </div>
 
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Region</label>
             <select
               value={region}
@@ -267,7 +267,7 @@ export function BambuSettings() {
           </div>
 
           {codeSent && (
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Verification Code</label>
               <input
                 type="text"
@@ -283,7 +283,7 @@ export function BambuSettings() {
 
           <button 
             type="submit" 
-            className="btn btn-primary" 
+            className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" 
             disabled={loading}
           >
             {loading ? (codeSent ? 'Connecting...' : 'Sending Code...') : (codeSent ? 'Connect' : 'Send Verification Code')}
@@ -293,29 +293,26 @@ export function BambuSettings() {
             <>
               <button 
                 type="button" 
-                className="btn btn-secondary" 
+                className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
                 onClick={handleRequestCode}
                 disabled={loading || countdown > 0}
-                style={{ marginLeft: '10px' }}
               >
                 {countdown > 0 ? `Resend Code (${Math.floor(countdown / 60)}:${(countdown % 60).toString().padStart(2, '0')})` : 'Resend Code'}
               </button>
               <button 
                 type="button" 
-                className="btn btn-secondary" 
+                className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
                 onClick={() => { setCodeSent(false); setCode(''); setCountdown(0); }}
                 disabled={loading}
-                style={{ marginLeft: '10px' }}
               >
                 Change Email
               </button>
               {accounts.length > 0 && (
                 <button 
                   type="button" 
-                  className="btn btn-secondary" 
+                  className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
                   onClick={() => { setShowAddForm(false); setCodeSent(false); setCode(''); setEmail(''); setCountdown(0); }}
                   disabled={loading}
-                  style={{ marginLeft: '10px' }}
                 >
                   Cancel
                 </button>

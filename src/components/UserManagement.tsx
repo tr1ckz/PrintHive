@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
-import './UserManagement.css';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
 import LoadingScreen from './LoadingScreen';
@@ -100,16 +99,14 @@ export default function UserManagement() {
 
   if (error) {
     return (
-      <div className="user-management-container">
-        <div className="error-container">
-          <p>Error: {error}</p>
-        </div>
+      <div className="rounded-md bg-danger/10 px-4 py-3 text-sm text-danger">
+        <p>Error: {error}</p>
       </div>
     );
   }
 
   return (
-    <div className="user-management-container">
+    <div>
       {toast && (
         <Toast
           message={toast.message}
@@ -117,11 +114,11 @@ export default function UserManagement() {
           onClose={() => setToast(null)}
         />
       )}
-      
-      <div className="users-table-container">
-        <table className="users-table">
+
+      <div className="overflow-x-auto rounded-lg bg-card shadow-sm">
+        <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
-            <tr>
+            <tr className="[&>th]:border-b [&>th]:border-line [&>th]:px-4 [&>th]:py-2.5 [&>th]:text-left [&>th]:text-xs [&>th]:font-semibold [&>th]:uppercase [&>th]:tracking-wider [&>th]:text-muted">
               <th>Username</th>
               <th>Email</th>
               <th>Auth Method</th>
@@ -130,19 +127,19 @@ export default function UserManagement() {
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="[&>tr]:border-b [&>tr]:border-line [&>tr:last-child]:border-b-0 [&_td]:px-4 [&_td]:py-2.5 [&_td]:text-fg-soft">
             {users.map(user => (
               <tr key={user.id}>
-                <td className="username-cell">{user.username}</td>
+                <td className="font-medium text-fg">{user.username}</td>
                 <td>{user.email || '-'}</td>
                 <td>
-                  <span className={`auth-badge ${user.oauth_provider ? 'oauth' : 'local'}`}>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${user.oauth_provider ? 'bg-info/15 text-info' : 'bg-white/8 text-fg-soft'}`}>
                     {user.oauth_provider || 'Local'}
                   </span>
                 </td>
                 <td>
                   <select
-                    className={`role-select role-${user.role}`}
+                    className="min-h-9 w-auto text-xs"
                     value={user.role}
                     onChange={(e) => handleRoleChange(user.id, e.target.value)}
                     disabled={user.role === 'superadmin' && currentUserRole !== 'superadmin'}
@@ -153,10 +150,10 @@ export default function UserManagement() {
                     <option value="user">User</option>
                   </select>
                 </td>
-                <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                <td className="tabular-nums">{new Date(user.created_at).toLocaleDateString()}</td>
                 <td>
                   <button
-                    className="btn-delete-user"
+                    className="inline-flex size-9 items-center justify-center rounded-md bg-danger/15 text-danger transition-colors hover:bg-danger/25 disabled:pointer-events-none disabled:opacity-40"
                     onClick={() => handleDeleteClick(user.id, user.username)}
                     disabled={user.role === 'superadmin' || (user.role === 'admin' && users.filter(u => u.role === 'admin' || u.role === 'superadmin').length === 1)}
                     title={user.role === 'superadmin' ? 'Cannot delete superadmin' : (user.role === 'admin' && users.filter(u => u.role === 'admin' || u.role === 'superadmin').length === 1 ? 'Cannot delete the last admin' : 'Delete user')}
@@ -170,7 +167,7 @@ export default function UserManagement() {
         </table>
       </div>
 
-      <div className="users-info">
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-muted">
         <p>Total Users: {users.length}</p>
         <p>Admins: {users.filter(u => u.role === 'admin' || u.role === 'superadmin').length}</p>
         <p>Regular Users: {users.filter(u => u.role === 'user').length}</p>

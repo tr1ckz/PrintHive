@@ -6,6 +6,7 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { BackupInfo, BackupStats, DbResultModal } from './types';
 import LoadingSplash from '../LoadingSplash';
 import ConfirmModal from '../ConfirmModal';
+import Modal from '../common/Modal';
 import { useModal } from '../ModalProvider';
 
 export function SystemSettings() {
@@ -524,32 +525,32 @@ export function SystemSettings() {
   return (
     <>
       <CollapsibleSection title="System" icon="🖥️">
-        <p className="form-description">
+        <p className="mb-4 text-sm text-fg-soft">
           Application management and maintenance
         </p>
         
-        <div className="form-group">
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Log Level</label>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div className="flex items-center gap-2.5 [&>select]:min-w-0 [&>select]:flex-1">
             <select value={logLevel} onChange={(e) => setLogLevel(e.target.value)}>
               {logLevels.map(l => (
                 <option key={l} value={l}>{l}</option>
               ))}
             </select>
-            <button type="button" className="btn btn-secondary" onClick={handleSaveLogLevel}>Apply</button>
+            <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={handleSaveLogLevel}>Apply</button>
           </div>
-          <small className="form-hint">Controls verbosity of server logs without restart</small>
+          <small className="mt-1.5 block text-xs text-muted">Controls verbosity of server logs without restart</small>
         </div>
         
-        <div className="system-actions">
-          <div className="system-action">
-            <div className="action-info">
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/[0.03] p-4">
+            <div className="min-w-0 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>p]:mt-0.5 [&>p]:text-xs [&>p]:text-muted">
               <h3>Restart Application</h3>
               <p>Restart the server to apply configuration changes</p>
             </div>
             <button 
               type="button" 
-              className="btn btn-warning" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-warning/15 text-warning hover:bg-warning/25" 
               onClick={() => setConfirmRestart(true)}
               disabled={restarting}
             >
@@ -558,16 +559,16 @@ export function SystemSettings() {
           </div>
         </div>
 
-        <div style={{ marginTop: '2rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)', paddingTop: '2rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>🗄️ Database Maintenance</h3>
-          <p className="form-description" style={{ marginBottom: '1.5rem' }}>
+        <div className="mt-8 border-t border-line pt-8">
+          <h3 className="mb-4 text-base font-semibold text-fg">🗄️ Database Maintenance</h3>
+          <p className="mb-6 text-sm text-fg-soft">
             Optimize database performance with maintenance tasks
           </p>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button 
               type="button" 
-              className="btn btn-secondary" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
               onClick={handleVacuumDatabase}
               disabled={dbVacuuming || dbMaintenanceLoading}
               title="Removes unused space from the database"
@@ -577,7 +578,7 @@ export function SystemSettings() {
             
             <button 
               type="button" 
-              className="btn btn-secondary" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
               onClick={handleAnalyzeDatabase}
               disabled={dbAnalyzing || dbMaintenanceLoading}
               title="Analyzes query statistics to optimize performance"
@@ -587,7 +588,7 @@ export function SystemSettings() {
 
             <button 
               type="button" 
-              className="btn btn-secondary" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
               onClick={handleRebuildIndexes}
               disabled={dbRebuildingIndexes || dbMaintenanceLoading}
               title="Rebuilds all database indexes for optimal query performance"
@@ -597,7 +598,7 @@ export function SystemSettings() {
 
             <button 
               type="button" 
-              className="btn btn-secondary" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
               onClick={handleBackupNow}
               disabled={dbMaintenanceLoading}
               title="Create a backup of the database now"
@@ -607,30 +608,30 @@ export function SystemSettings() {
           </div>
 
           {lastBackupDate && (
-            <div style={{ padding: '0.75rem', background: 'rgba(0, 212, 255, 0.1)', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+            <div className="mb-6 rounded-lg bg-accent/10 p-3 text-sm text-fg-soft">
               Last backup: {new Date(lastBackupDate).toLocaleString()}
             </div>
           )}
 
           {/* Backup Schedule */}
-          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>Backup Schedule</h4>
+          <div className="mt-6 border-t border-line pt-6">
+            <h4 className="mb-4 text-sm font-semibold text-fg">Backup Schedule</h4>
             
-            <div className="toggle-group">
-              <label className="toggle-label">
+            <div className="mb-4 space-y-1">
+              <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent">
                 <input
                   type="checkbox"
                   checked={backupScheduleEnabled}
                   onChange={(e) => setBackupScheduleEnabled(e.target.checked)}
                   disabled={dbMaintenanceLoading}
                 />
-                <span className="toggle-text">Enable automatic backups</span>
+                <span className="select-none">Enable automatic backups</span>
               </label>
             </div>
 
             {backupScheduleEnabled && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group">
+              <div className="my-4 grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
                   <label>Backup Interval (days)</label>
                   <input
                     type="number"
@@ -643,7 +644,7 @@ export function SystemSettings() {
                   />
                 </div>
 
-                <div className="form-group">
+                <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
                   <label>Retention Period (days)</label>
                   <input
                     type="number"
@@ -654,7 +655,7 @@ export function SystemSettings() {
                     max="365"
                     disabled={dbMaintenanceLoading}
                   />
-                  <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+                  <small className="mt-1.5 block text-xs text-muted">
                     Older backups will be automatically deleted
                   </small>
                 </div>
@@ -663,68 +664,68 @@ export function SystemSettings() {
           </div>
 
           {/* Backup Options */}
-          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>📦 Backup Options</h4>
-            <p className="form-description" style={{ marginBottom: '1rem' }}>
+          <div className="mt-6 border-t border-line pt-6">
+            <h4 className="mb-4 text-sm font-semibold text-fg">📦 Backup Options</h4>
+            <p className="mb-4 text-sm text-fg-soft">
               Select what to include in backups
             </p>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="flex flex-col gap-1">
+              <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent">
                 <input
                   type="checkbox"
                   checked={backupIncludeVideos}
                   onChange={(e) => setBackupIncludeVideos(e.target.checked)}
                   disabled={dbMaintenanceLoading}
                 />
-                <span className="toggle-text">Include timelapse videos</span>
+                <span className="select-none">Include timelapse videos</span>
               </label>
               
-              <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent">
                 <input
                   type="checkbox"
                   checked={backupIncludeLibrary}
                   onChange={(e) => setBackupIncludeLibrary(e.target.checked)}
                   disabled={dbMaintenanceLoading}
                 />
-                <span className="toggle-text">Include library files (.3mf, .stl, .gcode)</span>
+                <span className="select-none">Include library files (.3mf, .stl, .gcode)</span>
               </label>
               
-              <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent">
                 <input
                   type="checkbox"
                   checked={backupIncludeCovers}
                   onChange={(e) => setBackupIncludeCovers(e.target.checked)}
                   disabled={dbMaintenanceLoading}
                 />
-                <span className="toggle-text">Include cover images</span>
+                <span className="select-none">Include cover images</span>
               </label>
             </div>
-            <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '1rem' }}>
+            <small className="mt-4 block text-xs text-muted">
               Database is always included. Uncheck options to create smaller, faster backups.
             </small>
           </div>
 
           {/* Remote Backup */}
-          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>📤 Remote Backup Location</h4>
+          <div className="mt-6 border-t border-line pt-6">
+            <h4 className="mb-4 text-sm font-semibold text-fg">📤 Remote Backup Location</h4>
             
-            <div className="toggle-group">
-              <label className="toggle-label">
+            <div className="mb-4 space-y-1">
+              <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent">
                 <input
                   type="checkbox"
                   checked={remoteBackupEnabled}
                   onChange={(e) => setRemoteBackupEnabled(e.target.checked)}
                   disabled={dbMaintenanceLoading}
                 />
-                <span className="toggle-text">Enable remote backup (SFTP/FTP)</span>
+                <span className="select-none">Enable remote backup (SFTP/FTP)</span>
               </label>
-              <p className="toggle-hint">Upload backups to a remote server</p>
+              <p className="text-xs text-muted">Upload backups to a remote server</p>
             </div>
 
             {remoteBackupEnabled && (
-              <div style={{ marginTop: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <div className="mt-4">
+                <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
                   <label>Protocol</label>
                   <select
                     value={remoteBackupType}
@@ -739,8 +740,8 @@ export function SystemSettings() {
                   </select>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                  <div className="form-group">
+                <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-[2fr_1fr]">
+                  <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
                     <label>Host</label>
                     <input
                       type="text"
@@ -750,7 +751,7 @@ export function SystemSettings() {
                       disabled={dbMaintenanceLoading}
                     />
                   </div>
-                  <div className="form-group">
+                  <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
                     <label>Port</label>
                     <input
                       type="number"
@@ -761,8 +762,8 @@ export function SystemSettings() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                  <div className="form-group">
+                <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                  <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
                     <label>Username</label>
                     <input
                       type="text"
@@ -772,7 +773,7 @@ export function SystemSettings() {
                       disabled={dbMaintenanceLoading}
                     />
                   </div>
-                  <div className="form-group">
+                  <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
                     <label>Password</label>
                     <input
                       type="password"
@@ -784,7 +785,7 @@ export function SystemSettings() {
                   </div>
                 </div>
 
-                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
                   <label>Remote Path</label>
                   <input
                     type="text"
@@ -797,10 +798,9 @@ export function SystemSettings() {
 
                 <button 
                   type="button" 
-                  className="btn btn-secondary" 
+                  className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
                   onClick={handleTestRemoteBackup}
                   disabled={dbMaintenanceLoading || remoteBackupTesting || !remoteBackupHost}
-                  style={{ marginBottom: '1rem' }}
                 >
                   {remoteBackupTesting ? 'Testing...' : '🔌 Test Connection'}
                 </button>
@@ -809,10 +809,10 @@ export function SystemSettings() {
           </div>
 
           {/* Webhook */}
-          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(0, 212, 255, 0.2)' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>🔔 Backup Webhook</h4>
+          <div className="mt-6 border-t border-line pt-6">
+            <h4 className="mb-4 text-sm font-semibold text-fg">🔔 Backup Webhook</h4>
             
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Webhook URL (optional)</label>
               <input
                 type="url"
@@ -825,50 +825,41 @@ export function SystemSettings() {
 
             <button 
               type="button" 
-              className="btn btn-primary" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" 
               onClick={handleSaveDatabaseSettings}
               disabled={dbMaintenanceLoading}
-              style={{ marginTop: '1rem' }}
             >
               {dbMaintenanceLoading ? 'Saving...' : 'Save Backup Settings'}
             </button>
           </div>
 
           {/* Restore */}
-          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(var(--theme-accent-rgb), 0.2)' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '1rem' }}>♻️ Restore from Backup</h4>
+          <div className="mt-6 border-t border-line pt-6">
+            <h4 className="mb-4 text-sm font-semibold text-fg">♻️ Restore from Backup</h4>
 
             {backupStats.count > 0 && (
-              <div style={{ padding: '1rem', background: 'rgba(var(--theme-accent-rgb), 0.1)', borderRadius: '8px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-around', fontSize: '0.9rem' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--theme-accent)' }}>{backupStats.count}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.7)' }}>Backups</div>
+              <div className="mb-4 flex justify-around rounded-lg bg-accent/10 p-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold tabular-nums text-accent">{backupStats.count}</div>
+                  <div className="text-xs text-fg-soft">Backups</div>
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--theme-accent)' }}>{backupStats.totalSizeFormatted}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.7)' }}>Total Size</div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold tabular-nums text-accent">{backupStats.totalSizeFormatted}</div>
+                  <div className="text-xs text-fg-soft">Total Size</div>
                 </div>
               </div>
             )}
             
-            <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Available Backups</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '400px', overflowY: 'auto', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+              <div className="flex max-h-96 flex-col gap-2 overflow-y-auto rounded-lg bg-black/20 p-2">
                 {availableBackups.length === 0 ? (
-                  <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
+                  <div className="rounded-lg bg-white/5 p-4 text-center text-sm text-muted">
                     No backups found
                   </div>
                 ) : (
                   availableBackups.map((backup) => (
-                    <div key={backup.name} style={{ 
-                      display: 'flex', 
-                      gap: '0.5rem', 
-                      alignItems: 'center',
-                      padding: '0.75rem',
-                      background: selectedBackup === backup.name ? 'rgba(var(--theme-accent-rgb), 0.1)' : 'rgba(255,255,255,0.05)',
-                      borderRadius: '8px',
-                      border: selectedBackup === backup.name ? '1px solid rgba(var(--theme-accent-rgb), 0.3)' : '1px solid transparent'
-                    }}>
+                    <div key={backup.name} className={`flex items-center gap-2 rounded-lg p-3 ${selectedBackup === backup.name ? 'bg-accent/10 ring-1 ring-accent/30' : 'bg-white/5'}`}>
                       <input 
                         type="radio" 
                         name="selectedBackup" 
@@ -876,21 +867,21 @@ export function SystemSettings() {
                         checked={selectedBackup === backup.name}
                         onChange={(e) => setSelectedBackup(e.target.value)}
                         disabled={restoreInProgress}
-                        style={{ flexShrink: 0 }}
+                        className="shrink-0 accent-accent"
                       />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 500 }}>{backup.date}</div>
-                        <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>{backup.size}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-fg">{backup.date}</div>
+                        <div className="text-xs tabular-nums text-muted">{backup.size}</div>
                       </div>
                       <button
                         type="button"
-                        className="btn btn-danger"
+                        className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25"
                         onClick={(e) => {
                           e.preventDefault();
                           handleDeleteBackup(backup.name);
                         }}
                         disabled={restoreInProgress}
-                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                        aria-label={`Delete backup ${backup.name}`}
                       >
                         🗑️
                       </button>
@@ -900,10 +891,10 @@ export function SystemSettings() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem' }}>
+            <div className="flex flex-wrap gap-3">
               <button 
                 type="button" 
-                className="btn btn-secondary" 
+                className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
                 onClick={loadAvailableBackups}
                 disabled={restoreInProgress}
               >
@@ -912,7 +903,7 @@ export function SystemSettings() {
               
               <button 
                 type="button" 
-                className="btn btn-warning" 
+                className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-warning/15 text-warning hover:bg-warning/25" 
                 onClick={() => setShowRestoreModal(true)}
                 disabled={!selectedBackup || restoreInProgress}
               >
@@ -935,96 +926,78 @@ export function SystemSettings() {
 
       {/* DB Result Modal */}
       {dbResultModal && (
-        <div className="modal-overlay" onClick={() => setDbResultModal(null)}>
-          <div className="db-result-modal" onClick={e => e.stopPropagation()}>
-            <div className="db-result-header">
-              <span className="db-result-icon">{dbResultModal.icon}</span>
-              <h3>{dbResultModal.title}</h3>
-            </div>
-            <div className="db-result-details">
-              {Object.entries(dbResultModal.details).map(([key, value]) => (
-                <div key={key} className="db-result-row">
-                  <span className="db-result-label">{key}</span>
-                  <span className="db-result-value">{value}</span>
-                </div>
-              ))}
-            </div>
-            <button 
-              className="btn btn-primary" 
-              onClick={() => setDbResultModal(null)}
-              style={{ marginTop: '1.5rem', width: '100%' }}
-            >
-              Done
-            </button>
+        <Modal
+          title={<><span aria-hidden="true">{dbResultModal.icon}</span> {dbResultModal.title}</>}
+          onClose={() => setDbResultModal(null)}
+          contentClassName="sm:max-w-md"
+        >
+          <div className="divide-y divide-line">
+            {Object.entries(dbResultModal.details).map(([key, value]) => (
+              <div key={key} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="text-muted">{key}</span>
+                <span className="font-medium tabular-nums text-fg">{value}</span>
+              </div>
+            ))}
           </div>
-        </div>
+          <button
+            className="mt-6 inline-flex min-h-11 md:min-h-9 w-full items-center justify-center rounded-md bg-accent px-3 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-strong"
+            onClick={() => setDbResultModal(null)}
+          >
+            Done
+          </button>
+        </Modal>
       )}
 
       {/* Restore Modal */}
       {showRestoreModal && (
-        <div className="modal-overlay" onClick={() => !restoreInProgress && setShowRestoreModal(false)}>
-          <div className="db-result-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="db-result-header">
-              <span className="db-result-icon">{restoreInProgress ? '♻️' : '⚠️'}</span>
-              <h3>{restoreInProgress ? 'Restoring Backup' : 'Confirm Restore'}</h3>
-            </div>
-            <div className="db-result-details">
-              {restoreInProgress ? (
-                <>
-                  <p style={{ marginBottom: '1rem', color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>
-                    {restoreMessage}
-                  </p>
-                  <div style={{ width: '100%', height: '30px', background: 'rgba(255,255,255,0.1)', borderRadius: '15px', overflow: 'hidden', marginBottom: '1rem' }}>
-                    <div 
-                      style={{ 
-                        width: `${restoreProgress}%`, 
-                        height: '100%', 
-                        background: 'linear-gradient(90deg, var(--theme-accent), var(--theme-accent-strong))', 
-                        transition: 'width 0.5s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        color: '#fff'
-                      }}
-                    >
-                      {restoreProgress}%
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p style={{ marginBottom: '1rem', color: 'rgba(255,255,255,0.8)' }}>
-                    Are you sure you want to restore from this backup?
-                  </p>
-                  <p style={{ marginBottom: '1rem', fontWeight: 'bold', color: '#ff6b6b' }}>
-                    This will replace the current database!
-                  </p>
-                  <p style={{ marginBottom: '1.5rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)' }}>
-                    Backup: {selectedBackup}
-                  </p>
-                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                    <button 
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => setShowRestoreModal(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="button"
-                      className="btn btn-warning"
-                      onClick={handleRestoreBackup}
-                    >
-                      Restore Now
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <Modal
+          title={restoreInProgress ? 'Restoring Backup' : 'Confirm Restore'}
+          onClose={() => { if (!restoreInProgress) setShowRestoreModal(false); }}
+          contentClassName="sm:max-w-md"
+        >
+          {restoreInProgress ? (
+            <>
+              <p className="mb-4 text-center text-sm text-fg-soft">
+                {restoreMessage}
+              </p>
+              <div className="mb-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-accent transition-[width] duration-500"
+                  style={{ width: `${restoreProgress}%` }}
+                />
+              </div>
+              <p className="text-center text-xs font-semibold tabular-nums text-fg-soft">{restoreProgress}%</p>
+            </>
+          ) : (
+            <>
+              <p className="mb-4 text-sm text-fg-soft">
+                Are you sure you want to restore from this backup?
+              </p>
+              <p className="mb-4 text-sm font-bold text-danger">
+                This will replace the current database!
+              </p>
+              <p className="mb-6 text-xs text-muted">
+                Backup: {selectedBackup}
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
+                  onClick={() => setShowRestoreModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-warning/15 text-warning hover:bg-warning/25"
+                  onClick={handleRestoreBackup}
+                >
+                  Restore Now
+                </button>
+              </div>
+            </>
+          )}
+        </Modal>
       )}
 
       {showRestartSplash && (

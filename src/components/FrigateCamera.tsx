@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CameraStreamType } from '../types';
-import './FrigateCamera.css';
 
 type HlsModule = typeof import('hls.js');
 type HlsConstructor = HlsModule['default'];
@@ -416,25 +415,25 @@ function FrigateCamera({
   }, [clearRetryTimer, destroyStream]);
 
   return (
-    <div className={`frigate-camera ${className}`.trim()}>
+    <div className={`relative h-full min-h-[250px] w-full overflow-hidden bg-black ${className}`.trim()}>
       <video
         ref={videoRef}
-        className={`frigate-camera-video ${streamState === 'playing' ? 'is-live' : ''}`}
+        className={`block h-full w-full bg-black object-cover transition-opacity duration-200 ${streamState === 'playing' ? 'opacity-100' : 'opacity-0'}`}
         autoPlay
         muted
         playsInline
       />
 
       {streamState !== 'playing' ? (
-        <div className={`frigate-camera-overlay ${streamState}`}>
-          <div className="frigate-camera-state">
-            <strong>{streamState === 'loading' ? 'Connecting…' : 'Stream Offline'}</strong>
-            <span>{statusMessage}</span>
-            <small>{streamTarget.label ? `${printerName} · ${streamTarget.label}` : printerName}</small>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/90 p-5">
+          <div className="grid max-w-[280px] justify-items-center gap-1.5 text-center">
+            <strong className="text-base text-white">{streamState === 'loading' ? 'Connecting…' : 'Stream Offline'}</strong>
+            <span className="text-sm leading-relaxed text-white/70">{statusMessage}</span>
+            <small className="text-xs uppercase tracking-wider text-white/50">{streamTarget.label ? `${printerName} · ${streamTarget.label}` : printerName}</small>
             {canRetry ? (
               <button
                 type="button"
-                className="frigate-retry-btn"
+                className="mt-1.5 inline-flex min-h-9 items-center rounded-lg bg-accent/15 px-3 text-sm font-semibold text-white ring-1 ring-accent/30 transition-colors hover:bg-accent/25"
                 onClick={() => {
                   clearRetryTimer();
                   retryAttemptRef.current = 0;

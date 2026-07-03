@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import './Settings.css';
 import Toast from './Toast';
 import UserManagement from './UserManagement';
 import {
@@ -87,7 +86,7 @@ function Settings({ userRole, initialSection }: SettingsProps) {
           adminOnly: true,
           render: () => (
             <CollapsibleSection title="User Management" icon="👥" defaultExpanded={true}>
-              <p className="form-description">Manage user accounts and permissions for shared PrintHive installs.</p>
+              <p className="mb-4 text-sm text-fg-soft">Manage user accounts and permissions for shared PrintHive installs.</p>
               <UserManagement />
             </CollapsibleSection>
           ),
@@ -230,13 +229,14 @@ function Settings({ userRole, initialSection }: SettingsProps) {
 
   return (
     <SettingsContext.Provider value={{ toast, setToast, isAdmin }}>
-      <div className="st-shell">
+      <div>
         {/* Mobile selects */}
-        <div className="st-mobile-controls">
+        <div className="mb-4 grid grid-cols-2 gap-2 md:hidden">
           <select
             value={selection.category}
             onChange={(e) => handleCategoryChange(e.target.value as SettingsCategory)}
-            className="st-mobile-select"
+            className="min-h-11 w-full"
+            aria-label="Settings category"
           >
             {availableCategories.map((cat) => (
               <option key={cat.id} value={cat.id}>{cat.label}</option>
@@ -245,7 +245,8 @@ function Settings({ userRole, initialSection }: SettingsProps) {
           <select
             value={activePanelConfig.id}
             onChange={(e) => handlePanelChange(e.target.value as SettingsPanel)}
-            className="st-mobile-select"
+            className="min-h-11 w-full"
+            aria-label="Settings section"
           >
             {activeCategoryConfig.panels.map((panel) => (
               <option key={panel.id} value={panel.id}>{panel.label}</option>
@@ -253,30 +254,30 @@ function Settings({ userRole, initialSection }: SettingsProps) {
           </select>
         </div>
 
-        <div className="st-layout">
+        <div className="md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-8">
           {/* Sidebar */}
-          <aside className="st-sidebar">
-            <nav className="st-nav" aria-label="Settings navigation">
+          <aside className="hidden md:block">
+            <nav className="sticky top-20 space-y-1" aria-label="Settings navigation">
               {availableCategories.map((category) => (
-                <div key={category.id} className="st-nav-group">
+                <div key={category.id}>
                   <button
                     type="button"
-                    className={`st-nav-category ${activeCategoryConfig.id === category.id ? 'is-active' : ''}`}
+                    className={`flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 text-sm font-medium transition-colors ${activeCategoryConfig.id === category.id ? 'bg-accent/10 text-accent' : 'text-fg-soft hover:bg-white/5 hover:text-fg'}`}
                     onClick={() => handleCategoryChange(category.id)}
                   >
-                    <span className="st-nav-cat-icon">
+                    <span className="flex size-4 items-center justify-center">
                       <CategoryIcon id={category.id} />
                     </span>
-                    <span className="st-nav-cat-label">{category.label}</span>
+                    <span>{category.label}</span>
                   </button>
 
                   {activeCategoryConfig.id === category.id && (
-                    <div className="st-nav-panels">
+                    <div className="mb-2 ml-6 mt-1 flex flex-col gap-0.5">
                       {category.panels.map((panel) => (
                         <button
                           key={panel.id}
                           type="button"
-                          className={`st-nav-panel ${activePanelConfig.id === panel.id ? 'is-active' : ''}`}
+                          className={`flex min-h-8 items-center rounded px-2.5 text-left text-[13px] transition-colors ${activePanelConfig.id === panel.id ? 'bg-white/5 font-medium text-fg' : 'text-muted hover:text-fg'}`}
                           onClick={() => handlePanelChange(panel.id)}
                         >
                           {panel.label}
@@ -290,12 +291,12 @@ function Settings({ userRole, initialSection }: SettingsProps) {
           </aside>
 
           {/* Content */}
-          <main className="st-content">
-            <div className="st-content-header">
-              <span className="st-content-eyebrow">{activeCategoryConfig.label}</span>
-              <h2 className="st-content-title">{activePanelConfig.label}</h2>
+          <main className="min-w-0">
+            <div className="mb-4">
+              <span className="text-xs font-semibold uppercase tracking-widest text-accent">{activeCategoryConfig.label}</span>
+              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-fg">{activePanelConfig.label}</h2>
             </div>
-            <div className="st-content-body">
+            <div className="space-y-4">
               {activePanelConfig.render()}
             </div>
           </main>

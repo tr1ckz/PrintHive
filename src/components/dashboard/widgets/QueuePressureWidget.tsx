@@ -17,27 +17,27 @@ interface QueuePressureWidgetProps {
 function QueuePressureWidget({ summary, density = 'comfortable', onRefresh, onOpenMaintenance, onOpenPrinters }: QueuePressureWidgetProps) {
   return (
     <div className="flex h-full flex-col gap-2.5">
-      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-2.5">
-        <p className="ops-secondary-text">Queue Pressure</p>
-        <p className="mt-1 text-3xl font-bold leading-tight text-white">{summary.pressureScore}%</p>
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
-          <div className="h-full bg-orange-500" style={{ width: `${Math.max(0, Math.min(100, summary.pressureScore || 0))}%` }} />
+      <div className="rounded-md border border-line bg-white/[0.04] p-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Queue Pressure</p>
+        <p className="mt-1 text-3xl font-bold leading-tight text-fg">{summary.pressureScore}%</p>
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded border border-line-strong bg-white/10">
+          <div className="h-full bg-accent" style={{ width: `${Math.max(0, Math.min(100, summary.pressureScore || 0))}%` }} />
         </div>
-        <p className="mt-1 text-[11px] leading-[1.35] text-neutral-500">{summary.recommendation}</p>
+        <p className="mt-1 text-[11px] leading-[1.35] text-muted">{summary.recommendation}</p>
       </div>
 
       <div className={`grid gap-3 text-center ${density === 'compact' ? 'grid-cols-3' : 'grid-cols-3'}`}>
-        <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-4 py-3">
-          <p className="ops-secondary-text">Active</p>
-          <p className="mt-1.5 text-base font-semibold leading-tight text-white/90">{summary.activeJobs}</p>
+        <div className="rounded-md border border-line bg-white/[0.04] px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Active</p>
+          <p className="mt-1.5 text-base font-semibold leading-tight text-fg/90">{summary.activeJobs}</p>
         </div>
-        <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-4 py-3">
-          <p className="ops-secondary-text">Overdue</p>
-          <p className="mt-1.5 text-base font-semibold leading-tight text-white/90">{summary.overdueTasks}</p>
+        <div className="rounded-md border border-line bg-white/[0.04] px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Overdue</p>
+          <p className="mt-1.5 text-base font-semibold leading-tight text-fg/90">{summary.overdueTasks}</p>
         </div>
-        <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-4 py-3">
-          <p className="ops-secondary-text">Offline</p>
-          <p className="mt-1.5 text-base font-semibold leading-tight text-white/90">{summary.offlinePrinters}</p>
+        <div className="rounded-md border border-line bg-white/[0.04] px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Offline</p>
+          <p className="mt-1.5 text-base font-semibold leading-tight text-fg/90">{summary.offlinePrinters}</p>
         </div>
       </div>
 
@@ -45,7 +45,7 @@ function QueuePressureWidget({ summary, density = 'comfortable', onRefresh, onOp
         <button
           type="button"
           onClick={onRefresh}
-          className="rounded-[4px] border border-orange-500 bg-orange-500 px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:bg-orange-600"
+          className="rounded-md bg-accent px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent-contrast hover:bg-accent-strong"
         >
           Refresh Inputs
         </button>
@@ -54,14 +54,14 @@ function QueuePressureWidget({ summary, density = 'comfortable', onRefresh, onOp
             <button
               type="button"
               onClick={onOpenPrinters}
-              className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+              className="rounded-md border border-line bg-white/[0.04] px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg hover:border-line-strong"
             >
               Printers
             </button>
             <button
               type="button"
               onClick={onOpenMaintenance}
-              className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+              className="rounded-md border border-line bg-white/[0.04] px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg hover:border-line-strong"
             >
               Maintenance
             </button>

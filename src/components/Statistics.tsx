@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
-import './Statistics.css';
 import LoadingScreen from './LoadingScreen';
 import { formatNumber, formatCurrency, formatWeight, formatDuration, formatPercentage } from '../utils/formatters';
 import { exportToCSV } from '../utils/csvExport';
@@ -252,31 +251,31 @@ const Statistics: React.FC = () => {
   }
 
   if (error || !stats) {
-    return <div className="error-container">{error || 'No data available'}</div>;
+    return <div className="rounded-md bg-danger/10 p-4 text-sm text-danger">{error || 'No data available'}</div>;
   }
 
   return (
-    <div className="statistics-container px-0 sm:px-1">
-      <div className="statistics-hero gap-3 md:gap-4">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <span className="statistics-kicker">Analytics snapshot</span>
+          <span className="text-xs font-semibold uppercase tracking-widest text-accent">Analytics snapshot</span>
         </div>
-        <button onClick={fetchStatistics} className="btn-refresh">
+        <button onClick={fetchStatistics} className="inline-flex min-h-11 md:min-h-9 items-center gap-2 rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
           <span>🔄</span> Refresh
         </button>
       </div>
 
-      <div className="stats-grid stats-bento-grid grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
-        <div className="stat-card stat-card-hero gradient-purple">
-          <div className="stat-card-topline">PrintHive overview</div>
-          <div className="stat-card-hero-main">
-            <div className="stat-content">
-              <div className="stat-value">{formatNumber(stats.totalPrints)}</div>
-              <div className="stat-label">Total prints recorded</div>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <div className="col-span-2 md:col-span-3 xl:col-span-6 rounded-lg bg-card p-5 shadow-sm ring-1 ring-accent/20">
+          <div className="text-xs font-semibold uppercase tracking-widest text-muted">PrintHive overview</div>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-2xl font-semibold tabular-nums tracking-tight text-fg">{formatNumber(stats.totalPrints)}</div>
+              <div className="mt-0.5 text-xs text-muted">Total prints recorded</div>
             </div>
-            <div className="stat-hero-aside">
-              <span className="stat-hero-pill success">{formatPercentage(stats.successRate, 1)} success</span>
-              <div className="stat-hero-meta">
+            <div className="flex flex-col items-start gap-1.5 sm:items-end">
+              <span className="rounded-full bg-success/15 px-2.5 py-1 text-xs font-semibold text-success">{formatPercentage(stats.successRate, 1)} success</span>
+              <div className="flex gap-3 text-xs tabular-nums text-muted">
                 <span>{formatNumber(stats.failedPrints)} failed</span>
                 <span>{formatDuration(stats.averagePrintTime)} avg</span>
               </div>
@@ -284,125 +283,125 @@ const Statistics: React.FC = () => {
           </div>
         </div>
 
-        <div className="stat-card stat-card-compact gradient-green">
-          <div className="stat-icon">✓</div>
-          <div className="stat-content">
-            <div className="stat-value">{formatPercentage(stats.successRate, 1)}</div>
-            <div className="stat-label">Success Rate</div>
+        <div className="rounded-lg bg-card p-4 shadow-sm">
+          <div className="text-lg text-accent">✓</div>
+          <div className="min-w-0">
+            <div className="text-2xl font-semibold tabular-nums tracking-tight text-fg">{formatPercentage(stats.successRate, 1)}</div>
+            <div className="mt-0.5 text-xs text-muted">Success Rate</div>
           </div>
         </div>
 
-        <div className="stat-card stat-card-compact gradient-red">
-          <div className="stat-icon">✕</div>
-          <div className="stat-content">
-            <div className="stat-value">{formatNumber(stats.failedPrints)}</div>
-            <div className="stat-label">Failed Prints</div>
+        <div className="rounded-lg bg-card p-4 shadow-sm">
+          <div className="text-lg text-accent">✕</div>
+          <div className="min-w-0">
+            <div className="text-2xl font-semibold tabular-nums tracking-tight text-fg">{formatNumber(stats.failedPrints)}</div>
+            <div className="mt-0.5 text-xs text-muted">Failed Prints</div>
           </div>
         </div>
 
-        <div className="stat-card stat-card-compact gradient-blue">
-          <div className="stat-icon">⏱</div>
-          <div className="stat-content">
-            <div className="stat-value">{formatDuration(stats.totalTime)}</div>
-            <div className="stat-label">Total Print Time</div>
+        <div className="rounded-lg bg-card p-4 shadow-sm">
+          <div className="text-lg text-accent">⏱</div>
+          <div className="min-w-0">
+            <div className="text-2xl font-semibold tabular-nums tracking-tight text-fg">{formatDuration(stats.totalTime)}</div>
+            <div className="mt-0.5 text-xs text-muted">Total Print Time</div>
           </div>
         </div>
 
-        <div className="stat-card stat-card-compact gradient-orange">
-          <div className="stat-icon">⚖</div>
-          <div className="stat-content">
-            <div className="stat-value">{formatWeight(stats.totalWeight, 2)}</div>
-            <div className="stat-label">Total Material</div>
+        <div className="rounded-lg bg-card p-4 shadow-sm">
+          <div className="text-lg text-accent">⚖</div>
+          <div className="min-w-0">
+            <div className="text-2xl font-semibold tabular-nums tracking-tight text-fg">{formatWeight(stats.totalWeight, 2)}</div>
+            <div className="mt-0.5 text-xs text-muted">Total Material</div>
           </div>
         </div>
 
-        <div className="stat-card stat-card-compact gradient-teal">
-          <div className="stat-icon">⌚</div>
-          <div className="stat-content">
-            <div className="stat-value">{formatDuration(stats.averagePrintTime)}</div>
-            <div className="stat-label">Avg Print Time</div>
+        <div className="rounded-lg bg-card p-4 shadow-sm">
+          <div className="text-lg text-accent">⌚</div>
+          <div className="min-w-0">
+            <div className="text-2xl font-semibold tabular-nums tracking-tight text-fg">{formatDuration(stats.averagePrintTime)}</div>
+            <div className="mt-0.5 text-xs text-muted">Avg Print Time</div>
           </div>
         </div>
       </div>
 
       {/* Cost Calculator Section */}
       {costs && (
-        <div className="cost-section">
+        <div className="space-y-3 [&>h2]:text-xs [&>h2]:font-semibold [&>h2]:uppercase [&>h2]:tracking-widest [&>h2]:text-muted">
           <h2>💰 Cost Calculator</h2>
-          <div className="cost-grid grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="cost-card total">
-              <div className="cost-icon">💵</div>
-              <div className="cost-content">
-                <div className="cost-value">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="flex items-start gap-3 rounded-lg bg-card p-4 shadow-sm ring-1 ring-accent/20">
+              <div className="text-lg">💵</div>
+              <div className="min-w-0">
+                <div className="text-xl font-semibold tabular-nums text-fg">
                   {formatCurrency(costs.totalCost)}
                 </div>
-                <div className="cost-label">Total Cost</div>
+                <div className="text-xs text-muted">Total Cost</div>
               </div>
             </div>
             
-            <div className="cost-card">
-              <div className="cost-icon">🧵</div>
-              <div className="cost-content">
-                <div className="cost-value">
+            <div className="flex items-start gap-3 rounded-lg bg-card p-4 shadow-sm">
+              <div className="text-lg">🧵</div>
+              <div className="min-w-0">
+                <div className="text-xl font-semibold tabular-nums text-fg">
                   {formatCurrency(costs.filamentCost)}
                 </div>
-                <div className="cost-label">Filament Cost</div>
-                <div className="cost-detail">{formatWeight(costs.filamentUsedKg * 1000, 2)} used</div>
+                <div className="text-xs text-muted">Filament Cost</div>
+                <div className="mt-0.5 text-xs tabular-nums text-fg-faint">{formatWeight(costs.filamentUsedKg * 1000, 2)} used</div>
               </div>
             </div>
             
-            <div className="cost-card">
-              <div className="cost-icon">⚡</div>
-              <div className="cost-content">
-                <div className="cost-value">
+            <div className="flex items-start gap-3 rounded-lg bg-card p-4 shadow-sm">
+              <div className="text-lg">⚡</div>
+              <div className="min-w-0">
+                <div className="text-xl font-semibold tabular-nums text-fg">
                   {formatCurrency(costs.electricityCost)}
                 </div>
-                <div className="cost-label">Electricity Cost</div>
-                <div className="cost-detail">{formatNumber(costs.printTimeHours, 0)}h total</div>
+                <div className="text-xs text-muted">Electricity Cost</div>
+                <div className="mt-0.5 text-xs tabular-nums text-fg-faint">{formatNumber(costs.printTimeHours, 0)}h total</div>
               </div>
             </div>
             
-            <div className="cost-card settings">
-              <div className="cost-content">
-                <div className="cost-label">Current Settings</div>
-                <div className="cost-settings">
+            <div className="rounded-lg bg-card p-4 shadow-sm">
+              <div className="min-w-0">
+                <div className="text-xs text-muted">Current Settings</div>
+                <div className="mt-1.5 flex flex-col gap-0.5 text-xs tabular-nums text-fg-soft">
                   <span>Filament: {formatCurrency(costs.settings.filamentCostPerKg, false)}/kg</span>
                   <span>Electricity: {formatCurrency(costs.settings.electricityCostPerKwh)}/kWh</span>
                   <span>Printer: {costs.settings.printerWattage}W</span>
                 </div>
-                <div className="cost-hint">Configure in Settings → Cost Calculator</div>
+                <div className="mt-2 text-[11px] text-muted">Configure in Settings → Cost Calculator</div>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="details-grid grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className="detail-card">
-          <div className="detail-header">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="rounded-lg bg-card p-4 sm:p-5 shadow-sm [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg">
+          <div className="mb-3 flex items-center justify-between gap-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg">
             <h3>Material by Color</h3>
-            <button onClick={handleExportMaterialsCSV} className="btn-export-small" title="Export to CSV">
+            <button onClick={handleExportMaterialsCSV} className="inline-flex size-11 md:size-8 items-center justify-center rounded-md bg-white/5 text-sm transition-colors hover:bg-white/10" title="Export to CSV">
               📊
             </button>
           </div>
-          <div className="material-list">
+          <div className="space-y-3">
             {topMaterialRows.map((row) => (
-              <div key={row.key} className="material-item">
-                <div className="material-info">
+              <div key={row.key} className="space-y-1.5">
+                <div className="flex items-center gap-2.5">
                   <div
-                    className="color-swatch"
+                    className="size-4 shrink-0 rounded-full shadow-sm"
                     style={{ background: row.css }}
                   ></div>
-                  <div className="material-details">
-                    <div className="material-name">{row.name} ({row.type})</div>
-                    <div className="material-stats">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-fg">{row.name} ({row.type})</div>
+                    <div className="text-xs tabular-nums text-muted">
                       {row.count} prints • {formatWeight(row.weight, 1)} • {formatNumber(row.length, 1)}mm
                     </div>
                   </div>
                 </div>
-                <div className="material-bar">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
                   <div
-                    className="material-bar-fill"
+                    className="h-full rounded-full transition-[width] duration-500"
                     style={{
                       width: `${row.percent}%`,
                       background: row.css
@@ -414,20 +413,20 @@ const Statistics: React.FC = () => {
           </div>
         </div>
 
-        <div className="detail-card">
+        <div className="rounded-lg bg-card p-4 sm:p-5 shadow-sm [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg">
           <h3>Prints by Status</h3>
-          <div className="status-chart">
+          <div className="mt-3 space-y-3">
             {statusRows.map((row) => (
-              <div key={row.key} className="status-bar">
-                <div className="status-info">
-                  <span className={`status-label status-${row.statusClass || 'unknown'}`}>
+              <div key={row.key} className="space-y-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className={`text-xs font-semibold uppercase tracking-wider ${row.statusClass === 'success' ? 'text-success' : row.statusClass === 'failed' ? 'text-danger' : 'text-fg-soft'}`}>
                     {row.label || 'UNKNOWN'}
                   </span>
-                  <span className="status-count">{row.count}</span>
+                  <span className="text-xs tabular-nums text-muted">{row.count}</span>
                 </div>
-                <div className="progress-bar">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
                   <div
-                    className={`progress-fill status-${row.statusClass || 'unknown'}`}
+                    className={`h-full rounded-full transition-[width] duration-500 ${row.statusClass === 'success' ? 'bg-success' : row.statusClass === 'failed' ? 'bg-danger' : 'bg-white/25'}`}
                     style={{ width: `${row.percent}%` }}
                   ></div>
                 </div>
@@ -436,23 +435,23 @@ const Statistics: React.FC = () => {
           </div>
         </div>
 
-        <div className="detail-card">
-          <div className="detail-header">
+        <div className="rounded-lg bg-card p-4 sm:p-5 shadow-sm [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg">
+          <div className="mb-3 flex items-center justify-between gap-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg">
             <h3>Prints by Printer</h3>
-            <button onClick={handleExportPrintersCSV} className="btn-export-small" title="Export to CSV">
+            <button onClick={handleExportPrintersCSV} className="inline-flex size-11 md:size-8 items-center justify-center rounded-md bg-white/5 text-sm transition-colors hover:bg-white/10" title="Export to CSV">
               📊
             </button>
           </div>
-          <div className="printer-chart">
+          <div className="space-y-3">
             {printerRows.map((row) => (
-              <div key={row.printer} className="printer-bar">
-                <div className="printer-info">
-                  <span className="printer-name">{row.printer}</span>
-                  <span className="printer-count">{row.prints}</span>
+              <div key={row.printer} className="space-y-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-sm font-medium text-fg">{row.printer}</span>
+                  <span className="text-xs tabular-nums text-muted">{row.prints}</span>
                 </div>
-                <div className="progress-bar">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
                   <div
-                    className="progress-fill gradient-purple-fill"
+                    className="h-full rounded-full bg-accent transition-[width] duration-500"
                     style={{ width: `${row.percentOfTotal}%` }}
                   ></div>
                 </div>

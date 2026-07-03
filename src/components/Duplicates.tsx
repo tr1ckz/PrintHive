@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import './Duplicates.css';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
 import LoadingScreen from './LoadingScreen';
@@ -232,7 +231,7 @@ function Duplicates() {
   }
 
   return (
-    <div className="duplicates-container">
+    <div className="space-y-5">
       {toast && (
         <Toast
           message={toast.message}
@@ -241,12 +240,12 @@ function Duplicates() {
         />
       )}
       
-      <div className="duplicates-header">
-        <div className="stats">
-          <span className="stat">{filteredDuplicates.length} group(s)</span>
-          <span className="stat">{selectedFiles.size} selected</span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          <span className="text-xs tabular-nums text-muted">{filteredDuplicates.length} group(s)</span>
+          <span className="text-xs tabular-nums text-muted">{selectedFiles.size} selected</span>
         </div>
-        <div className="duplicates-search">
+        <div className="w-full sm:w-72 [&>input]:w-full [&>input]:min-h-11 md:[&>input]:min-h-10">
           <input
             type="text"
             placeholder="Search duplicates..."
@@ -257,14 +256,14 @@ function Duplicates() {
       </div>
 
       {duplicates.length > 0 && (
-        <div className="caution-banner">
-          <div className="caution-icon">⚠️</div>
-          <div className="caution-content">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-warning/10 p-4 text-sm text-warning">
+          <div className="text-xl">⚠️</div>
+          <div className="min-w-0 flex-1 text-fg-soft [&>strong]:text-warning">
             <strong>Caution:</strong> The "Select All Duplicates" feature keeps the oldest copy of each file and marks the rest for deletion. 
             Review your selections carefully before deleting to avoid removing files you want to keep.
           </div>
           <button 
-            className="btn btn-warning"
+            className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-warning/15 text-warning hover:bg-warning/25"
             onClick={selectAllDuplicates}
           >
             Select All Duplicates
@@ -272,14 +271,14 @@ function Duplicates() {
         </div>
       )}
 
-      <div className="duplicates-toolbar">
-        <div className="toolbar-left">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-4 [&>label]:flex [&>label]:items-center [&>label]:gap-2 [&>label]:text-xs [&>label]:text-muted">
           <label>
             Group by:
             <select 
               value={groupBy} 
               onChange={(e) => setGroupBy(e.target.value as 'hash' | 'name' | 'size')}
-              className="group-select"
+              className="min-h-11 md:min-h-9 w-auto"
             >
               <option value="hash">Content (Exact Duplicates)</option>
               <option value="name">Filename (Similar Names)</option>
@@ -287,29 +286,29 @@ function Duplicates() {
             </select>
           </label>
           
-          <div className="stats">
-            <span className="stat">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <span className="text-xs tabular-nums text-muted">
               {filteredDuplicates.length} group(s)
             </span>
-            <span className="stat">
+            <span className="text-xs tabular-nums text-muted">
               {filteredDuplicates.reduce((sum, g) => sum + g.files.length, 0)} files
             </span>
           </div>
         </div>
 
         {selectedFiles.size > 0 && (
-          <div className="toolbar-right">
-            <span className="selection-info">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs tabular-nums text-muted">
               {selectedFiles.size} selected ({formatFileSize(totalSelectedSize)})
             </span>
             <button 
-              className="btn btn-danger" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25" 
               onClick={handleDeleteClick}
             >
               Delete Selected
             </button>
             <button 
-              className="btn btn-secondary" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
               onClick={() => setSelectedFiles(new Set())}
             >
               Clear Selection
@@ -319,34 +318,34 @@ function Duplicates() {
       </div>
 
       {deleteProgress?.running && (
-        <div className="progress-panel">
-          <div className="progress-header">
+        <div className="space-y-2 rounded-lg bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg">
             <h3>🗑️ Deleting Files...</h3>
             <button 
-              className="btn-cancel"
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25"
               onClick={() => fetchWithRetry(API_ENDPOINTS.LIBRARY.BULK_DELETE_CANCEL, { method: 'POST', credentials: 'include' })}
             >
               Cancel
             </button>
           </div>
-          <div className="progress-info">
+          <div className="flex flex-wrap justify-between gap-2 text-xs tabular-nums text-muted">
             <span>{deleteProgress.processed} / {deleteProgress.total} files</span>
             <span>{deleteProgress.deleted} deleted, {deleteProgress.failed} failed</span>
           </div>
-          <div className="duplicates-progress-bar">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
             <div 
-              className="duplicates-progress-fill" 
+              className="h-full rounded-full bg-danger transition-[width] duration-500" 
               style={{ width: `${Math.round((deleteProgress.processed / deleteProgress.total) * 100)}%` }}
             ></div>
           </div>
-          <div className="progress-percent">
+          <div className="text-right text-xs font-semibold tabular-nums text-fg-soft">
             {Math.round((deleteProgress.processed / deleteProgress.total) * 100)}%
           </div>
         </div>
       )}
 
       {filteredDuplicates.length === 0 ? (
-        <div className="no-duplicates">
+        <div className="flex flex-col items-center gap-2 py-16 text-center text-muted [&>h2]:text-base [&>h2]:font-semibold [&>h2]:text-fg [&>p]:text-sm">
           <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -354,27 +353,27 @@ function Duplicates() {
           <p>Your library is clean! No duplicate files detected.</p>
         </div>
       ) : (
-        <div className="duplicates-list">
+        <div className="space-y-4">
           {filteredDuplicates.map((group, idx) => (
-            <div key={idx} className="duplicate-group">
-              <div className="group-header">
-                <div className="group-info">
+            <div key={idx} className="rounded-lg bg-card p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 [&>h3]:truncate [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg">
                   <h3>{group.name}</h3>
-                  <span className="group-stats">
+                  <span className="text-xs tabular-nums text-muted">
                     {group.files.length} copies • {formatFileSize(group.totalSize)} total
-                    {group.reason && <span className="duplicate-reason"> • {group.reason}</span>}
+                    {group.reason && <span className="text-fg-faint"> • {group.reason}</span>}
                   </span>
                 </div>
-                <div className="group-actions">
+                <div className="flex shrink-0 gap-1.5">
                   <button
-                    className="btn btn-small btn-secondary"
+                    className="inline-flex min-h-9 items-center rounded px-2.5 text-xs font-medium bg-white/5 text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
                     onClick={() => selectSuggestedInGroup(group)}
                     title="Select duplicates (keeps oldest)"
                   >
                     Select Duplicates
                   </button>
                   <button
-                    className="btn btn-small btn-secondary"
+                    className="inline-flex min-h-9 items-center rounded px-2.5 text-xs font-medium bg-white/5 text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
                     onClick={() => selectAllInGroup(group)}
                   >
                     Select All
@@ -382,13 +381,13 @@ function Duplicates() {
                 </div>
               </div>
 
-              <div className="group-files">
+              <div className="mt-3 divide-y divide-line">
                 {group.files.map((file, fileIdx) => (
                   <div
                     key={file.id}
-                    className={`duplicate-file ${selectedFiles.has(file.id) ? 'selected' : ''}`}
+                    className={`flex items-center gap-3 py-2.5 transition-colors ${selectedFiles.has(file.id) ? 'bg-accent/5' : ''}`}
                   >
-                    <div className="file-checkbox">
+                    <div className="flex size-11 md:size-9 shrink-0 items-center justify-center [&>input]:size-5">
                       <input
                         type="checkbox"
                         checked={selectedFiles.has(file.id)}
@@ -396,29 +395,29 @@ function Duplicates() {
                       />
                     </div>
 
-                    <div className="file-thumbnail-wrapper">
+                    <div className="size-12 shrink-0 overflow-hidden rounded-md bg-white/[0.03]">
                       <img
                         src={`/api/library/thumbnail/${file.id}`}
                         alt={file.originalName || file.fileName}
-                        className="file-thumbnail"
+                        className="h-full w-full object-cover"
                       />
                     </div>
 
-                    <div className="file-details">
-                      <div className="file-name">{file.originalName || file.fileName}</div>
-                      <div className="file-meta">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-fg">{file.originalName || file.fileName}</div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted">
                         <span>{file.fileType?.toUpperCase()}</span>
                         <span>{formatFileSize(file.fileSize)}</span>
                         <span>ID: {file.id}</span>
                         <span>{formatDate(file.createdAt)}</span>
                       </div>
                       {file.description && (
-                        <div className="file-description">{file.description}</div>
+                        <div className="mt-0.5 line-clamp-1 text-xs text-fg-faint">{file.description}</div>
                       )}
                     </div>
 
                     {fileIdx === 0 && (
-                      <div className="file-badge original">Original</div>
+                      <div className="shrink-0 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success">Original</div>
                     )}
                   </div>
                 ))}

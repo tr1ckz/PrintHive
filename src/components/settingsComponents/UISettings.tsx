@@ -95,17 +95,17 @@ export function UISettings() {
   return (
     <>
       <CollapsibleSection title="UI Settings" icon="🖥️">
-        <p className="form-description">
+        <p className="mb-4 text-sm text-fg-soft">
           Customize the interface appearance
         </p>
 
-        <div className="form-group">
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Color Scheme</label>
           <select
             value={colorScheme}
             onChange={(e) => setColorScheme(e.target.value)}
             disabled={uiLoading}
-            className="form-control"
+            className="w-full"
           >
             <option value="cyan">Cyan</option>
             <option value="purple">Purple</option>
@@ -114,26 +114,26 @@ export function UISettings() {
             <option value="pink">Pink</option>
             <option value="blue">Blue</option>
           </select>
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+          <small className="mt-1.5 block text-xs text-muted">
             Choose your accent color throughout the app
           </small>
         </div>
 
-        <div className="toggle-group">
-          <label className="toggle-label">
+        <div className="mb-4 space-y-1">
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent">
             <input
               type="checkbox"
               checked={hideBmc}
               onChange={(e) => setHideBmc(e.target.checked)}
               disabled={uiLoading}
             />
-            <span className="toggle-text">Hide "Buy Me a Coffee" button</span>
+            <span className="select-none">Hide "Buy Me a Coffee" button</span>
           </label>
         </div>
 
         <button
           type="button"
-          className="btn btn-primary"
+          className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
           onClick={handleSaveUiSettings}
           disabled={uiLoading}
         >
@@ -142,17 +142,17 @@ export function UISettings() {
       </CollapsibleSection>
 
       <CollapsibleSection title="Camera Stream Integration" icon="🎥">
-        <p className="form-description">
+        <p className="mb-4 text-sm text-fg-soft">
           Choose between a direct Frigate connection or a native RTSP relay powered by the PrintHive Node.js backend.
         </p>
 
-        <div className="form-group">
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Camera Mode</label>
           <select
             value={cameraMode}
             onChange={(e) => setCameraMode(e.target.value as CameraMode)}
             disabled={uiLoading}
-            className="form-control"
+            className="w-full"
           >
             <option value="frigate">Frigate (WebRTC/HLS)</option>
             <option value="native-rtsp">Native RTSP</option>
@@ -161,30 +161,30 @@ export function UISettings() {
 
         {cameraMode === 'frigate' ? (
           <>
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Frigate Stream Type</label>
               <select
                 value={cameraStreamType}
                 onChange={(e) => setCameraStreamType(e.target.value as CameraStreamType)}
                 disabled={uiLoading}
-                className="form-control"
+                className="w-full"
               >
                 <option value="frigate-hls">Frigate HLS (.m3u8)</option>
                 <option value="frigate-webrtc">Frigate WebRTC</option>
               </select>
             </div>
 
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Frigate Stream URL</label>
               <input
                 type="text"
                 value={frigateStreamUrl}
                 onChange={(e) => setFrigateStreamUrl(e.target.value)}
                 disabled={uiLoading}
-                className="form-control"
+                className="w-full"
                 placeholder={frigatePlaceholder}
               />
-              <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+              <small className="mt-1.5 block text-xs text-muted">
                 {cameraStreamType === 'frigate-webrtc'
                   ? 'Paste the full absolute Frigate WebRTC URL. PrintHive will use exactly this host and won’t fall back to window.location.'
                   : 'Paste the full absolute Frigate HLS .m3u8 URL so the browser can load the playlist directly.'}
@@ -192,17 +192,17 @@ export function UISettings() {
             </div>
           </>
         ) : (
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>RTSP URL</label>
             <input
               type="text"
               value={rtspUrl}
               onChange={(e) => setRtspUrl(e.target.value)}
               disabled={uiLoading}
-              className="form-control"
+              className="w-full"
               placeholder="rtsp://pdhacam:pdhacams@192.168.4.54/stream1"
             />
-            <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+            <small className="mt-1.5 block text-xs text-muted">
               PrintHive will relay this raw RTSP feed through FFmpeg as an MJPEG stream at `/api/camera/stream`. The host already needs FFmpeg installed. For multiple cameras, assign an RTSP override per printer in `Local Printer / FTP`.
             </small>
           </div>
@@ -210,7 +210,7 @@ export function UISettings() {
 
         <button
           type="button"
-          className="btn btn-primary"
+          className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
           onClick={handleSaveUiSettings}
           disabled={uiLoading}
         >

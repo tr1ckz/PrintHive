@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import './BackgroundJobTracker.css';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 
@@ -115,61 +114,65 @@ const BackgroundJobTracker: React.FC = () => {
   const activeJobCount = jobs.length;
 
   return (
-    <div className="background-job-tracker">
+    <div className="fixed bottom-20 right-4 z-[999] md:bottom-6 md:right-6">
       <button
-        className="tracker-toggle"
+        className="relative flex size-14 items-center justify-center rounded-full bg-accent text-2xl text-accent-contrast shadow-lg transition-transform hover:scale-105"
         onClick={() => setIsExpanded(!isExpanded)}
         title={`${activeJobCount} background job${activeJobCount !== 1 ? 's' : ''} running`}
+        aria-label="Background jobs"
       >
-        <span className="job-indicator">⚙️</span>
-        <span className="job-count">{activeJobCount}</span>
+        <span className="animate-[ph-spin_2s_linear_infinite]">⚙️</span>
+        <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-danger text-xs font-bold text-white ring-2 ring-base">
+          {activeJobCount}
+        </span>
       </button>
 
       {isExpanded && (
-        <div className="tracker-panel">
-          <div className="tracker-header">
-            <h3>Background Jobs</h3>
+        <div className="absolute bottom-[70px] right-0 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-elevated shadow-xl backdrop-blur animate-[ph-fade-up_0.2s_var(--ease-out)]">
+          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+            <h3 className="text-sm font-semibold text-fg">Background Jobs</h3>
             <button
-              className="tracker-close"
+              className="inline-flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/5 hover:text-fg"
               onClick={() => setIsExpanded(false)}
+              aria-label="Close"
             >
               ✕
             </button>
           </div>
 
-          <div className="tracker-jobs">
+          <div className="max-h-[360px] divide-y divide-line overflow-y-auto">
             {jobs.map((job) => (
-              <div key={job.type} className="job-item">
-                <div className="job-title">{job.name}</div>
+              <div key={job.type} className="flex flex-col gap-3 p-4">
+                <div className="text-sm font-semibold text-fg">{job.name}</div>
 
-                <div className="job-details">
-                  <span className="detail">
+                <div className="flex justify-between gap-2 text-xs tabular-nums text-muted">
+                  <span className="whitespace-nowrap">
                     {job.processed} / {job.total}
                   </span>
-                  <span className="detail">
+                  <span className="whitespace-nowrap">
                     {job.completedCount} done, {job.failedCount} failed
                   </span>
-                  <span className="detail time">
+                  <span className="ml-auto whitespace-nowrap">
                     {job.elapsedTime}s
                   </span>
                 </div>
 
-                <div className="job-progress">
-                  <div className="progress-bar">
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                     <div
-                      className="progress-fill"
+                      className="h-full rounded-full bg-accent transition-[width] duration-300"
                       style={{
                         width: `${job.total > 0 ? (job.processed / job.total) * 100 : 0}%`
                       }}
                     ></div>
                   </div>
-                  <span className="progress-text">
+                  <span className="min-w-[35px] text-right text-xs font-semibold tabular-nums text-fg-soft">
                     {Math.round(job.total > 0 ? (job.processed / job.total) * 100 : 0)}%
                   </span>
                 </div>
 
                 <button
-                  className="btn-job-cancel"
+                  className="inline-flex min-h-9 items-center self-start rounded bg-danger/15 px-3 text-xs font-semibold text-danger transition-colors hover:bg-danger/25"
                   onClick={() => cancelJob(job.type)}
                   title="Cancel this job"
                 >

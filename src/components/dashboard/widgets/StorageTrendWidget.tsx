@@ -39,24 +39,24 @@ function StorageTrendWidget({ points, density = 'comfortable' }: StorageTrendWid
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.1em] text-neutral-500">Storage and throughput</p>
-        <div className="flex gap-1 rounded-[4px] border border-neutral-800 bg-neutral-900 p-1">
-          <button type="button" onClick={() => setSeries('filament')} className={`rounded-[3px] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${series === 'filament' ? 'bg-neutral-800 text-white' : 'text-neutral-400'}`}>Filament</button>
-          <button type="button" onClick={() => setSeries('time')} className={`rounded-[3px] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${series === 'time' ? 'bg-neutral-800 text-white' : 'text-neutral-400'}`}>Hours</button>
-          <button type="button" onClick={() => setSeries('jobs')} className={`rounded-[3px] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${series === 'jobs' ? 'bg-neutral-800 text-white' : 'text-neutral-400'}`}>Jobs</button>
+        <p className="text-[10px] uppercase tracking-[0.1em] text-muted">Storage and throughput</p>
+        <div className="flex gap-1 rounded-md border border-line bg-white/[0.04] p-1">
+          <button type="button" onClick={() => setSeries('filament')} className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${series === 'filament' ? 'bg-white/10 text-fg' : 'text-fg-faint'}`}>Filament</button>
+          <button type="button" onClick={() => setSeries('time')} className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${series === 'time' ? 'bg-white/10 text-fg' : 'text-fg-faint'}`}>Hours</button>
+          <button type="button" onClick={() => setSeries('jobs')} className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${series === 'jobs' ? 'bg-white/10 text-fg' : 'text-fg-faint'}`}>Jobs</button>
         </div>
       </div>
 
       {density !== 'compact' ? (
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-[10px] uppercase tracking-[0.08em] text-white">Filament: {totals.filament.toFixed(1)}kg</div>
-          <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-[10px] uppercase tracking-[0.08em] text-white">Hours: {totals.hours.toFixed(0)}h</div>
-          <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-[10px] uppercase tracking-[0.08em] text-white">Jobs: {totals.jobs}</div>
+          <div className="rounded-md border border-line bg-white/[0.04] px-2 py-1.5 text-[10px] uppercase tracking-[0.08em] text-fg">Filament: {totals.filament.toFixed(1)}kg</div>
+          <div className="rounded-md border border-line bg-white/[0.04] px-2 py-1.5 text-[10px] uppercase tracking-[0.08em] text-fg">Hours: {totals.hours.toFixed(0)}h</div>
+          <div className="rounded-md border border-line bg-white/[0.04] px-2 py-1.5 text-[10px] uppercase tracking-[0.08em] text-fg">Jobs: {totals.jobs}</div>
         </div>
       ) : null}
 
       {points.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center rounded border border-dashed border-white/20 text-xs text-white/50">
+        <div className="flex flex-1 items-center justify-center rounded border border-dashed border-white/20 text-xs text-fg/50">
           No trend data available.
         </div>
       ) : (
@@ -66,11 +66,11 @@ function StorageTrendWidget({ points, density = 'comfortable' }: StorageTrendWid
             const width = Math.max(6, (value / maxValue) * 100);
             return (
               <div key={point.label} className="grid grid-cols-[48px_1fr_58px] items-center gap-2">
-                <span className="text-[10px] uppercase tracking-[0.08em] text-neutral-500">{point.label}</span>
-                <div className="h-5 overflow-hidden rounded-[3px] border border-neutral-800 bg-neutral-950">
-                  <div className="h-full bg-orange-500" style={{ width: `${width}%` }} />
+                <span className="text-[10px] uppercase tracking-[0.08em] text-muted">{point.label}</span>
+                <div className="h-5 overflow-hidden rounded border border-line bg-transparent">
+                  <div className="h-full bg-accent" style={{ width: `${width}%` }} />
                 </div>
-                <span className="text-right text-[10px] font-semibold uppercase tracking-[0.08em] text-white">
+                <span className="text-right text-[10px] font-semibold uppercase tracking-[0.08em] text-fg">
                   {series === 'filament' ? `${value.toFixed(1)}kg` : series === 'time' ? `${value.toFixed(0)}h` : value.toFixed(0)}
                 </span>
               </div>
