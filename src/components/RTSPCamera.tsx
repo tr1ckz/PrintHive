@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_ENDPOINTS } from '../config/api';
-import './FrigateCamera.css';
 
 type DisplayMode = 'stream' | 'snapshot' | 'offline';
 const SNAPSHOT_REFRESH_MS = 5000;
@@ -89,12 +88,12 @@ function RTSPCamera({
 
   if (!rtspUrl?.trim()) {
     return (
-      <div className={`frigate-camera ${className}`.trim()}>
-        <div className="frigate-camera-overlay offline">
-          <div className="frigate-camera-state">
-            <strong>RTSP not configured</strong>
-            <span>Add an RTSP URL in Settings → Camera Stream Integration, or assign one directly to this printer in Local Printer / FTP.</span>
-            <small>{printerName} · Native RTSP</small>
+      <div className={`relative h-full min-h-[250px] w-full overflow-hidden bg-black ${className}`.trim()}>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/90 p-5">
+          <div className="grid max-w-[280px] justify-items-center gap-1.5 text-center">
+            <strong className="text-base text-white">RTSP not configured</strong>
+            <span className="text-sm leading-relaxed text-white/70">Add an RTSP URL in Settings → Camera Stream Integration, or assign one directly to this printer in Local Printer / FTP.</span>
+            <small className="text-xs uppercase tracking-wider text-white/50">{printerName} · Native RTSP</small>
           </div>
         </div>
       </div>
@@ -104,12 +103,12 @@ function RTSPCamera({
   const usingSnapshotFallback = displayMode === 'snapshot' && !hasSnapshotError;
 
   return (
-    <div className={`frigate-camera ${className}`.trim()}>
+    <div className={`relative h-full min-h-[250px] w-full overflow-hidden bg-black ${className}`.trim()}>
       {displayMode === 'stream' && streamSrc ? (
         <img
           src={streamSrc}
           alt={`${printerName} live RTSP stream`}
-          className="frigate-camera-video is-live"
+          className="block h-full w-full bg-black object-cover"
           loading="eager"
           onLoad={() => setHasSnapshotError(false)}
           onError={() => {
@@ -123,7 +122,7 @@ function RTSPCamera({
         <img
           src={snapshotSrc}
           alt={`${printerName} live RTSP snapshot`}
-          className="frigate-camera-video is-live"
+          className="block h-full w-full bg-black object-cover"
           loading="eager"
           title="Snapshot fallback active"
           onLoad={() => setHasSnapshotError(false)}
@@ -135,14 +134,14 @@ function RTSPCamera({
       ) : null}
 
       {displayMode === 'offline' ? (
-        <div className="frigate-camera-overlay offline">
-          <div className="frigate-camera-state">
-            <strong>RTSP stream offline</strong>
-            <span>PrintHive could not open the live MJPEG relay, and the snapshot fallback also failed for this RTSP source.</span>
-            <small>{printerName} · Native RTSP</small>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/90 p-5">
+          <div className="grid max-w-[280px] justify-items-center gap-1.5 text-center">
+            <strong className="text-base text-white">RTSP stream offline</strong>
+            <span className="text-sm leading-relaxed text-white/70">PrintHive could not open the live MJPEG relay, and the snapshot fallback also failed for this RTSP source.</span>
+            <small className="text-xs uppercase tracking-wider text-white/50">{printerName} · Native RTSP</small>
             <button
               type="button"
-              className="frigate-retry-btn"
+              className="mt-1.5 inline-flex min-h-9 items-center rounded-lg bg-accent/15 px-3 text-sm font-semibold text-white ring-1 ring-accent/30 transition-colors hover:bg-accent/25"
               onClick={() => setReloadToken((value) => value + 1)}
             >
               Retry now

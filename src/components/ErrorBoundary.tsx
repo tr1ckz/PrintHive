@@ -1,6 +1,5 @@
 import React, { Component, ReactNode } from 'react';
 import { reportClientTelemetry } from '../utils/clientTelemetry';
-import './ErrorBoundary.css';
 
 interface Props {
   children: ReactNode;
@@ -46,17 +45,22 @@ class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="error-boundary">
-          <div className="error-content">
-            <h2>⚠️ Something went wrong</h2>
-            <p>The application encountered an unexpected error.</p>
+        <div className="flex min-h-dvh items-center justify-center bg-base px-4 py-8">
+          <div className="w-full max-w-md rounded-xl bg-card p-6 text-center shadow-xl sm:p-8">
+            <h2 className="text-lg font-semibold text-fg">⚠️ Something went wrong</h2>
+            <p className="mt-2 text-sm text-fg-soft">The application encountered an unexpected error.</p>
             {this.state.error?.message && (
-              <details>
-                <summary>Error Details</summary>
-                <pre>{this.state.error.message}</pre>
+              <details className="mt-4 text-left">
+                <summary className="cursor-pointer text-xs font-medium text-muted">Error Details</summary>
+                <pre className="mt-2 overflow-x-auto rounded-md bg-black/30 p-3 text-xs text-danger">{this.state.error.message}</pre>
               </details>
             )}
-            <button onClick={this.handleReload}>Reload</button>
+            <button
+              onClick={this.handleReload}
+              className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-strong"
+            >
+              Reload
+            </button>
           </div>
         </div>
       );

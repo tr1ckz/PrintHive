@@ -144,6 +144,10 @@
   --transition-fast: var(--duration-fast) var(--ease-out);
   --transition-base: var(--duration-base) var(--ease-out);
 
+  /* Third-party brand colors — the only sanctioned literal hues.
+     Referenced from TSX via var() so component markup stays hue-pure. */
+  --bmc-bg: linear-gradient(135deg, #ffdd00 0%, #fdb813 100%);
+
   /* Gradients */
   --gradient-primary: linear-gradient(135deg, rgba(var(--theme-accent-rgb), 0.18) 0%, color-mix(in srgb, var(--theme-accent-strong) 18%, transparent) 100%);
   --gradient-accent: linear-gradient(135deg, var(--theme-accent) 0%, var(--theme-accent-strong) 100%);
