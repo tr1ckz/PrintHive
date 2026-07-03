@@ -248,38 +248,36 @@ export function PrinterFtpSettings() {
 
   return (
     <CollapsibleSection title="Local Printer / FTP" icon="📡" defaultExpanded={true}>
-      <p className="form-description">
+      <p className="mb-4 text-sm text-fg-soft">
         Configure your printers' local FTP connections and optionally assign a dedicated RTSP camera to each printer.
       </p>
 
       {!editingPrinter && (
-        <div style={{ marginBottom: '12px' }}>
-          <small style={{ display: 'block', color: 'var(--text-secondary)' }}>
+        <div className="mb-3 [&>button]:mr-2 [&>button]:mt-2">
+          <small className="block text-xs text-muted">
             Discover IP now auto-scans local interfaces, route-table networks, ARP neighbors, and remembered subnets.
           </small>
-          <small style={{ display: 'block', color: 'var(--text-secondary)', marginTop: '3px' }}>
+          <small className="mt-1 block text-xs text-muted">
             New printers get one automatic discovery attempt on save. Use manual discover to retry later.
           </small>
           <button
             type="button"
-            className="btn btn-sm btn-primary"
+            className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
             onClick={handleDiscoverMissingIps}
             disabled={discoveringMissing}
-            style={{ marginTop: '8px', marginRight: '8px' }}
           >
             {discoveringMissing ? 'Discovering Missing IPs...' : 'Manual Discover Missing IPs'}
           </button>
           <button
             type="button"
-            className="btn btn-sm btn-secondary"
+            className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
             onClick={() => setShowAdvancedDiscovery((prev) => !prev)}
-            style={{ marginTop: '8px' }}
           >
             {showAdvancedDiscovery ? 'Hide Advanced Discovery' : 'Advanced Discovery'}
           </button>
 
           {showAdvancedDiscovery && (
-            <div className="form-group" style={{ marginTop: '10px' }}>
+            <div className="mt-2.5 mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Optional Extra CIDRs</label>
               <input
                 type="text"
@@ -287,7 +285,7 @@ export function PrinterFtpSettings() {
                 onChange={(event) => setDiscoveryCidrs(event.target.value)}
                 placeholder="192.168.1.0/24, 10.20.30.0/24"
               />
-              <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
+              <small className="mt-1.5 block text-xs text-muted">
                 Only needed for unusual network layouts where automatic route and ARP discovery cannot reach the printer subnet.
               </small>
             </div>
@@ -297,18 +295,18 @@ export function PrinterFtpSettings() {
 
       {/* Printer Cards List */}
       {printers.length > 0 && !editingPrinter && (
-        <div className="printer-cards-list">
+        <div className="space-y-3">
           {printers.map((printer) => (
-            <div key={printer.dev_id} className="printer-ftp-card">
-              <div className="printer-ftp-card-header">
-                <div className="printer-ftp-card-info">
-                  <span className="printer-name">{printer.name || 'Unnamed Printer'}</span>
-                  <span className="printer-ip">{printer.ip_address || 'No IP set'}</span>
+            <div key={printer.dev_id} className="rounded-lg bg-white/[0.03] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-semibold text-fg">{printer.name || 'Unnamed Printer'}</span>
+                  <span className="text-xs tabular-nums text-muted">{printer.ip_address || 'No IP set'}</span>
                 </div>
-                <div className="printer-ftp-card-actions">
+                <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
-                    className="btn btn-sm btn-secondary"
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
                     onClick={() => handleTestConnection(printer)}
                     disabled={testingId === printer.dev_id || !printer.ip_address}
                   >
@@ -316,7 +314,7 @@ export function PrinterFtpSettings() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-sm btn-secondary"
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
                     onClick={() => handleDiscoverIp(printer)}
                     disabled={discoveringId === printer.dev_id}
                     title="Auto-detect IP via cloud + local MQTT credentials"
@@ -325,27 +323,27 @@ export function PrinterFtpSettings() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-sm btn-primary"
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
                     onClick={() => startEditing(printer)}
                   >
                     Edit
                   </button>
                   <button
                     type="button"
-                    className="btn btn-sm btn-danger"
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25"
                     onClick={() => handleDeletePrinter(printer.dev_id)}
                   >
                     Delete
                   </button>
                 </div>
               </div>
-              <div className="printer-ftp-card-details">
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5">
                 {printer.serial_number && (
-                  <span className="printer-detail">
+                  <span className="text-xs text-muted [&>strong]:font-medium [&>strong]:text-fg-soft">
                     <strong>Serial:</strong> {printer.serial_number}
                   </span>
                 )}
-                <span className="printer-detail">
+                <span className="text-xs text-muted [&>strong]:font-medium [&>strong]:text-fg-soft">
                   <strong>Camera:</strong> {printer.camera_rtsp_url ? 'Assigned RTSP camera' : 'Uses global camera fallback'}
                 </span>
               </div>
@@ -358,9 +356,8 @@ export function PrinterFtpSettings() {
       {!editingPrinter && (
         <button
           type="button"
-          className="btn btn-primary btn-sm"
+          className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
           onClick={startAdding}
-          style={{ marginTop: printers.length > 0 ? '15px' : '0' }}
         >
           + Add Printer
         </button>
@@ -368,13 +365,13 @@ export function PrinterFtpSettings() {
 
       {/* Edit/Add Form */}
       {editingPrinter && (
-        <form onSubmit={handleSavePrinter} className="printer-ftp-form">
-          <h4 style={{ marginBottom: '15px', color: 'var(--text-primary)' }}>
+        <form onSubmit={handleSavePrinter} className="mt-2 rounded-lg bg-white/[0.03] p-4">
+          <h4 className="mb-4 text-sm font-semibold text-fg">
             {isAdding ? 'Add New Printer' : 'Edit Printer'}
           </h4>
           
-          <div className="printer-ftp-form-grid">
-            <div className="form-group">
+          <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Printer Name</label>
               <input
                 type="text"
@@ -385,7 +382,7 @@ export function PrinterFtpSettings() {
               />
             </div>
             
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>IP Address</label>
               <input
                 type="text"
@@ -396,7 +393,7 @@ export function PrinterFtpSettings() {
               />
             </div>
             
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Access Code</label>
               <input
                 type="text"
@@ -407,7 +404,7 @@ export function PrinterFtpSettings() {
               />
             </div>
             
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Serial Number</label>
               <input
                 type="text"
@@ -416,12 +413,12 @@ export function PrinterFtpSettings() {
                 placeholder="01S00A123456789"
                 disabled={loading}
               />
-              <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
+              <small className="mt-1.5 block text-xs text-muted">
                 Required for OIDC users without Bambu Cloud account
               </small>
             </div>
 
-            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <div className="sm:col-span-2 mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Assigned Camera RTSP URL (optional)</label>
               <input
                 type="text"
@@ -430,16 +427,16 @@ export function PrinterFtpSettings() {
                 placeholder="rtsp://user:pass@camera-ip/stream1"
                 disabled={loading}
               />
-              <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
+              <small className="mt-1.5 block text-xs text-muted">
                 Set a dedicated RTSP camera for this printer. If left blank, this printer falls back to the global camera integration.
               </small>
             </div>
           </div>
           
-          <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+          <div className="mt-4 flex flex-wrap gap-2.5">
             <button 
               type="submit" 
-              className="btn btn-primary" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" 
               disabled={loading}
             >
               {loading ? 'Saving...' : 'Save Printer'}
@@ -447,7 +444,7 @@ export function PrinterFtpSettings() {
             
             <button 
               type="button" 
-              className="btn btn-secondary" 
+              className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" 
               onClick={cancelEdit}
               disabled={loading}
             >
@@ -459,7 +456,7 @@ export function PrinterFtpSettings() {
 
       {/* Empty State */}
       {printers.length === 0 && !editingPrinter && (
-        <p style={{ color: 'var(--text-secondary)', marginTop: '10px' }}>
+        <p className="mt-2.5 text-sm text-muted">
           No printers configured. Click "Add Printer" to add your first printer.
         </p>
       )}

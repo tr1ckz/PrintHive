@@ -103,24 +103,24 @@ export function AccountSettings() {
   return (
     <>
       <CollapsibleSection title="User Profile" icon="📝">
-        <p className="form-description">
+        <p className="mb-4 text-sm text-fg-soft">
           Manage your account information and display preferences
         </p>
         
-        <div className="form-group">
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Username</label>
           <input
             type="text"
             value={userProfile.username}
             disabled
-            style={{ opacity: 0.6, cursor: 'not-allowed' }}
+            className="opacity-60"
           />
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+          <small className="mt-1.5 block text-xs text-muted">
             Username cannot be changed
           </small>
         </div>
         
-        <div className="form-group">
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Email</label>
           <input
             type="email"
@@ -130,13 +130,13 @@ export function AccountSettings() {
             disabled={profileLoading || userProfile.oauthProvider !== 'none'}
           />
           {userProfile.oauthProvider !== 'none' && (
-            <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+            <small className="mt-1.5 block text-xs text-muted">
               Email is managed by {userProfile.oauthProvider === 'oidc' ? 'SSO provider' : userProfile.oauthProvider}
             </small>
           )}
         </div>
         
-        <div className="form-group">
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Display Name</label>
           <input
             type="text"
@@ -149,7 +149,7 @@ export function AccountSettings() {
         
         <button 
           type="button" 
-          className="btn btn-primary" 
+          className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" 
           onClick={handleSaveProfile}
           disabled={profileLoading}
         >
@@ -160,12 +160,12 @@ export function AccountSettings() {
       {/* Only show password change for local accounts, not OIDC users */}
       {userProfile.oauthProvider === 'none' && (
         <CollapsibleSection title="Account Security" icon="🔒">
-          <form onSubmit={handlePasswordChange} className="password-change-form">
-            <p className="form-description">
+          <form onSubmit={handlePasswordChange} className="block">
+            <p className="mb-4 text-sm text-fg-soft">
               Change your account password
             </p>
           
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Current Password</label>
             <input
               type="password"
@@ -178,7 +178,7 @@ export function AccountSettings() {
             />
           </div>
           
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>New Password</label>
             <input
               type="password"
@@ -191,7 +191,7 @@ export function AccountSettings() {
             />
           </div>
           
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Confirm New Password</label>
             <input
               type="password"
@@ -206,7 +206,7 @@ export function AccountSettings() {
           
           <button 
             type="submit" 
-            className="btn btn-primary" 
+            className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" 
             disabled={passwordLoading}
           >
             {passwordLoading ? 'Changing Password...' : 'Change Password'}

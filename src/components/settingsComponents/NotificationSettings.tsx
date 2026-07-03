@@ -181,14 +181,14 @@ export function NotificationSettings() {
 
   return (
     <CollapsibleSection title="Notifications" icon="🔔">
-      <p className="form-description">
+      <p className="mb-4 text-sm text-fg-soft">
         Configure notification providers and alert types for Printer, Maintenance, and Backup.
       </p>
 
       {/* Discord */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '0.75rem' }}>💬 Discord</h3>
-        <div className="form-group">
+      <div className="mb-8">
+        <h3 className="mb-3 text-sm font-semibold text-fg">💬 Discord</h3>
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Webhook URL</label>
           <input
             type="url"
@@ -197,18 +197,18 @@ export function NotificationSettings() {
             placeholder="https://discord.com/api/webhooks/..."
             disabled={notificationsLoading}
           />
-          <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+          <small className="mt-1.5 block text-xs text-muted">
             One webhook used for all Discord notifications
           </small>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
-          <label className="toggle-label"><input type="checkbox" checked={discordPrinterEnabled} onChange={(e) => setDiscordPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Printer</span></label>
-          <label className="toggle-label"><input type="checkbox" checked={discordMaintenanceEnabled} onChange={(e) => setDiscordMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Maintenance</span></label>
-          <label className="toggle-label"><input type="checkbox" checked={discordBackupEnabled} onChange={(e) => setDiscordBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Backup</span></label>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent"><input type="checkbox" checked={discordPrinterEnabled} onChange={(e) => setDiscordPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="select-none">Printer</span></label>
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent"><input type="checkbox" checked={discordMaintenanceEnabled} onChange={(e) => setDiscordMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="select-none">Maintenance</span></label>
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent"><input type="checkbox" checked={discordBackupEnabled} onChange={(e) => setDiscordBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="select-none">Backup</span></label>
         </div>
 
-        <div className="form-group" style={{ marginTop: '0.75rem' }}>
+        <div className="mt-3 mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Ping User ID (optional)</label>
           <input
             type="text"
@@ -216,68 +216,68 @@ export function NotificationSettings() {
             onChange={(e) => setDiscordPingUserId(e.target.value)}
             placeholder="874822659161092166"
             disabled={notificationsLoading}
-            style={{ maxWidth: '300px' }}
+            className="max-w-xs"
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-          <button type="button" className="btn btn-secondary" onClick={() => handleTestDiscord('printer')} disabled={!discordWebhook || discordTesting === 'printer'}>
+        <div className="mt-1 flex flex-wrap gap-2">
+          <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleTestDiscord('printer')} disabled={!discordWebhook || discordTesting === 'printer'}>
             {discordTesting === 'printer' ? 'Sending...' : 'Test Printer'}
           </button>
-          <button type="button" className="btn btn-secondary" onClick={() => handleTestDiscord('maintenance')} disabled={!discordWebhook || discordTesting === 'maintenance'}>
+          <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleTestDiscord('maintenance')} disabled={!discordWebhook || discordTesting === 'maintenance'}>
             {discordTesting === 'maintenance' ? 'Sending...' : 'Test Maintenance'}
           </button>
-          <button type="button" className="btn btn-secondary" onClick={() => handleTestDiscord('backup')} disabled={!discordWebhook || discordTesting === 'backup'}>
+          <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleTestDiscord('backup')} disabled={!discordWebhook || discordTesting === 'backup'}>
             {discordTesting === 'backup' ? 'Sending...' : 'Test Backup'}
           </button>
         </div>
       </div>
 
       {/* Telegram */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '0.75rem' }}>📨 Telegram</h3>
-        <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div className="form-group">
+      <div className="mb-8">
+        <h3 className="mb-3 text-sm font-semibold text-fg">📨 Telegram</h3>
+        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Bot Token</label>
             <input type="text" value={telegramBotToken} onChange={(e) => setTelegramBotToken(e.target.value)} placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11" disabled={notificationsLoading} />
           </div>
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Chat ID</label>
             <input type="text" value={telegramChatId} onChange={(e) => setTelegramChatId(e.target.value)} placeholder="@your_channel_or_chat_id" disabled={notificationsLoading} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
-          <label className="toggle-label"><input type="checkbox" checked={telegramPrinterEnabled} onChange={(e) => setTelegramPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Printer</span></label>
-          <label className="toggle-label"><input type="checkbox" checked={telegramMaintenanceEnabled} onChange={(e) => setTelegramMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Maintenance</span></label>
-          <label className="toggle-label"><input type="checkbox" checked={telegramBackupEnabled} onChange={(e) => setTelegramBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Backup</span></label>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent"><input type="checkbox" checked={telegramPrinterEnabled} onChange={(e) => setTelegramPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="select-none">Printer</span></label>
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent"><input type="checkbox" checked={telegramMaintenanceEnabled} onChange={(e) => setTelegramMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="select-none">Maintenance</span></label>
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent"><input type="checkbox" checked={telegramBackupEnabled} onChange={(e) => setTelegramBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="select-none">Backup</span></label>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-          <button type="button" className="btn btn-secondary" onClick={() => handleTestTelegram('printer')} disabled={!telegramBotToken || !telegramChatId}>Test Printer</button>
-          <button type="button" className="btn btn-secondary" onClick={() => handleTestTelegram('maintenance')} disabled={!telegramBotToken || !telegramChatId}>Test Maintenance</button>
-          <button type="button" className="btn btn-secondary" onClick={() => handleTestTelegram('backup')} disabled={!telegramBotToken || !telegramChatId}>Test Backup</button>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleTestTelegram('printer')} disabled={!telegramBotToken || !telegramChatId}>Test Printer</button>
+          <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleTestTelegram('maintenance')} disabled={!telegramBotToken || !telegramChatId}>Test Maintenance</button>
+          <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleTestTelegram('backup')} disabled={!telegramBotToken || !telegramChatId}>Test Backup</button>
         </div>
       </div>
 
       {/* Slack */}
-      <div style={{ marginBottom: '1rem' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '0.75rem' }}>🧩 Slack</h3>
-        <div className="form-group">
+      <div className="mb-4">
+        <h3 className="mb-3 text-sm font-semibold text-fg">🧩 Slack</h3>
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Webhook URL</label>
           <input type="url" value={slackWebhook} onChange={(e) => setSlackWebhook(e.target.value)} placeholder="https://hooks.slack.com/services/..." disabled={notificationsLoading} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginTop: '0.75rem' }}>
-          <label className="toggle-label"><input type="checkbox" checked={slackPrinterEnabled} onChange={(e) => setSlackPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Printer</span></label>
-          <label className="toggle-label"><input type="checkbox" checked={slackMaintenanceEnabled} onChange={(e) => setSlackMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Maintenance</span></label>
-          <label className="toggle-label"><input type="checkbox" checked={slackBackupEnabled} onChange={(e) => setSlackBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="toggle-text">Backup</span></label>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent"><input type="checkbox" checked={slackPrinterEnabled} onChange={(e) => setSlackPrinterEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="select-none">Printer</span></label>
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent"><input type="checkbox" checked={slackMaintenanceEnabled} onChange={(e) => setSlackMaintenanceEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="select-none">Maintenance</span></label>
+          <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent"><input type="checkbox" checked={slackBackupEnabled} onChange={(e) => setSlackBackupEnabled(e.target.checked)} disabled={notificationsLoading} /><span className="select-none">Backup</span></label>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-          <button type="button" className="btn btn-secondary" onClick={() => handleTestSlack('printer')} disabled={!slackWebhook}>Test Printer</button>
-          <button type="button" className="btn btn-secondary" onClick={() => handleTestSlack('maintenance')} disabled={!slackWebhook}>Test Maintenance</button>
-          <button type="button" className="btn btn-secondary" onClick={() => handleTestSlack('backup')} disabled={!slackWebhook}>Test Backup</button>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleTestSlack('printer')} disabled={!slackWebhook}>Test Printer</button>
+          <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleTestSlack('maintenance')} disabled={!slackWebhook}>Test Maintenance</button>
+          <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" onClick={() => handleTestSlack('backup')} disabled={!slackWebhook}>Test Backup</button>
         </div>
       </div>
 
-      <button type="button" className="btn btn-primary" onClick={handleSaveNotificationsSettings} disabled={notificationsLoading}>
+      <button type="button" className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" onClick={handleSaveNotificationsSettings} disabled={notificationsLoading}>
         {notificationsLoading ? 'Saving...' : 'Save Notification Settings'}
       </button>
     </CollapsibleSection>

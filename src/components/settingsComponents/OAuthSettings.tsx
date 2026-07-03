@@ -74,12 +74,12 @@ export function OAuthSettings() {
 
   return (
     <CollapsibleSection title="OAuth / SSO Authentication" icon="🔑">
-      <form onSubmit={handleSaveOAuthSettings} className="oauth-form">
-        <p className="form-description">
+      <form onSubmit={handleSaveOAuthSettings}>
+        <p className="mb-4 text-sm text-fg-soft">
           Configure Single Sign-On (SSO) authentication for user logins
         </p>
         
-        <div className="form-group">
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Authentication Provider</label>
           <select
             value={oauthProvider}
@@ -93,7 +93,7 @@ export function OAuthSettings() {
         </div>
 
         {oauthProvider !== 'none' && (
-          <div className="form-group">
+          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Public Hostname</label>
             <input
               type="text"
@@ -103,7 +103,7 @@ export function OAuthSettings() {
               disabled={oauthLoading}
               required
             />
-            <small style={{ color: '#888', display: 'block', marginTop: '0.5rem' }}>
+            <small className="mt-1.5 block text-xs text-muted">
               The public URL where this application is accessible (used for OAuth callbacks)
             </small>
           </div>
@@ -111,7 +111,7 @@ export function OAuthSettings() {
 
         {oauthProvider === 'google' && (
           <>
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Google Client ID</label>
               <input
                 type="text"
@@ -123,7 +123,7 @@ export function OAuthSettings() {
               />
             </div>
             
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>Google Client Secret</label>
               <input
                 type="password"
@@ -135,12 +135,12 @@ export function OAuthSettings() {
               />
             </div>
             
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(var(--theme-accent-rgb), 0.1)', borderRadius: '8px', fontSize: '0.9rem' }}>
+            <div className="mt-4 rounded-lg bg-accent/10 p-4 text-sm text-fg-soft">
               <strong>Setup Instructions:</strong>
-              <ol style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
-                <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style={{ color: 'var(--theme-accent)' }}>Google Cloud Console</a></li>
+              <ol className="mt-2 list-decimal space-y-1 pl-6">
+                <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" className="text-accent underline-offset-2 hover:underline">Google Cloud Console</a></li>
                 <li>Create OAuth 2.0 credentials</li>
-                <li>Add authorized redirect URI: <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>{publicHostname || window.location.origin}/auth/google/callback</code></li>
+                <li>Add authorized redirect URI: <code className="rounded bg-black/30 px-1.5 py-0.5 text-xs">{publicHostname || window.location.origin}/auth/google/callback</code></li>
               </ol>
             </div>
           </>
@@ -148,7 +148,7 @@ export function OAuthSettings() {
 
         {oauthProvider === 'oidc' && (
           <>
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>OIDC Issuer URL</label>
               <input
                 type="url"
@@ -158,12 +158,12 @@ export function OAuthSettings() {
                 disabled={oauthLoading}
                 required
               />
-              <small style={{ color: '#888', marginTop: '5px', display: 'block' }}>
+              <small className="mt-1.5 block text-xs text-muted">
                 Discovery URL - endpoints will be auto-discovered from /.well-known/openid-configuration
               </small>
             </div>
             
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>OIDC Client ID</label>
               <input
                 type="text"
@@ -175,7 +175,7 @@ export function OAuthSettings() {
               />
             </div>
             
-            <div className="form-group">
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
               <label>OIDC Client Secret</label>
               <input
                 type="password"
@@ -187,8 +187,8 @@ export function OAuthSettings() {
               />
             </div>
             
-            <div className="form-group">
-              <label>OIDC End-Session URL (Logout) <span style={{ fontWeight: 'normal', color: '#888' }}>- Optional</span></label>
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
+              <label>OIDC End-Session URL (Logout) <span className="font-normal text-muted">- Optional</span></label>
               <input
                 type="url"
                 value={oidcEndSessionUrl}
@@ -196,17 +196,17 @@ export function OAuthSettings() {
                 placeholder="https://auth.example.com/application/o/your-app/end-session/"
                 disabled={oauthLoading}
               />
-              <small style={{ color: '#888', display: 'block', marginTop: '0.25rem' }}>
+              <small className="mt-1 block text-xs text-muted">
                 Custom logout URL. Leave empty to auto-discover from OIDC provider.
               </small>
             </div>
             
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,212,255,0.1)', borderRadius: '8px', fontSize: '0.9rem' }}>
+            <div className="mt-4 rounded-lg bg-accent/10 p-4 text-sm text-fg-soft">
               <strong>Setup Instructions (Authentik):</strong>
-              <ol style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
+              <ol className="mt-2 list-decimal space-y-1 pl-6">
                 <li>Create a new OAuth2/OpenID Provider</li>
                 <li>Create an Application linked to the provider</li>
-                <li>Add redirect URI: <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>{publicHostname || window.location.origin}/auth/oidc/callback</code></li>
+                <li>Add redirect URI: <code className="rounded bg-black/30 px-1.5 py-0.5 text-xs">{publicHostname || window.location.origin}/auth/oidc/callback</code></li>
                 <li>Copy the Client ID, Client Secret, and endpoint URLs from the provider</li>
                 <li>Use the URLs shown in the Authentik provider configuration</li>
               </ol>
@@ -216,14 +216,14 @@ export function OAuthSettings() {
         
         <button 
           type="submit" 
-          className="btn btn-primary" 
+          className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" 
           disabled={oauthLoading || oauthProvider === 'none'}
         >
           {oauthLoading ? 'Saving...' : 'Save OAuth Settings'}
         </button>
         
         {oauthProvider !== 'none' && (
-          <p style={{ marginTop: '1rem', color: '#f59e0b', fontSize: '0.9rem' }}>
+          <p className="mt-4 text-sm text-warning">
             ⚠️ After saving OAuth settings, you must restart the application for changes to take effect.
           </p>
         )}

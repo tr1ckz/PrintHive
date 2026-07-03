@@ -80,11 +80,11 @@ export function CostSettings() {
 
   return (
     <CollapsibleSection title="Cost Calculator" icon="💰">
-      <p className="form-description">
+      <p className="mb-4 text-sm text-fg-soft">
         Configure costs to track printing expenses
       </p>
       
-      <div className="form-group">
+      <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
         <label>Currency</label>
         <select
           value={costCurrency}
@@ -101,8 +101,8 @@ export function CostSettings() {
         </select>
       </div>
       
-      <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        <div className="form-group">
+      <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Filament $/kg</label>
           <input
             type="number"
@@ -115,7 +115,7 @@ export function CostSettings() {
           />
         </div>
         
-        <div className="form-group">
+        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Electricity $/kWh</label>
           <input
             type="number"
@@ -129,7 +129,7 @@ export function CostSettings() {
         </div>
       </div>
       
-      <div className="form-group">
+      <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
         <label>Printer Wattage</label>
         <input
           type="number"
@@ -140,20 +140,20 @@ export function CostSettings() {
           step="1"
           disabled={costLoading}
         />
-        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginTop: '0.5rem' }}>
+        <small className="mt-1.5 block text-xs text-muted">
           Average power consumption (typically 100-200W)
         </small>
       </div>
 
-      <div className="form-group" style={{ marginTop: '2rem' }}>
+      <div className="mt-8 mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
         <label>Material-Specific Pricing ($/kg)</label>
-        <small style={{ color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '1rem' }}>
+        <small className="mb-4 block text-xs text-muted">
           Set individual prices per material type. Leave blank to use default filament cost.
         </small>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Object.entries(materialCosts).sort(([a], [b]) => a.localeCompare(b)).map(([material, cost]) => (
-            <div key={material} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <label style={{ minWidth: '80px', fontSize: '0.9rem' }}>{material}:</label>
+            <div key={material} className="flex items-center gap-2">
+              <label className="min-w-20 text-sm text-fg-soft">{material}:</label>
               <input
                 type="number"
                 value={cost}
@@ -165,7 +165,7 @@ export function CostSettings() {
                 min="0"
                 step="0.01"
                 disabled={costLoading}
-                style={{ flex: 1, minWidth: '80px' }}
+                className="min-w-20 flex-1"
               />
             </div>
           ))}
@@ -174,7 +174,7 @@ export function CostSettings() {
       
       <button 
         type="button" 
-        className="btn btn-primary" 
+        className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong" 
         onClick={handleSaveCostSettings}
         disabled={costLoading}
       >
