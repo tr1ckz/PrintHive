@@ -98,7 +98,7 @@ function Printers() {
   }
 
   if (error) {
-    return <div className="error-container">{error}</div>;
+    return <div className="rounded-md bg-danger/10 p-4 text-sm text-danger">{error}</div>;
   }
 
   const activeCameraUrl = cameraMode === 'native-rtsp' ? rtspUrl : frigateStreamUrl;

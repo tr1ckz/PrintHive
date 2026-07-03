@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import './PrintHistory.css';
 import Toast from './Toast';
 import LoadingScreen from './LoadingScreen';
 import Spinner from './Spinner';
+import Modal from './common/Modal';
 import { useDebounce } from '../hooks/useDebounce';
 import { useEscapeKey } from '../hooks/useKeyboardShortcut';
 import { API_ENDPOINTS } from '../config/api';
@@ -464,11 +464,11 @@ const PrintHistory: React.FC = () => {
   }
 
   if (error) {
-    return <div className="error-container">{error}</div>;
+    return <div className="rounded-md bg-danger/10 p-4 text-sm text-danger">{error}</div>;
   }
 
   return (
-    <div className="print-history-container">
+    <div className="space-y-5">
       {toast && (
         <Toast
           message={toast.message}
@@ -477,28 +477,28 @@ const PrintHistory: React.FC = () => {
         />
       )}
       
-      <div className="page-header">
-        <div className="history-inline-summary">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
           <span>{prints.length} prints in database</span>
           {printerOptions.length > 0 ? <span>{printerOptions.length} printer{printerOptions.length === 1 ? '' : 's'}</span> : null}
         </div>
-        <div className="header-actions">
-          <button onClick={handleExportCSV} className="btn-export" disabled={prints.length === 0}>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={handleExportCSV} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" disabled={prints.length === 0}>
             <span>📊</span> Export CSV
           </button>
           {!matchProgress ? (
-            <button onClick={handleMatchVideos} className="btn-match" disabled={matching}>
+            <button onClick={handleMatchVideos} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" disabled={matching}>
               <span>{matching ? '⏳' : '🔗'}</span> {matching ? 'Starting...' : 'Match Videos'}
             </button>
           ) : (
-            <button onClick={handleCancelMatch} className="btn-match cancel">
+            <button onClick={handleCancelMatch} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25">
               <span>✕</span> Cancel
             </button>
           )}
-          <button onClick={openSdCardSyncModal} className="btn-sync" title="Sync SD card files to print history">
+          <button onClick={openSdCardSyncModal} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" title="Sync SD card files to print history">
             <span>💾</span> Sync SD Card
           </button>
-          <button onClick={handleSync} className="btn-sync" disabled={syncing}>
+          <button onClick={handleSync} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg" disabled={syncing}>
             {syncing ? (
               <>
                 <Spinner size="small" color="currentColor" /> Syncing...
@@ -513,34 +513,34 @@ const PrintHistory: React.FC = () => {
       </div>
 
       {matchProgress && (
-        <div className="background-job-progress">
-          <div className="progress-header">
+        <div className="rounded-lg bg-card p-4 shadow-sm space-y-2">
+          <div className="flex items-baseline justify-between gap-3 text-sm [&>span:first-child]:font-medium [&>span:first-child]:text-fg [&>span:last-child]:text-xs [&>span:last-child]:tabular-nums [&>span:last-child]:text-muted">
             <span>🔗 Matching videos to prints...</span>
             <span>{matchProgress.processed}/{matchProgress.total} ({matchProgress.percentComplete}%)</span>
           </div>
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${matchProgress.percentComplete}%` }} />
+          <div className="h-2 w-full overflow-hidden rounded-full bg-white/8">
+            <div className="h-full rounded-full bg-accent transition-[width] duration-500 ease-out" style={{ width: `${matchProgress.percentComplete}%` }} />
           </div>
           {matchProgress.currentVideo && (
-            <div className="progress-current">
+            <div className="truncate text-xs text-fg-faint">
               Current: {matchProgress.currentVideo.substring(0, 50)}{matchProgress.currentVideo.length > 50 ? '...' : ''}
             </div>
           )}
-          <div className="progress-stats">
+          <div className="text-xs tabular-nums text-muted">
             ✓ {matchProgress.matched} matched | ✗ {matchProgress.unmatched} unmatched
           </div>
         </div>
       )}
-      <div className="controls">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <input
           type="text"
           placeholder="Search by title, design, or printer..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
+          className="min-h-11 md:min-h-10 flex-1"
         />
         {printerOptions.length > 1 && (
-          <select value={printerFilter} onChange={(e) => setPrinterFilter(e.target.value)} className="status-filter">
+          <select value={printerFilter} onChange={(e) => setPrinterFilter(e.target.value)} className="min-h-11 md:min-h-10 sm:w-44">
             <option value="all">All Printers</option>
             {printerOptions.map((printer) => (
               <option key={printer.id} value={printer.id}>
@@ -549,7 +549,7 @@ const PrintHistory: React.FC = () => {
             ))}
           </select>
         )}
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="status-filter">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="min-h-11 md:min-h-10 sm:w-44">
           <option value="all">All Status</option>
           <option value="success">Success</option>
           <option value="failed">Failed</option>
@@ -557,7 +557,7 @@ const PrintHistory: React.FC = () => {
       </div>
 
       {prints.length === 0 ? (
-        <div className="empty-state">
+        <div className="flex flex-col items-center gap-2 py-16 text-center text-muted [&>h3]:text-base [&>h3]:font-semibold [&>h3]:text-fg [&>p]:text-sm [&>p]:text-muted">
           <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2"/>
             <line x1="9" y1="9" x2="15" y2="15" strokeWidth="2"/>
@@ -568,13 +568,13 @@ const PrintHistory: React.FC = () => {
         </div>
       ) : (
         <>
-        <div className="prints-grid">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {paginatedPrints.map((print) => {
             const { statusClassName, statusDisplay } = getPrintStatus(print.status);
 
             return (
-              <div key={print.id} className="print-card">
-                <div className="print-image">
+              <div key={print.id} className="group flex flex-col overflow-hidden rounded-lg bg-card shadow-sm transition hover:bg-surface-2 hover:shadow-md">
+                <div className="relative aspect-video w-full overflow-hidden bg-white/[0.03] [&>img]:h-full [&>img]:w-full [&>img]:object-cover">
                   {print.coverUrl ? (
                     <img 
                       src={print.coverUrl} 
@@ -583,54 +583,54 @@ const PrintHistory: React.FC = () => {
                       decoding="async"
                     />
                   ) : (
-                    <div className="no-image">No Image</div>
+                    <div className="flex h-full items-center justify-center text-xs text-muted">No Image</div>
                   )}
-                  <div className={`status-overlay status-${statusClassName}`}>
+                  <div className={`absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider backdrop-blur ${statusClassName === 'success' ? 'bg-success/20 text-success' : statusClassName === 'failed' ? 'bg-danger/20 text-danger' : 'bg-white/15 text-fg'}`}>
                     {statusDisplay}
                   </div>
                 </div>
-                <div className="print-info">
+                <div className="flex flex-1 flex-col gap-2 p-4 [&>h3]:truncate [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg">
                   <h3>{print.designTitle || 'Untitled'}</h3>
-                  <p className="design-title">{print.title}</p>
-                  <div className="print-meta">
-                    <div className="meta-item">
-                      <span className="meta-label">Printer</span>
-                      <span className="meta-value">{print.deviceName}</span>
+                  <p className="truncate text-xs text-muted">{print.title}</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] uppercase tracking-wider text-muted">Printer</span>
+                      <span className="block truncate text-xs font-medium tabular-nums text-fg-soft">{print.deviceName}</span>
                     </div>
-                    <div className="meta-item">
-                      <span className="meta-label">Duration</span>
-                      <span className="meta-value">{formatDuration(print.costTime || 0)}</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] uppercase tracking-wider text-muted">Duration</span>
+                      <span className="block truncate text-xs font-medium tabular-nums text-fg-soft">{formatDuration(print.costTime || 0)}</span>
                     </div>
-                    <div className="meta-item">
-                      <span className="meta-label">Weight</span>
-                      <span className="meta-value">{(print.weight || 0).toFixed(1)}g</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] uppercase tracking-wider text-muted">Weight</span>
+                      <span className="block truncate text-xs font-medium tabular-nums text-fg-soft">{(print.weight || 0).toFixed(1)}g</span>
                     </div>
-                    <div className="meta-item">
-                      <span className="meta-label">Cost</span>
-                      <span className="meta-value">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] uppercase tracking-wider text-muted">Cost</span>
+                      <span className="block truncate text-xs font-medium tabular-nums text-fg-soft">
                         {print.estimatedCost !== undefined && print.estimatedCost > 0
                           ? `$${print.estimatedCost.toFixed(2)}`
                           : 'N/A'}
                       </span>
                     </div>
-                    <div className="meta-item">
-                      <span className="meta-label">Started</span>
-                      <span className="meta-value">{print.startTime ? new Date(print.startTime).toLocaleString() : 'N/A'}</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] uppercase tracking-wider text-muted">Started</span>
+                      <span className="block truncate text-xs font-medium tabular-nums text-fg-soft">{print.startTime ? new Date(print.startTime).toLocaleString() : 'N/A'}</span>
                     </div>
                   </div>
-                  <div className="print-actions">
+                  <div className="mt-auto flex flex-wrap gap-1.5 pt-1">
                     {print.has3mf && (
-                      <button onClick={() => handleDownload(print.modelId, print.title)} className="btn-download">
+                      <button onClick={() => handleDownload(print.modelId, print.title)} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1 rounded bg-white/5 px-2 text-xs font-medium text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
                         <span>⬇</span> Download 3MF
                       </button>
                     )}
                     {print.hasVideo && (
-                      <button onClick={() => handleViewVideo(print.modelId, print.title)} className="btn-view-video">
+                      <button onClick={() => handleViewVideo(print.modelId, print.title)} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1 rounded bg-accent/10 px-2 text-xs font-medium text-accent transition-colors hover:bg-accent/20">
                         <span>▶️</span> View Video
                       </button>
                     )}
                     {!print.has3mf && !print.hasVideo && (
-                      <span className="no-files-text">No files available</span>
+                      <span className="text-xs text-muted">No files available</span>
                     )}
                   </div>
                 </div>
@@ -641,36 +641,36 @@ const PrintHistory: React.FC = () => {
         
         {/* Pagination Controls */}
         {totalPages > 1 && (
-          <div className="pagination">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <button 
-              className="pagination-btn" 
+              className="inline-flex min-h-11 md:min-h-9 min-w-11 md:min-w-9 items-center justify-center rounded-md bg-white/5 text-sm text-fg-soft transition-colors hover:bg-white/10 disabled:opacity-40" 
               onClick={() => setCurrentPage(1)}
               disabled={currentPage === 1}
             >
               «
             </button>
             <button 
-              className="pagination-btn" 
+              className="inline-flex min-h-11 md:min-h-9 min-w-11 md:min-w-9 items-center justify-center rounded-md bg-white/5 text-sm text-fg-soft transition-colors hover:bg-white/10 disabled:opacity-40" 
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
               ‹
             </button>
             
-            <div className="pagination-info">
+            <div className="flex items-baseline gap-1.5 text-xs tabular-nums text-muted">
               Page {currentPage} of {totalPages}
-              <span className="pagination-total">({prints.length} prints)</span>
+              <span className="text-fg-faint">({prints.length} prints)</span>
             </div>
             
             <button 
-              className="pagination-btn" 
+              className="inline-flex min-h-11 md:min-h-9 min-w-11 md:min-w-9 items-center justify-center rounded-md bg-white/5 text-sm text-fg-soft transition-colors hover:bg-white/10 disabled:opacity-40" 
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
               ›
             </button>
             <button 
-              className="pagination-btn" 
+              className="inline-flex min-h-11 md:min-h-9 min-w-11 md:min-w-9 items-center justify-center rounded-md bg-white/5 text-sm text-fg-soft transition-colors hover:bg-white/10 disabled:opacity-40" 
               onClick={() => setCurrentPage(totalPages)}
               disabled={currentPage === totalPages}
             >
@@ -683,82 +683,66 @@ const PrintHistory: React.FC = () => {
 
       {/* SD Card Sync Modal */}
       {showSdCardSync && (
-        <div className="video-modal-overlay" onClick={() => setShowSdCardSync(false)}>
-          <div className="video-modal-content sd-card-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="video-modal-header">
-              <h2>Sync SD Card Files</h2>
-              <button onClick={() => setShowSdCardSync(false)} className="btn-modal-close" title="Close">
-                <span>✕</span>
-              </button>
-            </div>
-            <div className="video-modal-body sd-card-modal-body">
-              <p className="sd-card-description">
+        <Modal title="Sync SD Card Files" onClose={() => setShowSdCardSync(false)}>
+              <p className="text-sm text-fg-soft">
                 This will scan your printer's SD card for gcode/3mf files and add any prints not already in your history.
               </p>
-              <div className="sd-card-field">
+              <div className="mt-4 space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted">
                 <label>Printer IP Address</label>
                 <input
                   type="text"
                   placeholder="192.168.1.100"
                   value={printerIp}
                   onChange={(e) => setPrinterIp(e.target.value)}
-                  className="sd-card-input"
+                  className="w-full"
                 />
               </div>
-              <div className="sd-card-field">
+              <div className="mt-4 space-y-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted">
                 <label>Access Code</label>
                 <input
                   type="password"
                   placeholder="12345678"
                   value={printerAccessCode}
                   onChange={(e) => setPrinterAccessCode(e.target.value)}
-                  className="sd-card-input"
+                  className="w-full"
                 />
               </div>
-              <div className="sd-card-actions">
-                <button onClick={() => setShowSdCardSync(false)} className="btn-cancel">
+              <div className="mt-5 flex justify-end gap-2">
+                <button onClick={() => setShowSdCardSync(false)} className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg">
                   Cancel
                 </button>
                 <button
                   onClick={handleSdCardSync}
                   disabled={syncingSdCard || !printerIp || !printerAccessCode}
-                  className="btn-primary"
+                  className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
                 >
                   {syncingSdCard ? 'Syncing...' : 'Sync SD Card'}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Video Modal */}
       {videoModal && (
-        <div className="video-modal-overlay" onClick={handleCloseVideo}>
-          <div className="video-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="video-modal-header">
-              <h2>{videoModal.title}</h2>
-              <div className="video-modal-actions">
-                <button onClick={handleShareVideo} className="btn-modal-share" title="Share video">
+        <Modal title={videoModal.title} onClose={handleCloseVideo} contentClassName="sm:max-w-3xl">
+              <div className="mb-3 flex justify-end">
+                <button
+                  onClick={handleShareVideo}
+                  className="inline-flex min-h-11 md:min-h-9 items-center gap-1.5 rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
+                  title="Share video"
+                >
                   <span>🔗</span> Share
                 </button>
-                <button onClick={handleCloseVideo} className="btn-modal-close" title="Close">
-                  <span>✕</span>
-                </button>
               </div>
-            </div>
-            <div className="video-modal-body">
-              <video 
-                controls 
-                autoPlay 
+              <video
+                controls
+                autoPlay
                 src={`/api/timelapse/${videoModal.modelId}`}
-                style={{ width: '100%', height: '100%', backgroundColor: '#000' }}
+                className="aspect-video w-full rounded-md bg-black"
               >
                 Your browser does not support the video tag.
               </video>
-            </div>
-          </div>
-        </div>
+      </Modal>
       )}
     </div>
   );
