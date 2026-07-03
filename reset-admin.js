@@ -1,112 +1,93 @@
 #!/usr/bin/env node
 /**
  * Reset Admin User Script (Node.js version)
- * Resets the admin user password and ensures superadmin role
+ * Resets the admin user password and ensures superadmin role.
+ *
+ * PrintHive uses PostgreSQL, so this connects using the same PG_* environment
+ * variables as the application (PG_HOST, PG_USER, PG_PASSWORD, PG_DB).
  */
 
-const path = require('path');
-const fs = require('fs');
-
-const DB_PATH = process.env.DB_PATH
-  || (process.env.PRINTHIVE_DATA_DIR && path.join(process.env.PRINTHIVE_DATA_DIR, 'printhive.db'))
-  || path.join(__dirname, 'data', 'printhive.db');
+const bcrypt = require('bcryptjs');
 
 console.log('====================================');
-console.log('Bambu Lab Admin Reset Script');
+console.log('PrintHive Admin Reset Script');
 console.log('====================================');
 console.log('');
 
-try {
-  // Check if better-sqlite3 is available
-  let Database;
+(async () => {
+  let db;
+  let initDatabase;
   try {
-    Database = require('better-sqlite3');
+    ({ db, initDatabase } = require('./database'));
   } catch (e) {
-    console.error('❌ Error: better-sqlite3 module not found');
+    console.error('❌ Error: could not load database module:', e.message);
     console.error('');
-    console.error('Please install dependencies first:');
-    console.error('  npm install');
-    console.error('');
-    console.error('Or run the shell script version instead:');
-    console.error('  sh reset-admin.sh');
-    console.error('');
-    console.error('For Docker containers, use:');
-    console.error('  docker-compose exec bambu-web node reset-admin.js');
+    console.error('Ensure dependencies are installed (npm install) and PG_HOST/PG_USER/PG_PASSWORD/PG_DB are set.');
     process.exit(1);
   }
 
-  // Check if database exists
-  if (!fs.existsSync(DB_PATH)) {
-    console.error('❌ Error: Database not found at:', DB_PATH);
+  try {
+    // Ensure the connection is up and the schema exists.
+    await initDatabase();
+    console.log('✓ Connected to PostgreSQL');
+    console.log('');
+
+    // Show current admin user status
+    console.log('Current admin user status:');
+    const currentAdmin = await db.prepare('SELECT id, username, role, created_at FROM users WHERE username = ?').get('admin');
+    if (currentAdmin) {
+      console.log(currentAdmin);
+    } else {
+      console.log('No admin user found');
+    }
+    console.log('');
+
+    // Reset admin user
+    console.log('Resetting admin user...');
+    const passwordHash = bcrypt.hashSync('admin', 12);
+
+    if (currentAdmin) {
+      await db.prepare('UPDATE users SET role = ?, password = ? WHERE username = ?')
+        .run('superadmin', passwordHash, 'admin');
+      console.log('✓ Updated existing admin user');
+    } else {
+      await db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
+        .run('admin', passwordHash, 'superadmin');
+      console.log('✓ Created new admin user');
+    }
+    console.log('');
+
+    // Show updated admin user status
+    console.log('Updated admin user status:');
+    const updatedAdmin = await db.prepare('SELECT id, username, role, created_at FROM users WHERE username = ?').get('admin');
+    console.log(updatedAdmin);
+    console.log('');
+
+    // Show all users
+    console.log('All users in database:');
+    const allUsers = await db.prepare('SELECT id, username, role FROM users').all();
+    console.table(allUsers);
+    console.log('');
+
+    await db.close();
+
+    console.log('====================================');
+    console.log('✓ Done!');
+    console.log('====================================');
+    console.log('');
+    console.log('Admin credentials:');
+    console.log('  Username: admin');
+    console.log('  Password: admin');
+    console.log('  Role: superadmin');
+    console.log('');
+    console.log('⚠️  Please change the password after logging in!');
+    console.log('');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error:', error.message);
     console.error('');
-    console.error('Make sure the application has been run at least once to create the database.');
+    console.error('Stack trace:');
+    console.error(error.stack);
     process.exit(1);
   }
-
-  const db = new Database(DB_PATH);
-  console.log('✓ Database found at:', DB_PATH);
-  console.log('');
-
-  // Show current admin user status
-  console.log('Current admin user status:');
-  const currentAdmin = db.prepare('SELECT id, username, role, created_at FROM users WHERE username = ?').get('admin');
-  if (currentAdmin) {
-    console.log(currentAdmin);
-  } else {
-    console.log('No admin user found');
-  }
-  console.log('');
-
-  // Reset admin user
-  console.log('Resetting admin user...');
-
-  const bcrypt = require('bcryptjs');
-  const passwordHash = bcrypt.hashSync('admin', 12);
-
-  if (currentAdmin) {
-    // Update existing admin user
-    db.prepare('UPDATE users SET role = ?, password = ? WHERE username = ?')
-      .run('superadmin', passwordHash, 'admin');
-    console.log('✓ Updated existing admin user');
-  } else {
-    // Create new admin user
-    db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
-      .run('admin', passwordHash, 'superadmin');
-    console.log('✓ Created new admin user');
-  }
-
-  console.log('');
-
-  // Show updated admin user status
-  console.log('Updated admin user status:');
-  const updatedAdmin = db.prepare('SELECT id, username, role, created_at FROM users WHERE username = ?').get('admin');
-  console.log(updatedAdmin);
-  console.log('');
-
-  // Show all users
-  console.log('All users in database:');
-  const allUsers = db.prepare('SELECT id, username, role FROM users').all();
-  console.table(allUsers);
-  console.log('');
-
-  db.close();
-
-  console.log('====================================');
-  console.log('✓ Done!');
-  console.log('====================================');
-  console.log('');
-  console.log('Admin credentials:');
-  console.log('  Username: admin');
-  console.log('  Password: admin');
-  console.log('  Role: superadmin');
-  console.log('');
-  console.log('⚠️  Please change the password after logging in!');
-  console.log('');
-
-} catch (error) {
-  console.error('❌ Error:', error.message);
-  console.error('');
-  console.error('Stack trace:');
-  console.error(error.stack);
-  process.exit(1);
-}
+})();

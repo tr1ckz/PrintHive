@@ -21,13 +21,13 @@ router.get('/api/log-level', (req, res) => {
   res.json({ level: logger.level });
 });
 
-router.post('/api/log-level', (req, res) => {
+router.post('/api/log-level', async (req, res) => {
   if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
   const { level } = req.body || {};
   if (!level) return res.status(400).json({ error: 'Missing level' });
   logger.setLevel(level);
   try {
-    db.prepare('INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('log_level', String(level).toUpperCase());
+    (await db.prepare('INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('log_level', String(level).toUpperCase()));
   } catch (e) {
     logger.warn('Failed to persist log level:', e.message);
   }
@@ -35,12 +35,12 @@ router.post('/api/log-level', (req, res) => {
 });
 
 // System restart (watchdog picks this up)
-router.post('/api/system/restart', (req, res) => {
+router.post('/api/system/restart', async (req, res) => {
   if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
   try {
     // Clean up tasks without printer_id before restart
     try {
-      const deleted = db.prepare('DELETE FROM maintenance_tasks WHERE printer_id IS NULL OR printer_id = ""').run();
+      const deleted = (await db.prepare('DELETE FROM maintenance_tasks WHERE printer_id IS NULL OR printer_id = ""').run());
       logger.info(`Cleaned up ${deleted.changes} maintenance tasks without printer assignment`);
     } catch (e) {
       logger.warn('Failed to cleanup maintenance tasks:', e.message);
@@ -132,13 +132,13 @@ router.post('/api/settings/connect-bambu', async (req, res) => {
       const token = response.data.accessToken;
       
       // Save to database
-      const existing = db.prepare('SELECT id FROM settings WHERE user_id = ?').get(req.session.userId);
+      const existing = (await db.prepare('SELECT id FROM settings WHERE user_id = ?').get(req.session.userId));
       if (existing) {
-        db.prepare('UPDATE settings SET bambu_email = ?, bambu_token = ?, bambu_region = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
-          .run(email, token, region || 'global', req.session.userId);
+        (await db.prepare('UPDATE settings SET bambu_email = ?, bambu_token = ?, bambu_region = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+          .run(email, token, region || 'global', req.session.userId));
       } else {
-        db.prepare('INSERT INTO settings (user_id, bambu_email, bambu_token, bambu_region) VALUES (?, ?, ?, ?)')
-          .run(req.session.userId, email, token, region || 'global');
+        (await db.prepare('INSERT INTO settings (user_id, bambu_email, bambu_token, bambu_region) VALUES (?, ?, ?, ?)')
+          .run(req.session.userId, email, token, region || 'global'));
       }
       
       // Update session
@@ -161,15 +161,15 @@ router.post('/api/settings/connect-bambu', async (req, res) => {
 });
 
 // Get Bambu Lab connection status
-router.get('/api/settings/bambu-status', (req, res) => {
+router.get('/api/settings/bambu-status', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
   try {
-    const email = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_email');
-    const region = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_region');
-    const token = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_token');
+    const email = (await db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_email'));
+    const region = (await db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_region'));
+    const token = (await db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_token'));
     
     res.json({
       connected: !!token?.value,
@@ -184,13 +184,13 @@ router.get('/api/settings/bambu-status', (req, res) => {
 });
 
 // Disconnect Bambu Lab account
-router.post('/api/settings/disconnect-bambu', (req, res) => {
+router.post('/api/settings/disconnect-bambu', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
   try {
-    db.prepare('DELETE FROM config WHERE key IN (?, ?, ?)').run('bambu_email', 'bambu_token', 'bambu_region');
+    (await db.prepare('DELETE FROM config WHERE key IN (?, ?, ?)').run('bambu_email', 'bambu_token', 'bambu_region'));
     req.session.token = null;
     req.session.region = null;
     req.session.save();
@@ -220,7 +220,7 @@ router.post('/api/settings/change-password', async (req, res) => {
 
   try {
     // Verify current password
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.userId);
+    const user = (await db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.userId));
     const currentMatches = user && user.password && isBcryptHash(user.password)
       && await bcrypt.compare(String(currentPassword), user.password);
 
@@ -229,7 +229,7 @@ router.post('/api/settings/change-password', async (req, res) => {
     }
 
     // Update password
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(await bcrypt.hash(String(newPassword), BCRYPT_ROUNDS), req.session.userId);
+    (await db.prepare('UPDATE users SET password = ? WHERE id = ?').run(await bcrypt.hash(String(newPassword), BCRYPT_ROUNDS), req.session.userId));
 
     res.json({ success: true });
   } catch (error) {
@@ -239,16 +239,16 @@ router.post('/api/settings/change-password', async (req, res) => {
 });
 
 // Get printer FTP settings
-router.get('/api/settings/printer-ftp', (req, res) => {
+router.get('/api/settings/printer-ftp', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
   try {
-    const printerIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip');
-    const accessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code');
-    const cameraUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url');
-    const serialNumber = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number');
+    const printerIp = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip'));
+    const accessCode = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code'));
+    const cameraUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url'));
+    const serialNumber = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number'));
     
     res.json({ 
       success: true,
@@ -264,7 +264,7 @@ router.get('/api/settings/printer-ftp', (req, res) => {
 });
 
 // Save printer FTP settings
-const savePrinterFtpHandler = (req, res) => {
+const savePrinterFtpHandler = async (req, res) => {
   console.log('=== SAVE PRINTER FTP SETTINGS ===');
 
   if (!req.session.authenticated) {
@@ -283,11 +283,11 @@ const savePrinterFtpHandler = (req, res) => {
     `);
     
     console.log('Saving printer settings to global config...');
-    upsert.run('printer_ip', printerIp || '', printerIp || '');
-    upsert.run('printer_access_code', printerAccessCode || '', printerAccessCode || '');
-    upsert.run('camera_rtsp_url', cameraRtspUrl || '', cameraRtspUrl || '');
+    (await upsert.run('printer_ip', printerIp || '', printerIp || ''));
+    (await upsert.run('printer_access_code', printerAccessCode || '', printerAccessCode || ''));
+    (await upsert.run('camera_rtsp_url', cameraRtspUrl || '', cameraRtspUrl || ''));
     if (serialNumber) {
-      upsert.run('printer_serial_number', serialNumber, serialNumber);
+      (await upsert.run('printer_serial_number', serialNumber, serialNumber));
     }
 
     if (serialNumber) {
@@ -304,24 +304,24 @@ const savePrinterFtpHandler = (req, res) => {
           updated_at = CURRENT_TIMESTAMP
       `);
 
-      upsertPrinter.run(
+      (await upsertPrinter.run(
         devId,
         placeholderName,
         printerIp || '',
         printerAccessCode || '',
         serialNumber || null,
         cameraRtspUrl || null
-      );
+      ));
     } else if (printerIp) {
       const legacyDevId = `printer_${(printerIp || 'manual').replace(/[^a-zA-Z0-9]/g, '_')}`;
-      db.prepare(`
+      (await db.prepare(`
         DELETE FROM printers
         WHERE dev_id = ?
            OR ((serial_number IS NULL OR serial_number = '') AND ip_address = ? AND name LIKE 'Printer at %')
-      `).run(legacyDevId, printerIp);
+      `).run(legacyDevId, printerIp));
     }
     
-    const go2rtcInfo = syncGo2RtcConfigSafe();
+    const go2rtcInfo = (await syncGo2RtcConfigSafe());
     console.log('SUCCESS: Settings saved');
     res.json({ success: true, go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath, streamCount: go2rtcInfo?.streamCount || 0 });
   } catch (error) {
@@ -345,8 +345,8 @@ router.post('/api/settings/test-printer-ftp', async (req, res) => {
   // If not provided in request, use global config
   if (!printerIp || !printerAccessCode) {
     try {
-      const ip = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip');
-      const code = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code');
+      const ip = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip'));
+      const code = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code'));
       printerIp = printerIp || ip?.value;
       printerAccessCode = printerAccessCode || code?.value;
     } catch (error) {
@@ -380,16 +380,16 @@ router.post('/api/settings/test-printer-ftp', async (req, res) => {
 });
 
 // Get UI settings (hide buy me a coffee, etc.) - PUBLIC endpoint
-router.get('/api/settings/ui', (req, res) => {
+router.get('/api/settings/ui', async (req, res) => {
   try {
-    const hideBmc = db.prepare('SELECT value FROM config WHERE key = ?').get('hide_bmc');
-    const colorScheme = db.prepare('SELECT value FROM config WHERE key = ?').get('color_scheme');
-    const cameraMode = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_mode');
-    const cameraStreamType = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_type');
-    const cameraStreamUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url');
-    const frigateStreamUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_stream_url');
-    const rtspUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('rtsp_url');
-    const legacyFrigateUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_url');
+    const hideBmc = (await db.prepare('SELECT value FROM config WHERE key = ?').get('hide_bmc'));
+    const colorScheme = (await db.prepare('SELECT value FROM config WHERE key = ?').get('color_scheme'));
+    const cameraMode = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_mode'));
+    const cameraStreamType = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_type'));
+    const cameraStreamUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url'));
+    const frigateStreamUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_stream_url'));
+    const rtspUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('rtsp_url'));
+    const legacyFrigateUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_url'));
     const canExposePrivateStreamSettings = Boolean(req.session?.authenticated);
 
     const normalizedCameraMode = cameraMode?.value === 'native-rtsp' ? 'native-rtsp' : 'frigate';
@@ -417,13 +417,13 @@ router.get('/api/settings/ui', (req, res) => {
 });
 
 // Save UI settings (admin only)
-router.post('/api/settings/ui', (req, res) => {
+router.post('/api/settings/ui', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
   // Check if user is admin
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -445,9 +445,9 @@ router.post('/api/settings/ui', (req, res) => {
       ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
     `);
 
-    upsert.run('hide_bmc', hideBmc ? 'true' : 'false', hideBmc ? 'true' : 'false');
+    (await upsert.run('hide_bmc', hideBmc ? 'true' : 'false', hideBmc ? 'true' : 'false'));
     if (colorScheme) {
-      upsert.run('color_scheme', colorScheme, colorScheme);
+      (await upsert.run('color_scheme', colorScheme, colorScheme));
     }
 
     const normalizedCameraMode = cameraMode === 'native-rtsp' ? 'native-rtsp' : 'frigate';
@@ -458,15 +458,15 @@ router.post('/api/settings/ui', (req, res) => {
     const normalizedRtspUrl = typeof rtspUrl === 'string' ? String(rtspUrl).trim() : '';
     const normalizedActiveStreamUrl = normalizedCameraMode === 'native-rtsp' ? normalizedRtspUrl : normalizedFrigateStreamUrl;
 
-    upsert.run('camera_mode', normalizedCameraMode, normalizedCameraMode);
-    upsert.run('camera_stream_type', normalizedStreamType, normalizedStreamType);
-    upsert.run('frigate_stream_url', normalizedFrigateStreamUrl, normalizedFrigateStreamUrl);
-    upsert.run('rtsp_url', normalizedRtspUrl, normalizedRtspUrl);
-    upsert.run('camera_stream_url', normalizedActiveStreamUrl, normalizedActiveStreamUrl);
+    (await upsert.run('camera_mode', normalizedCameraMode, normalizedCameraMode));
+    (await upsert.run('camera_stream_type', normalizedStreamType, normalizedStreamType));
+    (await upsert.run('frigate_stream_url', normalizedFrigateStreamUrl, normalizedFrigateStreamUrl));
+    (await upsert.run('rtsp_url', normalizedRtspUrl, normalizedRtspUrl));
+    (await upsert.run('camera_stream_url', normalizedActiveStreamUrl, normalizedActiveStreamUrl));
 
-    db.prepare('DELETE FROM config WHERE key = ?').run('camera_fps');
+    (await db.prepare('DELETE FROM config WHERE key = ?').run('camera_fps'));
 
-    const go2rtcInfo = syncGo2RtcConfigSafe();
+    const go2rtcInfo = (await syncGo2RtcConfigSafe());
     res.json({
       success: true,
       cameraMode: normalizedCameraMode,
@@ -651,14 +651,14 @@ function getDashboardWidgetConfigKey(userId) {
 }
 
 // Get dashboard widget preferences (authenticated)
-router.get('/api/settings/dashboard-widgets', (req, res) => {
+router.get('/api/settings/dashboard-widgets', async (req, res) => {
   if (!req.session?.authenticated || !req.session?.userId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
   try {
     const key = getDashboardWidgetConfigKey(req.session.userId);
-    const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key);
+    const row = (await db.prepare('SELECT value FROM config WHERE key = ?').get(key));
 
     if (!row?.value) {
       return res.json({ success: true, preferences: defaultDashboardWidgetPrefs });
@@ -679,7 +679,7 @@ router.get('/api/settings/dashboard-widgets', (req, res) => {
 });
 
 // Save dashboard widget preferences (authenticated)
-router.post('/api/settings/dashboard-widgets', (req, res) => {
+router.post('/api/settings/dashboard-widgets', async (req, res) => {
   if (!req.session?.authenticated || !req.session?.userId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -688,11 +688,11 @@ router.post('/api/settings/dashboard-widgets', (req, res) => {
     const preferences = sanitizeDashboardWidgetPrefs(req.body || {});
     const key = getDashboardWidgetConfigKey(req.session.userId);
 
-    db.prepare(`
+    (await db.prepare(`
       INSERT INTO config (key, value, updated_at)
       VALUES (?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-    `).run(key, JSON.stringify(preferences));
+    `).run(key, JSON.stringify(preferences)));
 
     return res.json({ success: true, preferences });
   } catch (error) {
@@ -702,13 +702,13 @@ router.post('/api/settings/dashboard-widgets', (req, res) => {
 });
 
 // Get user profile
-router.get('/api/settings/profile', (req, res) => {
+router.get('/api/settings/profile', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
   try {
-    const user = db.prepare('SELECT username, email, display_name, oauth_provider FROM users WHERE id = ?').get(req.session.userId);
+    const user = (await db.prepare('SELECT username, email, display_name, oauth_provider FROM users WHERE id = ?').get(req.session.userId));
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -726,7 +726,7 @@ router.get('/api/settings/profile', (req, res) => {
 });
 
 // Update user profile
-router.post('/api/settings/profile', (req, res) => {
+router.post('/api/settings/profile', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -735,15 +735,15 @@ router.post('/api/settings/profile', (req, res) => {
     const { displayName, email } = req.body;
     
     // Update user profile
-    const user = db.prepare('SELECT oauth_provider FROM users WHERE id = ?').get(req.session.userId);
+    const user = (await db.prepare('SELECT oauth_provider FROM users WHERE id = ?').get(req.session.userId));
     
     // For OAuth users, only allow display name changes if email is not managed by OAuth
     if (user.oauth_provider && email !== undefined) {
       // Don't allow email changes for OAuth users
-      db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, req.session.userId);
+      (await db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, req.session.userId));
     } else {
       // Local users can change both
-      db.prepare('UPDATE users SET display_name = ?, email = ? WHERE id = ?').run(displayName, email, req.session.userId);
+      (await db.prepare('UPDATE users SET display_name = ?, email = ? WHERE id = ?').run(displayName, email, req.session.userId));
     }
     
     res.json({ success: true, message: 'Profile updated successfully!' });
@@ -754,15 +754,15 @@ router.post('/api/settings/profile', (req, res) => {
 });
 
 // Admin: Get all users
-router.get('/api/admin/users', requireAdmin, (req, res) => {
+router.get('/api/admin/users', requireAdmin, async (req, res) => {
   try {
     // Try with new columns, fall back if they don't exist
     let users;
     try {
-      users = db.prepare('SELECT id, username, email, role, oauth_provider, created_at FROM users ORDER BY created_at DESC').all();
+      users = (await db.prepare('SELECT id, username, email, role, oauth_provider, created_at FROM users ORDER BY created_at DESC').all());
     } catch (e) {
       if (e.message.includes('no such column')) {
-        users = db.prepare('SELECT id, username, role, created_at FROM users ORDER BY created_at DESC').all();
+        users = (await db.prepare('SELECT id, username, role, created_at FROM users ORDER BY created_at DESC').all());
         users = users.map(u => ({ ...u, email: null, oauth_provider: null }));
       } else {
         throw e;
@@ -776,7 +776,7 @@ router.get('/api/admin/users', requireAdmin, (req, res) => {
 });
 
 // Admin: Update user role
-router.patch('/api/admin/users/:id/role', requireAdmin, (req, res) => {
+router.patch('/api/admin/users/:id/role', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
   
@@ -785,8 +785,8 @@ router.patch('/api/admin/users/:id/role', requireAdmin, (req, res) => {
   }
   
   try {
-    const currentUser = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-    const targetUser = db.prepare('SELECT role, username FROM users WHERE id = ?').get(id);
+    const currentUser = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
+    const targetUser = (await db.prepare('SELECT role, username FROM users WHERE id = ?').get(id));
     
     // Only superadmins can promote to superadmin or demote superadmins
     if (role === 'superadmin' && currentUser.role !== 'superadmin') {
@@ -798,12 +798,12 @@ router.patch('/api/admin/users/:id/role', requireAdmin, (req, res) => {
     }
     
     // Prevent removing the last admin
-    const adminCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE role IN (?, ?)').get('admin', 'superadmin');
+    const adminCount = (await db.prepare('SELECT COUNT(*) as count FROM users WHERE role IN (?, ?)').get('admin', 'superadmin'));
     if ((targetUser.role === 'admin' || targetUser.role === 'superadmin') && (role !== 'admin' && role !== 'superadmin') && adminCount.count <= 1) {
       return res.status(400).json({ error: 'Cannot remove the last admin' });
     }
     
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+    (await db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id));
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating user role:', error);
@@ -812,11 +812,11 @@ router.patch('/api/admin/users/:id/role', requireAdmin, (req, res) => {
 });
 
 // Admin: Delete user
-router.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
+router.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   
   try {
-    const user = db.prepare('SELECT role FROM users WHERE id = ?').get(id);
+    const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(id));
     
     // Prevent deleting superadmin
     if (user.role === 'superadmin') {
@@ -825,7 +825,7 @@ router.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
     
     // Prevent deleting the last admin
     if (user.role === 'admin') {
-      const adminCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE role IN (?, ?)').get('admin', 'superadmin');
+      const adminCount = (await db.prepare('SELECT COUNT(*) as count FROM users WHERE role IN (?, ?)').get('admin', 'superadmin'));
       if (adminCount.count <= 1) {
         return res.status(400).json({ error: 'Cannot delete the last admin' });
       }
@@ -836,7 +836,7 @@ router.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
     
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    (await db.prepare('DELETE FROM users WHERE id = ?').run(id));
     // Note: Settings are now global, not per-user
     res.json({ success: true });
   } catch (error) {
@@ -846,10 +846,10 @@ router.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
 });
 
 // Admin: Manually trigger Bambu account migration
-router.post('/api/admin/migrate-bambu-accounts', requireAdmin, (req, res) => {
+router.post('/api/admin/migrate-bambu-accounts', requireAdmin, async (req, res) => {
   try {
     const { migrateBambuAccounts } = require('../../database');
-    const result = migrateBambuAccounts();
+    const result = (await migrateBambuAccounts());
     res.json(result);
   } catch (error) {
     console.error('Migration error:', error);
@@ -859,9 +859,9 @@ router.post('/api/admin/migrate-bambu-accounts', requireAdmin, (req, res) => {
 
 const SECRET_MASK = '••••••••';
 
-router.get('/api/settings/oauth', requireAdmin, (req, res) => {
+router.get('/api/settings/oauth', requireAdmin, async (req, res) => {
   try {
-    const settings = db.prepare('SELECT key, value FROM config WHERE key LIKE ?').all('oauth_%');
+    const settings = (await db.prepare('SELECT key, value FROM config WHERE key LIKE ?').all('oauth_%'));
     const oauthConfig = {
       provider: 'none',
       publicHostname: '',
@@ -894,9 +894,9 @@ router.get('/api/settings/oauth', requireAdmin, (req, res) => {
 });
 
 // Public: Get OAuth provider (for login page auto-redirect)
-router.get('/api/settings/oauth-public', (req, res) => {
+router.get('/api/settings/oauth-public', async (req, res) => {
   try {
-    const providerRow = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_provider');
+    const providerRow = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_provider'));
     res.json({ provider: providerRow?.value || 'none' });
   } catch (error) {
     console.error('Error fetching OAuth provider:', error);
@@ -924,20 +924,20 @@ router.post('/api/settings/save-oauth', requireAdmin, async (req, res) => {
       ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
     `);
     
-    upsert.run('oauth_provider', provider, provider);
-    upsert.run('oauth_publicHostname', publicHostname, publicHostname);
-    upsert.run('oauth_googleClientId', googleClientId, googleClientId);
-    upsert.run('oauth_oidcIssuer', oidcIssuer, oidcIssuer);
-    upsert.run('oauth_oidcClientId', oidcClientId, oidcClientId);
-    upsert.run('oauth_oidcEndSessionUrl', oidcEndSessionUrl || '', oidcEndSessionUrl || '');
+    (await upsert.run('oauth_provider', provider, provider));
+    (await upsert.run('oauth_publicHostname', publicHostname, publicHostname));
+    (await upsert.run('oauth_googleClientId', googleClientId, googleClientId));
+    (await upsert.run('oauth_oidcIssuer', oidcIssuer, oidcIssuer));
+    (await upsert.run('oauth_oidcClientId', oidcClientId, oidcClientId));
+    (await upsert.run('oauth_oidcEndSessionUrl', oidcEndSessionUrl || '', oidcEndSessionUrl || ''));
 
     // The GET endpoint masks stored secrets; a masked or empty value coming
     // back means "keep the existing secret".
     if (googleClientSecret && googleClientSecret !== SECRET_MASK) {
-      upsert.run('oauth_googleClientSecret', googleClientSecret, googleClientSecret);
+      (await upsert.run('oauth_googleClientSecret', googleClientSecret, googleClientSecret));
     }
     if (oidcClientSecret && oidcClientSecret !== SECRET_MASK) {
-      upsert.run('oauth_oidcClientSecret', oidcClientSecret, oidcClientSecret);
+      (await upsert.run('oauth_oidcClientSecret', oidcClientSecret, oidcClientSecret));
     }
     
     // Reconfigure OIDC client with new settings
@@ -958,7 +958,7 @@ router.post('/api/settings/save-oauth', requireAdmin, async (req, res) => {
 });
 
 // Get cost settings
-router.get('/api/settings/costs', (req, res) => {
+router.get('/api/settings/costs', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -968,12 +968,12 @@ router.get('/api/settings/costs', (req, res) => {
     const keys = ['filamentCostPerKg', 'electricityCostPerKwh', 'printerWattage', 'currency'];
     
     for (const key of keys) {
-      const row = db.prepare('SELECT value FROM config WHERE key = ?').get(`cost_${key}`);
+      const row = (await db.prepare('SELECT value FROM config WHERE key = ?').get(`cost_${key}`));
       settings[key] = row ? parseFloat(row.value) || row.value : null;
     }
     
     // Get material-specific costs
-    const materialCostsRow = db.prepare('SELECT value FROM config WHERE key = ?').get('cost_materialCosts');
+    const materialCostsRow = (await db.prepare('SELECT value FROM config WHERE key = ?').get('cost_materialCosts'));
     if (materialCostsRow) {
       try {
         settings.materialCosts = JSON.parse(materialCostsRow.value);
@@ -998,7 +998,7 @@ router.get('/api/settings/costs', (req, res) => {
 });
 
 // Save cost settings
-router.post('/api/settings/costs', requireAdmin, (req, res) => {
+router.post('/api/settings/costs', requireAdmin, async (req, res) => {
   const { filamentCostPerKg, electricityCostPerKwh, printerWattage, currency, materialCosts } = req.body;
   
   try {
@@ -1008,15 +1008,15 @@ router.post('/api/settings/costs', requireAdmin, (req, res) => {
       ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
     `);
     
-    upsert.run('cost_filamentCostPerKg', filamentCostPerKg, filamentCostPerKg);
-    upsert.run('cost_electricityCostPerKwh', electricityCostPerKwh, electricityCostPerKwh);
-    upsert.run('cost_printerWattage', printerWattage, printerWattage);
-    upsert.run('cost_currency', currency, currency);
+    (await upsert.run('cost_filamentCostPerKg', filamentCostPerKg, filamentCostPerKg));
+    (await upsert.run('cost_electricityCostPerKwh', electricityCostPerKwh, electricityCostPerKwh));
+    (await upsert.run('cost_printerWattage', printerWattage, printerWattage));
+    (await upsert.run('cost_currency', currency, currency));
     
     // Save material-specific costs as JSON
     if (materialCosts) {
       const materialCostsJson = JSON.stringify(materialCosts);
-      upsert.run('cost_materialCosts', materialCostsJson, materialCostsJson);
+      (await upsert.run('cost_materialCosts', materialCostsJson, materialCostsJson));
     }
     
     res.json({ success: true });
@@ -1034,9 +1034,9 @@ router.get('/api/settings/watchdog', async (req, res) => {
   
   try {
     const getConfig = db.prepare('SELECT value FROM config WHERE key = ?');
-    const watchdogEnabled = getConfig.get('watchdog_enabled');
-    const watchdogInterval = getConfig.get('watchdog_interval');
-    const watchdogEndpoint = getConfig.get('watchdog_endpoint');
+    const watchdogEnabled = (await getConfig.get('watchdog_enabled'));
+    const watchdogInterval = (await getConfig.get('watchdog_interval'));
+    const watchdogEndpoint = (await getConfig.get('watchdog_endpoint'));
     
     res.json({
       enabled: watchdogEnabled?.value === 'true',
@@ -1056,7 +1056,7 @@ router.post('/api/settings/watchdog', async (req, res) => {
   }
   
   // Check if user is admin
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1069,12 +1069,12 @@ router.post('/api/settings/watchdog', async (req, res) => {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `);
     
-    upsert.run('watchdog_enabled', enabled ? 'true' : 'false');
-    upsert.run('watchdog_interval', String(interval || 30));
-    upsert.run('watchdog_endpoint', endpoint || '');
+    (await upsert.run('watchdog_enabled', enabled ? 'true' : 'false'));
+    (await upsert.run('watchdog_interval', String(interval || 30)));
+    (await upsert.run('watchdog_endpoint', endpoint || ''));
     
     // Update the watchdog timer
-    setupWatchdog();
+    (await setupWatchdog());
     
     res.json({ success: true, message: 'Watchdog settings saved!' });
   } catch (error) {
@@ -1091,11 +1091,11 @@ router.get('/api/settings/discord', async (req, res) => {
   
   try {
     const getConfig = db.prepare('SELECT value FROM config WHERE key = ?');
-    const printerWebhook = getConfig.get('discord_printer_webhook');
-    const printerEnabled = getConfig.get('discord_printer_enabled');
-    const maintenanceWebhook = getConfig.get('discord_maintenance_webhook');
-    const maintenanceEnabled = getConfig.get('discord_maintenance_enabled');
-    const pingUserId = getConfig.get('discord_ping_user_id');
+    const printerWebhook = (await getConfig.get('discord_printer_webhook'));
+    const printerEnabled = (await getConfig.get('discord_printer_enabled'));
+    const maintenanceWebhook = (await getConfig.get('discord_maintenance_webhook'));
+    const maintenanceEnabled = (await getConfig.get('discord_maintenance_enabled'));
+    const pingUserId = (await getConfig.get('discord_ping_user_id'));
     
     res.json({
       printerWebhook: printerWebhook?.value || '',
@@ -1117,7 +1117,7 @@ router.post('/api/settings/discord', async (req, res) => {
   }
   
   // Check if user is admin
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1130,11 +1130,11 @@ router.post('/api/settings/discord', async (req, res) => {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `);
     
-    upsert.run('discord_printer_webhook', printerWebhook || '');
-    upsert.run('discord_printer_enabled', printerEnabled ? 'true' : 'false');
-    upsert.run('discord_maintenance_webhook', maintenanceWebhook || '');
-    upsert.run('discord_maintenance_enabled', maintenanceEnabled ? 'true' : 'false');
-    upsert.run('discord_ping_user_id', pingUserId || '');
+    (await upsert.run('discord_printer_webhook', printerWebhook || ''));
+    (await upsert.run('discord_printer_enabled', printerEnabled ? 'true' : 'false'));
+    (await upsert.run('discord_maintenance_webhook', maintenanceWebhook || ''));
+    (await upsert.run('discord_maintenance_enabled', maintenanceEnabled ? 'true' : 'false'));
+    (await upsert.run('discord_ping_user_id', pingUserId || ''));
     
     res.json({ success: true, message: 'Discord settings saved!' });
   } catch (error) {
@@ -1144,7 +1144,7 @@ router.post('/api/settings/discord', async (req, res) => {
 });
 
 // Unified notifications settings (Discord, Telegram, Slack)
-router.get('/api/settings/notifications', (req, res) => {
+router.get('/api/settings/notifications', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -1152,24 +1152,24 @@ router.get('/api/settings/notifications', (req, res) => {
     const get = db.prepare('SELECT value FROM config WHERE key = ?');
     const response = {
       discord: {
-        webhook: get.get('discord_printer_webhook')?.value || get.get('discord_maintenance_webhook')?.value || '',
-        printerEnabled: get.get('discord_printer_enabled')?.value === 'true',
-        maintenanceEnabled: get.get('discord_maintenance_enabled')?.value === 'true',
-        backupEnabled: get.get('discord_backup_enabled')?.value === 'true',
-        pingUserId: get.get('discord_ping_user_id')?.value || ''
+        webhook: (await get.get('discord_printer_webhook'))?.value || (await get.get('discord_maintenance_webhook'))?.value || '',
+        printerEnabled: (await get.get('discord_printer_enabled'))?.value === 'true',
+        maintenanceEnabled: (await get.get('discord_maintenance_enabled'))?.value === 'true',
+        backupEnabled: (await get.get('discord_backup_enabled'))?.value === 'true',
+        pingUserId: (await get.get('discord_ping_user_id'))?.value || ''
       },
       telegram: {
-        botToken: get.get('telegram_bot_token')?.value || '',
-        chatId: get.get('telegram_chat_id')?.value || '',
-        printerEnabled: get.get('telegram_printer_enabled')?.value === 'true',
-        maintenanceEnabled: get.get('telegram_maintenance_enabled')?.value === 'true',
-        backupEnabled: get.get('telegram_backup_enabled')?.value === 'true'
+        botToken: (await get.get('telegram_bot_token'))?.value || '',
+        chatId: (await get.get('telegram_chat_id'))?.value || '',
+        printerEnabled: (await get.get('telegram_printer_enabled'))?.value === 'true',
+        maintenanceEnabled: (await get.get('telegram_maintenance_enabled'))?.value === 'true',
+        backupEnabled: (await get.get('telegram_backup_enabled'))?.value === 'true'
       },
       slack: {
-        webhook: get.get('slack_webhook_url')?.value || '',
-        printerEnabled: get.get('slack_printer_enabled')?.value === 'true',
-        maintenanceEnabled: get.get('slack_maintenance_enabled')?.value === 'true',
-        backupEnabled: get.get('slack_backup_enabled')?.value === 'true'
+        webhook: (await get.get('slack_webhook_url'))?.value || '',
+        printerEnabled: (await get.get('slack_printer_enabled'))?.value === 'true',
+        maintenanceEnabled: (await get.get('slack_maintenance_enabled'))?.value === 'true',
+        backupEnabled: (await get.get('slack_backup_enabled'))?.value === 'true'
       }
     };
     res.json({ success: true, settings: response });
@@ -1179,11 +1179,11 @@ router.get('/api/settings/notifications', (req, res) => {
   }
 });
 
-router.post('/api/settings/notifications', (req, res) => {
+router.post('/api/settings/notifications', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -1195,26 +1195,26 @@ router.post('/api/settings/notifications', (req, res) => {
     const { discord, telegram, slack } = req.body;
     if (discord) {
       if (discord.webhook !== undefined) {
-        upsert.run('discord_printer_webhook', discord.webhook || '');
-        upsert.run('discord_maintenance_webhook', discord.webhook || '');
+        (await upsert.run('discord_printer_webhook', discord.webhook || ''));
+        (await upsert.run('discord_maintenance_webhook', discord.webhook || ''));
       }
-      if (discord.printerEnabled !== undefined) upsert.run('discord_printer_enabled', discord.printerEnabled ? 'true' : 'false');
-      if (discord.maintenanceEnabled !== undefined) upsert.run('discord_maintenance_enabled', discord.maintenanceEnabled ? 'true' : 'false');
-      if (discord.backupEnabled !== undefined) upsert.run('discord_backup_enabled', discord.backupEnabled ? 'true' : 'false');
-      if (discord.pingUserId !== undefined) upsert.run('discord_ping_user_id', discord.pingUserId || '');
+      if (discord.printerEnabled !== undefined) (await upsert.run('discord_printer_enabled', discord.printerEnabled ? 'true' : 'false'));
+      if (discord.maintenanceEnabled !== undefined) (await upsert.run('discord_maintenance_enabled', discord.maintenanceEnabled ? 'true' : 'false'));
+      if (discord.backupEnabled !== undefined) (await upsert.run('discord_backup_enabled', discord.backupEnabled ? 'true' : 'false'));
+      if (discord.pingUserId !== undefined) (await upsert.run('discord_ping_user_id', discord.pingUserId || ''));
     }
     if (telegram) {
-      if (telegram.botToken !== undefined) upsert.run('telegram_bot_token', telegram.botToken || '');
-      if (telegram.chatId !== undefined) upsert.run('telegram_chat_id', telegram.chatId || '');
-      if (telegram.printerEnabled !== undefined) upsert.run('telegram_printer_enabled', telegram.printerEnabled ? 'true' : 'false');
-      if (telegram.maintenanceEnabled !== undefined) upsert.run('telegram_maintenance_enabled', telegram.maintenanceEnabled ? 'true' : 'false');
-      if (telegram.backupEnabled !== undefined) upsert.run('telegram_backup_enabled', telegram.backupEnabled ? 'true' : 'false');
+      if (telegram.botToken !== undefined) (await upsert.run('telegram_bot_token', telegram.botToken || ''));
+      if (telegram.chatId !== undefined) (await upsert.run('telegram_chat_id', telegram.chatId || ''));
+      if (telegram.printerEnabled !== undefined) (await upsert.run('telegram_printer_enabled', telegram.printerEnabled ? 'true' : 'false'));
+      if (telegram.maintenanceEnabled !== undefined) (await upsert.run('telegram_maintenance_enabled', telegram.maintenanceEnabled ? 'true' : 'false'));
+      if (telegram.backupEnabled !== undefined) (await upsert.run('telegram_backup_enabled', telegram.backupEnabled ? 'true' : 'false'));
     }
     if (slack) {
-      if (slack.webhook !== undefined) upsert.run('slack_webhook_url', slack.webhook || '');
-      if (slack.printerEnabled !== undefined) upsert.run('slack_printer_enabled', slack.printerEnabled ? 'true' : 'false');
-      if (slack.maintenanceEnabled !== undefined) upsert.run('slack_maintenance_enabled', slack.maintenanceEnabled ? 'true' : 'false');
-      if (slack.backupEnabled !== undefined) upsert.run('slack_backup_enabled', slack.backupEnabled ? 'true' : 'false');
+      if (slack.webhook !== undefined) (await upsert.run('slack_webhook_url', slack.webhook || ''));
+      if (slack.printerEnabled !== undefined) (await upsert.run('slack_printer_enabled', slack.printerEnabled ? 'true' : 'false'));
+      if (slack.maintenanceEnabled !== undefined) (await upsert.run('slack_maintenance_enabled', slack.maintenanceEnabled ? 'true' : 'false'));
+      if (slack.backupEnabled !== undefined) (await upsert.run('slack_backup_enabled', slack.backupEnabled ? 'true' : 'false'));
     }
     res.json({ success: true, message: 'Notification settings saved!' });
   } catch (e) {

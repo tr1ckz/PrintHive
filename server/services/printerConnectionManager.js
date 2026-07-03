@@ -89,7 +89,7 @@ class PrinterConnectionManager {
         // Handle print state changes for Discord notifications
         mqttClient.on('print_completed', async (data) => {
           // Look up actual design title from database using existing print columns
-          const print = findRecentPrintByJobName(data.jobName);
+          const print = (await findRecentPrintByJobName(data.jobName));
 
           const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
 
@@ -106,7 +106,7 @@ class PrinterConnectionManager {
 
         mqttClient.on('print_failed', async (data) => {
           // Look up actual design title from database using existing print columns
-          const print = findRecentPrintByJobName(data.jobName);
+          const print = (await findRecentPrintByJobName(data.jobName));
 
           const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
 
@@ -124,7 +124,7 @@ class PrinterConnectionManager {
 
         mqttClient.on('print_error', async (data) => {
           // Look up actual design title from database using existing print columns
-          const print = findRecentPrintByJobName(data.jobName);
+          const print = (await findRecentPrintByJobName(data.jobName));
 
           const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
 
@@ -142,7 +142,7 @@ class PrinterConnectionManager {
 
         mqttClient.on('print_paused', async (data) => {
           // Look up actual design title from database using existing print columns
-          const print = findRecentPrintByJobName(data.jobName);
+          const print = (await findRecentPrintByJobName(data.jobName));
 
           const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
 

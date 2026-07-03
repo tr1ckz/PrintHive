@@ -10,13 +10,13 @@ const requireAuth = (req, res, next) => {
 };
 
 // Middleware to check if user is admin
-const requireAdmin = (req, res, next) => {
+const requireAdmin = async (req, res, next) => {
   if (!req.session?.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
   try {
-    const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+    const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
     if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
       return res.status(403).json({ error: 'Admin access required' });
     }

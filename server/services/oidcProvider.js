@@ -6,7 +6,7 @@ let oidcConfig = null;
 
 // Configure OIDC Client (using openid-client v6.x API)
 async function configureOIDC() {
-  const settings = db.prepare('SELECT key, value FROM config WHERE key LIKE ?').all('oauth_%');
+  const settings = (await db.prepare('SELECT key, value FROM config WHERE key LIKE ?').all('oauth_%'));
   const oauthConfig = {};
   settings.forEach(row => {
     const key = row.key.replace('oauth_', '');

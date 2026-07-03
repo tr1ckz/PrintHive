@@ -6,17 +6,17 @@ async function sendDiscordNotification(type, data) {
     
     let webhookUrl, enabled;
     if (type === 'printer') {
-      const webhookRow = getConfig.get('discord_printer_webhook');
-      const enabledRow = getConfig.get('discord_printer_enabled');
+      const webhookRow = (await getConfig.get('discord_printer_webhook'));
+      const enabledRow = (await getConfig.get('discord_printer_enabled'));
       webhookUrl = webhookRow?.value;
       enabled = enabledRow?.value === 'true';
     } else if (type === 'maintenance' || type === 'backup') {
       // Use maintenance webhook for maintenance and backup notifications
-      const webhookRow = getConfig.get('discord_maintenance_webhook');
-      const maintenanceEnabledRow = getConfig.get('discord_maintenance_enabled');
+      const webhookRow = (await getConfig.get('discord_maintenance_webhook'));
+      const maintenanceEnabledRow = (await getConfig.get('discord_maintenance_enabled'));
       webhookUrl = webhookRow?.value;
       if (type === 'backup') {
-        const backupEnabledRow = getConfig.get('discord_backup_enabled');
+        const backupEnabledRow = (await getConfig.get('discord_backup_enabled'));
         enabled = backupEnabledRow?.value === 'true';
       } else {
         enabled = maintenanceEnabledRow?.value === 'true';
@@ -107,7 +107,7 @@ async function sendDiscordNotification(type, data) {
     }
     
     // Get ping user ID if configured
-    const pingUserIdRow = getConfig.get('discord_ping_user_id');
+    const pingUserIdRow = (await getConfig.get('discord_ping_user_id'));
     const pingUserId = pingUserIdRow?.value || '';
     const pingContent = pingUserId ? `<@${pingUserId}>` : '';
     
@@ -136,10 +136,10 @@ async function sendDiscordNotification(type, data) {
 async function sendTelegramNotification(type, data) {
   try {
     const get = db.prepare('SELECT value FROM config WHERE key = ?');
-    const botToken = get.get('telegram_bot_token')?.value;
-    const chatId = get.get('telegram_chat_id')?.value;
+    const botToken = (await get.get('telegram_bot_token'))?.value;
+    const chatId = (await get.get('telegram_chat_id'))?.value;
     if (!botToken || !chatId) return false;
-    const enabled = get.get(`telegram_${type}_enabled`)?.value === 'true';
+    const enabled = (await get.get(`telegram_${type}_enabled`))?.value === 'true';
     if (!enabled) return false;
 
     const titleMap = { printer: '🖨️ Printer', maintenance: '🔧 Maintenance', backup: '💾 Backup' };
@@ -178,9 +178,9 @@ async function sendTelegramNotification(type, data) {
 async function sendSlackNotification(type, data) {
   try {
     const get = db.prepare('SELECT value FROM config WHERE key = ?');
-    const webhook = get.get('slack_webhook_url')?.value;
+    const webhook = (await get.get('slack_webhook_url'))?.value;
     if (!webhook) return false;
-    const enabled = get.get(`slack_${type}_enabled`)?.value === 'true';
+    const enabled = (await get.get(`slack_${type}_enabled`))?.value === 'true';
     if (!enabled) return false;
     const titleMap = { printer: 'Printer', maintenance: 'Maintenance', backup: 'Backup' };
     const emojiMap = { printer: '🖨️', maintenance: '🔧', backup: '💾' };

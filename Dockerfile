@@ -54,7 +54,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ffmpeg \
-    ca-certificates && \
+    ca-certificates \
+    postgresql-client && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app /app

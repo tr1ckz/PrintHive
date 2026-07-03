@@ -104,18 +104,18 @@ router.get('/auth/oidc/callback', async (req, res) => {
     console.log('  Name:', name);
 
     // Check if user exists by OAuth ID
-    let user = db.prepare('SELECT * FROM users WHERE oauth_provider = ? AND oauth_id = ?').get('oidc', sub);
+    let user = (await db.prepare('SELECT * FROM users WHERE oauth_provider = ? AND oauth_id = ?').get('oidc', sub));
     console.log('Existing user by OAuth ID:', user ? user.username : 'none');
 
     if (!user && email) {
       // Check by email
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+      user = (await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
       console.log('Existing user by email:', user ? user.username : 'none');
 
       if (user) {
         // Link existing user to OAuth and update display name
         console.log('Linking existing user to OAuth');
-        db.prepare('UPDATE users SET oauth_provider = ?, oauth_id = ?, display_name = ? WHERE id = ?').run('oidc', sub, name, user.id);
+        (await db.prepare('UPDATE users SET oauth_provider = ?, oauth_id = ?, display_name = ? WHERE id = ?').run('oidc', sub, name, user.id));
       }
     }
 
@@ -138,7 +138,7 @@ router.get('/auth/oidc/callback', async (req, res) => {
     if (!user) {
       // Create new user with role based on groups
       console.log('Creating new OIDC user:', username, email, 'with role:', role);
-      const result = db.prepare(
+      const result = (await db.prepare(
         'INSERT INTO users (username, email, oauth_provider, oauth_id, role, password, display_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).run(
         username,
@@ -148,14 +148,14 @@ router.get('/auth/oidc/callback', async (req, res) => {
         role,
         '', // No password for OAuth users
         name
-      );
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+      ));
+      user = (await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid));
       console.log('New user created with ID:', user.id);
     } else {
       // Update existing user role based on current groups
       if (user.role !== 'superadmin' || role === 'superadmin') {
         console.log('Updating user role from', user.role, 'to', role, 'based on groups');
-        db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
+        (await db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id));
         user.role = role;
       }
     }
@@ -206,7 +206,7 @@ router.post('/auth/login', loginRateLimiter, async (req, res) => {
   console.log(`Login attempt for user: ${username}`);
 
   try {
-    const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    const row = (await db.prepare('SELECT * FROM users WHERE username = ?').get(username));
     // OAuth-only accounts have an empty password column and can never
     // password-login; bcrypt.compare against a non-hash is always false.
     const user = (row && row.password && isBcryptHash(row.password)
@@ -220,8 +220,8 @@ router.post('/auth/login', loginRateLimiter, async (req, res) => {
       req.session.authenticated = true;
 
       // Load global Bambu credentials if they exist
-      const token = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_token');
-      const region = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_region');
+      const token = (await db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_token'));
+      const region = (await db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_region'));
       if (token && token.value) {
         req.session.token = token.value;
         req.session.region = region?.value || 'global';
@@ -243,11 +243,11 @@ router.post('/auth/login', loginRateLimiter, async (req, res) => {
   }
 });
 
-router.get('/api/check-auth', (req, res) => {
+router.get('/api/check-auth', async (req, res) => {
   if (req.session.authenticated && req.session.userId) {
     // Fetch current user role from database to ensure it's up to date
     try {
-      const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+      const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
       const currentRole = user ? user.role : (req.session.role || 'user');
 
       // Update session if role changed
@@ -279,9 +279,9 @@ router.post('/auth/logout', (req, res) => {
   console.log('=== LOGOUT ===');
 
   // Check if user logged in via OIDC
-  const isOidcUser = req.session.userId ? (() => {
+  const isOidcUser = req.session.userId ? (async () => {
     try {
-      const user = db.prepare('SELECT oauth_provider FROM users WHERE id = ?').get(req.session.userId);
+      const user = (await db.prepare('SELECT oauth_provider FROM users WHERE id = ?').get(req.session.userId));
       return user?.oauth_provider === 'oidc';
     } catch (err) {
       console.error('Error checking OAuth provider:', err);
@@ -289,7 +289,7 @@ router.post('/auth/logout', (req, res) => {
     }
   })() : false;
 
-  req.session.destroy((err) => {
+  req.session.destroy(async (err) => {
     if (err) {
       console.error('Session destroy error:', err);
       res.json({ success: false, error: 'Failed to logout' });
@@ -297,8 +297,8 @@ router.post('/auth/logout', (req, res) => {
       // If OIDC user, return the end-session URL for redirect
       if (isOidcUser) {
         try {
-          const publicHostname = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_publicHostname');
-          const configuredEndSessionUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcEndSessionUrl');
+          const publicHostname = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_publicHostname'));
+          const configuredEndSessionUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcEndSessionUrl'));
           const publicUrl = publicHostname?.value || process.env.PUBLIC_URL || 'http://localhost:3000';
 
           let endSessionUrl;
@@ -322,7 +322,7 @@ router.post('/auth/logout', (req, res) => {
             } catch (buildErr) {
               console.error('Failed to build end-session URL:', buildErr);
               // Manual fallback - construct from issuer
-              const issuer = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcIssuer');
+              const issuer = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcIssuer'));
               if (issuer?.value) {
                 endSessionUrl = `${issuer.value}${issuer.value.endsWith('/') ? '' : '/'}end-session/?post_logout_redirect_uri=${encodeURIComponent(`${publicUrl}/admin?logout=1`)}`;
                 console.log('OIDC logout using manual URL:', endSessionUrl);
@@ -379,7 +379,7 @@ router.post('/auth/request-code', async (req, res) => {
 });
 
 // Get current user info
-router.get('/api/user/me', (req, res) => {
+router.get('/api/user/me', async (req, res) => {
   if (!req.session.authenticated || !req.session.userId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -388,10 +388,10 @@ router.get('/api/user/me', (req, res) => {
     // Try with all columns, fall back if columns don't exist
     let user;
     try {
-      user = db.prepare('SELECT id, username, email, role, display_name FROM users WHERE id = ?').get(req.session.userId);
+      user = (await db.prepare('SELECT id, username, email, role, display_name FROM users WHERE id = ?').get(req.session.userId));
     } catch (e) {
       if (e.message.includes('no such column')) {
-        user = db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(req.session.userId);
+        user = (await db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(req.session.userId));
         user.email = null;
         user.display_name = null;
       } else {

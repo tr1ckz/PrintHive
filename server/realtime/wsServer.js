@@ -35,7 +35,7 @@ function broadcastRealtimeMessage(payload) {
   });
 }
 
-function buildRealtimePrinterPayload(device, jobData = null, overrides = {}) {
+async function buildRealtimePrinterPayload(device, jobData = null, overrides = {}) {
   const printerId = device?.dev_id || overrides.dev_id || null;
   if (!printerId) {
     return null;
@@ -43,18 +43,18 @@ function buildRealtimePrinterPayload(device, jobData = null, overrides = {}) {
 
   let latestConfig = {};
   try {
-    latestConfig = db.prepare(`
+    latestConfig = (await db.prepare(`
       SELECT dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url
       FROM printers
       WHERE dev_id = ?
-    `).get(printerId) || {};
+    `).get(printerId)) || {};
 
     // Fallback: if no camera URL found by dev_id, look for a record matching by serial number
     // (handles ghost manual_* records that haven't been migrated yet).
     if (!latestConfig.camera_rtsp_url && device?.serial_number) {
-      const bySerial = db.prepare(`
+      const bySerial = (await db.prepare(`
         SELECT camera_rtsp_url FROM printers WHERE serial_number = ? AND camera_rtsp_url IS NOT NULL AND TRIM(camera_rtsp_url) != ''
-      `).get(device.serial_number);
+      `).get(device.serial_number));
       if (bySerial?.camera_rtsp_url) {
         latestConfig.camera_rtsp_url = bySerial.camera_rtsp_url;
       }
@@ -97,33 +97,33 @@ function attachRealtimeBridgeToMqttClient(mqttClient, clientKey, device) {
 
   mqttClient.__realtimeBridgeAttached = true;
 
-  mqttClient.on('job_update', (jobData) => {
-    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, jobData, {
+  mqttClient.on('job_update', async (jobData) => {
+    const payload = (await buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, jobData, {
       online: true,
       print_status: jobData?.gcode_state || mqttClient.realtimeDevice?.print_status || 'ONLINE',
-    });
+    }));
 
     if (payload) {
       broadcastRealtimeMessage(payload);
     }
   });
 
-  mqttClient.on('disconnected', () => {
-    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
+  mqttClient.on('disconnected', async () => {
+    const payload = (await buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
       online: false,
       print_status: 'OFFLINE',
-    });
+    }));
 
     if (payload) {
       broadcastRealtimeMessage(payload);
     }
   });
 
-  mqttClient.on('error', () => {
-    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
+  mqttClient.on('error', async () => {
+    const payload = (await buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
       online: false,
       print_status: 'OFFLINE',
-    });
+    }));
 
     if (payload) {
       broadcastRealtimeMessage(payload);
@@ -141,18 +141,18 @@ function setupRealtimeServer(server, printerManager) {
     path: REALTIME_SOCKET_PATH,
   });
 
-  realtimeWss.on('connection', (socket) => {
+  realtimeWss.on('connection', async (socket) => {
     sendRealtimeMessage(socket, {
       type: 'realtime.welcome',
       payload: { status: 'connected' },
     });
 
     for (const mqttClient of printerManager.values()) {
-      const payload = buildRealtimePrinterPayload(
+      const payload = (await buildRealtimePrinterPayload(
         mqttClient.realtimeDevice || {},
         mqttClient.getCurrentJob(),
         { online: mqttClient.connected }
-      );
+      ));
 
       if (payload) {
         sendRealtimeMessage(socket, payload);

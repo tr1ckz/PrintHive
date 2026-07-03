@@ -10,14 +10,14 @@ router.get('/api/maintenance', async (req, res) => {
   }
   
   try {
-    const tasks = db.prepare(`
+    const tasks = (await db.prepare(`
       SELECT * FROM maintenance_tasks 
       ORDER BY next_due ASC NULLS LAST, task_name ASC
-    `).all();
+    `).all());
     
     // Get print hours per printer
     const printerHours = {};
-    const allPrints = db.prepare('SELECT deviceId, costTime FROM prints').all();
+    const allPrints = (await db.prepare('SELECT deviceId, costTime FROM prints').all());
     let totalPrintSeconds = 0;
     
     for (const print of allPrints) {
@@ -39,7 +39,7 @@ router.get('/api/maintenance', async (req, res) => {
       logger.debug(`[Maintenance] Printer ${pid}: ${(printerHours[pid] / 3600).toFixed(2)} hrs`);
     });
     
-    const tasksWithStatus = tasks.map(task => {
+    const tasksWithStatus = await Promise.all(tasks.map(async task => {
       // Use printer-specific hours if task is assigned to a printer
       const currentPrintHours = task.printer_id && printerHours[task.printer_id]
         ? printerHours[task.printer_id] / 3600
@@ -76,7 +76,7 @@ router.get('/api/maintenance', async (req, res) => {
           // Try to initialize hours_until_due for this task
           const taskNextDueHours = currentPrintHours + task.interval_hours;
           try {
-            db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(taskNextDueHours, task.id);
+            (await db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(taskNextDueHours, task.id));
             logger.debug(`[Maintenance] Initialized hours_until_due=${taskNextDueHours} for task ${task.id}`);
             hoursUntilDue = task.interval_hours; // Since we just set it to current + interval
           } catch (e) {
@@ -87,7 +87,7 @@ router.get('/api/maintenance', async (req, res) => {
           hoursUntilDue = task.interval_hours;
           const taskNextDueHours = currentPrintHours + task.interval_hours;
           try {
-            db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(taskNextDueHours, task.id);
+            (await db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(taskNextDueHours, task.id));
             logger.debug(`[Maintenance] Initialized new task hours_until_due=${taskNextDueHours} for task ${task.id}`);
           } catch (e) {
             logger.warn(`[Maintenance] Failed to initialize hours_until_due: ${e.message}`);
@@ -108,8 +108,8 @@ router.get('/api/maintenance', async (req, res) => {
         isDueSoon,
         hours_until_due: hoursUntilDue
       };
-    });
-    
+    }));
+
     res.json(tasksWithStatus);
   } catch (error) {
     console.error('Get maintenance tasks error:', error);
@@ -122,7 +122,7 @@ router.post('/api/maintenance', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -135,7 +135,7 @@ router.post('/api/maintenance', async (req, res) => {
     }
     
     // Calculate current total print hours
-    const prints = db.prepare('SELECT costTime FROM prints').all();
+    const prints = (await db.prepare('SELECT costTime FROM prints').all());
     let totalPrintSeconds = 0;
     for (const print of prints) {
       if (print.costTime) {
@@ -153,12 +153,12 @@ router.post('/api/maintenance', async (req, res) => {
     console.log(`  - Interval: ${taskInterval} hours`);
     console.log(`  - Will be due at print hour: ${initialDueHours.toFixed(2)}`);
     
-    const result = db.prepare(`
+    const result = (await db.prepare(`
       INSERT INTO maintenance_tasks (printer_id, task_name, task_type, description, interval_hours, hours_until_due)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(printer_id || null, task_name, task_type, description || '', taskInterval, initialDueHours);
+    `).run(printer_id || null, task_name, task_type, description || '', taskInterval, initialDueHours));
     
-    const task = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(result.lastInsertRowid);
+    const task = (await db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(result.lastInsertRowid));
     
     res.json({ success: true, task });
   } catch (error) {
@@ -172,7 +172,7 @@ router.put('/api/maintenance/:id', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -182,18 +182,18 @@ router.put('/api/maintenance/:id', async (req, res) => {
     const { printer_id, task_name, task_type, description, interval_hours } = req.body;
     
     // Get old task to check if interval changed
-    const oldTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
+    const oldTask = (await db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id));
     
-    db.prepare(`
+    (await db.prepare(`
       UPDATE maintenance_tasks 
       SET printer_id = ?, task_name = ?, task_type = ?, description = ?, interval_hours = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(printer_id || null, task_name, task_type, description || '', interval_hours || 100, id);
+    `).run(printer_id || null, task_name, task_type, description || '', interval_hours || 100, id));
     
     // If interval changed and task has been performed, recalculate hours_until_due
     if (oldTask && oldTask.interval_hours !== interval_hours && oldTask.last_performed) {
       // Calculate current print hours
-      const prints = db.prepare('SELECT costTime FROM prints').all();
+      const prints = (await db.prepare('SELECT costTime FROM prints').all());
       let totalPrintSeconds = 0;
       for (const print of prints) {
         if (print.costTime) {
@@ -206,14 +206,14 @@ router.put('/api/maintenance/:id', async (req, res) => {
       const newDueHours = currentPrintHours + interval_hours;
       
       try {
-        db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(newDueHours, id);
+        (await db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(newDueHours, id));
         console.log(`[Maintenance Update] Recalculated hours_until_due to ${newDueHours.toFixed(2)} for task ${id} (interval changed from ${oldTask.interval_hours} to ${interval_hours})`);
       } catch (e) {
         console.error(`[Maintenance Update] Failed to recalculate hours_until_due:`, e.message);
       }
     }
     
-    const task = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
+    const task = (await db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id));
     
     res.json({ success: true, task });
   } catch (error) {
@@ -227,14 +227,14 @@ router.delete('/api/maintenance/:id', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   
   try {
     const { id } = req.params;
-    db.prepare('DELETE FROM maintenance_tasks WHERE id = ?').run(id);
+    (await db.prepare('DELETE FROM maintenance_tasks WHERE id = ?').run(id));
     res.json({ success: true });
   } catch (error) {
     console.error('Delete maintenance task error:', error);
@@ -250,7 +250,7 @@ router.post('/api/maintenance/:id/complete', async (req, res) => {
   try {
     const { id } = req.params;
     const { notes } = req.body; // Optional notes from user
-    const task = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
+    const task = (await db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id));
     
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
@@ -260,7 +260,7 @@ router.post('/api/maintenance/:id/complete', async (req, res) => {
     
     // Calculate next due based on print hours, not real time
     // Get total print hours from all prints
-    const prints = db.prepare('SELECT costTime FROM prints').all();
+    const prints = (await db.prepare('SELECT costTime FROM prints').all());
     let totalPrintSeconds = 0;
     for (const print of prints) {
       if (print.costTime) {
@@ -283,28 +283,28 @@ router.post('/api/maintenance/:id/complete', async (req, res) => {
     console.log(`  - Hours remaining until due: ${task.interval_hours.toFixed(2)}`);
     
     // Update the task with both timestamp and absolute hour marker
-    db.prepare(`
+    (await db.prepare(`
       UPDATE maintenance_tasks 
       SET last_performed = ?, 
           next_due = ?, 
           hours_until_due = ?,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(now.toISOString(), nextDue.toISOString(), nextDueHours, id);
+    `).run(now.toISOString(), nextDue.toISOString(), nextDueHours, id));
     
     // Log completion to history
-    db.prepare(`
+    (await db.prepare(`
       INSERT INTO maintenance_history (task_id, task_name, printer_id, completed_at, print_hours_at_completion, notes)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, task.task_name, task.printer_id, now.toISOString(), totalPrintHours, notes || null);
+    `).run(id, task.task_name, task.printer_id, now.toISOString(), totalPrintHours, notes || null));
     
-    const updatedTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
+    const updatedTask = (await db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id));
     console.log(`[Maintenance Complete] Task updated successfully. hours_until_due=${updatedTask.hours_until_due}`);
     
     // Send notification
     try {
       const printerName = updatedTask.printer_id ? 
-        db.prepare('SELECT deviceName FROM printers WHERE deviceId = ?').get(updatedTask.printer_id)?.deviceName || updatedTask.printer_id
+        (await db.prepare('SELECT deviceName FROM printers WHERE deviceId = ?').get(updatedTask.printer_id))?.deviceName || updatedTask.printer_id
         : 'All Printers';
       
       await sendNotification('maintenance', {
@@ -334,11 +334,11 @@ router.get('/api/maintenance/:id/history', async (req, res) => {
   
   try {
     const { id } = req.params;
-    const history = db.prepare(`
+    const history = (await db.prepare(`
       SELECT * FROM maintenance_history 
       WHERE task_id = ? 
       ORDER BY completed_at DESC
-    `).all(id);
+    `).all(id));
     
     res.json(history);
   } catch (error) {
@@ -355,7 +355,7 @@ router.get('/api/maintenance/summary', async (req, res) => {
   
   try {
     // Get current total print hours
-    const prints = db.prepare('SELECT costTime FROM prints').all();
+    const prints = (await db.prepare('SELECT costTime FROM prints').all());
     let totalPrintSeconds = 0;
     for (const print of prints) {
       if (print.costTime) {
@@ -364,7 +364,7 @@ router.get('/api/maintenance/summary', async (req, res) => {
     }
     const currentPrintHours = totalPrintSeconds / 3600;
     
-    const allTasks = db.prepare('SELECT * FROM maintenance_tasks').all();
+    const allTasks = (await db.prepare('SELECT * FROM maintenance_tasks').all());
     const total = allTasks.length;
     const neverDone = allTasks.filter(t => !t.last_performed).length;
     

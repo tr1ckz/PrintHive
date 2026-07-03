@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import Database from 'better-sqlite3';
 import { bootServer } from '../helpers/bootServer.js';
 
 /**
@@ -22,9 +21,7 @@ afterAll(async () => {
 
 describe('password storage', () => {
   it('stores the default admin as a bcrypt hash, and login still works', async () => {
-    const db = new Database(path.join(server.dataDir, 'printhive.db'), { readonly: true });
-    const admin = db.prepare('SELECT password FROM users WHERE username = ?').get('admin');
-    db.close();
+    const [admin] = await server.query('SELECT password FROM users WHERE username = $1', ['admin']);
     expect(admin.password).toMatch(/^\$2[aby]\$/);
     const cookie = await server.login('admin', 'admin');
     expect(cookie).toContain('bambu.sid=');
@@ -40,9 +37,7 @@ describe('password storage', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
 
-    const db = new Database(path.join(server.dataDir, 'printhive.db'), { readonly: true });
-    const admin = db.prepare('SELECT password FROM users WHERE username = ?').get('admin');
-    db.close();
+    const [admin] = await server.query('SELECT password FROM users WHERE username = $1', ['admin']);
     expect(admin.password).toMatch(/^\$2[aby]\$/);
   });
 });
@@ -99,9 +94,7 @@ describe('OIDC secret masking', () => {
 
     // Round-trip the masked value — stored secret must survive
     await save({ ...masked, provider: 'none' });
-    const db = new Database(path.join(server.dataDir, 'printhive.db'), { readonly: true });
-    const stored = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcClientSecret');
-    db.close();
+    const [stored] = await server.query('SELECT value FROM config WHERE key = $1', ['oauth_oidcClientSecret']);
     expect(stored.value).toBe('super-secret-value');
   });
 });

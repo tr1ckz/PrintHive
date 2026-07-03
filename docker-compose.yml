@@ -9,12 +9,31 @@ services:
     volumes:
       - ./data/go2rtc:/config
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: printhive-postgres
+    # Host networking so the app (also host-networked) reaches it on 127.0.0.1:5432
+    network_mode: host
+    environment:
+      - POSTGRES_USER=${PG_USER:-printhive}
+      - POSTGRES_PASSWORD=${PG_PASSWORD:-printhive}
+      - POSTGRES_DB=${PG_DB:-printhive}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-printhive}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+
   bambu-web:
     build: .
     image: tr1ckz/printhive:latest
     container_name: printhive
     depends_on:
       - go2rtc
+      - postgres
     # Use host network to access local network devices (RTSP cameras, printers)
     network_mode: host
     environment:
@@ -22,6 +41,11 @@ services:
       - SESSION_SECRET=${SESSION_SECRET:-your-random-secret-key-change-this}
       - PUBLIC_URL=${PUBLIC_URL:-http://localhost:3000}
       - NODE_ENV=production
+      # PostgreSQL connection (PG_HOST supports host or host:port)
+      - PG_HOST=${PG_HOST:-127.0.0.1:5432}
+      - PG_USER=${PG_USER:-printhive}
+      - PG_PASSWORD=${PG_PASSWORD:-printhive}
+      - PG_DB=${PG_DB:-printhive}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s

@@ -15,7 +15,7 @@ class BackgroundSyncService {
   /**
    * Start the background sync service
    */
-  start() {
+  async start() {
     if (this.isRunning) {
       console.log('Background sync already running');
       return;
@@ -38,7 +38,7 @@ class BackgroundSyncService {
       this.syncInterval = setTimeout(runLoop, this.syncIntervalMinutes * 60 * 1000);
     };
 
-    void runLoop();
+    void (await runLoop());
   }
 
   /**
@@ -67,14 +67,14 @@ class BackgroundSyncService {
 
     try {
       // Get all configured printers with FTP credentials from the printers table
-      const users = db.prepare(`
+      const users = (await db.prepare(`
         SELECT dev_id AS user_id, name, ip_address AS printer_ip, access_code AS printer_access_code
         FROM printers
         WHERE ip_address IS NOT NULL
           AND access_code IS NOT NULL
           AND ip_address != ''
           AND access_code != ''
-      `).all();
+      `).all());
 
       if (users.length === 0) {
         console.log('No printer credentials configured. Skipping sync.');
@@ -161,7 +161,7 @@ class BackgroundSyncService {
           
           // Match the video to a model immediately after conversion
           try {
-            const modelId = videoConverter.matchVideoToModel(mp4Path, db);
+            const modelId = (await videoConverter.matchVideoToModel(mp4Path, db));
             if (modelId) {
               console.log(`    ✓ Matched ${aviFile} to model ${modelId}`);
             }
@@ -181,14 +181,14 @@ class BackgroundSyncService {
         
         // Check if this video is already matched
         const baseName = path.basename(mp4File, '.mp4');
-        const existing = db.prepare(`
+        const existing = (await db.prepare(`
           SELECT modelId FROM prints WHERE videoPath LIKE ?
-        `).get(`%${baseName}%`);
+        `).get(`%${baseName}%`));
         
         if (existing) continue; // Already matched
         
         try {
-          const modelId = videoConverter.matchVideoToModel(mp4Path, db);
+          const modelId = (await videoConverter.matchVideoToModel(mp4Path, db));
           if (modelId) {
             matchedCount++;
             console.log(`    ✓ Matched ${mp4File} to model ${modelId}`);
@@ -224,15 +224,18 @@ class BackgroundSyncService {
           // Find print with matching or close timestamp
           // Video can start up to 10 minutes after print start (bed leveling delay)
           // Allow up to 24 hours before for local-only prints
-          const result = db.prepare(`
-            UPDATE prints 
-            SET videoLocal = ? 
-            WHERE videoLocal IS NULL
-              AND datetime(startTime) <= datetime(?, '+10 minutes')
-              AND datetime(startTime) >= datetime(?, '-24 hours')
-            ORDER BY abs(julianday(startTime) - julianday(?))
-            LIMIT 1
-          `).run(video.filename, videoTimestamp, videoTimestamp, videoTimestamp);
+          const result = (await db.prepare(`
+            UPDATE prints
+            SET videoLocal = ?
+            WHERE id = (
+              SELECT id FROM prints
+              WHERE videoLocal IS NULL
+                AND NULLIF(startTime, '')::timestamp <= (?::timestamp + interval '10 minutes')
+                AND NULLIF(startTime, '')::timestamp >= (?::timestamp - interval '24 hours')
+              ORDER BY abs(EXTRACT(EPOCH FROM (NULLIF(startTime, '')::timestamp - ?::timestamp)))
+              LIMIT 1
+            )
+          `).run(video.filename, videoTimestamp, videoTimestamp, videoTimestamp));
           
           if (result.changes > 0) {
             console.log(`    ✓ Linked ${video.filename} to print`);
@@ -262,14 +265,14 @@ class BackgroundSyncService {
           const [, date, hours, minutes, seconds] = timestampMatch;
           const modelTimestamp = `${date} ${hours}:${minutes}:${seconds}`;
           
-          print = db.prepare(`
+          print = (await db.prepare(`
             SELECT modelId
             FROM prints
-            WHERE datetime(startTime) <= datetime(?, '+10 minutes')
-              AND datetime(startTime) >= datetime(?, '-24 hours')
-            ORDER BY abs(julianday(startTime) - julianday(?))
+            WHERE NULLIF(startTime, '')::timestamp <= (?::timestamp + interval '10 minutes')
+              AND NULLIF(startTime, '')::timestamp >= (?::timestamp - interval '24 hours')
+            ORDER BY abs(EXTRACT(EPOCH FROM (NULLIF(startTime, '')::timestamp - ?::timestamp)))
             LIMIT 1
-          `).get(modelTimestamp, modelTimestamp, modelTimestamp);
+          `).get(modelTimestamp, modelTimestamp, modelTimestamp));
           
           if (print) {
             console.log(`    ✓ Matched ${baseFilename} by timestamp`);
@@ -279,25 +282,25 @@ class BackgroundSyncService {
         // If no timestamp match, try matching by title (exact or fuzzy)
         if (!print) {
           // Try exact title match first
-          print = db.prepare(`
+          print = (await db.prepare(`
             SELECT modelId, title
             FROM prints
             WHERE title = ?
             ORDER BY startTime DESC
             LIMIT 1
-          `).get(baseFilename);
+          `).get(baseFilename));
           
           if (print) {
             console.log(`    ✓ Matched ${baseFilename} by exact title`);
           } else {
             // Try fuzzy match - check if title contains the filename or vice versa
-            print = db.prepare(`
+            print = (await db.prepare(`
               SELECT modelId, title
               FROM prints
               WHERE title LIKE ? OR ? LIKE '%' || title || '%'
               ORDER BY startTime DESC
               LIMIT 1
-            `).get(`%${baseFilename}%`, baseFilename);
+            `).get(`%${baseFilename}%`, baseFilename));
             
             if (print) {
               console.log(`    ✓ Matched ${baseFilename} to "${print.title}" by fuzzy match`);
@@ -308,10 +311,10 @@ class BackgroundSyncService {
         if (print) {
           // Store 3MF in files table
           const stats = require('fs').statSync(model.path);
-          db.prepare(`
+          (await db.prepare(`
             INSERT OR IGNORE INTO files (modelId, filename, filepath, filetype, filesize)
             VALUES (?, ?, ?, '3mf', ?)
-          `).run(print.modelId, model.filename, model.path, stats.size);
+          `).run(print.modelId, model.filename, model.path, stats.size));
           
           console.log(`    ✓ Linked ${model.filename} to print ${print.modelId}`);
         } else {
@@ -329,7 +332,7 @@ class BackgroundSyncService {
   async triggerSync() {
     if (!this.isRunning) {
       console.log('Background sync is not running. Starting it...');
-      this.start();
+      (await this.start());
     } else {
       await this.runSync();
     }

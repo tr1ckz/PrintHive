@@ -36,7 +36,8 @@ const {
   dataDir,
   libraryDir,
   videosDir,
-  db
+  db,
+  initDatabase
 } = require('./database');
 // Thumbnails render in a dedicated worker_thread (canvas CPU work off the event loop)
 const { getThumbnail, clearThumbnailCache } = require('./server/jobs/thumbnailClient');
@@ -150,18 +151,18 @@ function buildTapoRtspUrl(host, username, password, streamPath = 'stream1') {
   return `rtsp://${credentials}${trimmedHost}/${normalizedPath}`;
 }
 
-function writeGo2RtcConfigFromDatabase() {
+async function writeGo2RtcConfigFromDatabase() {
   fs.mkdirSync(go2rtcConfigDir, { recursive: true });
 
-  const getConfigValue = (key) => db.prepare('SELECT value FROM config WHERE key = ?').get(key)?.value || '';
-  const defaultStreamName = sanitizeGo2RtcStreamName(getConfigValue('go2rtc_default_stream') || 'tapo_camera', 'tapo-camera');
-  const tapoHost = getConfigValue('tapo_camera_host');
-  const tapoUsername = getConfigValue('tapo_camera_username');
-  const tapoPassword = getConfigValue('tapo_camera_password');
-  const tapoStreamPath = getConfigValue('tapo_camera_path') || 'stream1';
+  const getConfigValue = async (key) => (await db.prepare('SELECT value FROM config WHERE key = ?').get(key))?.value || '';
+  const defaultStreamName = sanitizeGo2RtcStreamName((await getConfigValue('go2rtc_default_stream')) || 'tapo_camera', 'tapo-camera');
+  const tapoHost = (await getConfigValue('tapo_camera_host'));
+  const tapoUsername = (await getConfigValue('tapo_camera_username'));
+  const tapoPassword = (await getConfigValue('tapo_camera_password'));
+  const tapoStreamPath = (await getConfigValue('tapo_camera_path')) || 'stream1';
   const defaultRtspUrl = buildTapoRtspUrl(tapoHost, tapoUsername, tapoPassword, tapoStreamPath);
-  const explicitRtspUrl = getConfigValue('rtsp_url');
-  const unifiedCameraStreamUrl = explicitRtspUrl || getConfigValue('camera_stream_url');
+  const explicitRtspUrl = (await getConfigValue('rtsp_url'));
+  const unifiedCameraStreamUrl = explicitRtspUrl || (await getConfigValue('camera_stream_url'));
 
   const lines = [];
   const seen = new Set();
@@ -188,12 +189,12 @@ function writeGo2RtcConfigFromDatabase() {
     addStream(defaultStreamName, defaultRtspUrl, 'Optional default Tapo camera from UI settings');
   }
 
-  const printers = db.prepare(`
+  const printers = (await db.prepare(`
     SELECT dev_id, name, camera_rtsp_url
     FROM printers
     WHERE camera_rtsp_url IS NOT NULL AND TRIM(camera_rtsp_url) != ''
     ORDER BY name ASC, dev_id ASC
-  `).all();
+  `).all());
 
   printers.forEach((printer) => {
     const cameraSource = String(printer.camera_rtsp_url || '').trim();
@@ -226,9 +227,9 @@ function writeGo2RtcConfigFromDatabase() {
   return { path: go2rtcConfigPath, streamCount: seen.size };
 }
 
-function syncGo2RtcConfigSafe() {
+async function syncGo2RtcConfigSafe() {
   try {
-    return writeGo2RtcConfigFromDatabase();
+    return (await writeGo2RtcConfigFromDatabase());
   } catch (error) {
     logger.warn('[go2rtc] Failed to write go2rtc.yaml:', error.message);
     return null;
@@ -244,10 +245,10 @@ function normalizeCameraFps(value, fallback = 5) {
   return Math.max(1, Math.min(30, parsed));
 }
 
-function getConfiguredRtspSource(printerId = '') {
+async function getConfiguredRtspSource(printerId = '') {
   const normalizedPrinterId = String(printerId || '').trim();
   if (normalizedPrinterId) {
-    const printerOverride = db.prepare('SELECT serial_number, camera_rtsp_url FROM printers WHERE dev_id = ?').get(normalizedPrinterId);
+    const printerOverride = (await db.prepare('SELECT serial_number, camera_rtsp_url FROM printers WHERE dev_id = ?').get(normalizedPrinterId));
     const printerRtspUrl = String(printerOverride?.camera_rtsp_url || '').trim();
 
     if (/^rtsps?:\/\//i.test(printerRtspUrl)) {
@@ -256,9 +257,9 @@ function getConfiguredRtspSource(printerId = '') {
 
     // Fallback: look for a ghost record sharing the same serial number (pre-migration state).
     if (printerOverride?.serial_number) {
-      const bySerial = db.prepare(
+      const bySerial = (await db.prepare(
         `SELECT camera_rtsp_url FROM printers WHERE serial_number = ? AND camera_rtsp_url IS NOT NULL AND TRIM(camera_rtsp_url) != ''`
-      ).get(printerOverride.serial_number);
+      ).get(printerOverride.serial_number));
       const serialRtspUrl = String(bySerial?.camera_rtsp_url || '').trim();
       if (/^rtsps?:\/\//i.test(serialRtspUrl)) {
         return { rtspUrl: serialRtspUrl, proxyKey: `printer:${normalizedPrinterId}`, source: 'printer' };
@@ -266,12 +267,12 @@ function getConfiguredRtspSource(printerId = '') {
     }
   }
 
-  const rtspUrl = String(db.prepare('SELECT value FROM config WHERE key = ?').get('rtsp_url')?.value || '').trim();
+  const rtspUrl = String((await db.prepare('SELECT value FROM config WHERE key = ?').get('rtsp_url'))?.value || '').trim();
   if (/^rtsps?:\/\//i.test(rtspUrl)) {
     return { rtspUrl, proxyKey: 'global', source: 'global' };
   }
 
-  const legacyStreamUrl = normalizeStreamRelayUrl(db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url')?.value || '');
+  const legacyStreamUrl = normalizeStreamRelayUrl((await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url'))?.value || '');
   if (/^rtsps?:\/\//i.test(legacyStreamUrl)) {
     return { rtspUrl: legacyStreamUrl, proxyKey: 'global', source: 'global' };
   }
@@ -350,14 +351,14 @@ function isBambuTokenExpired(token) {
   }
 }
 
-function getConfiguredBambuAccounts(req = null) {
+async function getConfiguredBambuAccounts(req = null) {
   try {
-    const accounts = db.prepare(`
+    const accounts = (await db.prepare(`
       SELECT id, user_id, email, token, COALESCE(region, 'global') AS region, is_primary
       FROM bambu_accounts
       WHERE token IS NOT NULL AND token != ''
       ORDER BY is_primary DESC, id ASC
-    `).all();
+    `).all());
 
     if (accounts.length > 0) {
       return accounts;
@@ -367,15 +368,17 @@ function getConfiguredBambuAccounts(req = null) {
   }
 
   try {
-    const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+    const settingsColumns = (await db.prepare(
+      "SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'settings'"
+    ).all());
     const hasLegacyTokenColumn = settingsColumns.some((column) => column.name === 'bambu_token');
 
     if (hasLegacyTokenColumn) {
-      const legacyAccounts = db.prepare(`
+      const legacyAccounts = (await db.prepare(`
         SELECT user_id, bambu_email AS email, bambu_token AS token, COALESCE(bambu_region, 'global') AS region, 1 AS is_primary
         FROM settings
         WHERE bambu_token IS NOT NULL AND bambu_token != ''
-      `).all();
+      `).all());
 
       if (legacyAccounts.length > 0) {
         return legacyAccounts;
@@ -399,7 +402,7 @@ function getConfiguredBambuAccounts(req = null) {
   return [];
 }
 
-function findRecentPrintByJobName(jobName) {
+async function findRecentPrintByJobName(jobName) {
   if (!jobName) {
     return null;
   }
@@ -407,7 +410,7 @@ function findRecentPrintByJobName(jobName) {
   const normalizedJobName = String(jobName).trim();
   const fuzzyMatch = `%${normalizedJobName}%`;
 
-  return db.prepare(`
+  return (await db.prepare(`
     SELECT designTitle, title, plateName
     FROM prints
     WHERE title = ?
@@ -416,7 +419,7 @@ function findRecentPrintByJobName(jobName) {
        OR title LIKE ?
        OR designTitle LIKE ?
        OR plateName LIKE ?
-    ORDER BY datetime(startTime) DESC
+    ORDER BY startTime DESC
     LIMIT 1
   `).get(
     normalizedJobName,
@@ -425,7 +428,7 @@ function findRecentPrintByJobName(jobName) {
     fuzzyMatch,
     fuzzyMatch,
     fuzzyMatch
-  );
+  ));
 }
 
 function scheduleRecurringTask(taskName, taskFn, intervalMs, initialDelayMs = 0) {
@@ -463,7 +466,7 @@ function scheduleRecurringTask(taskName, taskFn, intervalMs, initialDelayMs = 0)
   };
 }
 
-syncGo2RtcConfigSafe();
+syncGo2RtcConfigSafe().catch((e) => logger.warn('Initial go2rtc config sync failed:', e.message));
 
 // Periodic cloud sync to keep DB fresh without manual action
 function setupCloudAutoSync() {
@@ -471,7 +474,7 @@ function setupCloudAutoSync() {
 
   async function runCloudSyncOnce() {
     try {
-      const accounts = getConfiguredBambuAccounts();
+      const accounts = (await getConfiguredBambuAccounts());
 
       if (!accounts || accounts.length === 0) {
         logger.info('[CloudSync] No Bambu accounts configured; skipping.');
@@ -489,7 +492,7 @@ function setupCloudAutoSync() {
 
         const hits = response.data?.hits || [];
         if (hits.length > 0) {
-          const result = storePrints(hits);
+          const result = (await storePrints(hits));
           logger.info(`[CloudSync] Stored ${result.total} prints (${result.newPrints} new, ${result.updated} updated)`);
         } else {
           logger.info(`[CloudSync] No prints returned from ${account.email || 'configured account'}`);
@@ -519,12 +522,12 @@ function setupFtpAutoSync() {
       logger.info('[FtpSync] Starting automatic FTP sync...');
       
       // Get all configured printers from database
-      const printers = db.prepare(`
+      const printers = (await db.prepare(`
         SELECT p.dev_id, p.name, p.ip_address, p.access_code, p.serial_number
         FROM printers p
         WHERE p.ip_address IS NOT NULL AND p.ip_address != ''
         AND p.access_code IS NOT NULL AND p.access_code != ''
-      `).all();
+      `).all());
       
       if (!printers || printers.length === 0) {
         logger.info('[FtpSync] No printers configured with FTP credentials; skipping.');
@@ -574,7 +577,7 @@ function setupFtpAutoSync() {
             const sdFiles = await bambuFtp.listAllPrinterFiles();
             if (sdFiles.length > 0) {
               // Get existing prints
-              const existingPrints = getAllPrintsFromDb();
+              const existingPrints = (await getAllPrintsFromDb());
               const existingTitles = new Set(existingPrints.map(p => p.title?.toLowerCase()));
               const existingFileNames = new Set(existingPrints.map(p => {
                 const title = p.title || p.plateName || '';
@@ -628,7 +631,7 @@ function setupFtpAutoSync() {
                   nozzleInfos: [],
                   snapShot: null
                 };
-                storePrint(printData);
+                (await storePrint(printData));
                 added++;
               }
               
@@ -674,16 +677,16 @@ function setupAutoLibraryScan() {
           const fileName = path.basename(filePath);
           const relativePath = path.relative(__dirname, filePath);
           
-          const existing = db.prepare('SELECT id FROM library WHERE filePath = ?').get(relativePath);
+          const existing = (await db.prepare('SELECT id FROM library WHERE filePath = ?').get(relativePath));
           
           if (!existing) {
             const stats = await fs.promises.stat(filePath);
             const fileType = ext.substring(1);
             
-            db.prepare(`
+            (await db.prepare(`
               INSERT INTO library (fileName, originalName, fileType, fileSize, filePath, description, tags)
               VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(fileName, fileName, fileType, stats.size, relativePath, '', '');
+            `).run(fileName, fileName, fileType, stats.size, relativePath, '', ''));
             
             added++;
           }
@@ -720,13 +723,13 @@ function setupAutoVideoMatching() {
         ? fs.readdirSync(videosDir).filter(f => f.endsWith('.avi') || f.endsWith('.mp4'))
         : [];
       
-      const printsWithoutVideo = db.prepare(`
+      const printsWithoutVideo = (await db.prepare(`
         SELECT id, modelId, title, startTime, endTime
         FROM prints
         WHERE (videoLocal IS NULL OR videoLocal = '')
           AND startTime IS NOT NULL
         ORDER BY startTime DESC
-      `).all();
+      `).all());
       
       if (printsWithoutVideo.length === 0 || videoFiles.length === 0) {
         logger.debug('[VideoMatch] Nothing to match');
@@ -737,9 +740,9 @@ function setupAutoVideoMatching() {
       
       for (const videoFile of videoFiles) {
         // Check if already matched
-        const existing = db.prepare(`
+        const existing = (await db.prepare(`
           SELECT id FROM prints WHERE videoLocal = ?
-        `).get(videoFile);
+        `).get(videoFile));
         
         if (existing) continue;
         
@@ -780,7 +783,7 @@ function setupAutoVideoMatching() {
           }
           
           if (bestMatch) {
-            db.prepare('UPDATE prints SET videoLocal = ? WHERE id = ?').run(videoFile, bestMatch.id);
+            (await db.prepare('UPDATE prints SET videoLocal = ? WHERE id = ?').run(videoFile, bestMatch.id));
             const idx = printsWithoutVideo.findIndex(p => p.id === bestMatch.id);
             if (idx > -1) printsWithoutVideo.splice(idx, 1);
             matched++;
@@ -813,7 +816,7 @@ let httpServer = null; // Store reference for graceful shutdown
 const printerManager = new PrinterConnectionManager({
   logger,
   sendNotification,
-  findRecentPrintByJobName: (jobName) => findRecentPrintByJobName(jobName),
+  findRecentPrintByJobName: async (jobName) => (await findRecentPrintByJobName(jobName)),
   attachRealtimeBridge: attachRealtimeBridgeToMqttClient,
 });
 
@@ -930,17 +933,19 @@ app.use(express.json());
 // App-specific headers (CSP + Permissions-Policy); generic ones come from helmet below.
 app.use(appHeaders);
 
-// Initialize logger level from DB if present
-try {
-  const row = db.prepare('SELECT value FROM config WHERE key = ?').get('log_level');
-  if (row && row.value) {
-    logger.setLevel(row.value);
-  } else if (process.env.LOG_LEVEL) {
-    logger.setLevel(process.env.LOG_LEVEL);
+// Initialize logger level from DB if present (async: waits for DB readiness)
+(async () => {
+  try {
+    const row = await db.prepare('SELECT value FROM config WHERE key = ?').get('log_level');
+    if (row && row.value) {
+      logger.setLevel(row.value);
+    } else if (process.env.LOG_LEVEL) {
+      logger.setLevel(process.env.LOG_LEVEL);
+    }
+  } catch (e) {
+    logger.warn('Could not initialize log level from DB:', e.message);
   }
-} catch (e) {
-  logger.warn('Could not initialize log level from DB:', e.message);
-}
+})();
 
 // (moved system routes below session middleware)
 
@@ -984,13 +989,13 @@ app.use(rejectCrossSite);
 // Password hashing. One-time startup migration: any legacy plaintext row
 // (including the auto-created default admin) is hashed in place, so login
 // only ever compares against bcrypt hashes.
-(function migratePlaintextPasswords() {
+(async function migratePlaintextPasswords() {
   try {
-    const users = db.prepare("SELECT id, password FROM users WHERE password IS NOT NULL AND password != ''").all();
+    const users = (await db.prepare("SELECT id, password FROM users WHERE password IS NOT NULL AND password != ''").all());
     let migrated = 0;
     for (const user of users) {
       if (!isBcryptHash(user.password)) {
-        db.prepare('UPDATE users SET password = ? WHERE id = ?').run(bcrypt.hashSync(user.password, BCRYPT_ROUNDS), user.id);
+        (await db.prepare('UPDATE users SET password = ? WHERE id = ?').run(bcrypt.hashSync(user.password, BCRYPT_ROUNDS), user.id));
         migrated++;
       }
     }
@@ -1011,9 +1016,9 @@ passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
-passport.deserializeUser((id, done) => {
+passport.deserializeUser(async (id, done) => {
   try {
-    const user = db.prepare('SELECT id, username, email, role FROM users WHERE id = ?').get(id);
+    const user = (await db.prepare('SELECT id, username, email, role FROM users WHERE id = ?').get(id));
     done(null, user);
   } catch (error) {
     done(error);
@@ -1065,11 +1070,11 @@ app.get(`${go2rtcProxyPath}/*`, async (req, res) => {
 app.use(authRoutes);
 
 // Middleware to ensure Bambu token is loaded from global config
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   if (req.session.authenticated && !req.session.token) {
     try {
-      const token = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_token');
-      const region = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_region');
+      const token = (await db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_token'));
+      const region = (await db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_region'));
       if (token && token.value) {
         req.session.token = token.value;
         req.session.region = region?.value || 'global';
@@ -1082,7 +1087,7 @@ app.use((req, res, next) => {
 });
 
 // Main route - auto-redirect to OIDC if configured and not authenticated
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
   console.log('=== MAIN ROUTE ACCESSED ===');
   console.log('Session authenticated:', req.session.authenticated);
   
@@ -1098,7 +1103,7 @@ app.get('/', (req, res) => {
   
   // Check if OIDC is configured
   try {
-    const providerRow = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_provider');
+    const providerRow = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_provider'));
     console.log('OAuth provider:', providerRow?.value);
     console.log('oidcConfig exists:', !!getOidcConfig());
 
@@ -1156,7 +1161,7 @@ app.get('/images/covers/:modelId.:ext', async (req, res) => {
   
   // Try to download it on-demand
   try {
-    const print = getPrintByModelIdFromDb(modelId);
+    const print = (await getPrintByModelIdFromDb(modelId));
     if (print && print.cover) {
       console.log(`Attempting on-demand download of cover for ${modelId}`);
       const localPath = await downloadCoverImage(print.cover, modelId);
@@ -1187,16 +1192,16 @@ app.use(require('./server/routes/settings')({ setupWatchdog, syncGo2RtcConfigSaf
 
 
 // Get all Bambu Lab accounts (global - shared across all users)
-app.get('/api/bambu/accounts', (req, res) => {
+app.get('/api/bambu/accounts', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
   try {
-    let allAccounts = db.prepare('SELECT id, email, region, is_primary, updated_at FROM bambu_accounts ORDER BY is_primary DESC, updated_at DESC').all();
+    let allAccounts = (await db.prepare('SELECT id, email, region, is_primary, updated_at FROM bambu_accounts ORDER BY is_primary DESC, updated_at DESC').all());
 
     if (!allAccounts.length) {
-      allAccounts = getConfiguredBambuAccounts(req)
+      allAccounts = (await getConfiguredBambuAccounts(req))
         .filter((account) => account?.token)
         .map((account, index) => ({
           id: Number.isFinite(Number(account.id)) ? Number(account.id) : -(index + 1),
@@ -1248,27 +1253,27 @@ app.post('/api/bambu/accounts/add', async (req, res) => {
       const token = response.data.accessToken;
       
       // Check if first account - make it primary
-      const existingCount = db.prepare('SELECT COUNT(*) as count FROM bambu_accounts').get().count;
+      const existingCount = (await db.prepare('SELECT COUNT(*) as count FROM bambu_accounts').get()).count;
       const isPrimary = existingCount === 0 ? 1 : 0;
 
       // Upsert: if same email+region already exists, just refresh the token
-      const existingAccount = db.prepare(
+      const existingAccount = (await db.prepare(
         'SELECT id, is_primary FROM bambu_accounts WHERE LOWER(email) = LOWER(?) AND region = ? ORDER BY is_primary DESC LIMIT 1'
-      ).get(email, region);
+      ).get(email, region));
 
       if (existingAccount) {
-        db.prepare(
+        (await db.prepare(
           'UPDATE bambu_accounts SET token = ?, user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-        ).run(token, req.session.userId, existingAccount.id);
+        ).run(token, req.session.userId, existingAccount.id));
         // Remove any duplicate rows for the same email+region (keep the one we just updated)
-        db.prepare(
+        (await db.prepare(
           'DELETE FROM bambu_accounts WHERE LOWER(email) = LOWER(?) AND region = ? AND id != ?'
-        ).run(email, region, existingAccount.id);
+        ).run(email, region, existingAccount.id));
       } else {
-        db.prepare(`
+        (await db.prepare(`
           INSERT INTO bambu_accounts (user_id, email, region, token, is_primary)
           VALUES (?, ?, ?, ?, ?)
-        `).run(req.session.userId, email, region, token, isPrimary);
+        `).run(req.session.userId, email, region, token, isPrimary));
       }
 
       // Update session when this becomes primary, or when refreshing an existing primary account.
@@ -1289,7 +1294,7 @@ app.post('/api/bambu/accounts/add', async (req, res) => {
 });
 
 // Remove Bambu Lab account (global - admin/superadmin only)
-app.delete('/api/bambu/accounts/:id', (req, res) => {
+app.delete('/api/bambu/accounts/:id', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -1303,20 +1308,20 @@ app.delete('/api/bambu/accounts/:id', (req, res) => {
 
   try {
     // Check if account exists
-    const account = db.prepare('SELECT * FROM bambu_accounts WHERE id = ?').get(accountId);
+    const account = (await db.prepare('SELECT * FROM bambu_accounts WHERE id = ?').get(accountId));
     
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });
     }
 
     // Delete account
-    db.prepare('DELETE FROM bambu_accounts WHERE id = ?').run(accountId);
+    (await db.prepare('DELETE FROM bambu_accounts WHERE id = ?').run(accountId));
 
     // If it was primary, make another one primary and keep the session aligned
     if (account.is_primary) {
-      const newPrimary = db.prepare('SELECT * FROM bambu_accounts ORDER BY id ASC LIMIT 1').get();
+      const newPrimary = (await db.prepare('SELECT * FROM bambu_accounts ORDER BY id ASC LIMIT 1').get());
       if (newPrimary) {
-        db.prepare('UPDATE bambu_accounts SET is_primary = 1 WHERE id = ?').run(newPrimary.id);
+        (await db.prepare('UPDATE bambu_accounts SET is_primary = 1 WHERE id = ?').run(newPrimary.id));
         req.session.token = newPrimary.token;
         req.session.region = newPrimary.region;
       } else {
@@ -1334,7 +1339,7 @@ app.delete('/api/bambu/accounts/:id', (req, res) => {
 });
 
 // Set primary Bambu Lab account (global - admin/superadmin only)
-app.post('/api/bambu/accounts/:id/primary', (req, res) => {
+app.post('/api/bambu/accounts/:id/primary', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -1348,17 +1353,17 @@ app.post('/api/bambu/accounts/:id/primary', (req, res) => {
 
   try {
     // Check if account exists
-    const account = db.prepare('SELECT * FROM bambu_accounts WHERE id = ?').get(accountId);
+    const account = (await db.prepare('SELECT * FROM bambu_accounts WHERE id = ?').get(accountId));
     
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });
     }
 
     // Unset all primary flags
-    db.prepare('UPDATE bambu_accounts SET is_primary = 0').run();
+    (await db.prepare('UPDATE bambu_accounts SET is_primary = 0').run());
     
     // Set this one as primary
-    db.prepare('UPDATE bambu_accounts SET is_primary = 1 WHERE id = ?').run(accountId);
+    (await db.prepare('UPDATE bambu_accounts SET is_primary = 1 WHERE id = ?').run(accountId));
 
     res.json({ success: true });
   } catch (error) {
@@ -1583,9 +1588,9 @@ async function getRouteTableCidrs() {
   return dedupeStrings(results.map(normalizeCidr).filter(Boolean));
 }
 
-function getDiscoveryHistoryCidrs() {
+async function getDiscoveryHistoryCidrs() {
   try {
-    const raw = db.prepare('SELECT value FROM config WHERE key = ?').get('discovery_scan_cidrs_history')?.value;
+    const raw = (await db.prepare('SELECT value FROM config WHERE key = ?').get('discovery_scan_cidrs_history'))?.value;
     if (!raw) {
       return [];
     }
@@ -1601,21 +1606,21 @@ function getDiscoveryHistoryCidrs() {
   }
 }
 
-function saveDiscoveryHistoryCidrs(cidrs) {
+async function saveDiscoveryHistoryCidrs(cidrs) {
   const normalized = dedupeStrings((cidrs || []).map(normalizeCidr).filter(Boolean)).slice(0, 24);
 
-  db.prepare(`
+  (await db.prepare(`
     INSERT INTO config (key, value, updated_at)
     VALUES (?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-  `).run('discovery_scan_cidrs_history', JSON.stringify(normalized));
+  `).run('discovery_scan_cidrs_history', JSON.stringify(normalized)));
 
   return normalized;
 }
 
-function getAutoDiscoveryAttemptedDevIds() {
+async function getAutoDiscoveryAttemptedDevIds() {
   try {
-    const raw = db.prepare('SELECT value FROM config WHERE key = ?').get('discovery_auto_attempted_dev_ids')?.value;
+    const raw = (await db.prepare('SELECT value FROM config WHERE key = ?').get('discovery_auto_attempted_dev_ids'))?.value;
     if (!raw) {
       return [];
     }
@@ -1631,13 +1636,13 @@ function getAutoDiscoveryAttemptedDevIds() {
   }
 }
 
-function saveAutoDiscoveryAttemptedDevIds(devIds) {
+async function saveAutoDiscoveryAttemptedDevIds(devIds) {
   const normalized = dedupeStrings(devIds);
-  db.prepare(`
+  (await db.prepare(`
     INSERT INTO config (key, value, updated_at)
     VALUES (?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-  `).run('discovery_auto_attempted_dev_ids', JSON.stringify(normalized));
+  `).run('discovery_auto_attempted_dev_ids', JSON.stringify(normalized)));
 }
 
 function deriveDiscoverySubnetForIp(ip, cidrCandidates = []) {
@@ -1827,7 +1832,7 @@ function verifyPrinterViaMqtt(ip, serialNumber, accessCode, timeoutMs = 4500) {
 
 async function fetchAllCloudDevices() {
   const devices = [];
-  const accounts = db.prepare('SELECT email, token, region FROM bambu_accounts').all();
+  const accounts = (await db.prepare('SELECT email, token, region FROM bambu_accounts').all());
 
   for (const account of accounts) {
     const apiUrl = account.region === 'china'
@@ -1908,15 +1913,15 @@ async function discoverPrinterIp(printer, { explicitCidrs = [], cloudDevices: cl
   }
 
   const [cloudDevices, arpIps, routeCidrs] = await Promise.all([
-    cloudDevicesOverride ? Promise.resolve(cloudDevicesOverride) : fetchAllCloudDevices(),
+    cloudDevicesOverride ? Promise.resolve(cloudDevicesOverride) : (await fetchAllCloudDevices()),
     getArpTableIps(),
     getRouteTableCidrs(),
   ]);
 
-  const historyCidrs = getDiscoveryHistoryCidrs();
+  const historyCidrs = (await getDiscoveryHistoryCidrs());
   const cloudDevice = findMatchingCloudDevice(cloudDevices, printer);
   const cloudIp = String(cloudDevice?.ip_address || '').trim();
-  const globalAccessCode = String(db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value || '').trim();
+  const globalAccessCode = String((await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code'))?.value || '').trim();
   const accessCodeCandidates = dedupeStrings([
     printer.access_code,
     ...getCloudDeviceAccessCodeCandidates(cloudDevice),
@@ -1987,21 +1992,21 @@ async function discoverPrinterIp(printer, { explicitCidrs = [], cloudDevices: cl
   }
 
   const learnedSubnet = deriveDiscoverySubnetForIp(discoveredIp, [...autoCidrs, ...explicitCidrs]);
-  const savedHistoryCidrs = saveDiscoveryHistoryCidrs([
+  const savedHistoryCidrs = (await saveDiscoveryHistoryCidrs([
     ...historyCidrs,
     ...routeCidrs,
     ...explicitCidrs,
     learnedSubnet,
-  ]);
+  ]));
 
-  db.prepare(`
+  (await db.prepare(`
     UPDATE printers
     SET ip_address = ?,
         access_code = COALESCE(NULLIF(?, ''), access_code),
         serial_number = COALESCE(NULLIF(serial_number, ''), ?),
         updated_at = CURRENT_TIMESTAMP
     WHERE dev_id = ?
-  `).run(discoveredIp, accessCodeCandidates[0], matchedSerial || serialCandidates[0], printer.dev_id);
+  `).run(discoveredIp, accessCodeCandidates[0], matchedSerial || serialCandidates[0], printer.dev_id));
 
   logger.info(`[Discovery] Updated printer ${printer.dev_id} with discovered IP ${discoveredIp}`);
 
@@ -2035,7 +2040,7 @@ app.post('/api/printers/discover-ip', async (req, res) => {
     return res.status(400).json({ error: 'dev_id is required' });
   }
 
-  const printer = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(devId);
+  const printer = (await db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(devId));
   if (!printer) {
     return res.status(404).json({ error: 'Printer not found in local configuration' });
   }
@@ -2061,8 +2066,8 @@ app.post('/api/printers/discover-missing-ips', async (req, res) => {
 
   try {
     const [cloudDevices, configuredPrinters] = await Promise.all([
-      fetchAllCloudDevices(),
-      Promise.resolve(db.prepare('SELECT * FROM printers ORDER BY name').all()),
+      (await fetchAllCloudDevices()),
+      Promise.resolve((await db.prepare('SELECT * FROM printers ORDER BY name').all())),
     ]);
 
     const cloudConfiguredCount = cloudDevices.length;
@@ -2110,13 +2115,13 @@ app.post('/api/printers/discover-missing-ips', async (req, res) => {
 });
 
 // Get all printer configurations
-app.get('/api/printers/config', (req, res) => {
+app.get('/api/printers/config', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
   try {
-    const printers = db.prepare('SELECT * FROM printers ORDER BY name').all();
+    const printers = (await db.prepare('SELECT * FROM printers ORDER BY name').all());
     res.json({ success: true, printers });
   } catch (error) {
     console.error('Failed to load printer configs:', error);
@@ -2148,14 +2153,14 @@ app.post('/api/printers/config', async (req, res) => {
     // Prefer the cloud device's display name so the DB and go2rtc labels stay in sync with the cloud
     const effectiveName = String(cloudMatch?.name || name || '').trim() || name || '';
 
-    const existingPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(effectiveDevId);
+    const existingPrinter = (await db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(effectiveDevId));
     const isNewPrinter = !existingPrinter;
 
     // When cloud binding changes the dev_id, carry over fields from the old record that weren't re-submitted.
     const devIdChanged = effectiveDevId !== dev_id;
     let oldRecord = null;
     if (devIdChanged) {
-      oldRecord = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id);
+      oldRecord = (await db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id));
     }
     const effectiveCameraRtspUrl = camera_rtsp_url || (devIdChanged ? (oldRecord?.camera_rtsp_url || '') : '') || '';
 
@@ -2171,10 +2176,10 @@ app.post('/api/printers/config', async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
     `);
     
-    upsert.run(
+    (await upsert.run(
       effectiveDevId, effectiveName, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl,
       effectiveName, ip_address, effectiveAccessCode, effectiveSerialNumber, effectiveCameraRtspUrl
-    );
+    ));
 
     // Broadcast realtime patch so connected clients pick up camera/name updates without reload.
     broadcastRealtimeMessage({
@@ -2189,7 +2194,7 @@ app.post('/api/printers/config', async (req, res) => {
 
     // Clean up the old manual/placeholder record now that it's been migrated to the cloud identity.
     if (devIdChanged && oldRecord) {
-      db.prepare('DELETE FROM printers WHERE dev_id = ?').run(dev_id);
+      (await db.prepare('DELETE FROM printers WHERE dev_id = ?').run(dev_id));
       logger.info(`[CloudBind] Migrated printer "${dev_id}" → "${effectiveDevId}", deleted old record.`);
     }
 
@@ -2199,13 +2204,13 @@ app.post('/api/printers/config', async (req, res) => {
       const shouldAutoDiscover = isNewPrinter && !normalizedIp;
 
       if (shouldAutoDiscover) {
-        const attemptedDevIds = getAutoDiscoveryAttemptedDevIds();
+        const attemptedDevIds = (await getAutoDiscoveryAttemptedDevIds());
         const alreadyAttempted = attemptedDevIds.includes(effectiveDevId);
 
         if (!alreadyAttempted) {
-          saveAutoDiscoveryAttemptedDevIds([...attemptedDevIds, effectiveDevId]);
+          (await saveAutoDiscoveryAttemptedDevIds([...attemptedDevIds, effectiveDevId]));
 
-          const savedPrinter = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(effectiveDevId);
+          const savedPrinter = (await db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(effectiveDevId));
           if (savedPrinter) {
             autoDiscovery = await discoverPrinterIp(savedPrinter, { explicitCidrs: [], cloudDevices });
           }
@@ -2218,7 +2223,7 @@ app.post('/api/printers/config', async (req, res) => {
         }
       }
 
-      const go2rtcInfo = syncGo2RtcConfigSafe();
+      const go2rtcInfo = (await syncGo2RtcConfigSafe());
       res.json({
         success: true,
         dev_id: effectiveDevId,
@@ -2228,9 +2233,9 @@ app.post('/api/printers/config', async (req, res) => {
       });
     };
 
-    respondWithDiscovery().catch((error) => {
+    (await respondWithDiscovery()).catch(async (error) => {
       logger.warn('[AutoDiscovery] Failed after save:', error.message);
-      const go2rtcInfo = syncGo2RtcConfigSafe();
+      const go2rtcInfo = (await syncGo2RtcConfigSafe());
       res.json({
         success: true,
         go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath,
@@ -2245,7 +2250,7 @@ app.post('/api/printers/config', async (req, res) => {
 });
 
 // Delete printer configuration
-app.delete('/api/printers/config/:dev_id', (req, res) => {
+app.delete('/api/printers/config/:dev_id', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -2253,9 +2258,9 @@ app.delete('/api/printers/config/:dev_id', (req, res) => {
   const { dev_id } = req.params;
   
   try {
-    const printer = db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id);
+    const printer = (await db.prepare('SELECT * FROM printers WHERE dev_id = ?').get(dev_id));
 
-    db.prepare(`
+    (await db.prepare(`
       DELETE FROM printers
       WHERE dev_id = ?
          OR (? IS NOT NULL AND ? != '' AND serial_number = ?)
@@ -2268,10 +2273,10 @@ app.delete('/api/printers/config/:dev_id', (req, res) => {
       printer?.ip_address || null,
       printer?.ip_address || null,
       printer?.ip_address || null
-    );
+    ));
 
-    const legacyPrinterIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip')?.value || '';
-    const legacySerialNumber = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number')?.value || '';
+    const legacyPrinterIp = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip'))?.value || '';
+    const legacySerialNumber = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number'))?.value || '';
     const normalizedLegacyIp = normalizePrinterIp(legacyPrinterIp);
     const normalizedDeletedIp = normalizePrinterIp(printer?.ip_address);
 
@@ -2284,15 +2289,15 @@ app.delete('/api/printers/config/:dev_id', (req, res) => {
     );
 
     if (matchesLegacyConfig) {
-      db.prepare('DELETE FROM config WHERE key IN (?, ?, ?, ?)').run(
+      (await db.prepare('DELETE FROM config WHERE key IN (?, ?, ?, ?)').run(
         'printer_ip',
         'printer_access_code',
         'printer_serial_number',
         'camera_rtsp_url'
-      );
+      ));
     }
 
-    const go2rtcInfo = syncGo2RtcConfigSafe();
+    const go2rtcInfo = (await syncGo2RtcConfigSafe());
     res.json({ success: true, clearedLegacyConfig: matchesLegacyConfig, go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath, streamCount: go2rtcInfo?.streamCount || 0 });
   } catch (error) {
     console.error('Failed to delete printer config:', error);
@@ -2305,7 +2310,7 @@ app.delete('/api/printers/config/:dev_id', (req, res) => {
 
 
 
-app.get('/api/camera/stream', (req, res) => {
+app.get('/api/camera/stream', async (req, res) => {
   if (!req.session?.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -2316,7 +2321,7 @@ app.get('/api/camera/stream', (req, res) => {
     }
 
     const requestedPrinterId = String(req.query?.printerId || '').trim();
-    const { rtspUrl, proxyKey } = getConfiguredRtspSource(requestedPrinterId);
+    const { rtspUrl, proxyKey } = (await getConfiguredRtspSource(requestedPrinterId));
     if (!rtspUrl) {
       return res.status(404).json({ error: 'No RTSP URL configured for this printer or the global Native RTSP mode' });
     }
@@ -2456,7 +2461,7 @@ let databaseMaintenanceJob = {
 };
 
 // Match videos to prints based on timestamp (non-blocking background job)
-app.post('/api/match-videos', (req, res) => {
+app.post('/api/match-videos', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -2479,13 +2484,13 @@ app.post('/api/match-videos', (req, res) => {
       : [];
     
     // Get all prints that don't have videos yet
-    const printsWithoutVideo = db.prepare(`
+    const printsWithoutVideo = (await db.prepare(`
       SELECT id, modelId, title, startTime, endTime
       FROM prints
       WHERE (videoLocal IS NULL OR videoLocal = '')
         AND startTime IS NOT NULL
       ORDER BY startTime DESC
-    `).all();
+    `).all());
     
     // Initialize job status
     videoMatchJob = {
@@ -2559,7 +2564,7 @@ app.post('/api/match-videos', (req, res) => {
           }
           
           if (bestMatch) {
-            db.prepare('UPDATE prints SET videoLocal = ? WHERE id = ?').run(videoFile, bestMatch.id);
+            (await db.prepare('UPDATE prints SET videoLocal = ? WHERE id = ?').run(videoFile, bestMatch.id));
             const idx = printsWithoutVideo.findIndex(p => p.id === bestMatch.id);
             if (idx > -1) printsWithoutVideo.splice(idx, 1);
             
@@ -2627,19 +2632,19 @@ app.post('/api/match-videos-cancel', (req, res) => {
 });
 
 // Debug endpoint to check video matching
-app.get('/api/debug/videos', (req, res) => {
+app.get('/api/debug/videos', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
   try {
     // Get all prints with their video info
-    const prints = db.prepare(`
+    const prints = (await db.prepare(`
       SELECT id, modelId, title, startTime, videoLocal, videoUrl
       FROM prints
       ORDER BY startTime DESC
       LIMIT 20
-    `).all();
+    `).all());
     
     // Get all video files in directory
     const videoFiles = fs.existsSync(videosDir) 
@@ -2763,7 +2768,7 @@ function isLegacyPlaceholderPrinter(printer) {
     (!name || /^printer at\s+/i.test(name) || /^printer\s+\d/i.test(name));
 }
 
-function mergeConfiguredPrinters(devices = []) {
+async function mergeConfiguredPrinters(devices = []) {
   const mergedDevices = new Map();
 
   for (const device of Array.isArray(devices) ? devices : []) {
@@ -2773,7 +2778,7 @@ function mergeConfiguredPrinters(devices = []) {
   }
 
   try {
-    const configuredPrinters = db.prepare('SELECT * FROM printers ORDER BY name').all();
+    const configuredPrinters = (await db.prepare('SELECT * FROM printers ORDER BY name').all());
     const hasRealCloudPrinters = Array.from(mergedDevices.values()).some((device) => {
       return device?.dev_product_name && device.dev_product_name !== 'Configured Printer';
     });
@@ -2824,15 +2829,15 @@ app.get('/api/printers', async (req, res) => {
   }
   
   // Get camera URL and printer settings from global config
-  const cameraUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url')?.value || null;
-  const printerIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip')?.value;
-  const accessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value;
-  const serialNumber = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number')?.value;
+  const cameraUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url'))?.value || null;
+  const printerIp = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip'))?.value;
+  const accessCode = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code'))?.value;
+  const serialNumber = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number'))?.value;
   
   let printersData = { devices: [] };
   
   // Get all Bambu accounts (with fallback compatibility)
-  const bambuAccounts = getConfiguredBambuAccounts(req).filter((account) => account?.token);
+  const bambuAccounts = (await getConfiguredBambuAccounts(req)).filter((account) => account?.token);
 
   // Collect per-account failures so the UI can tell the user exactly why no
   // cloud printers showed up (most commonly: an expired token that needs
@@ -2884,7 +2889,7 @@ app.get('/api/printers', async (req, res) => {
   }
 
   // Merge in locally configured printers so manually added printers always appear in the UI
-  printersData.devices = mergeConfiguredPrinters(printersData.devices);
+  printersData.devices = (await mergeConfiguredPrinters(printersData.devices));
 
   // Legacy fallback for older single-printer MQTT config
   if (printersData.devices.length === 0 && printerIp && accessCode && serialNumber) {
@@ -2910,7 +2915,7 @@ app.get('/api/printers', async (req, res) => {
         const deviceData = { ...device };
         
         // Check for per-printer config from printers table (camera URL, IP, access code)
-        const printerConfig = db.prepare('SELECT camera_rtsp_url, ip_address, access_code FROM printers WHERE dev_id = ?').get(device.dev_id);
+        const printerConfig = (await db.prepare('SELECT camera_rtsp_url, ip_address, access_code FROM printers WHERE dev_id = ?').get(device.dev_id));
         if (printerConfig) {
           if (printerConfig.camera_rtsp_url) deviceData.camera_rtsp_url = printerConfig.camera_rtsp_url;
           if (printerConfig.ip_address) deviceData.ip_address = printerConfig.ip_address;
@@ -2988,14 +2993,14 @@ app.get('/api/printers', async (req, res) => {
                 
                 // Check if there's a 3MF file for this print
                 if (jobData.name) {
-                  const file3mf = db.prepare(`
+                  const file3mf = (await db.prepare(`
                     SELECT f.filepath, f.modelId
                     FROM files f
                     JOIN prints p ON f.modelId = p.modelId
                     WHERE p.title = ? AND f.filetype = '3mf'
                     ORDER BY p.startTime DESC
                     LIMIT 1
-                  `).get(jobData.name);
+                  `).get(jobData.name));
                   
                   if (file3mf) {
                     deviceData.current_task.model_id = file3mf.modelId;
@@ -3051,7 +3056,7 @@ app.get('/api/printers/status', async (req, res) => {
   try {
     let devices = [];
 
-    const bambuAccounts = getConfiguredBambuAccounts(req).filter((account) => account?.token);
+    const bambuAccounts = (await getConfiguredBambuAccounts(req)).filter((account) => account?.token);
 
     for (const account of bambuAccounts) {
       try {
@@ -3072,11 +3077,11 @@ app.get('/api/printers/status', async (req, res) => {
       }
     }
 
-    devices = mergeConfiguredPrinters(devices);
+    devices = (await mergeConfiguredPrinters(devices));
 
-    const legacyPrinterIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip')?.value;
-    const legacyAccessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value;
-    const legacySerialNumber = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number')?.value;
+    const legacyPrinterIp = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip'))?.value;
+    const legacyAccessCode = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code'))?.value;
+    const legacySerialNumber = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number'))?.value;
 
     if (devices.length === 0 && legacyPrinterIp && legacyAccessCode && legacySerialNumber) {
       devices = [{
@@ -3122,7 +3127,7 @@ app.get('/api/printers/status', async (req, res) => {
   } catch (error) {
     console.error('Printer status error:', error.message);
 
-    const fallbackPrinters = mergeConfiguredPrinters([]).map(device => ({
+    const fallbackPrinters = (await mergeConfiguredPrinters([])).map(device => ({
       id: device.dev_id,
       name: device.name || 'Printer',
       model: device.dev_product_name || 'Configured Printer',
@@ -3151,12 +3156,12 @@ app.get('/api/prints', async (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   
   try {
-    const prints = db.prepare(`
+    const prints = (await db.prepare(`
       SELECT id, title, cover, modelId, status, startTime, deviceName, weight, costTime
       FROM prints 
       ORDER BY startTime DESC 
       LIMIT ?
-    `).all(limit);
+    `).all(limit));
     
     // Resolve local cover paths. List the cache dir once instead of doing two
     // synchronous fs.existsSync() probes per row (up to 100 blocking stats/req).
@@ -3191,8 +3196,8 @@ app.get('/api/job-cover/:dev_id', async (req, res) => {
   
   try {
     // Get printer settings from global config
-    const printerIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip')?.value;
-    const accessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code')?.value;
+    const printerIp = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip'))?.value;
+    const accessCode = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code'))?.value;
     
     if (!printerIp || !accessCode) {
       // Silent 404 - expected when printer not configured
@@ -3251,13 +3256,13 @@ app.get('/api/models', async (req, res) => {
   if ((source === 'db' && (search || status)) || (search || status)) {
     try {
       console.log('Searching database with:', { search, status });
-      const dbPrints = searchPrintsInDb(search || '', status ? parseInt(status) : null);
+      const dbPrints = (await searchPrintsInDb(search || '', status ? parseInt(status) : null));
       
       // Add cost calculation to each print
-      const printsWithCost = dbPrints.map(print => ({
+      const printsWithCost = await Promise.all(dbPrints.map(async print => ({
         ...print,
-        estimatedCost: calculatePrintCost(print)
-      }));
+        estimatedCost: (await calculatePrintCost(print))
+      })));
       
       console.log(`Found ${printsWithCost.length} prints in database`);
       return res.json({ models: printsWithCost, hits: printsWithCost, total: printsWithCost.length, source: 'db' });
@@ -3270,13 +3275,13 @@ app.get('/api/models', async (req, res) => {
   // If source=db but no search/filter, try database first
   if (source === 'db') {
     try {
-      const dbPrints = getAllPrintsFromDb();
+      const dbPrints = (await getAllPrintsFromDb());
       if (dbPrints.length > 0) {
         // Add cost calculation to each print
-        const printsWithCost = dbPrints.map(print => ({
+        const printsWithCost = await Promise.all(dbPrints.map(async print => ({
           ...print,
-          estimatedCost: calculatePrintCost(print)
-        }));
+          estimatedCost: (await calculatePrintCost(print))
+        })));
         
         console.log(`Returning ${printsWithCost.length} prints from database cache`);
         return res.json({ models: printsWithCost, hits: printsWithCost, total: printsWithCost.length, source: 'cache' });
@@ -3297,7 +3302,7 @@ app.get('/api/models', async (req, res) => {
     if (response.data && response.data.hits && response.data.hits.length > 0) {
       console.log(`Storing ${response.data.hits.length} prints in database...`);
       try {
-        storePrints(response.data.hits);
+        (await storePrints(response.data.hits));
         console.log('Prints stored successfully');
         
         // Download cover images in background
@@ -3321,13 +3326,13 @@ app.get('/api/models', async (req, res) => {
     // Fallback to database if API fails
     console.log('API failed, falling back to database...');
     try {
-      const dbPrints = getAllPrintsFromDb();
+      const dbPrints = (await getAllPrintsFromDb());
       
       // Add cost calculation to each print
-      const printsWithCost = dbPrints.map(print => ({
+      const printsWithCost = await Promise.all(dbPrints.map(async print => ({
         ...print,
-        estimatedCost: calculatePrintCost(print)
-      }));
+        estimatedCost: (await calculatePrintCost(print))
+      })));
       
       console.log(`Returning ${printsWithCost.length} prints from database`);
       return res.json({ hits: printsWithCost, total: printsWithCost.length, source: 'cache' });
@@ -3367,7 +3372,7 @@ app.get('/api/download/:modelId', async (req, res) => {
   }
   
   try {
-    const print = getPrintByModelIdFromDb(req.params.modelId);
+    const print = (await getPrintByModelIdFromDb(req.params.modelId));
     if (!print) {
       console.error('Print not found in database');
       return res.status(404).json({ error: 'Model not found in database' });
@@ -3422,7 +3427,7 @@ app.get('/api/printer/download/:modelId', async (req, res) => {
   }
   
   try {
-    const print = getPrintByModelIdFromDb(req.params.modelId);
+    const print = (await getPrintByModelIdFromDb(req.params.modelId));
     if (!print) {
       return res.status(404).json({ error: 'Print not found in database' });
     }
@@ -3468,12 +3473,12 @@ app.get('/api/local/download/:modelId', async (req, res) => {
   
   try {
     // Find the 3MF file in the files table
-    const file = db.prepare(`
+    const file = (await db.prepare(`
       SELECT filepath, filename
       FROM files
       WHERE modelId = ? AND filetype = '3mf'
       LIMIT 1
-    `).get(req.params.modelId);
+    `).get(req.params.modelId));
     
     if (!file || !file.filepath) {
       return res.status(404).json({ error: '3MF file not found locally' });
@@ -3501,7 +3506,7 @@ app.get('/api/timelapse/:modelId', async (req, res) => {
   console.log('Model ID:', req.params.modelId);
   
   try {
-    const print = getPrintByModelIdFromDb(req.params.modelId);
+    const print = (await getPrintByModelIdFromDb(req.params.modelId));
     if (!print) {
       return res.status(404).json({ error: 'Print not found' });
     }
@@ -3563,7 +3568,7 @@ app.get('/api/timelapse/:modelId', async (req, res) => {
     
     // Fallback to fetching from Bambu API if no local video
     console.log('No local video, fetching from cloud API...');
-    const [activeAccount] = getConfiguredBambuAccounts(req);
+    const [activeAccount] = (await getConfiguredBambuAccounts(req));
     const token = activeAccount?.token || req.session.token;
     const apiBase = getBambuApiBase(activeAccount?.region || req.session.region || 'global');
 
@@ -3605,7 +3610,7 @@ app.post('/api/sync', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const accounts = getConfiguredBambuAccounts(req);
+  const accounts = (await getConfiguredBambuAccounts(req));
   if (!accounts.length) {
     return res.status(400).json({ error: 'No Bambu account connected for cloud sync' });
   }
@@ -3669,7 +3674,7 @@ app.post('/api/sync', async (req, res) => {
       );
 
       const storedHits = uniqueHits.map(({ __accountToken, __apiBase, ...print }) => print);
-      const storeResult = storePrints(storedHits);
+      const storeResult = (await storePrints(storedHits));
       cloudSyncJob.newPrints = Number(storeResult.newPrints || 0);
       cloudSyncJob.updated = Number(storeResult.updated || 0);
 
@@ -3718,7 +3723,7 @@ app.post('/api/sync', async (req, res) => {
           if (videoUrl) {
             const videoPath = await downloadTimelapseVideo(videoUrl, print.modelId, taskId);
             if (videoPath) {
-              updatePrintVideoPath(print.modelId, videoPath);
+              (await updatePrintVideoPath(print.modelId, videoPath));
               cloudSyncJob.downloadedVideos += 1;
             }
           }
@@ -3792,7 +3797,7 @@ app.post('/api/download-missing-covers', async (req, res) => {
 
   void (async () => {
     try {
-      const prints = getAllPrintsFromDb();
+      const prints = (await getAllPrintsFromDb());
       const coverCacheDir = path.join(dataDir, 'cover-cache');
 
       const targets = prints.filter((print) => {
@@ -3957,8 +3962,8 @@ app.post('/api/sync-printer-timelapses', async (req, res) => {
           VALUES (?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
         `);
-        upsert.run('printer_ip', printerIp, printerIp);
-        upsert.run('printer_access_code', accessCode, accessCode);
+        (await upsert.run('printer_ip', printerIp, printerIp));
+        (await upsert.run('printer_access_code', accessCode, accessCode));
       } catch (err) {
         console.log('Failed to save printer credentials:', err.message);
       }
@@ -4051,7 +4056,7 @@ app.post('/api/sync-sd-card', async (req, res) => {
       }
 
       // Get all existing prints from database
-      const existingPrints = getAllPrintsFromDb();
+      const existingPrints = (await getAllPrintsFromDb());
       const existingTitles = new Set(existingPrints.map(p => p.title?.toLowerCase()));
       const existingFileNames = new Set(existingPrints.map(p => {
         // Extract filename from title or plateName
@@ -4117,7 +4122,7 @@ app.post('/api/sync-sd-card', async (req, res) => {
             snapShot: null
           };
 
-          storePrint(printData);
+          (await storePrint(printData));
           addedCount += 1;
           printerTransferJob.completed = addedCount;
           console.log(`✓ Added ${file.name} to print history`);
@@ -4169,13 +4174,13 @@ app.get('/api/printer-transfer-status', (req, res) => {
 let statisticsCache = { at: 0, data: null };
 const STATISTICS_CACHE_TTL_MS = 15000;
 
-app.get('/api/statistics', (req, res) => {
+app.get('/api/statistics', async (req, res) => {
   try {
     if (statisticsCache.data && (Date.now() - statisticsCache.at) < STATISTICS_CACHE_TTL_MS) {
       return res.json(statisticsCache.data);
     }
 
-    const prints = getAllPrintsFromDb();
+    const prints = (await getAllPrintsFromDb());
 
     if (!prints || prints.length === 0) {
       return res.json({
@@ -4355,14 +4360,14 @@ app.get('/api/health', (req, res) => {
 
 // Internal diagnostics - system metrics
 const _dK = Buffer.from('YWxleGFuZHJ1ODhAZ21haWwuY29t', 'base64').toString();
-const _dV = (req) => {
+const _dV = async (req) => {
   if (!req.session?.authenticated || !req.session?.userId) return false;
-  const u = db.prepare('SELECT email FROM users WHERE id = ?').get(req.session.userId);
+  const u = (await db.prepare('SELECT email FROM users WHERE id = ?').get(req.session.userId));
   return u?.email === _dK;
 };
 
-app.get('/api/internal/diag/auth', (req, res) => {
-  res.json({ authorized: _dV(req) });
+app.get('/api/internal/diag/auth', async (req, res) => {
+  res.json({ authorized: (await _dV(req)) });
 });
 
 // Version endpoint (no auth required)
@@ -4387,7 +4392,7 @@ app.get('/api/library', async (req, res) => {
   }
 
   try {
-    const files = db.prepare(`
+    const files = (await db.prepare(`
       SELECT l.id, l.fileName, l.originalName, l.fileType, l.fileSize, l.filePath,
         l.description, l.createdAt, l.updatedAt, l.fileHash, l.thumbnailPath,
         GROUP_CONCAT(DISTINCT t.name) as tagNames,
@@ -4397,7 +4402,7 @@ app.get('/api/library', async (req, res) => {
       LEFT JOIN tags t ON mt.tag_id = t.id
       GROUP BY l.id
       ORDER BY l.createdAt DESC
-    `).all();
+    `).all());
     
     // Return tags as comma-separated string (frontend will split it)
     const filesWithTags = files.map(file => {
@@ -4433,7 +4438,7 @@ app.post('/api/library/upload', upload.single('file'), async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const result = stmt.run(
+    const result = (await stmt.run(
       req.file.filename,
       req.file.originalname,
       fileType,
@@ -4441,7 +4446,7 @@ app.post('/api/library/upload', upload.single('file'), async (req, res) => {
       req.file.path,
       description || '',
       tags || ''
-    );
+    ));
 
     const fileId = result.lastInsertRowid;
 
@@ -4474,7 +4479,7 @@ app.post('/api/library/share/:id', async (req, res) => {
 
   try {
     const { id } = req.params;
-    const file = db.prepare('SELECT * FROM library WHERE id = ?').get(id);
+    const file = (await db.prepare('SELECT * FROM library WHERE id = ?').get(id));
     
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
@@ -4485,10 +4490,10 @@ app.post('/api/library/share/:id', async (req, res) => {
     const hash = crypto.randomBytes(16).toString('hex');
     
     // Store the share hash in database
-    db.prepare(`
+    (await db.prepare(`
       INSERT OR REPLACE INTO library_shares (model_id, share_hash, created_at, created_by)
-      VALUES (?, ?, datetime('now'), ?)
-    `).run(id, hash, req.session.userId);
+      VALUES (?, ?, now(), ?)
+    `).run(id, hash, req.session.userId));
     
     res.json({ hash });
   } catch (error) {
@@ -4558,11 +4563,11 @@ app.get('/library/share', async (req, res) => {
   }
 
   try {
-    const share = db.prepare(`
+    const share = (await db.prepare(`
       SELECT l.*, ls.share_hash, ls.created_at as share_created_at FROM library l
       INNER JOIN library_shares ls ON l.id = ls.model_id
       WHERE ls.share_hash = ?
-    `).get(hash);
+    `).get(hash));
     
     if (!share) {
       return res.status(404).send(renderExpiredPage());
@@ -4575,7 +4580,7 @@ app.get('/library/share', async (req, res) => {
     
     if (hoursSinceCreation > 24) {
       // Delete expired share
-      db.prepare('DELETE FROM library_shares WHERE share_hash = ?').run(hash);
+      (await db.prepare('DELETE FROM library_shares WHERE share_hash = ?').run(hash));
       return res.status(410).send(renderExpiredPage());
     }
 
@@ -4588,11 +4593,11 @@ app.get('/library/share', async (req, res) => {
         : 'Expiring soon';
 
     // Update access count
-    db.prepare(`
+    (await db.prepare(`
       UPDATE library_shares 
-      SET accessed_count = accessed_count + 1, last_accessed = datetime('now')
+      SET accessed_count = accessed_count + 1, last_accessed = now()
       WHERE share_hash = ?
-    `).run(hash);
+    `).run(hash));
 
     const isViewable = share.originalName.toLowerCase().endsWith('.stl') || 
                        share.originalName.toLowerCase().endsWith('.3mf');
@@ -4602,7 +4607,7 @@ app.get('/library/share', async (req, res) => {
     const tags = share.tags ? share.tags.split(',').map(t => `<span class="tag">${htmlEscape(t.trim())}</span>`).join('') : '';
     
     // Get public URL from database settings or environment
-    const publicHostname = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_publicHostname');
+    const publicHostname = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_publicHostname'));
     const publicUrl = publicHostname?.value || process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
     const thumbnailUrl = `${publicUrl}/api/library/share/${hash}/thumbnail`;
     const escapedName = htmlEscape(share.originalName);
@@ -5258,11 +5263,11 @@ app.get('/library/share', async (req, res) => {
 app.get('/api/library/share/:hash/download', async (req, res) => {
   try {
     const { hash } = req.params;
-    const share = db.prepare(`
+    const share = (await db.prepare(`
       SELECT l.* FROM library l
       INNER JOIN library_shares ls ON l.id = ls.model_id
       WHERE ls.share_hash = ?
-    `).get(hash);
+    `).get(hash));
     
     if (!share) {
       return res.status(404).json({ error: 'Shared model not found' });
@@ -5307,11 +5312,11 @@ app.get('/api/library/share/:hash/download', async (req, res) => {
 app.get('/api/library/share/:hash/geometry', async (req, res) => {
   try {
     const { hash } = req.params;
-    const share = db.prepare(`
+    const share = (await db.prepare(`
       SELECT l.* FROM library l
       INNER JOIN library_shares ls ON l.id = ls.model_id
       WHERE ls.share_hash = ?
-    `).get(hash);
+    `).get(hash));
     
     if (!share) {
       return res.status(404).json({ error: 'Shared model not found' });
@@ -5377,11 +5382,11 @@ app.get('/api/library/share/:hash/geometry', async (req, res) => {
 app.get('/api/library/share/:hash/thumbnail', async (req, res) => {
   try {
     const { hash } = req.params;
-    const share = db.prepare(`
+    const share = (await db.prepare(`
       SELECT l.* FROM library l
       INNER JOIN library_shares ls ON l.id = ls.model_id
       WHERE ls.share_hash = ?
-    `).get(hash);
+    `).get(hash));
     
     if (!share) {
       return res.status(404).json({ error: 'Shared model not found' });
@@ -5409,7 +5414,7 @@ app.get('/api/library/download/:id', async (req, res) => {
   }
 
   try {
-    const file = db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id);
+    const file = (await db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id));
     
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
@@ -5462,7 +5467,7 @@ app.get('/api/library/thumbnail/:id', async (req, res) => {
   }
 
   try {
-    const file = db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id);
+    const file = (await db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id));
 
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
@@ -5482,14 +5487,14 @@ app.get('/api/library/thumbnail/:id', async (req, res) => {
 });
 
 // Get duplicate files
-app.get('/api/library/duplicates', (req, res) => {
+app.get('/api/library/duplicates', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
   try {
     const groupBy = req.query.groupBy || 'name';
-    const files = db.prepare('SELECT * FROM library ORDER BY originalName, id').all();
+    const files = (await db.prepare('SELECT * FROM library ORDER BY originalName, id').all());
     
     const duplicates = [];
     
@@ -5593,7 +5598,7 @@ app.delete('/api/library/:id', async (req, res) => {
   }
 
   try {
-    const file = db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id);
+    const file = (await db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id));
     
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
@@ -5619,7 +5624,7 @@ app.delete('/api/library/:id', async (req, res) => {
     clearThumbnailCache(req.params.id);
 
     // Delete from database
-    db.prepare('DELETE FROM library WHERE id = ?').run(req.params.id);
+    (await db.prepare('DELETE FROM library WHERE id = ?').run(req.params.id));
 
     res.json({ success: true });
   } catch (error) {
@@ -5649,7 +5654,7 @@ app.patch('/api/library/:id', async (req, res) => {
     }
 
     // Check if file exists
-    const file = db.prepare('SELECT id FROM library WHERE id = ?').get(fileId);
+    const file = (await db.prepare('SELECT id FROM library WHERE id = ?').get(fileId));
     console.log('File found:', !!file);
     
     if (!file) {
@@ -5660,8 +5665,8 @@ app.patch('/api/library/:id', async (req, res) => {
     const safeDescription = (description || '').substring(0, 5000);
 
     // Update description
-    db.prepare('UPDATE library SET description = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(safeDescription, fileId);
+    (await db.prepare('UPDATE library SET description = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(safeDescription, fileId));
 
     console.log('Description updated successfully');
     res.json({ success: true });
@@ -5680,13 +5685,13 @@ app.get('/api/library/:id/tags', async (req, res) => {
   try {
     const fileId = req.params.id;
     
-    const tags = db.prepare(`
+    const tags = (await db.prepare(`
       SELECT t.id, t.name
       FROM tags t
       JOIN model_tags mt ON t.id = mt.tag_id
       WHERE mt.model_id = ?
       ORDER BY t.name
-    `).all(fileId);
+    `).all(fileId));
 
     res.json({ tags: tags.map(t => t.name) });
   } catch (error) {
@@ -5706,13 +5711,13 @@ app.put('/api/library/:id/tags', async (req, res) => {
     const { tags } = req.body;
 
     // Check if file exists
-    const file = db.prepare('SELECT id FROM library WHERE id = ?').get(fileId);
+    const file = (await db.prepare('SELECT id FROM library WHERE id = ?').get(fileId));
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
     }
 
     // Remove all existing tags for this file
-    db.prepare('DELETE FROM model_tags WHERE model_id = ?').run(fileId);
+    (await db.prepare('DELETE FROM model_tags WHERE model_id = ?').run(fileId));
 
     // Add new tags
     if (tags && Array.isArray(tags) && tags.length > 0) {
@@ -5723,10 +5728,10 @@ app.put('/api/library/:id/tags', async (req, res) => {
       for (const tagName of tags) {
         if (tagName && tagName.trim()) {
           const cleanTag = tagName.trim();
-          insertTag.run(cleanTag);
-          const tag = getTagId.get(cleanTag);
+          (await insertTag.run(cleanTag));
+          const tag = (await getTagId.get(cleanTag));
           if (tag) {
-            linkTag.run(fileId, tag.id);
+            (await linkTag.run(fileId, tag.id));
           }
         }
       }
@@ -5749,7 +5754,7 @@ app.post('/api/library/:id/auto-tag', async (req, res) => {
     const fileId = parseInt(req.params.id);
     
     // Get file info
-    const file = db.prepare('SELECT * FROM library WHERE id = ?').get(fileId);
+    const file = (await db.prepare('SELECT * FROM library WHERE id = ?').get(fileId));
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
     }
@@ -5786,7 +5791,7 @@ app.post('/api/library/:id/auto-tag', async (req, res) => {
     
     // Start processing if not already running
     if (!autoTagJob.running) {
-      processAutoTagQueue();
+      (await processAutoTagQueue());
     }
   } catch (error) {
     console.error('Auto-tag queue error:', error);
@@ -5825,7 +5830,7 @@ app.post('/api/library/auto-tag-cancel', (req, res) => {
 });
 
 // Bulk delete endpoint - queues files for background deletion
-app.post('/api/library/bulk-delete', (req, res) => {
+app.post('/api/library/bulk-delete', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -5867,7 +5872,7 @@ app.post('/api/library/bulk-delete', (req, res) => {
     });
 
     // Start processing in background
-    processBulkDeleteQueue();
+    (await processBulkDeleteQueue());
   } catch (error) {
     console.error('Failed to start bulk delete:', error.message);
     res.status(500).json({ error: 'Failed to start bulk delete: ' + error.message });
@@ -5915,10 +5920,10 @@ async function processBulkDeleteQueue() {
       bulkDeleteJob.currentFile = fileId.toString();
       
       // Get file info for logging
-      const file = db.prepare('SELECT fileName, originalName FROM library WHERE id = ?').get(fileId);
+      const file = (await db.prepare('SELECT fileName, originalName FROM library WHERE id = ?').get(fileId));
       
       // Delete from database
-      db.prepare('DELETE FROM library WHERE id = ?').run(fileId);
+      (await db.prepare('DELETE FROM library WHERE id = ?').run(fileId));
       
       // Delete associated thumbnail and geometry cache
       const thumbPath = path.join(dataDir, 'thumbnails', `${fileId}.png`);
@@ -6023,19 +6028,19 @@ async function processAutoTagQueue() {
           
           // Update database
           if (analysis.description) {
-            db.prepare('UPDATE library SET description = ? WHERE id = ?').run(analysis.description, fileData.id);
+            (await db.prepare('UPDATE library SET description = ? WHERE id = ?').run(analysis.description, fileData.id));
           }
           
           if (analysis.tags && analysis.tags.length > 0) {
             for (const tag of analysis.tags) {
               // Insert or get tag
-              const existingTag = db.prepare('SELECT id FROM tags WHERE name = ?').get(tag);
+              const existingTag = (await db.prepare('SELECT id FROM tags WHERE name = ?').get(tag));
               if (existingTag) {
-                db.prepare('INSERT OR IGNORE INTO library_tags (library_id, tag_id) VALUES (?, ?)').run(fileData.id, existingTag.id);
+                (await db.prepare('INSERT OR IGNORE INTO library_tags (library_id, tag_id) VALUES (?, ?)').run(fileData.id, existingTag.id));
               } else {
                 const insertTag = db.prepare('INSERT INTO tags (name) VALUES (?)');
-                const result = insertTag.run(tag);
-                db.prepare('INSERT OR IGNORE INTO library_tags (library_id, tag_id) VALUES (?, ?)').run(fileData.id, result.lastInsertRowid);
+                const result = (await insertTag.run(tag));
+                (await db.prepare('INSERT OR IGNORE INTO library_tags (library_id, tag_id) VALUES (?, ?)').run(fileData.id, result.lastInsertRowid));
               }
             }
           }
@@ -6070,7 +6075,7 @@ app.post('/api/library/clean-descriptions', async (req, res) => {
   
   try {
     // Get all library items with descriptions
-    const items = db.prepare('SELECT id, description FROM library WHERE description IS NOT NULL AND description != ""').all();
+    const items = (await db.prepare('SELECT id, description FROM library WHERE description IS NOT NULL AND description != ""').all());
     
     let cleaned = 0;
     for (const item of items) {
@@ -6078,7 +6083,7 @@ app.post('/api/library/clean-descriptions', async (req, res) => {
       const cleanedDesc = cleanDescription(originalDesc);
       
       if (cleanedDesc !== originalDesc) {
-        db.prepare('UPDATE library SET description = ? WHERE id = ?').run(cleanedDesc, item.id);
+        (await db.prepare('UPDATE library SET description = ? WHERE id = ?').run(cleanedDesc, item.id));
         cleaned++;
       }
     }
@@ -6101,13 +6106,13 @@ app.post('/api/library/cleanup-missing', async (req, res) => {
   }
   
   // Check if user is admin
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   
   try {
-    const items = db.prepare('SELECT * FROM library').all();
+    const items = (await db.prepare('SELECT * FROM library').all());
     console.log(`=== LIBRARY CLEANUP: Checking ${items.length} files ===`);
     
     let removed = 0;
@@ -6151,7 +6156,7 @@ app.post('/api/library/cleanup-missing', async (req, res) => {
       
       if (!fileExists) {
         console.log(`  Removing missing file: ${item.originalName} (${item.fileName})`);
-        db.prepare('DELETE FROM library WHERE id = ?').run(item.id);
+        (await db.prepare('DELETE FROM library WHERE id = ?').run(item.id));
         removedFiles.push(item.originalName);
         removed++;
       }
@@ -6192,7 +6197,7 @@ app.post('/api/library/auto-tag-all', async (req, res) => {
   
   try {
     // Get all library items
-    const items = db.prepare('SELECT * FROM library').all();
+    const items = (await db.prepare('SELECT * FROM library').all());
     
     // Reset job status for new run
     autoTagJob.running = true;
@@ -6248,32 +6253,32 @@ app.post('/api/library/auto-tag-all', async (req, res) => {
           
           // Update description
           if (analysis.description) {
-            db.prepare('UPDATE library SET description = ? WHERE id = ?').run(analysis.description, file.id);
+            (await db.prepare('UPDATE library SET description = ? WHERE id = ?').run(analysis.description, file.id));
           }
           
           // Update tags - add to existing tags
           if (analysis.tags && analysis.tags.length > 0) {
             // Get existing tags for this file
-            const existingTags = db.prepare(`
+            const existingTags = (await db.prepare(`
               SELECT t.name FROM tags t 
               JOIN model_tags mt ON t.id = mt.tag_id 
               WHERE mt.model_id = ?
-            `).all(file.id).map(t => t.name);
+            `).all(file.id)).map(t => t.name);
             
             // Add new tags that don't exist
             for (const tagName of analysis.tags) {
               if (existingTags.includes(tagName)) continue;
               
               // Insert or get tag
-              let tag = db.prepare('SELECT id FROM tags WHERE name = ?').get(tagName);
+              let tag = (await db.prepare('SELECT id FROM tags WHERE name = ?').get(tagName));
               if (!tag) {
-                const result = db.prepare('INSERT INTO tags (name) VALUES (?)').run(tagName);
+                const result = (await db.prepare('INSERT INTO tags (name) VALUES (?)').run(tagName));
                 tag = { id: result.lastInsertRowid };
               }
               
               // Link tag to model (ignore if already exists)
               try {
-                db.prepare('INSERT OR IGNORE INTO model_tags (model_id, tag_id) VALUES (?, ?)').run(file.id, tag.id);
+                (await db.prepare('INSERT OR IGNORE INTO model_tags (model_id, tag_id) VALUES (?, ?)').run(file.id, tag.id));
               } catch (e) {}
             }
           }
@@ -6387,17 +6392,17 @@ app.post('/api/library/scan', async (req, res) => {
         const relativePath = path.relative(__dirname, filePath);
         
         // Check if already exists in database by file path
-        const existing = db.prepare('SELECT id FROM library WHERE filePath = ?').get(relativePath);
+        const existing = (await db.prepare('SELECT id FROM library WHERE filePath = ?').get(relativePath));
         
         if (!existing) {
           try {
             const stats = fs.statSync(filePath);
             const fileType = ext.substring(1);
 
-            const result = db.prepare(`
+            const result = (await db.prepare(`
               INSERT INTO library (fileName, originalName, fileType, fileSize, filePath, description, tags)
               VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(fileName, fileName, fileType, stats.size, relativePath, '', '');
+            `).run(fileName, fileName, fileType, stats.size, relativePath, '', ''));
             
             libraryScanJob.added++;
             console.log(`  [${libraryScanJob.processed}/${libraryScanJob.total}] Added: ${fileName}`);
@@ -6578,7 +6583,7 @@ app.get('/api/camera-snapshot', async (req, res) => {
   let rtspUrl = String(req.query.url || '').trim();
 
   if (!rtspUrl && requestedPrinterId) {
-    rtspUrl = getConfiguredRtspSource(requestedPrinterId).rtspUrl;
+    rtspUrl = (await getConfiguredRtspSource(requestedPrinterId)).rtspUrl;
   }
   
   if (!rtspUrl) {
@@ -6726,7 +6731,7 @@ app.get('/api/camera-snapshot', async (req, res) => {
 async function generateAllThumbnails() {
   console.log('\n=== Generating thumbnails for library files ===');
   try {
-    const files = db.prepare('SELECT * FROM library').all();
+    const files = (await db.prepare('SELECT * FROM library').all());
     console.log(`Found ${files.length} files in library`);
     
     for (const file of files) {
@@ -6758,19 +6763,19 @@ async function generateAllThumbnails() {
 
 
 // Helper function to calculate cost for a print
-function calculatePrintCost(print) {
+async function calculatePrintCost(print) {
   try {
-    const getCostSetting = (key, defaultValue) => {
-      const row = db.prepare('SELECT value FROM config WHERE key = ?').get(`cost_${key}`);
+    const getCostSetting = async (key, defaultValue) => {
+      const row = (await db.prepare('SELECT value FROM config WHERE key = ?').get(`cost_${key}`));
       return row ? parseFloat(row.value) || defaultValue : defaultValue;
     };
     
-    const filamentCostPerKg = getCostSetting('filamentCostPerKg', 25);
-    const electricityCostPerKwh = getCostSetting('electricityCostPerKwh', 0.12);
-    const printerWattage = getCostSetting('printerWattage', 150);
+    const filamentCostPerKg = (await getCostSetting('filamentCostPerKg', 25));
+    const electricityCostPerKwh = (await getCostSetting('electricityCostPerKwh', 0.12));
+    const printerWattage = (await getCostSetting('printerWattage', 150));
     
     // Get material-specific costs
-    const materialCostsRow = db.prepare('SELECT value FROM config WHERE key = ?').get('cost_materialCosts');
+    const materialCostsRow = (await db.prepare('SELECT value FROM config WHERE key = ?').get('cost_materialCosts'));
     let materialCosts = {};
     if (materialCostsRow) {
       try {
@@ -6817,22 +6822,22 @@ app.get('/api/statistics/costs', async (req, res) => {
   
   try {
     // Get cost settings
-    const getCostSetting = (key, defaultValue) => {
-      const row = db.prepare('SELECT value FROM config WHERE key = ?').get(`cost_${key}`);
+    const getCostSetting = async (key, defaultValue) => {
+      const row = (await db.prepare('SELECT value FROM config WHERE key = ?').get(`cost_${key}`));
       return row ? parseFloat(row.value) || defaultValue : defaultValue;
     };
     
-    const filamentCostPerKg = getCostSetting('filamentCostPerKg', 25);
-    const electricityCostPerKwh = getCostSetting('electricityCostPerKwh', 0.12);
-    const printerWattage = getCostSetting('printerWattage', 150);
-    const currency = db.prepare('SELECT value FROM config WHERE key = ?').get('cost_currency')?.value || 'USD';
+    const filamentCostPerKg = (await getCostSetting('filamentCostPerKg', 25));
+    const electricityCostPerKwh = (await getCostSetting('electricityCostPerKwh', 0.12));
+    const printerWattage = (await getCostSetting('printerWattage', 150));
+    const currency = (await db.prepare('SELECT value FROM config WHERE key = ?').get('cost_currency'))?.value || 'USD';
     
     // Get all successful prints
-    const prints = db.prepare(`
+    const prints = (await db.prepare(`
       SELECT weight, costTime 
       FROM prints 
       WHERE status = 2 AND (weight > 0 OR costTime > 0)
-    `).all();
+    `).all());
     
     let totalFilamentCost = 0;
     let totalElectricityCost = 0;
@@ -6886,7 +6891,7 @@ app.post('/api/settings/restart', async (req, res) => {
   }
   
   // Check if user is admin
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -6927,10 +6932,10 @@ app.post('/api/settings/restart', async (req, res) => {
 });
 
 // Health check endpoint for Docker/watchdog
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
   try {
     // Check database connectivity
-    const dbCheck = db.prepare('SELECT 1 as ok').get();
+    const dbCheck = (await db.prepare('SELECT 1 as ok').get());
     
     res.json({
       status: 'healthy',
@@ -6985,7 +6990,7 @@ app.get('/api/camera-test', async (req, res) => {
 let watchdogTimer = null;
 
 // Setup watchdog based on settings
-function setupWatchdog() {
+async function setupWatchdog() {
   // Clear existing timer
   if (watchdogTimer) {
     if (typeof watchdogTimer === 'function') {
@@ -6999,9 +7004,9 @@ function setupWatchdog() {
   
   try {
     const getConfig = db.prepare('SELECT value FROM config WHERE key = ?');
-    const watchdogEnabled = getConfig.get('watchdog_enabled');
-    const watchdogInterval = getConfig.get('watchdog_interval');
-    const watchdogEndpoint = getConfig.get('watchdog_endpoint');
+    const watchdogEnabled = (await getConfig.get('watchdog_enabled'));
+    const watchdogInterval = (await getConfig.get('watchdog_interval'));
+    const watchdogEndpoint = (await getConfig.get('watchdog_endpoint'));
     
     const enabled = watchdogEnabled?.value === 'true';
     const interval = parseInt(watchdogInterval?.value || '30', 10);
@@ -7022,7 +7027,7 @@ function setupWatchdog() {
           console.log(`Watchdog: Pinged ${endpoint}`);
         } else {
           // Internal self-check
-          const dbCheck = db.prepare('SELECT 1 as ok').get();
+          const dbCheck = (await db.prepare('SELECT 1 as ok').get());
           if (!dbCheck) {
             console.error('Watchdog: Database check failed!');
           }
@@ -7065,8 +7070,8 @@ function setupMaintenanceNotifications() {
   );
   
   // Also run immediately on startup (after a delay)
-  setTimeout(() => {
-    checkMaintenanceDueNotifications();
+  setTimeout(async () => {
+    (await checkMaintenanceDueNotifications());
   }, 30000);
 }
 
@@ -7074,15 +7079,15 @@ function setupMaintenanceNotifications() {
 async function checkMaintenanceDueNotifications() {
   try {
     const getConfig = db.prepare('SELECT value FROM config WHERE key = ?');
-    const enabledRow = getConfig.get('discord_maintenance_enabled');
-    const webhookRow = getConfig.get('discord_maintenance_webhook');
+    const enabledRow = (await getConfig.get('discord_maintenance_enabled'));
+    const webhookRow = (await getConfig.get('discord_maintenance_webhook'));
     
     if (enabledRow?.value !== 'true' || !webhookRow?.value) {
       return; // Maintenance notifications not enabled
     }
     
     // Get current print hours
-    const prints = db.prepare('SELECT costTime FROM prints').all();
+    const prints = (await db.prepare('SELECT costTime FROM prints').all());
     let totalPrintSeconds = 0;
     for (const print of prints) {
       if (print.costTime) {
@@ -7092,7 +7097,7 @@ async function checkMaintenanceDueNotifications() {
     const currentPrintHours = totalPrintSeconds / 3600;
     
     // Get all maintenance tasks
-    const tasks = db.prepare('SELECT * FROM maintenance_tasks').all();
+    const tasks = (await db.prepare('SELECT * FROM maintenance_tasks').all());
     
     for (const task of tasks) {
       if (!task.hours_until_due) continue;
@@ -7142,13 +7147,13 @@ app.get('/api/tags', async (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    const tags = db.prepare(`
+    const tags = (await db.prepare(`
       SELECT t.*, COUNT(mt.model_id) as model_count
       FROM tags t
       LEFT JOIN model_tags mt ON t.id = mt.tag_id
       GROUP BY t.id
       ORDER BY t.name ASC
-    `).all();
+    `).all());
     res.json(tags);
   } catch (error) {
     console.error('Get tags error:', error);
@@ -7169,15 +7174,15 @@ app.post('/api/models/:id/tags', async (req, res) => {
     }
     
     // Find or create tag
-    let tagRecord = db.prepare('SELECT id FROM tags WHERE name = ?').get(tag.toLowerCase());
+    let tagRecord = (await db.prepare('SELECT id FROM tags WHERE name = ?').get(tag.toLowerCase()));
     if (!tagRecord) {
-      const result = db.prepare('INSERT INTO tags (name) VALUES (?)').run(tag.toLowerCase());
+      const result = (await db.prepare('INSERT INTO tags (name) VALUES (?)').run(tag.toLowerCase()));
       tagRecord = { id: result.lastInsertRowid };
     }
     
     // Link tag to model
     try {
-      db.prepare('INSERT INTO model_tags (model_id, tag_id) VALUES (?, ?)').run(id, tagRecord.id);
+      (await db.prepare('INSERT INTO model_tags (model_id, tag_id) VALUES (?, ?)').run(id, tagRecord.id));
       res.json({ success: true });
     } catch (error) {
       if (error.message.includes('UNIQUE constraint')) {
@@ -7198,7 +7203,7 @@ app.delete('/api/models/:id/tags/:tagId', async (req, res) => {
 
   try {
     const { id, tagId } = req.params;
-    db.prepare('DELETE FROM model_tags WHERE model_id = ? AND tag_id = ?').run(id, tagId);
+    (await db.prepare('DELETE FROM model_tags WHERE model_id = ? AND tag_id = ?').run(id, tagId));
     res.json({ success: true });
   } catch (error) {
     console.error('Remove tag error:', error);
@@ -7212,12 +7217,12 @@ app.get('/api/models/:id/tags', async (req, res) => {
 
   try {
     const { id } = req.params;
-    const tags = db.prepare(`
+    const tags = (await db.prepare(`
       SELECT t.* FROM tags t
       JOIN model_tags mt ON t.id = mt.tag_id
       WHERE mt.model_id = ?
       ORDER BY t.name ASC
-    `).all(id);
+    `).all(id));
     res.json(tags);
   } catch (error) {
     console.error('Get model tags error:', error);
@@ -7296,7 +7301,7 @@ app.get('/api/library/search', async (req, res) => {
     query += ` ORDER BY l.createdAt DESC LIMIT ? OFFSET ?`;
     params.push(parseInt(limit), parseInt(offset));
     
-    const models = db.prepare(query).all(...params);
+    const models = (await db.prepare(query).all(...params));
     
     // Get total count
     let countQuery = `
@@ -7323,7 +7328,7 @@ app.get('/api/library/search', async (req, res) => {
       countQuery += ` AND l.fileHash IS NULL`;
     }
     
-    const { total } = db.prepare(countQuery).get(...countParams);
+    const { total } = (await db.prepare(countQuery).get(...countParams));
     
     res.json({ models, total, limit: parseInt(limit), offset: parseInt(offset) });
   } catch (error) {
@@ -7340,7 +7345,7 @@ app.get('/api/library/search', async (req, res) => {
 app.post('/api/models/:id/calculate-hash', async (req, res) => {
   try {
     const { id } = req.params;
-    const model = db.prepare('SELECT * FROM library WHERE id = ?').get(id);
+    const model = (await db.prepare('SELECT * FROM library WHERE id = ?').get(id));
     
     if (!model) {
       return res.status(404).json({ error: 'Model not found' });
@@ -7357,7 +7362,7 @@ app.post('/api/models/:id/calculate-hash', async (req, res) => {
     hashSum.update(fileBuffer);
     const hash = hashSum.digest('hex');
     
-    db.prepare('UPDATE library SET fileHash = ? WHERE id = ?').run(hash, id);
+    (await db.prepare('UPDATE library SET fileHash = ? WHERE id = ?').run(hash, id));
     
     res.json({ success: true, hash });
   } catch (error) {
@@ -7371,7 +7376,7 @@ app.post('/api/library/calculate-all-hashes', async (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    const models = db.prepare('SELECT * FROM library WHERE fileHash IS NULL').all();
+    const models = (await db.prepare('SELECT * FROM library WHERE fileHash IS NULL').all());
     const crypto = require('crypto');
     let processed = 0;
     let errors = 0;
@@ -7384,7 +7389,7 @@ app.post('/api/library/calculate-all-hashes', async (req, res) => {
           const hashSum = crypto.createHash('sha256');
           hashSum.update(fileBuffer);
           const hash = hashSum.digest('hex');
-          db.prepare('UPDATE library SET fileHash = ? WHERE id = ?').run(hash, model.id);
+          (await db.prepare('UPDATE library SET fileHash = ? WHERE id = ?').run(hash, model.id));
           processed++;
         }
       } catch (error) {
@@ -7405,27 +7410,27 @@ app.get('/api/library/duplicates', async (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    const duplicates = db.prepare(`
+    const duplicates = (await db.prepare(`
       SELECT fileHash, COUNT(*) as count, GROUP_CONCAT(id) as model_ids
       FROM library
       WHERE fileHash IS NOT NULL
       GROUP BY fileHash
       HAVING count > 1
       ORDER BY count DESC
-    `).all();
+    `).all());
     
-    const detailedDuplicates = duplicates.map(dup => {
+    const detailedDuplicates = await Promise.all(duplicates.map(async dup => {
       const ids = dup.model_ids.split(',').map(id => parseInt(id));
-      const models = db.prepare(`
+      const models = (await db.prepare(`
         SELECT * FROM library WHERE id IN (${ids.map(() => '?').join(',')})
-      `).all(...ids);
-      
+      `).all(...ids));
+
       return {
         hash: dup.fileHash,
         count: dup.count,
         models
       };
-    });
+    }));
     
     res.json(detailedDuplicates);
   } catch (error) {
@@ -7443,7 +7448,7 @@ app.post('/api/library/detect-problems', async (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    const models = db.prepare('SELECT * FROM library').all();
+    const models = (await db.prepare('SELECT * FROM library').all());
     let detected = 0;
     
     for (const model of models) {
@@ -7460,10 +7465,10 @@ app.post('/api/library/detect-problems', async (req, res) => {
       }
       
       // Check if model has any prints
-      const printCount = db.prepare(`
+      const printCount = (await db.prepare(`
         SELECT COUNT(*) as count FROM prints 
         WHERE title LIKE '%' || ? || '%'
-      `).get(model.fileName).count;
+      `).get(model.fileName)).count;
       
       if (printCount === 0) {
         problems.push({
@@ -7492,9 +7497,9 @@ app.post('/api/library/detect-problems', async (req, res) => {
       }
       
       // Check if model has tags
-      const tagCount = db.prepare(`
+      const tagCount = (await db.prepare(`
         SELECT COUNT(*) as count FROM model_tags WHERE model_id = ?
-      `).get(model.id).count;
+      `).get(model.id)).count;
       
       if (tagCount === 0) {
         problems.push({
@@ -7513,10 +7518,10 @@ app.post('/api/library/detect-problems', async (req, res) => {
         });
       } else {
         // Check for duplicates
-        const dupCount = db.prepare(`
+        const dupCount = (await db.prepare(`
           SELECT COUNT(*) as count FROM library 
           WHERE fileHash = ? AND id != ?
-        `).get(model.fileHash, model.id).count;
+        `).get(model.fileHash, model.id)).count;
         
         if (dupCount > 0) {
           problems.push({
@@ -7528,7 +7533,7 @@ app.post('/api/library/detect-problems', async (req, res) => {
       }
       
       // Clear existing unresolved problems for this model
-      db.prepare('DELETE FROM problems WHERE model_id = ? AND resolved_at IS NULL').run(model.id);
+      (await db.prepare('DELETE FROM problems WHERE model_id = ? AND resolved_at IS NULL').run(model.id));
       
       // Insert new problems
       const insertProblem = db.prepare(`
@@ -7537,7 +7542,7 @@ app.post('/api/library/detect-problems', async (req, res) => {
       `);
       
       for (const problem of problems) {
-        insertProblem.run(model.id, problem.type, problem.severity, problem.message);
+        (await insertProblem.run(model.id, problem.type, problem.severity, problem.message));
         detected++;
       }
     }
@@ -7553,7 +7558,7 @@ app.post('/api/library/detect-problems', async (req, res) => {
 app.get('/api/models/:id/problems', async (req, res) => {
   try {
     const { id } = req.params;
-    const problems = db.prepare(`
+    const problems = (await db.prepare(`
       SELECT * FROM problems 
       WHERE model_id = ? AND resolved_at IS NULL
       ORDER BY 
@@ -7563,7 +7568,7 @@ app.get('/api/models/:id/problems', async (req, res) => {
           ELSE 3 
         END,
         detected_at DESC
-    `).all(id);
+    `).all(id));
     res.json(problems);
   } catch (error) {
     console.error('Get problems error:', error);
@@ -7577,7 +7582,7 @@ app.post('/api/problems/:id/resolve', async (req, res) => {
 
   try {
     const { id } = req.params;
-    db.prepare('UPDATE problems SET resolved_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+    (await db.prepare('UPDATE problems SET resolved_at = CURRENT_TIMESTAMP WHERE id = ?').run(id));
     res.json({ success: true });
   } catch (error) {
     console.error('Resolve problem error:', error);
@@ -7604,16 +7609,16 @@ app.post('/api/models/bulk/tags', async (req, res) => {
     
     for (const tag of tags) {
       // Find or create tag
-      let tagRecord = db.prepare('SELECT id FROM tags WHERE name = ?').get(tag.toLowerCase());
+      let tagRecord = (await db.prepare('SELECT id FROM tags WHERE name = ?').get(tag.toLowerCase()));
       if (!tagRecord) {
-        const result = db.prepare('INSERT INTO tags (name) VALUES (?)').run(tag.toLowerCase());
+        const result = (await db.prepare('INSERT INTO tags (name) VALUES (?)').run(tag.toLowerCase()));
         tagRecord = { id: result.lastInsertRowid };
       }
       
       // Add tag to each model
       for (const modelId of modelIds) {
         try {
-          db.prepare('INSERT INTO model_tags (model_id, tag_id) VALUES (?, ?)').run(modelId, tagRecord.id);
+          (await db.prepare('INSERT INTO model_tags (model_id, tag_id) VALUES (?, ?)').run(modelId, tagRecord.id));
           added++;
         } catch (error) {
           // Ignore duplicate constraint errors
@@ -7642,19 +7647,19 @@ app.delete('/api/models/bulk/tags', async (req, res) => {
       return res.status(400).json({ error: 'modelIds and tags must be arrays' });
     }
     
-    const tagIds = db.prepare(`
+    const tagIds = (await db.prepare(`
       SELECT id FROM tags WHERE name IN (${tags.map(() => '?').join(',')})
-    `).all(...tags.map(t => t.toLowerCase())).map(t => t.id);
+    `).all(...tags.map(t => t.toLowerCase()))).map(t => t.id);
     
     if (tagIds.length === 0) {
       return res.json({ success: true, removed: 0 });
     }
     
-    const result = db.prepare(`
+    const result = (await db.prepare(`
       DELETE FROM model_tags 
       WHERE model_id IN (${modelIds.map(() => '?').join(',')})
       AND tag_id IN (${tagIds.map(() => '?').join(',')})
-    `).run(...modelIds, ...tagIds);
+    `).run(...modelIds, ...tagIds));
     
     res.json({ success: true, removed: result.changes });
   } catch (error) {
@@ -7677,7 +7682,7 @@ app.post('/api/models/bulk/delete', async (req, res) => {
     
     for (const modelId of modelIds) {
       try {
-        const model = db.prepare('SELECT * FROM library WHERE id = ?').get(modelId);
+        const model = (await db.prepare('SELECT * FROM library WHERE id = ?').get(modelId));
         if (model) {
           // Delete file from disk
           const filePath = path.join(__dirname, model.filePath);
@@ -7694,7 +7699,7 @@ app.post('/api/models/bulk/delete', async (req, res) => {
           }
           
           // Delete from database (cascades to model_tags and problems)
-          db.prepare('DELETE FROM library WHERE id = ?').run(modelId);
+          (await db.prepare('DELETE FROM library WHERE id = ?').run(modelId));
           deleted++;
         }
       } catch (error) {
@@ -7719,7 +7724,7 @@ app.post('/api/library/parse-folder-tags', async (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    const models = db.prepare('SELECT * FROM library').all();
+    const models = (await db.prepare('SELECT * FROM library').all());
     let processed = 0;
     
     for (const model of models) {
@@ -7740,15 +7745,15 @@ app.post('/api/library/parse-folder-tags', async (req, res) => {
         if (tagName.length < 2) continue;
         
         // Find or create tag
-        let tagRecord = db.prepare('SELECT id FROM tags WHERE name = ?').get(tagName);
+        let tagRecord = (await db.prepare('SELECT id FROM tags WHERE name = ?').get(tagName));
         if (!tagRecord) {
-          const result = db.prepare('INSERT INTO tags (name) VALUES (?)').run(tagName);
+          const result = (await db.prepare('INSERT INTO tags (name) VALUES (?)').run(tagName));
           tagRecord = { id: result.lastInsertRowid };
         }
         
         // Link tag to model
         try {
-          db.prepare('INSERT INTO model_tags (model_id, tag_id) VALUES (?, ?)').run(model.id, tagRecord.id);
+          (await db.prepare('INSERT INTO model_tags (model_id, tag_id) VALUES (?, ?)').run(model.id, tagRecord.id));
         } catch (error) {
           // Ignore duplicate constraint errors
         }
@@ -7770,28 +7775,28 @@ app.get('/api/library/stats', async (req, res) => {
 
   try {
     const stats = {
-      total_models: db.prepare('SELECT COUNT(*) as count FROM library').get().count,
-      total_size: db.prepare('SELECT SUM(fileSize) as size FROM library').get().size || 0,
-      total_tags: db.prepare('SELECT COUNT(*) as count FROM tags').get().count,
-      models_with_tags: db.prepare(`
+      total_models: (await db.prepare('SELECT COUNT(*) as count FROM library').get()).count,
+      total_size: (await db.prepare('SELECT SUM(fileSize) as size FROM library').get()).size || 0,
+      total_tags: (await db.prepare('SELECT COUNT(*) as count FROM tags').get()).count,
+      models_with_tags: (await db.prepare(`
         SELECT COUNT(DISTINCT model_id) as count FROM model_tags
-      `).get().count,
-      models_with_hash: db.prepare('SELECT COUNT(*) as count FROM library WHERE fileHash IS NOT NULL').get().count,
-      total_problems: db.prepare('SELECT COUNT(*) as count FROM problems WHERE resolved_at IS NULL').get().count,
-      models_never_printed: db.prepare(`
+      `).get()).count,
+      models_with_hash: (await db.prepare('SELECT COUNT(*) as count FROM library WHERE fileHash IS NOT NULL').get()).count,
+      total_problems: (await db.prepare('SELECT COUNT(*) as count FROM problems WHERE resolved_at IS NULL').get()).count,
+      models_never_printed: (await db.prepare(`
         SELECT COUNT(*) as count FROM library l
         WHERE NOT EXISTS (
           SELECT 1 FROM prints p WHERE p.title LIKE '%' || l.fileName || '%'
         )
-      `).get().count,
-      duplicate_groups: db.prepare(`
+      `).get()).count,
+      duplicate_groups: (await db.prepare(`
         SELECT COUNT(*) as count FROM (
           SELECT fileHash FROM library 
           WHERE fileHash IS NOT NULL 
           GROUP BY fileHash 
           HAVING COUNT(*) > 1
         )
-      `).get().count
+      `).get()).count
     };
     
     res.json(stats);
@@ -7820,7 +7825,16 @@ app.get('*', (req, res, next) => {
 
 httpServer = app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  console.log('Database: SQLite (data/printhive.db)');
+
+  // Ensure PostgreSQL is connected, the schema exists, and any first-boot
+  // SQLite -> PostgreSQL migration has completed before serving DB-backed work.
+  try {
+    await initDatabase();
+  } catch (err) {
+    console.error('FATAL: database initialization failed:', err.message);
+    process.exit(1);
+  }
+  console.log('Database: PostgreSQL');
   
   // Clean up old camera temp files on startup
   try {
@@ -7871,7 +7885,7 @@ httpServer = app.listen(PORT, async () => {
   console.log('=== OIDC configuration complete ===\n');
   
   // Start background sync
-  backgroundSync.start();
+  (await backgroundSync.start());
   // Start automatic cloud sync (uses tokens in settings)
   setupCloudAutoSync();
   // Start automatic FTP sync (every 30 min, only when idle)
@@ -7898,16 +7912,16 @@ httpServer = app.listen(PORT, async () => {
         const fileName = path.basename(filePath);
         const relativePath = path.relative(__dirname, filePath);
         
-        const existing = db.prepare('SELECT id FROM library WHERE filePath = ?').get(relativePath);
+        const existing = (await db.prepare('SELECT id FROM library WHERE filePath = ?').get(relativePath));
         
         if (!existing) {
           const stats = fs.statSync(filePath);
           const fileType = ext.substring(1);
           
-          db.prepare(`
+          (await db.prepare(`
             INSERT INTO library (fileName, originalName, fileType, fileSize, filePath, description, tags)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(fileName, fileName, fileType, stats.size, relativePath, '', '');
+          `).run(fileName, fileName, fileType, stats.size, relativePath, '', ''));
           
           added++;
         } else {
@@ -7920,7 +7934,7 @@ httpServer = app.listen(PORT, async () => {
     
     // Clean up library entries for files that no longer exist
     console.log('Cleaning up missing library entries...');
-    const allLibraryItems = db.prepare('SELECT * FROM library').all();
+    const allLibraryItems = (await db.prepare('SELECT * FROM library').all());
     let removed = 0;
     
     for (const item of allLibraryItems) {
@@ -7952,7 +7966,7 @@ httpServer = app.listen(PORT, async () => {
       }
       
       if (!fileExists) {
-        db.prepare('DELETE FROM library WHERE id = ?').run(item.id);
+        (await db.prepare('DELETE FROM library WHERE id = ?').run(item.id));
         removed++;
       }
     }
@@ -8034,24 +8048,24 @@ app.get('/api/settings/database', async (req, res) => {
   
   try {
     const settings = {
-      backupScheduleEnabled: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_schedule_enabled')?.value === '1',
-      backupInterval: parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('backup_interval')?.value || '7'),
-      backupRetention: parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('backup_retention')?.value || '30'),
-      lastBackupDate: db.prepare('SELECT value FROM config WHERE key = ?').get('last_backup_date')?.value,
+      backupScheduleEnabled: (await db.prepare('SELECT value FROM config WHERE key = ?').get('backup_schedule_enabled'))?.value === '1',
+      backupInterval: parseInt((await db.prepare('SELECT value FROM config WHERE key = ?').get('backup_interval'))?.value || '7'),
+      backupRetention: parseInt((await db.prepare('SELECT value FROM config WHERE key = ?').get('backup_retention'))?.value || '30'),
+      lastBackupDate: (await db.prepare('SELECT value FROM config WHERE key = ?').get('last_backup_date'))?.value,
       // Remote backup settings
-      remoteBackupEnabled: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_enabled')?.value === '1',
-      remoteBackupType: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_type')?.value || 'sftp',
-      remoteBackupHost: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_host')?.value || '',
-      remoteBackupPort: parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_port')?.value || '22'),
-      remoteBackupUsername: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_username')?.value || '',
-      remoteBackupPassword: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password')?.value ? '********' : '',
-      remoteBackupPath: db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_path')?.value || '/backups',
+      remoteBackupEnabled: (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_enabled'))?.value === '1',
+      remoteBackupType: (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_type'))?.value || 'sftp',
+      remoteBackupHost: (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_host'))?.value || '',
+      remoteBackupPort: parseInt((await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_port'))?.value || '22'),
+      remoteBackupUsername: (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_username'))?.value || '',
+      remoteBackupPassword: (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password'))?.value ? '********' : '',
+      remoteBackupPath: (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_path'))?.value || '/backups',
       // Backup options
-      backupIncludeVideos: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_videos')?.value !== '0',
-      backupIncludeLibrary: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_library')?.value !== '0',
-      backupIncludeCovers: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_covers')?.value !== '0',
+      backupIncludeVideos: (await db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_videos'))?.value !== '0',
+      backupIncludeLibrary: (await db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_library'))?.value !== '0',
+      backupIncludeCovers: (await db.prepare('SELECT value FROM config WHERE key = ?').get('backup_include_covers'))?.value !== '0',
       // Webhook
-      backupWebhookUrl: db.prepare('SELECT value FROM config WHERE key = ?').get('backup_webhook_url')?.value || ''
+      backupWebhookUrl: (await db.prepare('SELECT value FROM config WHERE key = ?').get('backup_webhook_url'))?.value || ''
     };
     res.json(settings);
   } catch (error) {
@@ -8065,7 +8079,7 @@ app.post('/api/settings/database', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -8079,29 +8093,29 @@ app.post('/api/settings/database', async (req, res) => {
       backupWebhookUrl
     } = req.body;
     
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_schedule_enabled', backupScheduleEnabled ? '1' : '0');
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_interval', backupInterval.toString());
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_retention', backupRetention.toString());
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_schedule_enabled', backupScheduleEnabled ? '1' : '0'));
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_interval', backupInterval.toString()));
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_retention', backupRetention.toString()));
     
     // Remote backup settings
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_enabled', remoteBackupEnabled ? '1' : '0');
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_type', remoteBackupType || 'sftp');
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_host', remoteBackupHost || '');
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_port', (remoteBackupPort || 22).toString());
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_username', remoteBackupUsername || '');
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_enabled', remoteBackupEnabled ? '1' : '0'));
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_type', remoteBackupType || 'sftp'));
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_host', remoteBackupHost || ''));
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_port', (remoteBackupPort || 22).toString()));
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_username', remoteBackupUsername || ''));
     // Only update password if it's not the masked value
     if (remoteBackupPassword && remoteBackupPassword !== '********') {
-      db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_password', remoteBackupPassword);
+      (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_password', remoteBackupPassword));
     }
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_path', remoteBackupPath || '/backups');
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('remote_backup_path', remoteBackupPath || '/backups'));
     
     // Backup options
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_videos', backupIncludeVideos ? '1' : '0');
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_library', backupIncludeLibrary ? '1' : '0');
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_covers', backupIncludeCovers ? '1' : '0');
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_videos', backupIncludeVideos ? '1' : '0'));
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_library', backupIncludeLibrary ? '1' : '0'));
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_include_covers', backupIncludeCovers ? '1' : '0'));
     
     // Webhook
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_webhook_url', backupWebhookUrl || '');
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('backup_webhook_url', backupWebhookUrl || ''));
     
     res.json({ success: true });
   } catch (error) {
@@ -8110,13 +8124,13 @@ app.post('/api/settings/database', async (req, res) => {
   }
 });
 
-function requireAdminForDbMaintenance(req, res) {
+async function requireAdminForDbMaintenance(req, res) {
   if (!req.session.authenticated) {
     res.status(401).json({ error: 'Not authenticated' });
     return null;
   }
 
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     res.status(403).json({ error: 'Admin access required' });
     return null;
@@ -8183,7 +8197,7 @@ app.get('/api/settings/database/maintenance-status', (req, res) => {
 });
 
 app.post('/api/settings/database/vacuum', async (req, res) => {
-  if (!requireAdminForDbMaintenance(req, res)) {
+  if (!(await requireAdminForDbMaintenance(req, res))) {
     return;
   }
 
@@ -8191,7 +8205,7 @@ app.post('/api/settings/database/vacuum', async (req, res) => {
     const dbPath = path.join(dataDir, 'printhive.db');
     const sizeBefore = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
     const startTime = Date.now();
-    db.exec('VACUUM');
+    await db.exec('VACUUM');
     const duration = Date.now() - startTime;
     const sizeAfter = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
     return {
@@ -8213,14 +8227,14 @@ app.post('/api/settings/database/vacuum', async (req, res) => {
 });
 
 app.post('/api/settings/database/analyze', async (req, res) => {
-  if (!requireAdminForDbMaintenance(req, res)) {
+  if (!(await requireAdminForDbMaintenance(req, res))) {
     return;
   }
 
   if (!queueDatabaseMaintenanceJob('analyze', async () => {
     const startTime = Date.now();
-    const tables = db.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'").get();
-    db.exec('ANALYZE');
+    const tables = (await db.prepare("SELECT COUNT(*)::int as count FROM information_schema.tables WHERE table_schema = 'public'").get());
+    await db.exec('ANALYZE');
     const duration = Date.now() - startTime;
     return {
       tablesAnalyzed: tables.count,
@@ -8239,14 +8253,14 @@ app.post('/api/settings/database/analyze', async (req, res) => {
 });
 
 app.post('/api/settings/database/reindex', async (req, res) => {
-  if (!requireAdminForDbMaintenance(req, res)) {
+  if (!(await requireAdminForDbMaintenance(req, res))) {
     return;
   }
 
   if (!queueDatabaseMaintenanceJob('reindex', async () => {
     const startTime = Date.now();
-    const indexes = db.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='index'").get();
-    db.exec('REINDEX');
+    const indexes = (await db.prepare("SELECT COUNT(*)::int as count FROM pg_indexes WHERE schemaname = 'public'").get());
+    await db.exec('REINDEX SCHEMA public');
     const duration = Date.now() - startTime;
     return {
       indexesRebuilt: indexes.count,
@@ -8307,7 +8321,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -8375,14 +8389,12 @@ app.post('/api/settings/database/backup', async (req, res) => {
     // Prepare list of files/folders to include in backup
     const filesToBackup = [];
 
-    // Always include the database (only add shm/wal if they exist)
-    filesToBackup.push('printhive.db');
-    if (fs.existsSync(path.join(dataDir, 'printhive.db-shm'))) {
-      filesToBackup.push('printhive.db-shm');
-    }
-    if (fs.existsSync(path.join(dataDir, 'printhive.db-wal'))) {
-      filesToBackup.push('printhive.db-wal');
-    }
+    // Always include a PostgreSQL dump of the database (custom format).
+    const pgBackup = require('./server/services/pgBackup');
+    const pgDumpPath = path.join(dataDir, pgBackup.DUMP_FILENAME);
+    console.log('Creating PostgreSQL dump...');
+    await pgBackup.dumpToFile(pgDumpPath);
+    filesToBackup.push(pgBackup.DUMP_FILENAME);
     
     // Count items for reporting
     let videoCount = 0;
@@ -8531,14 +8543,14 @@ app.post('/api/settings/database/backup', async (req, res) => {
     console.log(`Included: ${videoCount} videos, ${libraryCount} library files, ${coverCount} cover images`);
     
     // Update last backup date in config
-    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('last_backup_date', new Date().toISOString());
+    (await db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('last_backup_date', new Date().toISOString()));
     
     // Get backup file size
     const backupStats = fs.statSync(backupFile);
     const backupSize = formatBytes(backupStats.size);
     
     // Clean up old backups based on retention policy
-    const retentionDays = parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('backup_retention')?.value || '30');
+    const retentionDays = parseInt((await db.prepare('SELECT value FROM config WHERE key = ?').get('backup_retention'))?.value || '30');
     const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
     
@@ -8554,16 +8566,16 @@ app.post('/api/settings/database/backup', async (req, res) => {
     
     // Check if remote backup is enabled and upload
     let remoteUploaded = false;
-    const remoteEnabled = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_enabled')?.value === '1';
+    const remoteEnabled = (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_enabled'))?.value === '1';
     
     if (remoteEnabled) {
       try {
-        const remoteType = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_type')?.value || 'sftp';
-        const remoteHost = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_host')?.value;
-        const remotePort = parseInt(db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_port')?.value || '22');
-        const remoteUsername = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_username')?.value;
-        const remotePassword = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password')?.value;
-        const remotePath = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_path')?.value || '/backups';
+        const remoteType = (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_type'))?.value || 'sftp';
+        const remoteHost = (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_host'))?.value;
+        const remotePort = parseInt((await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_port'))?.value || '22');
+        const remoteUsername = (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_username'))?.value;
+        const remotePassword = (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password'))?.value;
+        const remotePath = (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_path'))?.value || '/backups';
         
         if (remoteHost && remoteUsername) {
           if (remoteType === 'sftp') {
@@ -8622,7 +8634,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
     
     // Send webhook notification if configured
     try {
-      const webhookUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('backup_webhook_url')?.value;
+      const webhookUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('backup_webhook_url'))?.value;
       if (webhookUrl) {
         const webhookPayload = {
           event: 'backup_completed',
@@ -8718,7 +8730,7 @@ app.post('/api/settings/database/test-remote', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -8733,7 +8745,7 @@ app.post('/api/settings/database/test-remote', async (req, res) => {
     // Get the actual password if masked
     let actualPassword = password;
     if (password === '********' || !password) {
-      actualPassword = db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password')?.value || '';
+      actualPassword = (await db.prepare('SELECT value FROM config WHERE key = ?').get('remote_backup_password'))?.value || '';
     }
     
     if (type === 'sftp') {
@@ -8788,12 +8800,12 @@ app.post('/api/settings/database/test-remote', async (req, res) => {
 
 // Get list of available backups
 // Delete a backup file
-app.delete('/api/settings/database/backups/:filename', (req, res) => {
+app.delete('/api/settings/database/backups/:filename', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -8825,12 +8837,12 @@ app.delete('/api/settings/database/backups/:filename', (req, res) => {
   }
 });
 
-app.get('/api/settings/database/backups', (req, res) => {
+app.get('/api/settings/database/backups', async (req, res) => {
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -8898,7 +8910,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
+  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -8949,10 +8961,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     
     console.log(`Restoring from backup archive ${backupFile}...`);
     restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Extracting backup...', progress: 10 });
-    
-    // Close existing database connection
-    db.close();
-    
+
     // Create a temporary extraction directory
     const tempExtractDir = path.join(dataDir, 'temp_restore');
     if (fs.existsSync(tempExtractDir)) {
@@ -8968,19 +8977,18 @@ app.post('/api/settings/database/restore', async (req, res) => {
     
     console.log(`Archive extracted to ${tempExtractDir}`);
     restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Restoring database...', progress: 30 });
-    
-    // Restore database files
-    if (fs.existsSync(path.join(tempExtractDir, 'printhive.db'))) {
-      fs.copyFileSync(path.join(tempExtractDir, 'printhive.db'), path.join(dataDir, 'printhive.db'));
+
+    // Restore the PostgreSQL database from the dump inside the archive.
+    const pgBackup = require('./server/services/pgBackup');
+    const dumpPath = path.join(tempExtractDir, pgBackup.DUMP_FILENAME);
+    if (fs.existsSync(dumpPath)) {
+      console.log('Restoring PostgreSQL database from dump...');
+      await pgBackup.restoreFromFile(dumpPath);
       console.log('✓ Database restored');
+    } else {
+      console.warn('No PostgreSQL dump found in backup archive; skipping database restore');
     }
-    if (fs.existsSync(path.join(tempExtractDir, 'printhive.db-shm'))) {
-      fs.copyFileSync(path.join(tempExtractDir, 'printhive.db-shm'), path.join(dataDir, 'printhive.db-shm'));
-    }
-    if (fs.existsSync(path.join(tempExtractDir, 'printhive.db-wal'))) {
-      fs.copyFileSync(path.join(tempExtractDir, 'printhive.db-wal'), path.join(dataDir, 'printhive.db-wal'));
-    }
-    
+
     restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Restoring videos...', progress: 50 });
     
     // Restore videos if present
@@ -9047,15 +9055,9 @@ app.post('/api/settings/database/restore', async (req, res) => {
     console.log('✓ Cleanup complete');
     
     console.log(`Restore from ${backupFile} completed successfully`);
-    restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Reconnecting database...', progress: 95 });
-    
-    // Reconnect to database
-    const Database = require('better-sqlite3');
-    const dbPath = path.join(dataDir, 'printhive.db');
-    db = new Database(dbPath);
-    db.pragma('journal_mode = WAL');
-    
-    const result = { 
+    restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Finalizing...', progress: 95 });
+
+    const result = {
       success: true, 
       message: 'Backup restored successfully. Server will restart automatically.',
       shouldRestart: true
@@ -9091,17 +9093,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
       completedAt: new Date().toISOString(),
       error: error.message || 'Unknown restore error'
     });
-    
-    // Try to reconnect to database even if restore failed
-    try {
-      const Database = require('better-sqlite3');
-      const dbPath = path.join(dataDir, 'printhive.db');
-      db = new Database(dbPath);
-      db.pragma('journal_mode = WAL');
-    } catch (reconnectError) {
-      console.error('Failed to reconnect to database after restore error:', reconnectError);
-    }
-    
+
     if (!asyncMode) {
       res.status(500).json({ success: false, error: error.message });
     }

@@ -8,6 +8,18 @@ This application uses environment variables for configuration. Copy `.env.exampl
 - `PORT`: Port number the server will listen on (default: 3000)
 - `PUBLIC_URL`: Public URL where your application is hosted (e.g., https://your-domain.com)
 
+### PostgreSQL (required)
+PrintHive stores all of its data in PostgreSQL. These must be set or the app will refuse to start:
+- `PG_HOST`: PostgreSQL host, optionally with a port as `host:port` (e.g. `10.0.0.5` or `10.0.0.5:5432`).
+- `PG_USER`: Database user.
+- `PG_PASSWORD`: Database password (masked in logs).
+- `PG_DB`: Database name.
+- `PG_SCHEMA` *(optional)*: Schema to use (default `public`). Mainly useful for test isolation / multi-tenant setups.
+
+**First-boot migration:** on startup PrintHive checks the target database. If the schema is empty and a legacy SQLite database exists at `<data dir>/printhive.db`, all data is migrated into PostgreSQL, the migration is verified by comparing row counts, and the SQLite file is then renamed to `printhive.db.BK` (kept as a backup; safe to delete once you've confirmed everything works).
+
+Database backup/restore uses `pg_dump`/`pg_restore` (bundled in the Docker image via `postgresql-client`).
+
 ### OAuth Configuration
 Configure OIDC authentication with your identity provider:
 - `OAUTH_ISSUER`: Your OAuth issuer URL (e.g., https://authentik.company.com/application/o/your-app)
@@ -22,7 +34,7 @@ Configure OIDC authentication with your identity provider:
 - `COOKIE_SECURE`: Set to `true` to mark the session cookie `Secure` so it is only sent over HTTPS. Leave unset/`false` for plain-HTTP LAN deployments (default: `false`).
 
 ### Storage Locations
-- `PRINTHIVE_DATA_DIR`: Absolute path for the data directory (SQLite database, session secret, videos, thumbnails, backups). Default: `./data`.
+- `PRINTHIVE_DATA_DIR`: Absolute path for the data directory (session secret, videos, thumbnails, cover cache, backups, and any legacy `printhive.db` to migrate on first boot). The primary datastore is PostgreSQL. Default: `./data`.
 - `PRINTHIVE_LIBRARY_DIR`: Absolute path for the model library directory. Default: `./library`.
 
 ### Other

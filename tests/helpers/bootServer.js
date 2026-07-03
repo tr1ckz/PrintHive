@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -22,6 +23,9 @@ export async function bootServer() {
   const baseUrl = `http://127.0.0.1:${port}`;
   const logs = [];
 
+  // Each boot gets an isolated PostgreSQL schema so tests don't share state.
+  const pgSchema = `test_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+
   const child = spawn(process.execPath, [path.join(ROOT, 'simple-server.js')], {
     cwd: tempRoot, // keeps ./sessions inside the temp dir
     env: {
@@ -30,6 +34,7 @@ export async function bootServer() {
       PRINTHIVE_DATA_DIR: dataDir,
       PRINTHIVE_LIBRARY_DIR: libraryDir,
       NODE_ENV: 'test',
+      PG_SCHEMA: pgSchema,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -54,6 +59,19 @@ export async function bootServer() {
     throw new Error(`Server failed to boot on ${baseUrl}:\n${logs.join('')}`);
   }
 
+  // /api/health responds as soon as the HTTP server is listening, which can be
+  // before initDatabase() finishes creating the schema + default admin. Wait
+  // until the admin user exists so tests see a fully-initialized database.
+  const adminDeadline = Date.now() + 30000;
+  while (Date.now() < adminDeadline) {
+    try {
+      const rows = await query("SELECT 1 FROM users WHERE username = 'admin' LIMIT 1");
+      if (rows.length > 0) break;
+    } catch { /* schema not ready yet */ }
+    if (child.exitCode !== null) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
   async function login(username = 'admin', password = 'admin') {
     const res = await fetch(`${baseUrl}/auth/login`, {
       method: 'POST',
@@ -76,12 +94,39 @@ export async function bootServer() {
     return { status: res.status, body };
   }
 
+  // Connect to the same PostgreSQL the server uses (for assertions / cleanup).
+  function pgClient() {
+    const raw = process.env.PG_HOST || '127.0.0.1:5432';
+    let host = raw, portNum = 5432;
+    if (raw.includes(':')) { host = raw.slice(0, raw.lastIndexOf(':')); portNum = parseInt(raw.slice(raw.lastIndexOf(':') + 1), 10) || 5432; }
+    return new pg.Client({
+      host, port: portNum,
+      user: process.env.PG_USER, password: process.env.PG_PASSWORD, database: process.env.PG_DB,
+      options: `-c search_path=${pgSchema}`,
+    });
+  }
+
+  // Run a query against this boot's schema; returns rows.
+  async function query(text, params = []) {
+    const client = pgClient();
+    await client.connect();
+    try { return (await client.query(text, params)).rows; }
+    finally { await client.end(); }
+  }
+
   async function stop() {
     child.kill();
     await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
     if (child.exitCode === null) child.kill('SIGKILL');
+    // Drop the isolated schema.
+    try {
+      const client = pgClient();
+      await client.connect();
+      await client.query(`DROP SCHEMA IF EXISTS "${pgSchema}" CASCADE`);
+      await client.end();
+    } catch { /* best effort */ }
     try { fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3 }); } catch { /* win file locks */ }
   }
 
-  return { baseUrl, dataDir, libraryDir, login, getJson, stop, logs, child };
+  return { baseUrl, dataDir, libraryDir, pgSchema, login, getJson, query, stop, logs, child };
 }
