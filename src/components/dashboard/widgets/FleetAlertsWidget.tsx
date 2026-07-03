@@ -19,30 +19,30 @@ function FleetAlertsWidget({ data, onOpenPrinters, onOpenMaintenance }: FleetAle
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
-        <div className={`rounded-[4px] border p-4 ${offlineCount > 0 ? 'border-rose-500/40 ops-card-tint-failure' : 'border-neutral-800 bg-neutral-900'}`}>
-          <p className="ops-secondary-text">Offline</p>
-          <p className={`mt-1 text-3xl font-bold leading-tight ${offlineCount > 0 ? 'text-rose-400' : 'text-white'}`}>{offlineCount}</p>
+        <div className={`rounded-md border p-4 ${offlineCount > 0 ? 'border-danger/40 bg-danger/5' : 'border-line bg-white/[0.04]'}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Offline</p>
+          <p className={`mt-1 text-3xl font-bold leading-tight ${offlineCount > 0 ? 'text-danger' : 'text-fg'}`}>{offlineCount}</p>
         </div>
-        <div className={`rounded-[4px] border p-4 ${data.overdueMaintenance > 0 ? 'border-amber-500/40 ops-card-tint-warning' : 'border-neutral-800 bg-neutral-900'}`}>
-          <p className="ops-secondary-text">Overdue</p>
-          <p className={`mt-1 text-3xl font-bold leading-tight ${data.overdueMaintenance > 0 ? 'text-amber-400' : 'text-white'}`}>{data.overdueMaintenance}</p>
+        <div className={`rounded-md border p-4 ${data.overdueMaintenance > 0 ? 'border-warning/40 bg-warning/5' : 'border-line bg-white/[0.04]'}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Overdue</p>
+          <p className={`mt-1 text-3xl font-bold leading-tight ${data.overdueMaintenance > 0 ? 'text-warning' : 'text-fg'}`}>{data.overdueMaintenance}</p>
         </div>
       </div>
 
-      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-3">
-        <p className="ops-secondary-text">Active Prints</p>
-        <p className="mt-1 text-2xl font-bold text-white">{data.activePrints}<span className="text-neutral-500">/{data.totalPrinters || 0}</span></p>
+      <div className="rounded-md border border-line bg-white/[0.04] p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Active Prints</p>
+        <p className="mt-1 text-2xl font-bold text-fg">{data.activePrints}<span className="text-muted">/{data.totalPrinters || 0}</span></p>
       </div>
 
       {visibleOffline.length > 0 ? (
-        <div className="space-y-1 rounded-[4px] border border-rose-500/30 ops-card-tint-failure p-3">
-          <p className="ops-secondary-text">Offline Printers</p>
+        <div className="space-y-1 rounded-md border border-danger/30 bg-danger/5 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Offline Printers</p>
           {visibleOffline.map((name) => (
-            <p key={name} className="truncate border-b border-rose-950/50 py-1.5 text-sm font-semibold text-rose-200 last:border-b-0">{name}</p>
+            <p key={name} className="truncate border-b border-danger/20 py-1.5 text-sm font-semibold text-danger last:border-b-0">{name}</p>
           ))}
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center rounded-[4px] border border-dashed border-emerald-800/50 bg-emerald-950/20 text-xs text-emerald-500">
+        <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-success/30 bg-success/10 text-xs text-success">
           Fleet is healthy.
         </div>
       )}
@@ -51,14 +51,14 @@ function FleetAlertsWidget({ data, onOpenPrinters, onOpenMaintenance }: FleetAle
         <button
           type="button"
           onClick={onOpenPrinters}
-          className="widget-no-drag rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white hover:border-neutral-700"
+          className="widget-no-drag rounded-md border border-line bg-white/[0.04] px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fg hover:border-line-strong"
         >
           Printers
         </button>
         <button
           type="button"
           onClick={onOpenMaintenance}
-          className="widget-no-drag rounded-[4px] border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white hover:border-neutral-700"
+          className="widget-no-drag rounded-md border border-line bg-white/[0.04] px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fg hover:border-line-strong"
         >
           Maintenance
         </button>

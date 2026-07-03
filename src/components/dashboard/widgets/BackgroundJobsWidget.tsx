@@ -23,30 +23,30 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
-        <p className="ops-secondary-text">Pipeline</p>
-        <p className="mt-1.5 text-2xl font-bold leading-tight text-white">{activeJobs.length} active</p>
+      <div className="rounded-md border border-line bg-white/[0.04] p-5">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Pipeline</p>
+        <p className="mt-1.5 text-2xl font-bold leading-tight text-fg">{activeJobs.length} active</p>
       </div>
 
       {visibleJobs.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-dashed border-neutral-700 bg-neutral-950/40 p-5 text-xs text-neutral-500">
-          <Inbox className="h-4 w-4 text-neutral-600" aria-hidden />
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-dashed border-line-strong bg-transparent/40 p-5 text-xs text-muted">
+          <Inbox className="h-4 w-4 text-muted" aria-hidden />
           <p className="italic">No background jobs running.</p>
         </div>
       ) : (
-        <div className="space-y-4 rounded-[4px] border border-neutral-800 bg-neutral-900 p-5">
+        <div className="space-y-4 rounded-md border border-line bg-white/[0.04] p-5">
           {visibleJobs.map((job) => {
             const pct = job.total > 0 ? Math.round((job.processed / job.total) * 100) : 0;
             return (
-              <div key={job.id} className="border-b border-neutral-800 py-4 last:border-b-0">
+              <div key={job.id} className="border-b border-line py-4 last:border-b-0">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-semibold leading-tight text-white">{job.name}</p>
-                  <span className="ops-tertiary-text">{pct}%</span>
+                  <p className="truncate text-sm font-semibold leading-tight text-fg">{job.name}</p>
+                  <span className="text-xs text-muted">{pct}%</span>
                 </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-[3px] border border-neutral-700 bg-neutral-800">
-                  <div className="h-full bg-orange-500" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+                <div className="mt-2 h-1.5 overflow-hidden rounded border border-line-strong bg-white/10">
+                  <div className="h-full bg-accent" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
                 </div>
-                <p className="mt-2 ops-tertiary-text">{job.completed} done | {job.failed} failed</p>
+                <p className="mt-2 text-xs text-muted">{job.completed} done | {job.failed} failed</p>
               </div>
             );
           })}
@@ -57,14 +57,14 @@ function BackgroundJobsWidget({ jobs, density = 'comfortable', onOpenLibrary, on
         <button
           type="button"
           onClick={onOpenLibrary}
-          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+          className="rounded-md border border-line bg-white/[0.04] px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg hover:border-line-strong"
         >
           Library
         </button>
         <button
           type="button"
           onClick={onOpenHistory}
-          className="rounded-[4px] border border-neutral-800 bg-neutral-900 px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-white hover:border-neutral-700"
+          className="rounded-md border border-line bg-white/[0.04] px-3.5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg hover:border-line-strong"
         >
           History
         </button>

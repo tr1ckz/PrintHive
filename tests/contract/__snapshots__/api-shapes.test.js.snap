@@ -1,0 +1,1093 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/admin/users 1`] = `
+{
+  "body": [
+    {
+      "created_at": "<volatile:string>",
+      "email": null,
+      "id": 1,
+      "oauth_provider": null,
+      "role": "superadmin",
+      "username": "admin",
+    },
+  ],
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/background-jobs/summary 1`] = `
+{
+  "body": {
+    "jobs": [
+      {
+        "completed": 0,
+        "failed": 0,
+        "id": "video-match",
+        "name": "Video Matching",
+        "processed": 0,
+        "running": false,
+        "total": 0,
+      },
+      {
+        "completed": 0,
+        "failed": 0,
+        "id": "library-scan",
+        "name": "Library Scan",
+        "processed": 0,
+        "running": false,
+        "total": 0,
+      },
+      {
+        "completed": 0,
+        "failed": 0,
+        "id": "auto-tag",
+        "name": "Auto Tagging",
+        "processed": 0,
+        "running": false,
+        "total": 0,
+      },
+      {
+        "completed": 0,
+        "failed": 0,
+        "id": "bulk-delete",
+        "name": "Bulk Delete",
+        "processed": 0,
+        "running": false,
+        "total": 0,
+      },
+      {
+        "completed": 0,
+        "failed": 0,
+        "id": "printer-transfer",
+        "name": "Printer Timelapse Sync",
+        "processed": 0,
+        "running": false,
+        "total": 0,
+      },
+      {
+        "completed": 0,
+        "failed": 0,
+        "id": "cloud-sync",
+        "name": "Cloud Sync",
+        "processed": 0,
+        "running": false,
+        "total": 0,
+      },
+      {
+        "completed": 0,
+        "failed": 0,
+        "id": "cover-backfill",
+        "name": "Cover Backfill",
+        "processed": 0,
+        "running": false,
+        "total": 0,
+      },
+      {
+        "completed": 0,
+        "failed": 0,
+        "id": "database-maintenance",
+        "name": "DB Maintenance",
+        "processed": 0,
+        "running": false,
+        "total": 1,
+      },
+    ],
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/bambu/accounts 1`] = `
+{
+  "body": {
+    "accounts": [],
+    "success": true,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/check-auth 1`] = `
+{
+  "body": {
+    "authenticated": true,
+    "role": "superadmin",
+    "username": "admin",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/download-missing-covers-status 1`] = `
+{
+  "body": {
+    "currentFile": "",
+    "downloaded": 0,
+    "elapsedSeconds": 0,
+    "failed": 0,
+    "message": "",
+    "percentComplete": 0,
+    "phase": "idle",
+    "processed": 0,
+    "running": false,
+    "startTime": null,
+    "total": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/health 1`] = `
+{
+  "body": {
+    "status": "ok",
+    "timestamp": "<volatile:string>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/library 1`] = `
+{
+  "body": [],
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/library/auto-tag-status 1`] = `
+{
+  "body": {
+    "completed": 0,
+    "currentFile": "",
+    "elapsedTime": 0,
+    "failed": 0,
+    "processed": 0,
+    "queued": 0,
+    "running": false,
+    "total": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/library/bulk-delete-status 1`] = `
+{
+  "body": {
+    "currentFile": "",
+    "deleted": 0,
+    "elapsedTime": 0,
+    "failed": 0,
+    "processed": 0,
+    "queued": 0,
+    "running": false,
+    "total": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/library/duplicates 1`] = `
+{
+  "body": {
+    "duplicates": [],
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/library/scan-status 1`] = `
+{
+  "body": {
+    "added": 0,
+    "currentFile": "",
+    "elapsedSeconds": 0,
+    "percentComplete": 0,
+    "processed": 0,
+    "running": false,
+    "skipped": 0,
+    "startTime": null,
+    "total": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/library/stats 1`] = `
+{
+  "body": {
+    "duplicate_groups": 0,
+    "models_never_printed": 0,
+    "models_with_hash": 0,
+    "models_with_tags": 0,
+    "total_models": 0,
+    "total_problems": 0,
+    "total_size": 0,
+    "total_tags": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/maintenance 1`] = `
+{
+  "body": [],
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/maintenance/summary 1`] = `
+{
+  "body": {
+    "dueSoon": 0,
+    "neverDone": 0,
+    "overdue": 0,
+    "total": 0,
+    "upToDate": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/match-videos-status 1`] = `
+{
+  "body": {
+    "currentVideo": "",
+    "elapsedSeconds": 0,
+    "matched": 0,
+    "percentComplete": 0,
+    "processed": 0,
+    "running": false,
+    "startTime": null,
+    "total": 0,
+    "unmatched": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/models 1`] = `
+{
+  "body": {
+    "hits": [],
+    "source": "cache",
+    "total": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/printer-transfer-status 1`] = `
+{
+  "body": {
+    "completed": 0,
+    "currentFile": "",
+    "elapsedSeconds": 0,
+    "failed": 0,
+    "message": "",
+    "percentComplete": 0,
+    "phase": "idle",
+    "processed": 0,
+    "running": false,
+    "startTime": null,
+    "total": 0,
+    "type": "",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/printers 1`] = `
+{
+  "body": {
+    "devices": [],
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/printers/config 1`] = `
+{
+  "body": {
+    "printers": [],
+    "success": true,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/printers/status 1`] = `
+{
+  "body": {
+    "online": 0,
+    "printers": [],
+    "total": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/prints 1`] = `
+{
+  "body": [],
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/bambu-status 1`] = `
+{
+  "body": {
+    "connected": false,
+    "email": null,
+    "lastUpdated": null,
+    "region": "global",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/dashboard-widgets 1`] = `
+{
+  "body": {
+    "preferences": {
+      "hiddenWidgetIds": [
+        "mqttStatus",
+      ],
+      "layouts": {
+        "lg": [
+          {
+            "h": 7,
+            "i": "livePrinters",
+            "minH": 5,
+            "minW": 4,
+            "w": 5,
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "h": 5,
+            "i": "healthSummary",
+            "minH": 4,
+            "minW": 3,
+            "w": 3,
+            "x": 5,
+            "y": 0,
+          },
+          {
+            "h": 5,
+            "i": "materialUsage",
+            "minH": 4,
+            "minW": 4,
+            "w": 5,
+            "x": 0,
+            "y": 7,
+          },
+          {
+            "h": 6,
+            "i": "queuePressure",
+            "minH": 5,
+            "minW": 3,
+            "w": 3,
+            "x": 5,
+            "y": 11,
+          },
+          {
+            "h": 5,
+            "i": "fleetAlerts",
+            "minH": 4,
+            "minW": 3,
+            "w": 4,
+            "x": 8,
+            "y": 0,
+          },
+          {
+            "h": 6,
+            "i": "upcomingSchedule",
+            "minH": 5,
+            "minW": 3,
+            "w": 3,
+            "x": 5,
+            "y": 5,
+          },
+          {
+            "h": 6,
+            "i": "backgroundJobs",
+            "minH": 5,
+            "minW": 3,
+            "w": 4,
+            "x": 8,
+            "y": 5,
+          },
+          {
+            "h": 8,
+            "i": "activityStream",
+            "minH": 6,
+            "minW": 4,
+            "w": 4,
+            "x": 8,
+            "y": 11,
+          },
+          {
+            "h": 4,
+            "i": "failureWatch",
+            "minH": 4,
+            "minW": 3,
+            "w": 3,
+            "x": 5,
+            "y": 17,
+          },
+          {
+            "h": 5,
+            "i": "mqttStatus",
+            "minH": 4,
+            "minW": 4,
+            "w": 5,
+            "x": 0,
+            "y": 12,
+          },
+        ],
+        "md": [
+          {
+            "h": 6,
+            "i": "livePrinters",
+            "minH": 5,
+            "minW": 4,
+            "w": 6,
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "h": 5,
+            "i": "healthSummary",
+            "minH": 4,
+            "minW": 3,
+            "w": 4,
+            "x": 6,
+            "y": 0,
+          },
+          {
+            "h": 5,
+            "i": "materialUsage",
+            "minH": 4,
+            "minW": 4,
+            "w": 6,
+            "x": 0,
+            "y": 6,
+          },
+          {
+            "h": 6,
+            "i": "queuePressure",
+            "minH": 5,
+            "minW": 3,
+            "w": 4,
+            "x": 6,
+            "y": 10,
+          },
+          {
+            "h": 5,
+            "i": "fleetAlerts",
+            "minH": 4,
+            "minW": 3,
+            "w": 4,
+            "x": 6,
+            "y": 5,
+          },
+          {
+            "h": 6,
+            "i": "upcomingSchedule",
+            "minH": 5,
+            "minW": 3,
+            "w": 4,
+            "x": 0,
+            "y": 11,
+          },
+          {
+            "h": 6,
+            "i": "backgroundJobs",
+            "minH": 5,
+            "minW": 3,
+            "w": 6,
+            "x": 4,
+            "y": 11,
+          },
+          {
+            "h": 8,
+            "i": "activityStream",
+            "minH": 6,
+            "minW": 5,
+            "w": 10,
+            "x": 0,
+            "y": 17,
+          },
+          {
+            "h": 5,
+            "i": "failureWatch",
+            "minH": 4,
+            "minW": 5,
+            "w": 10,
+            "x": 0,
+            "y": 25,
+          },
+          {
+            "h": 5,
+            "i": "mqttStatus",
+            "minH": 4,
+            "minW": 5,
+            "w": 10,
+            "x": 0,
+            "y": 30,
+          },
+        ],
+        "sm": [
+          {
+            "h": 6,
+            "i": "livePrinters",
+            "minH": 5,
+            "minW": 3,
+            "w": 6,
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "h": 5,
+            "i": "healthSummary",
+            "minH": 4,
+            "minW": 3,
+            "w": 6,
+            "x": 0,
+            "y": 6,
+          },
+          {
+            "h": 5,
+            "i": "materialUsage",
+            "minH": 4,
+            "minW": 3,
+            "w": 6,
+            "x": 0,
+            "y": 11,
+          },
+          {
+            "h": 6,
+            "i": "queuePressure",
+            "minH": 5,
+            "minW": 3,
+            "w": 6,
+            "x": 0,
+            "y": 16,
+          },
+          {
+            "h": 5,
+            "i": "fleetAlerts",
+            "minH": 4,
+            "minW": 3,
+            "w": 6,
+            "x": 0,
+            "y": 22,
+          },
+          {
+            "h": 6,
+            "i": "backgroundJobs",
+            "minH": 5,
+            "minW": 3,
+            "w": 6,
+            "x": 0,
+            "y": 27,
+          },
+          {
+            "h": 6,
+            "i": "upcomingSchedule",
+            "minH": 5,
+            "minW": 4,
+            "w": 6,
+            "x": 0,
+            "y": 33,
+          },
+          {
+            "h": 8,
+            "i": "activityStream",
+            "minH": 6,
+            "minW": 4,
+            "w": 6,
+            "x": 0,
+            "y": 39,
+          },
+          {
+            "h": 6,
+            "i": "failureWatch",
+            "minH": 5,
+            "minW": 4,
+            "w": 6,
+            "x": 0,
+            "y": 47,
+          },
+          {
+            "h": 5,
+            "i": "mqttStatus",
+            "minH": 4,
+            "minW": 4,
+            "w": 6,
+            "x": 0,
+            "y": 53,
+          },
+        ],
+        "xs": [
+          {
+            "h": 6,
+            "i": "livePrinters",
+            "minH": 5,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "h": 5,
+            "i": "healthSummary",
+            "minH": 4,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 6,
+          },
+          {
+            "h": 5,
+            "i": "materialUsage",
+            "minH": 4,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 11,
+          },
+          {
+            "h": 6,
+            "i": "queuePressure",
+            "minH": 5,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 16,
+          },
+          {
+            "h": 5,
+            "i": "fleetAlerts",
+            "minH": 4,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 22,
+          },
+          {
+            "h": 6,
+            "i": "backgroundJobs",
+            "minH": 5,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 27,
+          },
+          {
+            "h": 6,
+            "i": "upcomingSchedule",
+            "minH": 5,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 33,
+          },
+          {
+            "h": 8,
+            "i": "activityStream",
+            "minH": 6,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 39,
+          },
+          {
+            "h": 6,
+            "i": "failureWatch",
+            "minH": 5,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 47,
+          },
+          {
+            "h": 5,
+            "i": "mqttStatus",
+            "minH": 4,
+            "minW": 2,
+            "w": 4,
+            "x": 0,
+            "y": 53,
+          },
+        ],
+        "xxs": [
+          {
+            "h": 6,
+            "i": "livePrinters",
+            "minH": 5,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 0,
+          },
+          {
+            "h": 5,
+            "i": "healthSummary",
+            "minH": 4,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 6,
+          },
+          {
+            "h": 5,
+            "i": "materialUsage",
+            "minH": 4,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 11,
+          },
+          {
+            "h": 6,
+            "i": "queuePressure",
+            "minH": 5,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 16,
+          },
+          {
+            "h": 5,
+            "i": "fleetAlerts",
+            "minH": 4,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 22,
+          },
+          {
+            "h": 6,
+            "i": "backgroundJobs",
+            "minH": 5,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 27,
+          },
+          {
+            "h": 6,
+            "i": "upcomingSchedule",
+            "minH": 5,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 33,
+          },
+          {
+            "h": 8,
+            "i": "activityStream",
+            "minH": 6,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 39,
+          },
+          {
+            "h": 6,
+            "i": "failureWatch",
+            "minH": 5,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 47,
+          },
+          {
+            "h": 5,
+            "i": "mqttStatus",
+            "minH": 4,
+            "minW": 2,
+            "w": 2,
+            "x": 0,
+            "y": 53,
+          },
+        ],
+      },
+      "version": "<volatile:number>",
+    },
+    "success": true,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/database 1`] = `
+{
+  "body": {
+    "backupIncludeCovers": true,
+    "backupIncludeLibrary": true,
+    "backupIncludeVideos": true,
+    "backupInterval": 7,
+    "backupRetention": 30,
+    "backupScheduleEnabled": false,
+    "backupWebhookUrl": "",
+    "remoteBackupEnabled": false,
+    "remoteBackupHost": "",
+    "remoteBackupPassword": "",
+    "remoteBackupPath": "/backups",
+    "remoteBackupPort": 22,
+    "remoteBackupType": "sftp",
+    "remoteBackupUsername": "",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/database/backups 1`] = `
+{
+  "body": {
+    "backups": [],
+    "stats": {
+      "count": 0,
+      "totalSize": 0,
+      "totalSizeFormatted": "0 Bytes",
+    },
+    "success": true,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/database/maintenance-status 1`] = `
+{
+  "body": {
+    "completed": 0,
+    "currentFile": "",
+    "details": null,
+    "elapsedSeconds": 0,
+    "failed": 0,
+    "message": "",
+    "percentComplete": 0,
+    "phase": "idle",
+    "processed": 0,
+    "running": false,
+    "startTime": null,
+    "total": 1,
+    "type": "",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/discord 1`] = `
+{
+  "body": {
+    "maintenanceEnabled": false,
+    "maintenanceWebhook": "",
+    "pingUserId": "",
+    "printerEnabled": false,
+    "printerWebhook": "",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/notifications 1`] = `
+{
+  "body": {
+    "settings": {
+      "discord": {
+        "backupEnabled": false,
+        "maintenanceEnabled": false,
+        "pingUserId": "",
+        "printerEnabled": false,
+        "webhook": "",
+      },
+      "slack": {
+        "backupEnabled": false,
+        "maintenanceEnabled": false,
+        "printerEnabled": false,
+        "webhook": "",
+      },
+      "telegram": {
+        "backupEnabled": false,
+        "botToken": "",
+        "chatId": "",
+        "maintenanceEnabled": false,
+        "printerEnabled": false,
+      },
+    },
+    "success": true,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/oauth 1`] = `
+{
+  "body": {
+    "googleClientId": "",
+    "googleClientSecret": "",
+    "oidcClientId": "",
+    "oidcClientSecret": "",
+    "oidcEndSessionUrl": "",
+    "oidcIssuer": "",
+    "provider": "none",
+    "publicHostname": "",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/oauth-public 1`] = `
+{
+  "body": {
+    "provider": "none",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/printer-ftp 1`] = `
+{
+  "body": {
+    "cameraRtspUrl": "",
+    "printerAccessCode": "",
+    "printerIp": "",
+    "serialNumber": "",
+    "success": true,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/ui 1`] = `
+{
+  "body": {
+    "cameraMode": "frigate",
+    "cameraStreamType": "frigate-hls",
+    "cameraStreamUrl": "",
+    "colorScheme": "cyan",
+    "frigateStreamUrl": "",
+    "hideBmc": false,
+    "rtspUrl": "",
+    "success": true,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/watchdog 1`] = `
+{
+  "body": {
+    "enabled": false,
+    "endpoint": "",
+    "interval": 30,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/statistics 1`] = `
+{
+  "body": {
+    "averagePrintTime": 0,
+    "failedPrints": 0,
+    "materialsByColor": {},
+    "materialsByType": {},
+    "printsByPrinter": {},
+    "printsByStatus": {},
+    "successRate": 0,
+    "totalLength": 0,
+    "totalPrints": 0,
+    "totalTime": 0,
+    "totalWeight": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/statistics/costs 1`] = `
+{
+  "body": {
+    "currency": "USD",
+    "electricityCost": 0,
+    "filamentCost": 0,
+    "filamentUsedKg": 0,
+    "printTimeHours": 0,
+    "settings": {
+      "electricityCostPerKwh": 0.12,
+      "filamentCostPerKg": 25,
+      "printerWattage": 150,
+    },
+    "totalCost": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/sync-status 1`] = `
+{
+  "body": {
+    "currentFile": "",
+    "downloadedCovers": 0,
+    "downloadedVideos": 0,
+    "elapsedSeconds": 0,
+    "failed": 0,
+    "message": "",
+    "newPrints": 0,
+    "percentComplete": 0,
+    "phase": "idle",
+    "processed": 0,
+    "running": false,
+    "startTime": null,
+    "total": 0,
+    "updated": 0,
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/tags 1`] = `
+{
+  "body": [],
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/timelapses 1`] = `
+{
+  "body": {
+    "error": "Failed to fetch timelapses",
+  },
+  "status": 500,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/user/me 1`] = `
+{
+  "body": {
+    "display_name": null,
+    "email": null,
+    "id": 1,
+    "role": "superadmin",
+    "username": "admin",
+  },
+  "status": 200,
+}
+`;
+
+exports[`API contract snapshots (authenticated, empty DB) > GET /api/version 1`] = `
+{
+  "body": {
+    "buildTime": "<volatile:string>",
+    "description": "Web application for 3D printer management - monitor printers, manage models and timelapses",
+    "name": "printhive",
+    "timestamp": "<volatile:string>",
+    "version": "<volatile:string>",
+  },
+  "status": 200,
+}
+`;

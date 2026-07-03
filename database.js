@@ -3,8 +3,11 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 
-// Ensure data directory exists
-const dataDir = path.join(__dirname, 'data');
+// Ensure data directory exists (PRINTHIVE_DATA_DIR/PRINTHIVE_LIBRARY_DIR let
+// tests and alternate deployments relocate all mutable state)
+const dataDir = process.env.PRINTHIVE_DATA_DIR
+  ? path.resolve(process.env.PRINTHIVE_DATA_DIR)
+  : path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
@@ -12,7 +15,9 @@ if (!fs.existsSync(dataDir)) {
 const db = new Database(path.join(dataDir, 'printhive.db'));
 
 // Ensure library directory exists
-const libraryDir = path.join(__dirname, 'library');
+const libraryDir = process.env.PRINTHIVE_LIBRARY_DIR
+  ? path.resolve(process.env.PRINTHIVE_LIBRARY_DIR)
+  : path.join(__dirname, 'library');
 if (!fs.existsSync(libraryDir)) {
   fs.mkdirSync(libraryDir, { recursive: true });
 }
@@ -398,7 +403,8 @@ try {
 // Create default superadmin user if no users exist
 const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
 if (userCount.count === 0) {
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', 'admin', 'superadmin');
+  const bcrypt = require('bcryptjs');
+  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', bcrypt.hashSync('admin', 12), 'superadmin');
   console.log('✓ Created default superadmin user (username: admin, password: admin)');
 }
 
@@ -903,6 +909,7 @@ module.exports = {
   downloadCoverImage,
   downloadTimelapseVideo,
   updatePrintVideoPath,
+  dataDir,
   libraryDir,
   videosDir,
   migrateBambuAccounts

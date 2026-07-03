@@ -1,6 +1,8 @@
 const express = require('express');
 const logger = require('./logger');
 const path = require('path');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const axios = require('axios');
@@ -31,12 +33,30 @@ const {
   downloadCoverImage,
   downloadTimelapseVideo,
   updatePrintVideoPath,
+  dataDir,
   libraryDir,
   videosDir,
   db
 } = require('./database');
-const { getThumbnail, clearThumbnailCache } = require('./thumbnail-generator');
+// Thumbnails render in a dedicated worker_thread (canvas CPU work off the event loop)
+const { getThumbnail, clearThumbnailCache } = require('./server/jobs/thumbnailClient');
 const { autoDescribeModel } = require('./ai-describer');
+const { PORT, BCRYPT_ROUNDS, isBcryptHash, loadSessionSecret, getBambuApiBase } = require('./server/config');
+const { securityHeaders, appHeaders, rejectCrossSite } = require('./server/middleware/security');
+const { requireAuth, requireAdmin } = require('./server/middleware/requireAuth');
+const { configureOIDC, getOidcConfig } = require('./server/services/oidcProvider');
+const { sendNotification, sendDiscordNotification, sendTelegramNotification, sendSlackNotification } = require('./server/services/notifications');
+const jobManager = require('./server/jobs/jobManager');
+const PrinterConnectionManager = require('./server/services/printerConnectionManager');
+const {
+  REALTIME_SOCKET_PATH,
+  broadcastRealtimeMessage,
+  attachRealtimeBridgeToMqttClient,
+  setupRealtimeServer,
+  closeRealtimeServer,
+} = require('./server/realtime/wsServer');
+const authRoutes = require('./server/routes/auth');
+const maintenanceRoutes = require('./server/routes/maintenance');
 
 // Helper function to clean HTML-encoded descriptions (handles double/triple encoding)
 function cleanDescription(rawDescription) {
@@ -67,17 +87,13 @@ function cleanDescription(rawDescription) {
   
   return result;
 }
-const bambuFtp = require('./src/services/bambuFtp');
-const backgroundSync = require('./src/services/backgroundSync');
+const bambuFtp = require('./server/services/bambuFtp');
+const backgroundSync = require('./server/services/backgroundSync');
 const videoConverter = require('./video-converter');
-const BambuMqttClient = require('./mqtt-client');
+const BambuMqttClient = require('./server/services/mqtt-client');
 const coverImageFetcher = require('./cover-image-fetcher');
 
-function getBambuApiBase(region = 'global') {
-  return region === 'china' ? 'https://api.bambulab.cn' : 'https://api.bambulab.com';
-}
-
-const go2rtcConfigDir = path.join(__dirname, 'data', 'go2rtc');
+const go2rtcConfigDir = path.join(dataDir, 'go2rtc');
 const go2rtcConfigPath = path.join(go2rtcConfigDir, 'go2rtc.yaml');
 const unifiedCameraRelayStreamName = 'printhive_camera';
 const go2rtcInternalBaseUrl = process.env.GO2RTC_INTERNAL_URL || 'http://127.0.0.1:1984';
@@ -519,7 +535,7 @@ function setupFtpAutoSync() {
         try {
           // Check if printer is currently printing via MQTT
           const clientKey = `${printer.ip_address}:${printer.dev_id}`;
-          const mqttClient = mqttClients.get(clientKey);
+          const mqttClient = printerManager.getClient(clientKey);
           
           if (mqttClient && mqttClient.connected) {
             const currentJob = mqttClient.getCurrentJob();
@@ -543,7 +559,7 @@ function setupFtpAutoSync() {
           
           // Sync timelapses
           try {
-            const videosDir = path.join(__dirname, 'data', 'videos');
+            const videosDir = path.join(dataDir, 'videos');
             const timelapses = await bambuFtp.downloadAllTimelapses(videosDir, false);
             const newTimelapses = timelapses.filter(t => !t.skipped).length;
             if (newTimelapses > 0) {
@@ -791,168 +807,15 @@ function setupAutoVideoMatching() {
 
 const app = express();
 let httpServer = null; // Store reference for graceful shutdown
-let realtimeWss = null;
-const mqttClients = new Map(); // Store MQTT clients per printer
-// Track recent failed MQTT connection attempts so an unreachable printer
-// isn't re-dialed on every status poll (which spawns zombie auto-reconnecting
-// clients and floods the log with connack-timeout errors).
-const mqttConnectFailures = new Map(); // clientKey -> timestamp of last failure
-const MQTT_RECONNECT_COOLDOWN_MS = 60000;
-const REALTIME_SOCKET_PATH = '/ws/printers';
-const PORT = process.env.PORT || 3000;
 
-function sendRealtimeMessage(socket, payload) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    return;
-  }
-
-  try {
-    socket.send(JSON.stringify({
-      sentAt: new Date().toISOString(),
-      ...payload,
-    }));
-  } catch (error) {
-    logger.debug('[Realtime] Failed to send websocket message:', error.message);
-  }
-}
-
-function broadcastRealtimeMessage(payload) {
-  if (!realtimeWss) {
-    return;
-  }
-
-  realtimeWss.clients.forEach((client) => {
-    sendRealtimeMessage(client, payload);
-  });
-}
-
-function buildRealtimePrinterPayload(device, jobData = null, overrides = {}) {
-  const printerId = device?.dev_id || overrides.dev_id || null;
-  if (!printerId) {
-    return null;
-  }
-
-  let latestConfig = {};
-  try {
-    latestConfig = db.prepare(`
-      SELECT dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url
-      FROM printers
-      WHERE dev_id = ?
-    `).get(printerId) || {};
-
-    // Fallback: if no camera URL found by dev_id, look for a record matching by serial number
-    // (handles ghost manual_* records that haven't been migrated yet).
-    if (!latestConfig.camera_rtsp_url && device?.serial_number) {
-      const bySerial = db.prepare(`
-        SELECT camera_rtsp_url FROM printers WHERE serial_number = ? AND camera_rtsp_url IS NOT NULL AND TRIM(camera_rtsp_url) != ''
-      `).get(device.serial_number);
-      if (bySerial?.camera_rtsp_url) {
-        latestConfig.camera_rtsp_url = bySerial.camera_rtsp_url;
-      }
-    }
-  } catch (error) {
-    logger.debug('[Realtime] Failed to load printer config snapshot:', error.message);
-  }
-
-  const mergedTask = jobData
-    ? { ...(device?.current_task || {}), ...jobData, ...(overrides.current_task || {}) }
-    : overrides.current_task || device?.current_task;
-
-  return {
-    type: 'printer.telemetry',
-    printerId,
-    payload: {
-      ...device,
-      ...latestConfig,
-      ...overrides,
-      dev_id: printerId,
-      name: overrides.name || latestConfig.name || device?.name || printerId,
-      online: overrides.online ?? device?.online ?? false,
-      print_status: overrides.print_status || device?.print_status || mergedTask?.gcode_state || 'OFFLINE',
-      camera_rtsp_url: overrides.camera_rtsp_url ?? latestConfig.camera_rtsp_url ?? device?.camera_rtsp_url ?? null,
-      ams: overrides.ams ?? mergedTask?.ams ?? device?.ams,
-      current_task: mergedTask || undefined,
-    },
-  };
-}
-
-function attachRealtimeBridgeToMqttClient(mqttClient, clientKey, device) {
-  mqttClient.realtimeDevice = {
-    ...(mqttClient.realtimeDevice || {}),
-    ...device,
-  };
-
-  if (mqttClient.__realtimeBridgeAttached) {
-    return;
-  }
-
-  mqttClient.__realtimeBridgeAttached = true;
-
-  mqttClient.on('job_update', (jobData) => {
-    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, jobData, {
-      online: true,
-      print_status: jobData?.gcode_state || mqttClient.realtimeDevice?.print_status || 'ONLINE',
-    });
-
-    if (payload) {
-      broadcastRealtimeMessage(payload);
-    }
-  });
-
-  mqttClient.on('disconnected', () => {
-    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
-      online: false,
-      print_status: 'OFFLINE',
-    });
-
-    if (payload) {
-      broadcastRealtimeMessage(payload);
-    }
-  });
-
-  mqttClient.on('error', () => {
-    const payload = buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
-      online: false,
-      print_status: 'OFFLINE',
-    });
-
-    if (payload) {
-      broadcastRealtimeMessage(payload);
-    }
-  });
-}
-
-function setupRealtimeServer(server) {
-  if (!server || realtimeWss) {
-    return;
-  }
-
-  realtimeWss = new WebSocketServer({
-    server,
-    path: REALTIME_SOCKET_PATH,
-  });
-
-  realtimeWss.on('connection', (socket) => {
-    sendRealtimeMessage(socket, {
-      type: 'realtime.welcome',
-      payload: { status: 'connected' },
-    });
-
-    for (const mqttClient of mqttClients.values()) {
-      const payload = buildRealtimePrinterPayload(
-        mqttClient.realtimeDevice || {},
-        mqttClient.getCurrentJob(),
-        { online: mqttClient.connected }
-      );
-
-      if (payload) {
-        sendRealtimeMessage(socket, payload);
-      }
-    }
-  });
-
-  logger.info(`[Realtime] WebSocket bridge ready at ${REALTIME_SOCKET_PATH}`);
-}
+// LAN-mode MQTT lifecycle: registry, cooldown, teardown ordering all live in
+// the manager; realtime broadcast + print notifications are injected hooks.
+const printerManager = new PrinterConnectionManager({
+  logger,
+  sendNotification,
+  findRecentPrintByJobName: (jobName) => findRecentPrintByJobName(jobName),
+  attachRealtimeBridge: attachRealtimeBridgeToMqttClient,
+});
 
 function setupGo2RtcWebSocketProxy(server) {
   if (!server) {
@@ -1064,22 +927,8 @@ const upload = multer({
 // Middleware
 app.use(express.json());
 
-// Security headers middleware
-app.use((req, res, next) => {
-  // Prevent clickjacking
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  // Prevent MIME sniffing
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Enable XSS protection
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  // Referrer Policy
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Content Security Policy - allow inline scripts for viewer but restrict external resources
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self'; media-src 'self' http: https: blob: data:; connect-src 'self' http: https: ws: wss: blob: https://cdn.jsdelivr.net https://cloudflareinsights.com");
-  // Permissions Policy (formerly Feature Policy)
-  res.setHeader('Permissions-Policy', 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()');
-  next();
-});
+// App-specific headers (CSP + Permissions-Policy); generic ones come from helmet below.
+app.use(appHeaders);
 
 // Initialize logger level from DB if present
 try {
@@ -1102,28 +951,56 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
+
+// Standard security headers (helmet)
+app.use(securityHeaders);
+
 app.use(session({
   store: new FileStore({
     path: './sessions',
     ttl: 7 * 24 * 60 * 60, // 7 days in seconds
     retries: 0,  // Don't retry reading non-existent files
-    reapInterval: -1  // Disable automatic session cleanup
+    reapInterval: 3600  // Sweep expired session files hourly
   }),
   name: 'bambu.sid', // Custom session cookie name
-  secret: 'simple-secret',
+  secret: loadSessionSecret(),
   resave: true,  // Force save even if unmodified (helps with proxy)
   saveUninitialized: false,  // Don't create session until something stored
   rolling: true, // Reset expiry on every request
   proxy: true, // Trust reverse proxy
   cookie: {
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    secure: false, // Set to false to work with both HTTP and HTTPS
+    secure: process.env.COOKIE_SECURE === 'true', // opt-in: HTTPS-only cookies for TLS/proxy installs
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
     domain: undefined // Don't set domain, let browser handle it
   }
 }));
+
+// Cross-site defense-in-depth for mutating requests (see middleware/security.js)
+app.use(rejectCrossSite);
+
+// Password hashing. One-time startup migration: any legacy plaintext row
+// (including the auto-created default admin) is hashed in place, so login
+// only ever compares against bcrypt hashes.
+(function migratePlaintextPasswords() {
+  try {
+    const users = db.prepare("SELECT id, password FROM users WHERE password IS NOT NULL AND password != ''").all();
+    let migrated = 0;
+    for (const user of users) {
+      if (!isBcryptHash(user.password)) {
+        db.prepare('UPDATE users SET password = ? WHERE id = ?').run(bcrypt.hashSync(user.password, BCRYPT_ROUNDS), user.id);
+        migrated++;
+      }
+    }
+    if (migrated > 0) {
+      console.log(`✓ Hashed ${migrated} plaintext password(s) with bcrypt`);
+    }
+  } catch (error) {
+    console.error('Password hash migration failed:', error);
+  }
+})();
 
 // Initialize Passport
 app.use(passport.initialize());
@@ -1180,315 +1057,12 @@ app.get(`${go2rtcProxyPath}/*`, async (req, res) => {
   }
 });
 
-// OIDC configuration cache
-let oidcConfig = null;
 
-// Configure OIDC Client (using openid-client v6.x API)
-async function configureOIDC() {
-  const settings = db.prepare('SELECT key, value FROM config WHERE key LIKE ?').all('oauth_%');
-  const oauthConfig = {};
-  settings.forEach(row => {
-    const key = row.key.replace('oauth_', '');
-    oauthConfig[key] = row.value || '';
-  });
 
-  if (oauthConfig.provider === 'oidc' && oauthConfig.oidcIssuer && oauthConfig.oidcClientId) {
-    try {
-      // Keep the issuer URL exactly as configured (including trailing slash)
-      const issuerUrl = oauthConfig.oidcIssuer;
-      
-      const publicUrl = oauthConfig.publicHostname || process.env.PUBLIC_URL || 'http://localhost:3000';
-      
-      console.log('Discovering OIDC configuration from:', issuerUrl);
-      
-      // Fetch the .well-known configuration manually to get endpoints
-      const wellKnownUrl = issuerUrl.endsWith('/') 
-        ? `${issuerUrl}.well-known/openid-configuration`
-        : `${issuerUrl}/.well-known/openid-configuration`;
-      
-      const axios = require('axios');
-      const response = await axios.get(wellKnownUrl);
-      const metadata = response.data;
-      
-      console.log('Discovered issuer:', metadata.issuer);
-      console.log('Authorization endpoint:', metadata.authorization_endpoint);
-      console.log('Token endpoint:', metadata.token_endpoint);
-      console.log('UserInfo endpoint:', metadata.userinfo_endpoint);
-      
-      // Create a Configuration object with server metadata, client ID, and client secret
-      const server = new oidc.Configuration(
-        metadata, // server metadata from .well-known
-        oauthConfig.oidcClientId, // client ID
-        oauthConfig.oidcClientSecret // client secret (can be string or object)
-      );
-      
-      // Store configuration for use in routes
-      oidcConfig = {
-        server,
-        clientId: oauthConfig.oidcClientId,
-        clientSecret: oauthConfig.oidcClientSecret,
-        redirectUri: `${publicUrl}/auth/oidc/callback`,
-        issuerUrl: metadata.issuer
-      };
-      
-      console.log('✓ OIDC client configured successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ Failed to configure OIDC:', error.message);
-      oidcConfig = null;
-      return false;
-    }
-  } else {
-    console.log('OIDC not configured (missing provider, issuer, or client ID)');
-    oidcConfig = null;
-    return false;
-  }
-}
-// System controls: get/set log level (after session middleware)
-app.get('/api/log-level', (req, res) => {
-  if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
-  res.json({ level: logger.level });
-});
 
-app.post('/api/log-level', (req, res) => {
-  if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
-  const { level } = req.body || {};
-  if (!level) return res.status(400).json({ error: 'Missing level' });
-  logger.setLevel(level);
-  try {
-    db.prepare('INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('log_level', String(level).toUpperCase());
-  } catch (e) {
-    logger.warn('Failed to persist log level:', e.message);
-  }
-  res.json({ ok: true, level: logger.level });
-});
 
-// System restart (watchdog picks this up)
-app.post('/api/system/restart', (req, res) => {
-  if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
-  try {
-    // Clean up tasks without printer_id before restart
-    try {
-      const deleted = db.prepare('DELETE FROM maintenance_tasks WHERE printer_id IS NULL OR printer_id = ""').run();
-      logger.info(`Cleaned up ${deleted.changes} maintenance tasks without printer assignment`);
-    } catch (e) {
-      logger.warn('Failed to cleanup maintenance tasks:', e.message);
-    }
-    
-    fs.writeFileSync('/tmp/restart.flag', '1');
-    logger.info('Restart flag created, watchdog will restart app');
-    res.json({ ok: true });
-  } catch (e) {
-    logger.error('Failed to write restart flag:', e.message);
-    res.status(500).json({ error: 'Failed to request restart' });
-  }
-});
-
-// Back-compat restart endpoint used by Settings
-app.post('/api/settings/restart', (req, res) => {
-  if (!(req.session && req.session.authenticated)) return res.status(401).json({ error: 'Not authenticated' });
-  try {
-    fs.writeFileSync('/tmp/restart.flag', '1');
-    logger.info('Restart flag created (compat endpoint)');
-    res.json({ shouldRestart: true });
-  } catch (e) {
-    logger.error('Failed to write restart flag:', e.message);
-    res.status(500).json({ error: 'Failed to request restart' });
-  }
-});
-
-// OAuth routes (MUST be before static middleware to catch callbacks)
-app.get('/auth/oidc', async (req, res) => {
-  console.log('=== OIDC AUTH START ===');
-  
-  if (!oidcConfig) {
-    console.error('OIDC client not configured');
-    return res.redirect('/admin?error=oidc_not_configured');
-  }
-  
-  try {
-    // Generate PKCE code verifier and state
-    const code_verifier = oidc.randomPKCECodeVerifier();
-    const code_challenge = await oidc.calculatePKCECodeChallenge(code_verifier);
-    const state = oidc.randomState();
-    
-    // Store in session for callback
-    req.session.oidc_code_verifier = code_verifier;
-    req.session.oidc_state = state;
-    
-    await new Promise((resolve, reject) => {
-      req.session.save((err) => err ? reject(err) : resolve());
-    });
-    
-    // Build authorization URL using v6.x API
-    const authUrl = oidc.buildAuthorizationUrl(oidcConfig.server, {
-      redirect_uri: oidcConfig.redirectUri,
-      scope: 'openid profile email',
-      code_challenge,
-      code_challenge_method: 'S256',
-      state,
-    });
-    
-    console.log('Redirecting to:', authUrl.href);
-    res.redirect(authUrl.href);
-  } catch (error) {
-    console.error('OIDC auth error:', error);
-    res.redirect('/admin?error=oidc_auth_failed');
-  }
-});
-
-app.get('/auth/oidc/callback', async (req, res) => {
-  console.log('=== OIDC CALLBACK RECEIVED ===');
-  console.log('Query:', req.query);
-  console.log('Session ID:', req.sessionID);
-  
-  if (!oidcConfig) {
-    console.error('OIDC client not configured');
-    return res.redirect('/admin?error=oidc_not_configured');
-  }
-  
-  try {
-    // Get code verifier and state from session
-    const code_verifier = req.session.oidc_code_verifier;
-    const saved_state = req.session.oidc_state;
-    
-    if (!code_verifier) {
-      console.error('No code verifier in session');
-      return res.redirect('/admin?error=invalid_session');
-    }
-    
-    // Build current URL for callback
-    const currentUrl = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
-    
-    console.log('Calling authorizationCodeGrant...');
-    
-    // Exchange authorization code for tokens using v6.x API
-    // In v6.x, authorizationCodeGrant validates the response automatically
-    const tokens = await oidc.authorizationCodeGrant(
-      oidcConfig.server,
-      currentUrl,
-      {
-        pkceCodeVerifier: code_verifier,
-        expectedState: saved_state
-      }
-    );
-    
-    console.log('Token exchange successful');
-    console.log('Access token received:', !!tokens.access_token);
-    console.log('ID token received:', !!tokens.id_token);
-    
-    // Get claims from ID token
-    const claims = tokens.claims();
-    console.log('ID Token Claims:', JSON.stringify(claims, null, 2));
-    
-    // Extract user information from claims
-    const sub = claims.sub;
-    const email = claims.email || claims.preferred_username;
-    const username = claims.preferred_username || claims.username || email?.split('@')[0] || sub;
-    const name = claims.name || username;
-    
-    console.log('Extracted data:');
-    console.log('  Sub:', sub);
-    console.log('  Email:', email);
-    console.log('  Username:', username);
-    console.log('  Name:', name);
-    
-    // Check if user exists by OAuth ID
-    let user = db.prepare('SELECT * FROM users WHERE oauth_provider = ? AND oauth_id = ?').get('oidc', sub);
-    console.log('Existing user by OAuth ID:', user ? user.username : 'none');
-    
-    if (!user && email) {
-      // Check by email
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-      console.log('Existing user by email:', user ? user.username : 'none');
-      
-      if (user) {
-        // Link existing user to OAuth and update display name
-        console.log('Linking existing user to OAuth');
-        db.prepare('UPDATE users SET oauth_provider = ?, oauth_id = ?, display_name = ? WHERE id = ?').run('oidc', sub, name, user.id);
-      }
-    }
-    
-    // Determine role based on Authentik groups
-    let role = 'user';
-    if (claims.groups) {
-      const groups = Array.isArray(claims.groups) ? claims.groups : [claims.groups];
-      console.log('User groups from Authentik:', groups);
-      
-      // Check for admin groups (case-insensitive) - only Admin/Admins get superadmin
-      if (groups.some(g => g.toLowerCase().includes('admin'))) {
-        role = 'superadmin';
-        console.log('User is in Admin group - assigning superadmin role');
-      } else {
-        role = 'user';
-        console.log('User is not in Admin group - assigning user role');
-      }
-    }
-    
-    if (!user) {
-      // Create new user with role based on groups
-      console.log('Creating new OIDC user:', username, email, 'with role:', role);
-      const result = db.prepare(
-        'INSERT INTO users (username, email, oauth_provider, oauth_id, role, password, display_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).run(
-        username,
-        email || '',
-        'oidc',
-        sub,
-        role,
-        '', // No password for OAuth users
-        name
-      );
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-      console.log('New user created with ID:', user.id);
-    } else {
-      // Update existing user role based on current groups
-      if (user.role !== 'superadmin' || role === 'superadmin') {
-        console.log('Updating user role from', user.role, 'to', role, 'based on groups');
-        db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id);
-        user.role = role;
-      }
-    }
-    
-    console.log('=== OIDC AUTH SUCCESS ===');
-    console.log('User:', user.username, 'Role:', user.role);
-    
-    // Set session for compatibility with existing auth system
-    req.session.authenticated = true;
-    req.session.userId = user.id;
-    req.session.username = user.username;
-    req.session.role = user.role || 'user';
-    
-    // Clean up OIDC session data
-    delete req.session.oidc_code_verifier;
-    delete req.session.oidc_state;
-    
-    await new Promise((resolve, reject) => {
-      req.session.save((err) => err ? reject(err) : resolve());
-    });
-    
-    console.log('Session saved successfully, redirecting to /');
-    res.redirect('/');
-  } catch (error) {
-    console.error('=== OIDC CALLBACK ERROR ===');
-    console.error('Error:', error.message);
-    console.error('Stack:', error.stack);
-    
-    // Clean up session on error
-    delete req.session.oidc_code_verifier;
-    delete req.session.oidc_state;
-    
-    res.redirect('/admin?error=oidc_callback_failed');
-  }
-});
-
-app.get('/auth/google', (req, res) => {
-  res.status(501).send('Google OAuth not yet implemented. Configure OIDC instead or install passport-google-oauth20.');
-});
-
-app.get('/auth/google/callback', (req, res) => {
-  res.redirect('/admin');
-});
+// Auth routes: OIDC login/callback, local login, logout, check-auth, user/me
+app.use(authRoutes);
 
 // Middleware to ensure Bambu token is loaded from global config
 app.use((req, res, next) => {
@@ -1526,9 +1100,9 @@ app.get('/', (req, res) => {
   try {
     const providerRow = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_provider');
     console.log('OAuth provider:', providerRow?.value);
-    console.log('oidcConfig exists:', !!oidcConfig);
-    
-    if (providerRow?.value === 'oidc' && oidcConfig) {
+    console.log('oidcConfig exists:', !!getOidcConfig());
+
+    if (providerRow?.value === 'oidc' && getOidcConfig()) {
       // Auto-redirect to OIDC login
       console.log('Redirecting to /auth/oidc');
       return res.redirect('/auth/oidc');
@@ -1561,18 +1135,18 @@ app.get('/admin', (req, res) => {
 });
 
 // Serve logo and other data assets
-app.use('/favicon.svg', express.static(path.join(__dirname, 'data', 'logo.png')));
-app.use('/logo.png', express.static(path.join(__dirname, 'data', 'logo.png')));
+app.use('/favicon.svg', express.static(path.join(dataDir, 'logo.png')));
+app.use('/logo.png', express.static(path.join(dataDir, 'logo.png')));
 
 // Buy Me a Coffee brand assets
 app.get('/data/bmc-brand-logo.svg', (req, res) => {
-  res.sendFile(path.join(__dirname, 'data', 'bmc-brand-logo.svg'));
+  res.sendFile(path.join(dataDir, 'bmc-brand-logo.svg'));
 });
 
 // Serve cover images from data directory with on-demand download fallback
 app.get('/images/covers/:modelId.:ext', async (req, res) => {
   const { modelId, ext } = req.params;
-  const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
+  const coverCacheDir = path.join(dataDir, 'cover-cache');
   const filePath = path.join(coverCacheDir, `${modelId}.${ext}`);
   
   // If file exists, serve it
@@ -1604,191 +1178,13 @@ const staticDir = distExists ? 'dist' : 'public';
 console.log('Serving static files from:', staticDir);
 app.use(express.static(staticDir));
 
-// Simple local login
-app.post('/auth/login', async (req, res) => {
-  console.log('=== LOGIN REQUEST RECEIVED ===');
-  console.log('Request body:', req.body);
-  console.log('Session ID at login start:', req.sessionID);
-  console.log('Session object:', req.session);
-  
-  const { username, password } = req.body;
-  console.log('Extracted username:', username, 'password length:', password?.length);
-  
-  try {
-    console.log('About to query database...');
-    const user = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?').get(username, password);
-    console.log('Database query completed. User found:', !!user);
-    
-    if (user) {
-      console.log('User found:', user.username);
-      req.session.userId = user.id;
-      req.session.username = user.username;
-      req.session.role = user.role || 'user';
-      req.session.authenticated = true;
-      
-      // Load global Bambu credentials if they exist
-      const token = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_token');
-      const region = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_region');
-      if (token && token.value) {
-        req.session.token = token.value;
-        req.session.region = region?.value || 'global';
-      }
-      
-      console.log('Session before save:', req.session);
-      
-      req.session.save((err) => {
-        if (err) {
-          console.error('Session save error:', err);
-          return res.json({ success: false, error: 'Session save failed' });
-        }
-        console.log('Session saved successfully. Session ID:', req.sessionID);
-        console.log('Set-Cookie header should be sent');
-        console.log('Session cookie:', req.session.cookie);
-        res.json({ success: true });
-      });
-    } else {
-      console.log('Invalid credentials');
-      res.json({ success: false, error: 'Invalid username or password' });
-    }
-  } catch (error) {
-    console.error('Login error:', error);
-    res.json({ success: false, error: 'Login failed' });
-  }
-});
+// Settings/admin routes (see server/routes/settings.js)
+app.use(require('./server/routes/settings')({ setupWatchdog, syncGo2RtcConfigSafe, go2rtcConfigPath, normalizeStreamRelayUrl }));
 
-// Request verification code from Bambu Lab
-app.post('/api/settings/request-code', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  console.log('=== REQUEST VERIFICATION CODE ===');
-  const { email, region } = req.body;
-  
-  const apiUrl = region === 'china'
-    ? 'https://api.bambulab.cn/v1/user-service/user/sendemail/code'
-    : 'https://api.bambulab.com/v1/user-service/user/sendemail/code';
-  
-  try {
-    const response = await axios.post(apiUrl, 
-      { email, type: 'codeLogin' },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-    
-    console.log('Code request response:', response.status);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Code request error:', error.message);
-    console.error('Response:', error.response?.data);
-    res.json({ 
-      success: false, 
-      error: error.response?.data?.message || 'Failed to send verification code' 
-    });
-  }
-});
 
-// Connect Bambu Lab account with verification code
-app.post('/api/settings/connect-bambu', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  console.log('=== BAMBU CONNECT REQUEST ===');
-  const { email, code, region } = req.body;
-  
-  const apiUrl = region === 'china' 
-    ? 'https://api.bambulab.cn/v1/user-service/user/login'
-    : 'https://api.bambulab.com/v1/user-service/user/login';
-  
-  try {
-    const requestBody = {
-      account: email,
-      code: code
-    };
-    
-    console.log('Sending Bambu request to:', apiUrl);
-    
-    const response = await axios.post(apiUrl, requestBody, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log('Response status:', response.status);
-    
-    if (response.data && response.data.accessToken) {
-      const token = response.data.accessToken;
-      
-      // Save to database
-      const existing = db.prepare('SELECT id FROM settings WHERE user_id = ?').get(req.session.userId);
-      if (existing) {
-        db.prepare('UPDATE settings SET bambu_email = ?, bambu_token = ?, bambu_region = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
-          .run(email, token, region || 'global', req.session.userId);
-      } else {
-        db.prepare('INSERT INTO settings (user_id, bambu_email, bambu_token, bambu_region) VALUES (?, ?, ?, ?)')
-          .run(req.session.userId, email, token, region || 'global');
-      }
-      
-      // Update session
-      req.session.token = token;
-      req.session.region = region || 'global';
-      req.session.save();
-      
-      res.json({ success: true });
-    } else {
-      res.json({ success: false, error: 'Failed to get access token from Bambu Lab' });
-    }
-  } catch (error) {
-    console.error('Bambu connect error:', error.message);
-    console.error('Response:', error.response?.data);
-    res.json({ 
-      success: false, 
-      error: error.response?.data?.message || 'Failed to connect to Bambu Lab' 
-    });
-  }
-});
 
-// Get Bambu Lab connection status
-app.get('/api/settings/bambu-status', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const email = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_email');
-    const region = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_region');
-    const token = db.prepare('SELECT value FROM config WHERE key = ?').get('bambu_token');
-    
-    res.json({
-      connected: !!token?.value,
-      email: email?.value || null,
-      region: region?.value || 'global',
-      lastUpdated: token?.value ? new Date().toISOString() : null
-    });
-  } catch (error) {
-    console.error('Bambu status error:', error);
-    res.status(500).json({ error: 'Failed to get Bambu status' });
-  }
-});
 
-// Disconnect Bambu Lab account
-app.post('/api/settings/disconnect-bambu', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    db.prepare('DELETE FROM config WHERE key IN (?, ?, ?)').run('bambu_email', 'bambu_token', 'bambu_region');
-    req.session.token = null;
-    req.session.region = null;
-    req.session.save();
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Disconnect error:', error);
-    res.status(500).json({ error: 'Failed to disconnect' });
-  }
-});
+
 
 // Get all Bambu Lab accounts (global - shared across all users)
 app.get('/api/bambu/accounts', (req, res) => {
@@ -1971,188 +1367,10 @@ app.post('/api/bambu/accounts/:id/primary', (req, res) => {
   }
 });
 
-// Change password
-app.post('/api/settings/change-password', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  const { currentPassword, newPassword } = req.body;
-  
-  if (!currentPassword || !newPassword) {
-    return res.json({ success: false, error: 'Current password and new password are required' });
-  }
-  
-  if (newPassword.length < 4) {
-    return res.json({ success: false, error: 'New password must be at least 4 characters' });
-  }
-  
-  try {
-    // Verify current password
-    const user = db.prepare('SELECT * FROM users WHERE id = ? AND password = ?').get(req.session.userId, currentPassword);
-    
-    if (!user) {
-      return res.json({ success: false, error: 'Current password is incorrect' });
-    }
-    
-    // Update password
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(newPassword, req.session.userId);
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Password change error:', error);
-    res.status(500).json({ error: 'Failed to change password' });
-  }
-});
 
-// Get printer FTP settings
-app.get('/api/settings/printer-ftp', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const printerIp = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip');
-    const accessCode = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code');
-    const cameraUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url');
-    const serialNumber = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_serial_number');
-    
-    res.json({ 
-      success: true,
-      printerIp: printerIp?.value || '',
-      printerAccessCode: accessCode?.value || '',
-      cameraRtspUrl: cameraUrl?.value || '',
-      serialNumber: serialNumber?.value || ''
-    });
-  } catch (error) {
-    console.error('Failed to load printer settings:', error);
-    res.status(500).json({ error: 'Failed to load printer settings' });
-  }
-});
 
-// Save printer FTP settings
-app.post('/api/settings/printer-ftp', (req, res) => {
-  console.log('=== SAVE PRINTER FTP SETTINGS ===');
-  console.log('Authenticated:', req.session.authenticated);
-  console.log('User ID:', req.session.userId);
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
-  
-  if (!req.session.authenticated) {
-    console.log('ERROR: Not authenticated');
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  const { printerIp, printerAccessCode, cameraRtspUrl, serialNumber } = req.body;
-  console.log('Parsed values:', { printerIp, printerAccessCode, cameraRtspUrl: cameraRtspUrl ? '***' : null, serialNumber });
-  
-  try {
-    // Save to global config
-    const upsert = db.prepare(`
-      INSERT INTO config (key, value, updated_at) 
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
-    `);
-    
-    console.log('Saving printer settings to global config...');
-    upsert.run('printer_ip', printerIp || '', printerIp || '');
-    upsert.run('printer_access_code', printerAccessCode || '', printerAccessCode || '');
-    upsert.run('camera_rtsp_url', cameraRtspUrl || '', cameraRtspUrl || '');
-    if (serialNumber) {
-      upsert.run('printer_serial_number', serialNumber, serialNumber);
-    }
 
-    if (serialNumber) {
-      const devId = serialNumber;
-      const placeholderName = `Printer ${serialNumber}`;
-      const upsertPrinter = db.prepare(`
-        INSERT INTO printers (dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(dev_id) DO UPDATE SET
-          ip_address = excluded.ip_address,
-          access_code = excluded.access_code,
-          serial_number = COALESCE(NULLIF(excluded.serial_number, ''), printers.serial_number),
-          camera_rtsp_url = excluded.camera_rtsp_url,
-          updated_at = CURRENT_TIMESTAMP
-      `);
 
-      upsertPrinter.run(
-        devId,
-        placeholderName,
-        printerIp || '',
-        printerAccessCode || '',
-        serialNumber || null,
-        cameraRtspUrl || null
-      );
-    } else if (printerIp) {
-      const legacyDevId = `printer_${(printerIp || 'manual').replace(/[^a-zA-Z0-9]/g, '_')}`;
-      db.prepare(`
-        DELETE FROM printers
-        WHERE dev_id = ?
-           OR ((serial_number IS NULL OR serial_number = '') AND ip_address = ? AND name LIKE 'Printer at %')
-      `).run(legacyDevId, printerIp);
-    }
-    
-    const go2rtcInfo = syncGo2RtcConfigSafe();
-    console.log('SUCCESS: Settings saved');
-    res.json({ success: true, go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath, streamCount: go2rtcInfo?.streamCount || 0 });
-  } catch (error) {
-    console.error('ERROR: Failed to save printer settings:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'Failed to save printer settings', details: error.message });
-  }
-});
-
-// Alias endpoint for backwards compatibility
-app.post('/api/settings/save-printer-ftp', (req, res) => {
-  console.log('Redirecting /api/settings/save-printer-ftp to /api/settings/printer-ftp');
-  // Forward to the main endpoint
-  app._router.handle(Object.assign(req, { url: '/api/settings/printer-ftp', originalUrl: '/api/settings/printer-ftp' }), res);
-});
-
-// Test printer FTP connection
-app.post('/api/settings/test-printer-ftp', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  let { printerIp, printerAccessCode } = req.body;
-  
-  // If not provided in request, use global config
-  if (!printerIp || !printerAccessCode) {
-    try {
-      const ip = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip');
-      const code = db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code');
-      printerIp = printerIp || ip?.value;
-      printerAccessCode = printerAccessCode || code?.value;
-    } catch (error) {
-      console.error('Failed to load printer settings:', error);
-    }
-  }
-  
-  if (!printerIp || !printerAccessCode) {
-    return res.json({ success: false, error: 'Printer IP and access code are required' });
-  }
-  
-  try {
-    // Test connection
-    const connected = await bambuFtp.connect(printerIp, printerAccessCode);
-    
-    if (!connected) {
-      return res.json({ success: false, error: 'Failed to connect to printer' });
-    }
-    
-    // List videos
-    const videos = await bambuFtp.listTimelapses(printerIp, printerAccessCode);
-    
-    res.json({ 
-      success: true, 
-      videoCount: videos.length 
-    });
-  } catch (error) {
-    console.error('Printer FTP test error:', error);
-    res.json({ success: false, error: error.message || 'Failed to connect to printer' });
-  }
-});
 
 function isValidIpv4(ip) {
   if (!ip || typeof ip !== 'string') {
@@ -3082,327 +2300,10 @@ app.delete('/api/printers/config/:dev_id', (req, res) => {
   }
 });
 
-// Get UI settings (hide buy me a coffee, etc.) - PUBLIC endpoint
-app.get('/api/settings/ui', (req, res) => {
-  try {
-    const hideBmc = db.prepare('SELECT value FROM config WHERE key = ?').get('hide_bmc');
-    const colorScheme = db.prepare('SELECT value FROM config WHERE key = ?').get('color_scheme');
-    const cameraMode = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_mode');
-    const cameraStreamType = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_type');
-    const cameraStreamUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url');
-    const frigateStreamUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_stream_url');
-    const rtspUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('rtsp_url');
-    const legacyFrigateUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_url');
-    const canExposePrivateStreamSettings = Boolean(req.session?.authenticated);
 
-    const normalizedCameraMode = cameraMode?.value === 'native-rtsp' ? 'native-rtsp' : 'frigate';
-    const normalizedStreamType = cameraStreamType?.value === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls';
-    const resolvedFrigateStreamUrl = normalizeStreamRelayUrl(
-      frigateStreamUrl?.value || (normalizedCameraMode === 'frigate' ? cameraStreamUrl?.value || legacyFrigateUrl?.value || '' : legacyFrigateUrl?.value || '')
-    );
-    const resolvedRtspUrl = String(rtspUrl?.value || (normalizedCameraMode === 'native-rtsp' ? cameraStreamUrl?.value || '' : '')).trim();
-    const activeCameraStreamUrl = normalizedCameraMode === 'native-rtsp' ? resolvedRtspUrl : resolvedFrigateStreamUrl;
 
-    res.json({
-      success: true,
-      hideBmc: hideBmc?.value === 'true',
-      colorScheme: colorScheme?.value || 'cyan',
-      cameraMode: normalizedCameraMode,
-      cameraStreamType: normalizedStreamType,
-      frigateStreamUrl: canExposePrivateStreamSettings ? resolvedFrigateStreamUrl : '',
-      rtspUrl: canExposePrivateStreamSettings ? resolvedRtspUrl : '',
-      cameraStreamUrl: canExposePrivateStreamSettings ? activeCameraStreamUrl : '',
-    });
-  } catch (error) {
-    console.error('Failed to load UI settings:', error);
-    res.status(500).json({ error: 'Failed to load UI settings' });
-  }
-});
 
-// Save UI settings (admin only)
-app.post('/api/settings/ui', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  // Check if user is admin
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  try {
-    const {
-      hideBmc,
-      colorScheme,
-      cameraMode,
-      cameraStreamType,
-      frigateStreamUrl,
-      rtspUrl,
-      cameraStreamUrl,
-    } = req.body;
 
-    const upsert = db.prepare(`
-      INSERT INTO config (key, value, updated_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
-    `);
-
-    upsert.run('hide_bmc', hideBmc ? 'true' : 'false', hideBmc ? 'true' : 'false');
-    if (colorScheme) {
-      upsert.run('color_scheme', colorScheme, colorScheme);
-    }
-
-    const normalizedCameraMode = cameraMode === 'native-rtsp' ? 'native-rtsp' : 'frigate';
-    const normalizedStreamType = cameraStreamType === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls';
-    const normalizedFrigateStreamUrl = typeof frigateStreamUrl === 'string'
-      ? normalizeStreamRelayUrl(frigateStreamUrl)
-      : (typeof cameraStreamUrl === 'string' ? normalizeStreamRelayUrl(cameraStreamUrl) : '');
-    const normalizedRtspUrl = typeof rtspUrl === 'string' ? String(rtspUrl).trim() : '';
-    const normalizedActiveStreamUrl = normalizedCameraMode === 'native-rtsp' ? normalizedRtspUrl : normalizedFrigateStreamUrl;
-
-    upsert.run('camera_mode', normalizedCameraMode, normalizedCameraMode);
-    upsert.run('camera_stream_type', normalizedStreamType, normalizedStreamType);
-    upsert.run('frigate_stream_url', normalizedFrigateStreamUrl, normalizedFrigateStreamUrl);
-    upsert.run('rtsp_url', normalizedRtspUrl, normalizedRtspUrl);
-    upsert.run('camera_stream_url', normalizedActiveStreamUrl, normalizedActiveStreamUrl);
-
-    db.prepare('DELETE FROM config WHERE key = ?').run('camera_fps');
-
-    const go2rtcInfo = syncGo2RtcConfigSafe();
-    res.json({
-      success: true,
-      cameraMode: normalizedCameraMode,
-      cameraStreamType: normalizedStreamType,
-      frigateStreamUrl: normalizedFrigateStreamUrl,
-      rtspUrl: normalizedRtspUrl,
-      cameraStreamUrl: normalizedActiveStreamUrl,
-      go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath,
-      streamCount: go2rtcInfo?.streamCount || 0,
-    });
-  } catch (error) {
-    console.error('Failed to save UI settings:', error);
-    res.status(500).json({ error: 'Failed to save UI settings' });
-  }
-});
-
-const dashboardWidgetIds = new Set(['livePrinters', 'healthSummary', 'materialUsage', 'queuePressure', 'fleetAlerts', 'backgroundJobs', 'activityStream', 'upcomingSchedule', 'failureWatch', 'mqttStatus']);
-const dashboardBreakpointKeys = ['lg', 'md', 'sm', 'xs', 'xxs'];
-
-const defaultDashboardLayouts = {
-  lg: [
-    { i: 'livePrinters', x: 0, y: 0, w: 5, h: 7, minW: 4, minH: 5 },
-    { i: 'healthSummary', x: 5, y: 0, w: 3, h: 5, minW: 3, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 7, w: 5, h: 5, minW: 4, minH: 4 },
-    { i: 'queuePressure', x: 5, y: 11, w: 3, h: 6, minW: 3, minH: 5 },
-    { i: 'fleetAlerts', x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'upcomingSchedule', x: 5, y: 5, w: 3, h: 6, minW: 3, minH: 5 },
-    { i: 'backgroundJobs', x: 8, y: 5, w: 4, h: 6, minW: 3, minH: 5 },
-    { i: 'activityStream', x: 8, y: 11, w: 4, h: 8, minW: 4, minH: 6 },
-    { i: 'failureWatch', x: 5, y: 17, w: 3, h: 4, minW: 3, minH: 4 },
-    { i: 'mqttStatus', x: 0, y: 12, w: 5, h: 5, minW: 4, minH: 4 },
-  ],
-  md: [
-    { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 5 },
-    { i: 'healthSummary', x: 6, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 6, w: 6, h: 5, minW: 4, minH: 4 },
-    { i: 'queuePressure', x: 6, y: 10, w: 4, h: 6, minW: 3, minH: 5 },
-    { i: 'fleetAlerts', x: 6, y: 5, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'upcomingSchedule', x: 0, y: 11, w: 4, h: 6, minW: 3, minH: 5 },
-    { i: 'backgroundJobs', x: 4, y: 11, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'activityStream', x: 0, y: 17, w: 10, h: 8, minW: 5, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 25, w: 10, h: 5, minW: 5, minH: 4 },
-    { i: 'mqttStatus', x: 0, y: 30, w: 10, h: 5, minW: 5, minH: 4 },
-  ],
-  sm: [
-    { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'healthSummary', x: 0, y: 6, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 11, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 16, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'fleetAlerts', x: 0, y: 22, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'backgroundJobs', x: 0, y: 27, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 33, w: 6, h: 6, minW: 4, minH: 5 },
-    { i: 'activityStream', x: 0, y: 39, w: 6, h: 8, minW: 4, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 47, w: 6, h: 6, minW: 4, minH: 5 },
-    { i: 'mqttStatus', x: 0, y: 53, w: 6, h: 5, minW: 4, minH: 4 },
-  ],
-  xs: [
-    { i: 'livePrinters', x: 0, y: 0, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'healthSummary', x: 0, y: 6, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 11, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 16, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'fleetAlerts', x: 0, y: 22, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'backgroundJobs', x: 0, y: 27, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 33, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'activityStream', x: 0, y: 39, w: 4, h: 8, minW: 2, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 47, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'mqttStatus', x: 0, y: 53, w: 4, h: 5, minW: 2, minH: 4 },
-  ],
-  xxs: [
-    { i: 'livePrinters', x: 0, y: 0, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'healthSummary', x: 0, y: 6, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 11, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 16, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'fleetAlerts', x: 0, y: 22, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'backgroundJobs', x: 0, y: 27, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 33, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'activityStream', x: 0, y: 39, w: 2, h: 8, minW: 2, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 47, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'mqttStatus', x: 0, y: 53, w: 2, h: 5, minW: 2, minH: 4 },
-  ],
-};
-
-const defaultDashboardWidgetPrefs = {
-  version: 3,
-  layouts: defaultDashboardLayouts,
-  hiddenWidgetIds: ['mqttStatus'],
-};
-
-function sanitizeDashboardWidgetPrefs(raw = {}) {
-  const safe = raw && typeof raw === 'object' ? raw : {};
-
-  const normalizeHidden = (list) => {
-    if (!Array.isArray(list)) return [];
-    const seen = new Set();
-    const out = [];
-    for (const item of list) {
-      const id = String(item || '').trim();
-      if (!dashboardWidgetIds.has(id) || seen.has(id)) continue;
-      seen.add(id);
-      out.push(id);
-    }
-    return out;
-  };
-
-  const parseLayoutValue = (input, fallback, min, max) => {
-    const parsed = Number.parseInt(String(input), 10);
-    if (!Number.isFinite(parsed)) return fallback;
-    return Math.max(min, Math.min(max, parsed));
-  };
-
-  const normalizeLayouts = (inputLayouts) => {
-    const output = {};
-
-    for (const key of dashboardBreakpointKeys) {
-      const defaults = Array.isArray(defaultDashboardLayouts[key]) ? defaultDashboardLayouts[key] : [];
-      const map = new Map(defaults.map((item) => [item.i, { ...item }]));
-      const incoming = inputLayouts && Array.isArray(inputLayouts[key]) ? inputLayouts[key] : [];
-
-      for (const item of incoming) {
-        if (!item || typeof item.i !== 'string' || !dashboardWidgetIds.has(item.i)) {
-          continue;
-        }
-        const fallback = map.get(item.i) || { i: item.i, x: 0, y: 0, w: 4, h: 4, minW: 2, minH: 2 };
-        const minW = parseLayoutValue(item.minW, fallback.minW || 2, 1, 24);
-        const minH = parseLayoutValue(item.minH, fallback.minH || 2, 2, 24);
-
-        map.set(item.i, {
-          i: item.i,
-          x: parseLayoutValue(item.x, fallback.x, 0, 24),
-          y: parseLayoutValue(item.y, fallback.y, 0, 999),
-          w: parseLayoutValue(item.w, fallback.w, minW, 24),
-          h: parseLayoutValue(item.h, fallback.h, minH, 24),
-          minW,
-          minH,
-        });
-      }
-
-      output[key] = defaults.map((item) => map.get(item.i) || item);
-    }
-
-    return output;
-  };
-
-  // Backward compatibility with prior single-layout schema.
-  const legacyLayout = safe.widgetLayout && typeof safe.widgetLayout === 'object' ? safe.widgetLayout : null;
-  const legacyHidden = Array.isArray(safe.widgetHidden) ? safe.widgetHidden : [];
-  const migratedLayouts = legacyLayout
-    ? {
-        lg: Object.keys(legacyLayout).map((id) => {
-          const item = legacyLayout[id] && typeof legacyLayout[id] === 'object' ? legacyLayout[id] : {};
-          return {
-            i: id,
-            x: parseLayoutValue(item.x, 0, 0, 24),
-            y: parseLayoutValue(item.y, 0, 0, 999),
-            w: parseLayoutValue(item.w, 4, 1, 24),
-            h: parseLayoutValue(item.h, 5, 2, 24),
-            minW: parseLayoutValue(item.minW, 2, 1, 24),
-            minH: parseLayoutValue(item.minH, 2, 2, 24),
-          };
-        }),
-      }
-    : null;
-
-  const layouts = normalizeLayouts(safe.layouts || migratedLayouts || defaultDashboardLayouts);
-  const hiddenWidgetIds = normalizeHidden(safe.hiddenWidgetIds || legacyHidden);
-
-  const sourceVersion = Number.parseInt(String(safe.version || 0), 10);
-  const normalizedVersion = Number.isFinite(sourceVersion) ? sourceVersion : 0;
-  const nextHiddenWidgetIds = normalizedVersion >= 3
-    ? hiddenWidgetIds
-    : (hiddenWidgetIds.includes('mqttStatus') ? hiddenWidgetIds : [...hiddenWidgetIds, 'mqttStatus']);
-
-  return {
-    version: 3,
-    layouts,
-    hiddenWidgetIds: nextHiddenWidgetIds,
-  };
-}
-
-function getDashboardWidgetConfigKey(userId) {
-  return `dashboard_widgets_layout_user_${userId}`;
-}
-
-// Get dashboard widget preferences (authenticated)
-app.get('/api/settings/dashboard-widgets', (req, res) => {
-  if (!req.session?.authenticated || !req.session?.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  try {
-    const key = getDashboardWidgetConfigKey(req.session.userId);
-    const row = db.prepare('SELECT value FROM config WHERE key = ?').get(key);
-
-    if (!row?.value) {
-      return res.json({ success: true, preferences: defaultDashboardWidgetPrefs });
-    }
-
-    let parsed = {};
-    try {
-      parsed = JSON.parse(row.value);
-    } catch {
-      parsed = {};
-    }
-
-    return res.json({ success: true, preferences: sanitizeDashboardWidgetPrefs(parsed) });
-  } catch (error) {
-    console.error('Failed to load dashboard widget settings:', error);
-    return res.status(500).json({ error: 'Failed to load dashboard widget settings' });
-  }
-});
-
-// Save dashboard widget preferences (authenticated)
-app.post('/api/settings/dashboard-widgets', (req, res) => {
-  if (!req.session?.authenticated || !req.session?.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  try {
-    const preferences = sanitizeDashboardWidgetPrefs(req.body || {});
-    const key = getDashboardWidgetConfigKey(req.session.userId);
-
-    db.prepare(`
-      INSERT INTO config (key, value, updated_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-    `).run(key, JSON.stringify(preferences));
-
-    return res.json({ success: true, preferences });
-  } catch (error) {
-    console.error('Failed to save dashboard widget settings:', error);
-    return res.status(500).json({ error: 'Failed to save dashboard widget settings' });
-  }
-});
 
 app.get('/api/camera/stream', (req, res) => {
   if (!req.session?.authenticated) {
@@ -3448,57 +2349,7 @@ app.post('/api/camera/stop', (req, res) => {
   }
 });
 
-// Get user profile
-app.get('/api/settings/profile', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const user = db.prepare('SELECT username, email, display_name, oauth_provider FROM users WHERE id = ?').get(req.session.userId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    res.json({
-      username: user.username,
-      email: user.email || '',
-      displayName: user.display_name || '',
-      oauthProvider: user.oauth_provider || 'none'
-    });
-  } catch (error) {
-    console.error('Failed to get user profile:', error);
-    res.status(500).json({ error: 'Failed to get user profile' });
-  }
-});
 
-// Update user profile
-app.post('/api/settings/profile', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const { displayName, email } = req.body;
-    
-    // Update user profile
-    const user = db.prepare('SELECT oauth_provider FROM users WHERE id = ?').get(req.session.userId);
-    
-    // For OAuth users, only allow display name changes if email is not managed by OAuth
-    if (user.oauth_provider && email !== undefined) {
-      // Don't allow email changes for OAuth users
-      db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, req.session.userId);
-    } else {
-      // Local users can change both
-      db.prepare('UPDATE users SET display_name = ?, email = ? WHERE id = ?').run(displayName, email, req.session.userId);
-    }
-    
-    res.json({ success: true, message: 'Profile updated successfully!' });
-  } catch (error) {
-    console.error('Failed to update user profile:', error);
-    res.status(500).json({ error: 'Failed to update user profile' });
-  }
-});
 
 // Global state for video matching background job
 let videoMatchJob = {
@@ -3620,7 +2471,7 @@ app.post('/api/match-videos', (req, res) => {
   }
   
   try {
-    const videosDir = path.join(__dirname, 'data', 'videos');
+    const videosDir = path.join(dataDir, 'videos');
     
     // Get all video files
     const videoFiles = fs.existsSync(videosDir) 
@@ -3833,45 +2684,6 @@ app.get('/api/debug/videos', (req, res) => {
 });
 
 
-// Check authentication status
-app.get('/api/check-auth', (req, res) => {
-  console.log('=== CHECK AUTH ===');
-  console.log('Session ID:', req.sessionID);
-  console.log('Session data:', req.session);
-  console.log('Cookies:', req.headers.cookie);
-  console.log('Authenticated:', req.session.authenticated);
-  console.log('User ID:', req.session.userId);
-  console.log('Has token:', !!req.session.token);
-  
-  if (req.session.authenticated && req.session.userId) {
-    // Fetch current user role from database to ensure it's up to date
-    try {
-      const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-      const currentRole = user ? user.role : (req.session.role || 'user');
-      
-      // Update session if role changed
-      if (user && req.session.role !== currentRole) {
-        req.session.role = currentRole;
-        console.log(`Updated session role to: ${currentRole}`);
-      }
-      
-      res.json({ 
-        authenticated: true, 
-        username: req.session.username,
-        role: currentRole
-      });
-    } catch (e) {
-      console.error('Error fetching user role:', e);
-      res.json({ 
-        authenticated: true, 
-        username: req.session.username,
-        role: req.session.role || 'user'
-      });
-    }
-  } else {
-    res.json({ authenticated: false });
-  }
-});
 
 app.post('/api/client-telemetry', (req, res) => {
   try {
@@ -3920,111 +2732,7 @@ app.get('/api/client-telemetry/recent', (req, res) => {
   res.json({ events: recent });
 });
 
-// Logout endpoint
-app.post('/auth/logout', (req, res) => {
-  console.log('=== LOGOUT ===');
-  console.log('Session ID:', req.sessionID);
-  
-  // Check if user logged in via OIDC
-  const isOidcUser = req.session.userId ? (() => {
-    try {
-      const user = db.prepare('SELECT oauth_provider FROM users WHERE id = ?').get(req.session.userId);
-      return user?.oauth_provider === 'oidc';
-    } catch (err) {
-      console.error('Error checking OAuth provider:', err);
-      return false;
-    }
-  })() : false;
-  
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Session destroy error:', err);
-      res.json({ success: false, error: 'Failed to logout' });
-    } else {
-      // If OIDC user, return the end-session URL for redirect
-      if (isOidcUser) {
-        try {
-          const publicHostname = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_publicHostname');
-          const configuredEndSessionUrl = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcEndSessionUrl');
-          const publicUrl = publicHostname?.value || process.env.PUBLIC_URL || 'http://localhost:3000';
-          
-          let endSessionUrl;
-          
-          // Use configured end-session URL if provided
-          if (configuredEndSessionUrl?.value) {
-            // Build full logout URL with post_logout_redirect_uri parameter
-            const logoutUrl = new URL(configuredEndSessionUrl.value);
-            // Add flag to prevent auto-redirect after logout
-            logoutUrl.searchParams.set('post_logout_redirect_uri', `${publicUrl}/admin?logout=1`);
-            endSessionUrl = logoutUrl.href;
-            console.log('OIDC logout using configured URL:', endSessionUrl);
-          } else if (oidcConfig) {
-            // Fallback: try to build from OIDC discovery
-            try {
-              const builtUrl = oidc.buildEndSessionUrl(oidcConfig.server, {
-                post_logout_redirect_uri: `${publicUrl}/admin?logout=1`,
-              });
-              endSessionUrl = builtUrl.href;
-              console.log('OIDC logout using discovered URL:', endSessionUrl);
-            } catch (buildErr) {
-              console.error('Failed to build end-session URL:', buildErr);
-              // Manual fallback - construct from issuer
-              const issuer = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcIssuer');
-              if (issuer?.value) {
-                endSessionUrl = `${issuer.value}${issuer.value.endsWith('/') ? '' : '/'}end-session/?post_logout_redirect_uri=${encodeURIComponent(`${publicUrl}/admin?logout=1`)}`;
-                console.log('OIDC logout using manual URL:', endSessionUrl);
-              }
-            }
-          }
-          
-          if (endSessionUrl) {
-            res.json({ success: true, oidcLogout: true, endSessionUrl });
-          } else {
-            console.log('No OIDC logout URL available, doing local logout only');
-            res.json({ success: true });
-          }
-        } catch (err) {
-          console.error('Error building end-session URL:', err);
-          res.json({ success: true });
-        }
-      } else {
-        res.json({ success: true });
-      }
-    }
-  });
-});
 
-// Request new email verification code
-app.post('/auth/request-code', async (req, res) => {
-  const { email, region } = req.body;
-  
-  console.log('=== REQUEST NEW CODE ===');
-  console.log('Email:', email);
-  
-  const apiUrl = region === 'china'
-    ? 'https://api.bambulab.cn/v1/user-service/user/sendemail/code'
-    : 'https://api.bambulab.com/v1/user-service/user/sendemail/code';
-  
-  try {
-    await axios.post(apiUrl, {
-      email: email,
-      type: 'codeLogin'
-    }, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log('Verification code requested successfully');
-    res.json({ success: true, message: 'Verification code sent to your email' });
-  } catch (error) {
-    console.error('Request code error:', error.response?.data || error.message);
-    res.json({ 
-      success: false, 
-      error: error.response?.data?.message || 'Failed to send verification code' 
-    });
-  }
-});
 
 function buildConfiguredPrinterDevice(printer) {
   return {
@@ -4110,8 +2818,7 @@ function mergeConfiguredPrinters(devices = []) {
 app.get('/api/printers', async (req, res) => {
   logger.info('Printers request');
   logger.debug('Auth:', req.session.authenticated, 'Token present:', !!req.session.token);
-  logger.debug('Token preview:', req.session.token ? req.session.token.substring(0, 20) + '...' : 'N/A');
-  
+
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -4225,135 +2932,12 @@ app.get('/api/printers', async (req, res) => {
         const deviceSerial = deviceData.serial_number || device.dev_id;
 
         if (deviceIp && deviceAccessCode && deviceSerial) {
-          const clientKey = `${deviceIp}:${device.dev_id}`;
-          
-          // Create or get existing MQTT client for this printer.
-          // Skip if a recent attempt failed — avoids re-dialing an unreachable
-          // printer on every poll and leaking zombie auto-reconnecting clients.
-          const lastFailure = mqttConnectFailures.get(clientKey);
-          const inCooldown = lastFailure && (Date.now() - lastFailure) < MQTT_RECONNECT_COOLDOWN_MS;
-          if (!mqttClients.has(clientKey) && !inCooldown) {
-            try {
-              const mqttClient = new BambuMqttClient(deviceIp, deviceSerial, deviceAccessCode, device.name || 'Local Printer');
-
-              // Tear down the underlying client so it stops auto-reconnecting,
-              // then remove it from the registry and start the cooldown.
-              const teardownMqttClient = () => {
-                mqttConnectFailures.set(clientKey, Date.now());
-                if (mqttClients.get(clientKey) === mqttClient) {
-                  mqttClients.delete(clientKey);
-                }
-                try { mqttClient.disconnect(); } catch (_e) { /* already closed */ }
-              };
-
-              // Handle connection errors gracefully
-              mqttClient.on('error', (error) => {
-                logger.warn(`MQTT error for ${device.dev_id}: ${error.message}`);
-                teardownMqttClient();
-              });
-
-              mqttClient.on('disconnected', () => {
-                logger.info(`MQTT disconnected for ${device.dev_id}`);
-                teardownMqttClient();
-              });
-
-              attachRealtimeBridgeToMqttClient(mqttClient, clientKey, deviceData);
-              
-              // Handle print state changes for Discord notifications
-              mqttClient.on('print_completed', async (data) => {
-                // Look up actual design title from database using existing print columns
-                const print = findRecentPrintByJobName(data.jobName);
-                
-                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
-                
-                logger.info(`Print completed on ${data.printerName}: ${data.jobName} (${designName})`);
-                await sendNotification('printer', {
-                  status: 'completed',
-                  printerName: data.printerName,
-                  jobName: data.jobName,
-                  modelName: designName,
-                  progress: data.progress,
-                  message: `Print job "${data.jobName}" has completed successfully!`
-                });
-              });
-              
-              mqttClient.on('print_failed', async (data) => {
-                // Look up actual design title from database using existing print columns
-                const print = findRecentPrintByJobName(data.jobName);
-                
-                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
-                
-                logger.warn(`Print FAILED on ${data.printerName}: ${data.jobName} (${designName})`);
-                await sendNotification('printer', {
-                  status: 'failed',
-                  printerName: data.printerName,
-                  jobName: data.jobName,
-                  modelName: designName,
-                  errorCode: data.errorCode ? `0x${data.errorCode.toString(16).toUpperCase()}` : undefined,
-                  progress: data.progress,
-                  message: `Print job "${data.jobName}" has FAILED at ${data.progress}%!`
-                });
-              });
-              
-              mqttClient.on('print_error', async (data) => {
-                // Look up actual design title from database using existing print columns
-                const print = findRecentPrintByJobName(data.jobName);
-                
-                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
-                
-                logger.warn(`Print ERROR on ${data.printerName}: ${data.jobName} (${designName})`);
-                await sendNotification('printer', {
-                  status: 'error',
-                  printerName: data.printerName,
-                  jobName: data.jobName,
-                  modelName: designName,
-                  errorCode: data.errorCode ? `0x${data.errorCode.toString(16).toUpperCase()}` : undefined,
-                  progress: data.progress,
-                  message: `Printer error detected during "${data.jobName}" at ${data.progress}%`
-                });
-              });
-              
-              mqttClient.on('print_paused', async (data) => {
-                // Look up actual design title from database using existing print columns
-                const print = findRecentPrintByJobName(data.jobName);
-                
-                const designName = print?.designTitle || print?.title || print?.plateName || data.jobName;
-                
-                logger.info(`Print paused on ${data.printerName}: ${data.jobName} (${designName})`);
-                await sendNotification('printer', {
-                  status: 'paused',
-                  printerName: data.printerName,
-                  jobName: data.jobName,
-                  modelName: designName,
-                  progress: data.progress,
-                  message: `Print job "${data.jobName}" has been paused at ${data.progress}%`
-                });
-              });
-              
-              await mqttClient.connect();
-              mqttClients.set(clientKey, mqttClient);
-              mqttConnectFailures.delete(clientKey); // connected cleanly — clear cooldown
-              logger.info(`Created MQTT client for ${device.dev_id}`);
-
-              // Wait briefly for initial MQTT message with AMS data
-              await new Promise(resolve => setTimeout(resolve, 500));
-            } catch (error) {
-              logger.warn(`Could not connect MQTT for ${device.dev_id}: ${error.message}`);
-              // Start the cooldown and ensure the client is fully torn down so it
-              // doesn't keep auto-reconnecting in the background.
-              mqttConnectFailures.set(clientKey, Date.now());
-              // The client was never added to the registry (that only happens on
-              // success), so tear down the local reference directly instead of a
-              // no-op registry lookup that would leak an auto-reconnecting client.
-              if (mqttClients.get(clientKey) === mqttClient) {
-                mqttClients.delete(clientKey);
-              }
-              try { mqttClient.disconnect(); } catch (_e) { /* already closed */ }
-            }
-          }
+          // Create/reuse the MQTT client for this printer (lazy connect +
+          // cooldown semantics live in PrinterConnectionManager).
+          const clientKey = await printerManager.ensureClient(deviceData, { deviceIp, deviceAccessCode, deviceSerial });
           
           // Get current job data from MQTT client
-          const mqttClient = mqttClients.get(clientKey);
+          const mqttClient = printerManager.getClient(clientKey);
           if (mqttClient) {
             attachRealtimeBridgeToMqttClient(mqttClient, clientKey, deviceData);
           }
@@ -4511,7 +3095,7 @@ app.get('/api/printers/status', async (req, res) => {
     const printers = devices.map(device => {
       const deviceIp = device.ip_address || legacyPrinterIp;
       const clientKey = `${deviceIp || ''}:${device.dev_id}`;
-      const mqttClient = mqttClients.get(clientKey);
+      const mqttClient = printerManager.getClient(clientKey);
       const mqttJob = mqttClient?.connected ? mqttClient.getCurrentJob() : null;
 
       return {
@@ -4576,7 +3160,7 @@ app.get('/api/prints', async (req, res) => {
     
     // Resolve local cover paths. List the cache dir once instead of doing two
     // synchronous fs.existsSync() probes per row (up to 100 blocking stats/req).
-    const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
+    const coverCacheDir = path.join(dataDir, 'cover-cache');
     let coverFiles = new Set();
     try {
       coverFiles = new Set(fs.readdirSync(coverCacheDir));
@@ -4616,7 +3200,7 @@ app.get('/api/job-cover/:dev_id', async (req, res) => {
     }
     
     // Get MQTT client for this printer
-    const mqttClient = mqttClients.get(dev_id);
+    const mqttClient = printerManager.getClient(dev_id);
     if (!mqttClient || !mqttClient.connected) {
       // Silent 404 - expected when printer offline
       return res.status(404).end();
@@ -5209,7 +3793,7 @@ app.post('/api/download-missing-covers', async (req, res) => {
   void (async () => {
     try {
       const prints = getAllPrintsFromDb();
-      const coverCacheDir = path.join(__dirname, 'data', 'cover-cache');
+      const coverCacheDir = path.join(dataDir, 'cover-cache');
 
       const targets = prints.filter((print) => {
         if (!print.cover || !print.modelId) return false;
@@ -5686,7 +4270,7 @@ app.get('/api/statistics', (req, res) => {
 });
 
 // Geometry extraction function
-const geometryCache = path.join(__dirname, 'data', 'geometry');
+const geometryCache = path.join(dataDir, 'geometry');
 if (!fs.existsSync(geometryCache)) {
   fs.mkdirSync(geometryCache, { recursive: true });
 }
@@ -7337,8 +5921,8 @@ async function processBulkDeleteQueue() {
       db.prepare('DELETE FROM library WHERE id = ?').run(fileId);
       
       // Delete associated thumbnail and geometry cache
-      const thumbPath = path.join(__dirname, 'data', 'thumbnails', `${fileId}.png`);
-      const geoPath = path.join(__dirname, 'data', 'geometry', `${fileId}.stl`);
+      const thumbPath = path.join(dataDir, 'thumbnails', `${fileId}.png`);
+      const geoPath = path.join(dataDir, 'geometry', `${fileId}.stl`);
       
       const [thumbExists, geoExists] = await Promise.all([
         fs.promises.access(thumbPath).then(() => true).catch(() => false),
@@ -7399,7 +5983,7 @@ async function processAutoTagQueue() {
         const possiblePaths = [
           fileData.filePath,
           path.join(libraryDir, fileData.fileName),
-          path.join(__dirname, 'library', fileData.fileName),
+          path.join(libraryDir, fileData.fileName),
           `/app/library/${fileData.fileName}`
         ];
         
@@ -7413,7 +5997,7 @@ async function processAutoTagQueue() {
         if (!actualFilePath) {
           // Try to find by ID prefix
           const fileIdPrefix = fileData.fileName.split('-')[0];
-          const searchDirs = [libraryDir, path.join(__dirname, 'library'), '/app/library'];
+          const searchDirs = [libraryDir, '/app/library'];
           for (const dir of searchDirs) {
             if (fs.existsSync(dir)) {
               try {
@@ -8035,7 +6619,7 @@ app.get('/api/camera-snapshot', async (req, res) => {
   const { spawn } = require('child_process');
   
   // Create temp directory if it doesn't exist
-  const tempDir = path.join(__dirname, 'data', 'temp');
+  const tempDir = path.join(dataDir, 'temp');
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }
@@ -8161,313 +6745,17 @@ async function generateAllThumbnails() {
   }
 }
 
-// Middleware to check if user is admin
-const requireAdmin = (req, res, next) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-    next();
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
 
-// Get current user info
-app.get('/api/user/me', (req, res) => {
-  if (!req.session.authenticated || !req.session.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    // Try with all columns, fall back if columns don't exist
-    let user;
-    try {
-      user = db.prepare('SELECT id, username, email, role, display_name FROM users WHERE id = ?').get(req.session.userId);
-    } catch (e) {
-      if (e.message.includes('no such column')) {
-        user = db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(req.session.userId);
-        user.email = null;
-        user.display_name = null;
-      } else {
-        throw e;
-      }
-    }
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    res.json(user);
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
-// Admin: Get all users
-app.get('/api/admin/users', requireAdmin, (req, res) => {
-  try {
-    // Try with new columns, fall back if they don't exist
-    let users;
-    try {
-      users = db.prepare('SELECT id, username, email, role, oauth_provider, created_at FROM users ORDER BY created_at DESC').all();
-    } catch (e) {
-      if (e.message.includes('no such column')) {
-        users = db.prepare('SELECT id, username, role, created_at FROM users ORDER BY created_at DESC').all();
-        users = users.map(u => ({ ...u, email: null, oauth_provider: null }));
-      } else {
-        throw e;
-      }
-    }
-    res.json(users);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
 
-// Admin: Update user role
-app.patch('/api/admin/users/:id/role', requireAdmin, (req, res) => {
-  const { id } = req.params;
-  const { role } = req.body;
-  
-  if (!['admin', 'user', 'superadmin'].includes(role)) {
-    return res.status(400).json({ error: 'Invalid role' });
-  }
-  
-  try {
-    const currentUser = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-    const targetUser = db.prepare('SELECT role, username FROM users WHERE id = ?').get(id);
-    
-    // Only superadmins can promote to superadmin or demote superadmins
-    if (role === 'superadmin' && currentUser.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Only superadmins can promote to superadmin' });
-    }
-    
-    if (targetUser.role === 'superadmin' && currentUser.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Only superadmins can change superadmin roles' });
-    }
-    
-    // Prevent removing the last admin
-    const adminCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE role IN (?, ?)').get('admin', 'superadmin');
-    if ((targetUser.role === 'admin' || targetUser.role === 'superadmin') && (role !== 'admin' && role !== 'superadmin') && adminCount.count <= 1) {
-      return res.status(400).json({ error: 'Cannot remove the last admin' });
-    }
-    
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error updating user role:', error);
-    res.status(500).json({ error: 'Failed to update role' });
-  }
-});
 
-// Admin: Delete user
-app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
-  const { id } = req.params;
-  
-  try {
-    const user = db.prepare('SELECT role FROM users WHERE id = ?').get(id);
-    
-    // Prevent deleting superadmin
-    if (user.role === 'superadmin') {
-      return res.status(400).json({ error: 'Cannot delete superadmin' });
-    }
-    
-    // Prevent deleting the last admin
-    if (user.role === 'admin') {
-      const adminCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE role IN (?, ?)').get('admin', 'superadmin');
-      if (adminCount.count <= 1) {
-        return res.status(400).json({ error: 'Cannot delete the last admin' });
-      }
-    }
-    
-    // Don't allow deleting yourself
-    if (parseInt(id) === req.session.userId) {
-      return res.status(400).json({ error: 'Cannot delete your own account' });
-    }
-    
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
-    // Note: Settings are now global, not per-user
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
-  }
-});
-
-// Admin: Manually trigger Bambu account migration
-app.post('/api/admin/migrate-bambu-accounts', requireAdmin, (req, res) => {
-  try {
-    const { migrateBambuAccounts } = require('./database');
-    const result = migrateBambuAccounts();
-    res.json(result);
-  } catch (error) {
-    console.error('Migration error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Admin: Get OAuth settings
-app.get('/api/settings/oauth', requireAdmin, (req, res) => {
-  try {
-    const settings = db.prepare('SELECT key, value FROM config WHERE key LIKE ?').all('oauth_%');
-    const oauthConfig = {
-      provider: 'none',
-      publicHostname: '',
-      googleClientId: '',
-      googleClientSecret: '',
-      oidcIssuer: '',
-      oidcClientId: '',
-      oidcClientSecret: '',
-      oidcEndSessionUrl: ''
-    };
-    
-    settings.forEach(row => {
-      const key = row.key.replace('oauth_', '');
-      // Only include fields we want to expose
-      if (key in oauthConfig) {
-        oauthConfig[key] = row.value || '';
-      }
-    });
-    
-    res.json(oauthConfig);
-  } catch (error) {
-    console.error('Error fetching OAuth settings:', error);
-    res.status(500).json({ error: 'Failed to fetch OAuth settings' });
-  }
-});
 
-// Public: Get OAuth provider (for login page auto-redirect)
-app.get('/api/settings/oauth-public', (req, res) => {
-  try {
-    const providerRow = db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_provider');
-    res.json({ provider: providerRow?.value || 'none' });
-  } catch (error) {
-    console.error('Error fetching OAuth provider:', error);
-    res.json({ provider: 'none' });
-  }
-});
 
-// Admin: Save OAuth settings
-app.post('/api/settings/save-oauth', requireAdmin, async (req, res) => {
-  const {
-    provider,
-    publicHostname,
-    googleClientId,
-    googleClientSecret,
-    oidcIssuer,
-    oidcClientId,
-    oidcClientSecret,
-    oidcEndSessionUrl
-  } = req.body;
-  
-  try {
-    const upsert = db.prepare(`
-      INSERT INTO config (key, value, updated_at) 
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
-    `);
-    
-    upsert.run('oauth_provider', provider, provider);
-    upsert.run('oauth_publicHostname', publicHostname, publicHostname);
-    upsert.run('oauth_googleClientId', googleClientId, googleClientId);
-    upsert.run('oauth_googleClientSecret', googleClientSecret, googleClientSecret);
-    upsert.run('oauth_oidcIssuer', oidcIssuer, oidcIssuer);
-    upsert.run('oauth_oidcClientId', oidcClientId, oidcClientId);
-    upsert.run('oauth_oidcClientSecret', oidcClientSecret, oidcClientSecret);
-    upsert.run('oauth_oidcEndSessionUrl', oidcEndSessionUrl || '', oidcEndSessionUrl || '');
-    
-    // Reconfigure OIDC client with new settings
-    if (provider === 'oidc') {
-      const success = await configureOIDC();
-      if (success) {
-        res.json({ success: true, message: 'OAuth settings saved and OIDC client reconfigured successfully!' });
-      } else {
-        res.json({ success: true, message: 'OAuth settings saved but OIDC configuration failed. Check server logs.' });
-      }
-    } else {
-      res.json({ success: true, message: 'OAuth settings saved successfully!' });
-    }
-  } catch (error) {
-    console.error('Error saving OAuth settings:', error);
-    res.status(500).json({ error: 'Failed to save OAuth settings' });
-  }
-});
 
-// Get cost settings
-app.get('/api/settings/costs', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const settings = {};
-    const keys = ['filamentCostPerKg', 'electricityCostPerKwh', 'printerWattage', 'currency'];
-    
-    for (const key of keys) {
-      const row = db.prepare('SELECT value FROM config WHERE key = ?').get(`cost_${key}`);
-      settings[key] = row ? parseFloat(row.value) || row.value : null;
-    }
-    
-    // Get material-specific costs
-    const materialCostsRow = db.prepare('SELECT value FROM config WHERE key = ?').get('cost_materialCosts');
-    if (materialCostsRow) {
-      try {
-        settings.materialCosts = JSON.parse(materialCostsRow.value);
-      } catch (e) {
-        settings.materialCosts = {};
-      }
-    } else {
-      settings.materialCosts = {};
-    }
-    
-    // Defaults
-    settings.filamentCostPerKg = settings.filamentCostPerKg ?? 25;
-    settings.electricityCostPerKwh = settings.electricityCostPerKwh ?? 0.12;
-    settings.printerWattage = settings.printerWattage ?? 150;
-    settings.currency = settings.currency ?? 'USD';
-    
-    res.json(settings);
-  } catch (error) {
-    console.error('Get cost settings error:', error);
-    res.status(500).json({ error: 'Failed to get cost settings' });
-  }
-});
 
-// Save cost settings
-app.post('/api/settings/costs', requireAdmin, (req, res) => {
-  const { filamentCostPerKg, electricityCostPerKwh, printerWattage, currency, materialCosts } = req.body;
-  
-  try {
-    const upsert = db.prepare(`
-      INSERT INTO config (key, value, updated_at) 
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
-    `);
-    
-    upsert.run('cost_filamentCostPerKg', filamentCostPerKg, filamentCostPerKg);
-    upsert.run('cost_electricityCostPerKwh', electricityCostPerKwh, electricityCostPerKwh);
-    upsert.run('cost_printerWattage', printerWattage, printerWattage);
-    upsert.run('cost_currency', currency, currency);
-    
-    // Save material-specific costs as JSON
-    if (materialCosts) {
-      const materialCostsJson = JSON.stringify(materialCosts);
-      upsert.run('cost_materialCosts', materialCostsJson, materialCostsJson);
-    }
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Save cost settings error:', error);
-    res.status(500).json({ error: 'Failed to save cost settings' });
-  }
-});
+
 
 // Helper function to calculate cost for a print
 function calculatePrintCost(print) {
@@ -8588,396 +6876,8 @@ app.get('/api/statistics/costs', async (req, res) => {
 });
 
 // Maintenance Tasks API
-app.get('/api/maintenance', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const tasks = db.prepare(`
-      SELECT * FROM maintenance_tasks 
-      ORDER BY next_due ASC NULLS LAST, task_name ASC
-    `).all();
-    
-    // Get print hours per printer
-    const printerHours = {};
-    const allPrints = db.prepare('SELECT deviceId, costTime FROM prints').all();
-    let totalPrintSeconds = 0;
-    
-    for (const print of allPrints) {
-      if (print.costTime) {
-        totalPrintSeconds += print.costTime;
-        if (print.deviceId) {
-          if (!printerHours[print.deviceId]) {
-            printerHours[print.deviceId] = 0;
-          }
-          printerHours[print.deviceId] += print.costTime;
-        }
-      }
-    }
-    const totalPrintHours = totalPrintSeconds / 3600;
-    
-    // Check for overdue tasks based on print hours
-    logger.debug(`[Maintenance] Total print hours: ${totalPrintHours.toFixed(2)}`);
-    Object.keys(printerHours).forEach(pid => {
-      logger.debug(`[Maintenance] Printer ${pid}: ${(printerHours[pid] / 3600).toFixed(2)} hrs`);
-    });
-    
-    const tasksWithStatus = tasks.map(task => {
-      // Use printer-specific hours if task is assigned to a printer
-      const currentPrintHours = task.printer_id && printerHours[task.printer_id]
-        ? printerHours[task.printer_id] / 3600
-        : totalPrintHours;
-      let isOverdue = false;
-      let isDueSoon = false;
-      let hoursUntilDue = null;
-      
-      logger.debug(`[Maintenance] Task "${task.task_name}": DB hours_until_due=${task.hours_until_due}, interval=${task.interval_hours}`);
-      
-      if (task.hours_until_due !== null && task.hours_until_due !== undefined) {
-        // hours_until_due stores the ABSOLUTE hour marker when maintenance is due
-        // e.g., if total print hours is 1000 and task is due at 2222, then 2222 - 1000 = 1222 hrs remaining
-        hoursUntilDue = task.hours_until_due - currentPrintHours;
-        logger.debug(`[Maintenance] Task "${task.task_name}": Calculated ${task.hours_until_due} - ${currentPrintHours.toFixed(2)} = ${hoursUntilDue.toFixed(2)} hrs remaining`);
-        isOverdue = hoursUntilDue < 0;
-        isDueSoon = !isOverdue && hoursUntilDue <= 20;
-      } else if (task.next_due && task.interval_hours) {
-        // Fallback: Calculate from next_due and interval_hours
-        // If next_due exists but hours_until_due is null, initialize it now
-        logger.debug(`[Maintenance] Task "${task.task_name}": hours_until_due is NULL, calculating from interval...`);
-        
-        // If never performed, due at current + interval
-        // If last_performed exists, calculate from that
-        if (task.last_performed) {
-          // The task was completed before hours_until_due column existed
-          // We need to retroactively calculate when it should be due
-          // This is tricky because we don't know the print hours at completion time
-          // Best guess: use next_due time-based as a fallback
-          const now = new Date().toISOString();
-          isOverdue = task.next_due < now;
-          isDueSoon = !isOverdue && new Date(task.next_due) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-          
-          // Try to initialize hours_until_due for this task
-          const taskNextDueHours = currentPrintHours + task.interval_hours;
-          try {
-            db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(taskNextDueHours, task.id);
-            logger.debug(`[Maintenance] Initialized hours_until_due=${taskNextDueHours} for task ${task.id}`);
-            hoursUntilDue = task.interval_hours; // Since we just set it to current + interval
-          } catch (e) {
-            logger.warn(`[Maintenance] Failed to initialize hours_until_due: ${e.message}`);
-          }
-        } else {
-          // New task never performed - set it to be due at current + interval
-          hoursUntilDue = task.interval_hours;
-          const taskNextDueHours = currentPrintHours + task.interval_hours;
-          try {
-            db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(taskNextDueHours, task.id);
-            logger.debug(`[Maintenance] Initialized new task hours_until_due=${taskNextDueHours} for task ${task.id}`);
-          } catch (e) {
-            logger.warn(`[Maintenance] Failed to initialize hours_until_due: ${e.message}`);
-          }
-          isDueSoon = hoursUntilDue <= 20;
-        }
-      } else {
-        // Fallback to time-based if neither hours_until_due nor next_due is set
-        console.log(`[Maintenance GET] Task "${task.task_name}": Using time-based fallback, next_due=${task.next_due}`);
-        const now = new Date().toISOString();
-        isOverdue = task.next_due && task.next_due < now;
-        isDueSoon = !isOverdue && task.next_due && new Date(task.next_due) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      }
-      
-      return {
-        ...task,
-        isOverdue,
-        isDueSoon,
-        hours_until_due: hoursUntilDue
-      };
-    });
-    
-    res.json(tasksWithStatus);
-  } catch (error) {
-    console.error('Get maintenance tasks error:', error);
-    res.status(500).json({ error: 'Failed to get maintenance tasks' });
-  }
-});
-
-app.post('/api/maintenance', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  try {
-    const { printer_id, task_name, task_type, description, interval_hours } = req.body;
-    
-    if (!task_name || !task_type) {
-      return res.status(400).json({ error: 'Task name and type are required' });
-    }
-    
-    // Calculate current total print hours
-    const prints = db.prepare('SELECT costTime FROM prints').all();
-    let totalPrintSeconds = 0;
-    for (const print of prints) {
-      if (print.costTime) {
-        totalPrintSeconds += print.costTime;
-      }
-    }
-    const currentPrintHours = totalPrintSeconds / 3600;
-    
-    // New tasks should be due at: current print hours + interval
-    const taskInterval = interval_hours || 100;
-    const initialDueHours = currentPrintHours + taskInterval;
-    
-    console.log(`[Maintenance Create] Creating task "${task_name}"`);
-    console.log(`  - Current print hours: ${currentPrintHours.toFixed(2)}`);
-    console.log(`  - Interval: ${taskInterval} hours`);
-    console.log(`  - Will be due at print hour: ${initialDueHours.toFixed(2)}`);
-    
-    const result = db.prepare(`
-      INSERT INTO maintenance_tasks (printer_id, task_name, task_type, description, interval_hours, hours_until_due)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(printer_id || null, task_name, task_type, description || '', taskInterval, initialDueHours);
-    
-    const task = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(result.lastInsertRowid);
-    
-    res.json({ success: true, task });
-  } catch (error) {
-    console.error('Create maintenance task error:', error);
-    res.status(500).json({ error: 'Failed to create maintenance task' });
-  }
-});
-
-app.put('/api/maintenance/:id', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  try {
-    const { id } = req.params;
-    const { printer_id, task_name, task_type, description, interval_hours } = req.body;
-    
-    // Get old task to check if interval changed
-    const oldTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
-    
-    db.prepare(`
-      UPDATE maintenance_tasks 
-      SET printer_id = ?, task_name = ?, task_type = ?, description = ?, interval_hours = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(printer_id || null, task_name, task_type, description || '', interval_hours || 100, id);
-    
-    // If interval changed and task has been performed, recalculate hours_until_due
-    if (oldTask && oldTask.interval_hours !== interval_hours && oldTask.last_performed) {
-      // Calculate current print hours
-      const prints = db.prepare('SELECT costTime FROM prints').all();
-      let totalPrintSeconds = 0;
-      for (const print of prints) {
-        if (print.costTime) {
-          totalPrintSeconds += print.costTime;
-        }
-      }
-      const currentPrintHours = totalPrintSeconds / 3600;
-      
-      // Recalculate: if last performed, new due = current + new interval
-      const newDueHours = currentPrintHours + interval_hours;
-      
-      try {
-        db.prepare('UPDATE maintenance_tasks SET hours_until_due = ? WHERE id = ?').run(newDueHours, id);
-        console.log(`[Maintenance Update] Recalculated hours_until_due to ${newDueHours.toFixed(2)} for task ${id} (interval changed from ${oldTask.interval_hours} to ${interval_hours})`);
-      } catch (e) {
-        console.error(`[Maintenance Update] Failed to recalculate hours_until_due:`, e.message);
-      }
-    }
-    
-    const task = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
-    
-    res.json({ success: true, task });
-  } catch (error) {
-    console.error('Update maintenance task error:', error);
-    res.status(500).json({ error: 'Failed to update maintenance task' });
-  }
-});
-
-app.delete('/api/maintenance/:id', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  try {
-    const { id } = req.params;
-    db.prepare('DELETE FROM maintenance_tasks WHERE id = ?').run(id);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete maintenance task error:', error);
-    res.status(500).json({ error: 'Failed to delete maintenance task' });
-  }
-});
-
-app.post('/api/maintenance/:id/complete', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const { id } = req.params;
-    const { notes } = req.body; // Optional notes from user
-    const task = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
-    
-    if (!task) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-    
-    const now = new Date();
-    
-    // Calculate next due based on print hours, not real time
-    // Get total print hours from all prints
-    const prints = db.prepare('SELECT costTime FROM prints').all();
-    let totalPrintSeconds = 0;
-    for (const print of prints) {
-      if (print.costTime) {
-        totalPrintSeconds += print.costTime;
-      }
-    }
-    const totalPrintHours = totalPrintSeconds / 3600;
-    
-    // Calculate the ABSOLUTE print hour marker when this task will be due
-    // This is the key: we store when (in terms of total print hours) the task should be due
-    const nextDueHours = totalPrintHours + task.interval_hours;
-    
-    // Also store a timestamp for next_due (for time-based fallback and UI display)
-    const nextDue = new Date(now.getTime() + task.interval_hours * 60 * 60 * 1000);
-    
-    console.log(`[Maintenance Complete] Task ${id} "${task.task_name}":`);
-    console.log(`  - Current total print hours: ${totalPrintHours.toFixed(2)}`);
-    console.log(`  - Task interval: ${task.interval_hours} hours`);
-    console.log(`  - Next due at print hour: ${nextDueHours.toFixed(2)}`);
-    console.log(`  - Hours remaining until due: ${task.interval_hours.toFixed(2)}`);
-    
-    // Update the task with both timestamp and absolute hour marker
-    db.prepare(`
-      UPDATE maintenance_tasks 
-      SET last_performed = ?, 
-          next_due = ?, 
-          hours_until_due = ?,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(now.toISOString(), nextDue.toISOString(), nextDueHours, id);
-    
-    // Log completion to history
-    db.prepare(`
-      INSERT INTO maintenance_history (task_id, task_name, printer_id, completed_at, print_hours_at_completion, notes)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, task.task_name, task.printer_id, now.toISOString(), totalPrintHours, notes || null);
-    
-    const updatedTask = db.prepare('SELECT * FROM maintenance_tasks WHERE id = ?').get(id);
-    console.log(`[Maintenance Complete] Task updated successfully. hours_until_due=${updatedTask.hours_until_due}`);
-    
-    // Send notification
-    try {
-      const printerName = updatedTask.printer_id ? 
-        db.prepare('SELECT deviceName FROM printers WHERE deviceId = ?').get(updatedTask.printer_id)?.deviceName || updatedTask.printer_id
-        : 'All Printers';
-      
-      await sendNotification('maintenance', {
-        status: 'completed',
-        message: `Maintenance task "${updatedTask.task_name}" has been completed!`,
-        taskName: updatedTask.task_name,
-        printerName: printerName,
-        currentHours: totalPrintHours,
-        dueAtHours: nextDueHours
-      });
-    } catch (notifError) {
-      console.error('Failed to send notification:', notifError);
-    }
-    
-    res.json({ success: true, task: updatedTask });
-  } catch (error) {
-    console.error('Complete maintenance task error:', error);
-    res.status(500).json({ error: 'Failed to complete maintenance task' });
-  }
-});
-
-// Get maintenance history for a task
-app.get('/api/maintenance/:id/history', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const { id } = req.params;
-    const history = db.prepare(`
-      SELECT * FROM maintenance_history 
-      WHERE task_id = ? 
-      ORDER BY completed_at DESC
-    `).all(id);
-    
-    res.json(history);
-  } catch (error) {
-    console.error('Get maintenance history error:', error);
-    res.status(500).json({ error: 'Failed to get maintenance history' });
-  }
-});
-
-// Get maintenance summary/stats
-app.get('/api/maintenance/summary', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    // Get current total print hours
-    const prints = db.prepare('SELECT costTime FROM prints').all();
-    let totalPrintSeconds = 0;
-    for (const print of prints) {
-      if (print.costTime) {
-        totalPrintSeconds += print.costTime;
-      }
-    }
-    const currentPrintHours = totalPrintSeconds / 3600;
-    
-    const allTasks = db.prepare('SELECT * FROM maintenance_tasks').all();
-    const total = allTasks.length;
-    const neverDone = allTasks.filter(t => !t.last_performed).length;
-    
-    // Count overdue and due-soon based on print hours
-    let overdue = 0;
-    let dueSoon = 0;
-    
-    for (const task of allTasks) {
-      if (task.hours_until_due) {
-        if (currentPrintHours >= task.hours_until_due) {
-          overdue++;
-        } else if (task.hours_until_due - currentPrintHours <= 50) {
-          dueSoon++;
-        }
-      }
-    }
-    
-    res.json({
-      total,
-      overdue,
-      dueSoon,
-      neverDone,
-      upToDate: total - overdue - dueSoon - neverDone
-    });
-  } catch (error) {
-    console.error('Get maintenance summary error:', error);
-    res.status(500).json({ error: 'Failed to get maintenance summary' });
-  }
-});
+// Maintenance routes moved to server/routes/maintenance.js
+app.use(maintenanceRoutes);
 
 // Admin: Restart/Reboot the application
 app.post('/api/settings/restart', async (req, res) => {
@@ -9070,559 +6970,16 @@ app.get('/api/camera-test', async (req, res) => {
   }
 });
 
-// Get watchdog settings
-app.get('/api/settings/watchdog', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const getConfig = db.prepare('SELECT value FROM config WHERE key = ?');
-    const watchdogEnabled = getConfig.get('watchdog_enabled');
-    const watchdogInterval = getConfig.get('watchdog_interval');
-    const watchdogEndpoint = getConfig.get('watchdog_endpoint');
-    
-    res.json({
-      enabled: watchdogEnabled?.value === 'true',
-      interval: parseInt(watchdogInterval?.value || '30', 10),
-      endpoint: watchdogEndpoint?.value || ''
-    });
-  } catch (error) {
-    console.error('Error getting watchdog settings:', error);
-    res.status(500).json({ error: 'Failed to get watchdog settings' });
-  }
-});
 
-// Save watchdog settings
-app.post('/api/settings/watchdog', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  // Check if user is admin
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  try {
-    const { enabled, interval, endpoint } = req.body;
-    
-    const upsert = db.prepare(`
-      INSERT INTO config (key, value) VALUES (?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `);
-    
-    upsert.run('watchdog_enabled', enabled ? 'true' : 'false');
-    upsert.run('watchdog_interval', String(interval || 30));
-    upsert.run('watchdog_endpoint', endpoint || '');
-    
-    // Update the watchdog timer
-    setupWatchdog();
-    
-    res.json({ success: true, message: 'Watchdog settings saved!' });
-  } catch (error) {
-    console.error('Error saving watchdog settings:', error);
-    res.status(500).json({ error: 'Failed to save watchdog settings' });
-  }
-});
 
-// Get Discord webhook settings
-app.get('/api/settings/discord', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const getConfig = db.prepare('SELECT value FROM config WHERE key = ?');
-    const printerWebhook = getConfig.get('discord_printer_webhook');
-    const printerEnabled = getConfig.get('discord_printer_enabled');
-    const maintenanceWebhook = getConfig.get('discord_maintenance_webhook');
-    const maintenanceEnabled = getConfig.get('discord_maintenance_enabled');
-    const pingUserId = getConfig.get('discord_ping_user_id');
-    
-    res.json({
-      printerWebhook: printerWebhook?.value || '',
-      printerEnabled: printerEnabled?.value === 'true',
-      maintenanceWebhook: maintenanceWebhook?.value || '',
-      maintenanceEnabled: maintenanceEnabled?.value === 'true',
-      pingUserId: pingUserId?.value || ''
-    });
-  } catch (error) {
-    console.error('Error getting Discord settings:', error);
-    res.status(500).json({ error: 'Failed to get Discord settings' });
-  }
-});
 
-// Save Discord webhook settings
-app.post('/api/settings/discord', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  // Check if user is admin
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  try {
-    const { printerWebhook, printerEnabled, maintenanceWebhook, maintenanceEnabled, pingUserId } = req.body;
-    
-    const upsert = db.prepare(`
-      INSERT INTO config (key, value) VALUES (?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `);
-    
-    upsert.run('discord_printer_webhook', printerWebhook || '');
-    upsert.run('discord_printer_enabled', printerEnabled ? 'true' : 'false');
-    upsert.run('discord_maintenance_webhook', maintenanceWebhook || '');
-    upsert.run('discord_maintenance_enabled', maintenanceEnabled ? 'true' : 'false');
-    upsert.run('discord_ping_user_id', pingUserId || '');
-    
-    res.json({ success: true, message: 'Discord settings saved!' });
-  } catch (error) {
-    console.error('Error saving Discord settings:', error);
-    res.status(500).json({ error: 'Failed to save Discord settings' });
-  }
-});
 
-// Unified notifications settings (Discord, Telegram, Slack)
-app.get('/api/settings/notifications', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  try {
-    const get = db.prepare('SELECT value FROM config WHERE key = ?');
-    const response = {
-      discord: {
-        webhook: get.get('discord_printer_webhook')?.value || get.get('discord_maintenance_webhook')?.value || '',
-        printerEnabled: get.get('discord_printer_enabled')?.value === 'true',
-        maintenanceEnabled: get.get('discord_maintenance_enabled')?.value === 'true',
-        backupEnabled: get.get('discord_backup_enabled')?.value === 'true',
-        pingUserId: get.get('discord_ping_user_id')?.value || ''
-      },
-      telegram: {
-        botToken: get.get('telegram_bot_token')?.value || '',
-        chatId: get.get('telegram_chat_id')?.value || '',
-        printerEnabled: get.get('telegram_printer_enabled')?.value === 'true',
-        maintenanceEnabled: get.get('telegram_maintenance_enabled')?.value === 'true',
-        backupEnabled: get.get('telegram_backup_enabled')?.value === 'true'
-      },
-      slack: {
-        webhook: get.get('slack_webhook_url')?.value || '',
-        printerEnabled: get.get('slack_printer_enabled')?.value === 'true',
-        maintenanceEnabled: get.get('slack_maintenance_enabled')?.value === 'true',
-        backupEnabled: get.get('slack_backup_enabled')?.value === 'true'
-      }
-    };
-    res.json({ success: true, settings: response });
-  } catch (e) {
-    console.error('Get notifications settings error:', e);
-    res.status(500).json({ error: 'Failed to load notifications settings' });
-  }
-});
 
-app.post('/api/settings/notifications', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId);
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  try {
-    const upsert = db.prepare(`
-      INSERT INTO config (key, value) VALUES (?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `);
-    const { discord, telegram, slack } = req.body;
-    if (discord) {
-      if (discord.webhook !== undefined) {
-        upsert.run('discord_printer_webhook', discord.webhook || '');
-        upsert.run('discord_maintenance_webhook', discord.webhook || '');
-      }
-      if (discord.printerEnabled !== undefined) upsert.run('discord_printer_enabled', discord.printerEnabled ? 'true' : 'false');
-      if (discord.maintenanceEnabled !== undefined) upsert.run('discord_maintenance_enabled', discord.maintenanceEnabled ? 'true' : 'false');
-      if (discord.backupEnabled !== undefined) upsert.run('discord_backup_enabled', discord.backupEnabled ? 'true' : 'false');
-      if (discord.pingUserId !== undefined) upsert.run('discord_ping_user_id', discord.pingUserId || '');
-    }
-    if (telegram) {
-      if (telegram.botToken !== undefined) upsert.run('telegram_bot_token', telegram.botToken || '');
-      if (telegram.chatId !== undefined) upsert.run('telegram_chat_id', telegram.chatId || '');
-      if (telegram.printerEnabled !== undefined) upsert.run('telegram_printer_enabled', telegram.printerEnabled ? 'true' : 'false');
-      if (telegram.maintenanceEnabled !== undefined) upsert.run('telegram_maintenance_enabled', telegram.maintenanceEnabled ? 'true' : 'false');
-      if (telegram.backupEnabled !== undefined) upsert.run('telegram_backup_enabled', telegram.backupEnabled ? 'true' : 'false');
-    }
-    if (slack) {
-      if (slack.webhook !== undefined) upsert.run('slack_webhook_url', slack.webhook || '');
-      if (slack.printerEnabled !== undefined) upsert.run('slack_printer_enabled', slack.printerEnabled ? 'true' : 'false');
-      if (slack.maintenanceEnabled !== undefined) upsert.run('slack_maintenance_enabled', slack.maintenanceEnabled ? 'true' : 'false');
-      if (slack.backupEnabled !== undefined) upsert.run('slack_backup_enabled', slack.backupEnabled ? 'true' : 'false');
-    }
-    res.json({ success: true, message: 'Notification settings saved!' });
-  } catch (e) {
-    console.error('Save notifications settings error:', e);
-    res.status(500).json({ error: 'Failed to save notifications settings' });
-  }
-});
 
-// Slack & Telegram send helpers and unified dispatcher
-async function sendTelegramNotification(type, data) {
-  try {
-    const get = db.prepare('SELECT value FROM config WHERE key = ?');
-    const botToken = get.get('telegram_bot_token')?.value;
-    const chatId = get.get('telegram_chat_id')?.value;
-    if (!botToken || !chatId) return false;
-    const enabled = get.get(`telegram_${type}_enabled`)?.value === 'true';
-    if (!enabled) return false;
 
-    const titleMap = { printer: '🖨️ Printer', maintenance: '🔧 Maintenance', backup: '💾 Backup' };
-    const title = titleMap[type] || 'Notification';
-    let lines = [ `*${title}*`, data.message || '' ];
-    if (type === 'printer') {
-      if (data.printerName) lines.push(`• Printer: ${data.printerName}`);
-      if (data.modelName) lines.push(`• Model: ${data.modelName}`);
-      if (data.progress !== undefined) lines.push(`• Progress: ${data.progress}%`);
-      if (data.timeElapsed) lines.push(`• Time: ${data.timeElapsed}`);
-    } else if (type === 'maintenance') {
-      if (data.taskName) lines.push(`• Task: ${data.taskName}`);
-      if (data.printerName) lines.push(`• Printer: ${data.printerName}`);
-      if (data.currentHours !== undefined) lines.push(`• Current: ${data.currentHours.toFixed(1)}h`);
-      if (data.dueAtHours !== undefined) lines.push(`• Due At: ${data.dueAtHours.toFixed(1)}h`);
-    } else if (type === 'backup') {
-      if (data.size) lines.push(`• Size: ${data.size}`);
-      if (data.videos !== undefined) lines.push(`• Videos: ${data.videos}`);
-      if (data.library !== undefined) lines.push(`• Library: ${data.includeLibrary ? data.library : 'Excluded'}`);
-      if (data.covers !== undefined) lines.push(`• Covers: ${data.covers}`);
-      if (data.remoteUploaded) lines.push(`• Remote Upload: ✅`);
-    }
-    const text = lines.join('\n');
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
-    });
-    return true;
-  } catch (e) {
-    console.error('Telegram notification error:', e.message);
-    return false;
-  }
-}
-
-async function sendSlackNotification(type, data) {
-  try {
-    const get = db.prepare('SELECT value FROM config WHERE key = ?');
-    const webhook = get.get('slack_webhook_url')?.value;
-    if (!webhook) return false;
-    const enabled = get.get(`slack_${type}_enabled`)?.value === 'true';
-    if (!enabled) return false;
-    const titleMap = { printer: 'Printer', maintenance: 'Maintenance', backup: 'Backup' };
-    const emojiMap = { printer: '🖨️', maintenance: '🔧', backup: '💾' };
-    const title = `${emojiMap[type] || ''} ${titleMap[type] || 'Notification'}`;
-    const payload = {
-      text: data.message || title,
-      blocks: [
-        { type: 'header', text: { type: 'plain_text', text: title } },
-        { type: 'section', fields: [] }
-      ]
-    };
-    const addField = (name, value) => payload.blocks[1].fields.push({ type: 'mrkdwn', text: `*${name}:* ${value}` });
-    if (type === 'printer') {
-      if (data.printerName) addField('Printer', data.printerName);
-      if (data.modelName) addField('Model', data.modelName);
-      if (data.progress !== undefined) addField('Progress', `${data.progress}%`);
-      if (data.timeElapsed) addField('Time', data.timeElapsed);
-    } else if (type === 'maintenance') {
-      if (data.taskName) addField('Task', data.taskName);
-      if (data.printerName) addField('Printer', data.printerName);
-      if (data.currentHours !== undefined) addField('Current', `${data.currentHours.toFixed(1)}h`);
-      if (data.dueAtHours !== undefined) addField('Due At', `${data.dueAtHours.toFixed(1)}h`);
-    } else if (type === 'backup') {
-      if (data.size) addField('Archive Size', data.size);
-      if (data.videos !== undefined) addField('Videos', data.videos);
-      if (data.library !== undefined) addField('Library Files', data.includeLibrary ? `${data.library}` : 'Excluded');
-      if (data.covers !== undefined) addField('Cover Images', data.covers);
-      if (data.remoteUploaded) addField('Remote Upload', '✅ Uploaded');
-    }
-    await fetch(webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    return true;
-  } catch (e) {
-    console.error('Slack notification error:', e.message);
-    return false;
-  }
-}
-
-async function sendNotification(type, data) {
-  // Always try provider-specific notifications if enabled
-  try { await sendDiscordNotification(type, data); } catch {}
-  try { await sendTelegramNotification(type, data); } catch {}
-  try { await sendSlackNotification(type, data); } catch {}
-}
-// Test Discord webhook
-app.post('/api/discord/test', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  try {
-    const { type, webhook } = req.body;
-    
-    if (!webhook || !webhook.startsWith('https://discord.com/api/webhooks/')) {
-      return res.status(400).json({ error: 'Invalid Discord webhook URL' });
-    }
-    
-    let embed;
-    if (type === 'printer') {
-      embed = {
-        title: '🖨️ Printer Alert Test',
-        description: 'This is a test notification from PrintHive!',
-        color: 0x00D4FF, // Cyan color
-        fields: [
-          { name: 'Printer', value: 'Test Printer', inline: true },
-          { name: 'Status', value: '✅ Connected', inline: true },
-          { name: 'Event', value: 'Test Notification', inline: false }
-        ],
-        footer: { text: 'PrintHive • Printer Alerts' },
-        timestamp: new Date().toISOString()
-      };
-    } else {
-      embed = {
-        title: '🔧 Maintenance Alert Test',
-        description: 'This is a test notification from PrintHive!',
-        color: 0xFFA500, // Orange color
-        fields: [
-          { name: 'Task', value: 'Test Maintenance Task', inline: true },
-          { name: 'Printer', value: 'Test Printer', inline: true },
-          { name: 'Status', value: '⚠️ Due Soon', inline: false }
-        ],
-        footer: { text: 'PrintHive • Maintenance Alerts' },
-        timestamp: new Date().toISOString()
-      };
-    }
-    
-    // Use GitHub raw link for logo
-    const logoUrl = 'https://raw.githubusercontent.com/tr1ckz/PrintHive/refs/heads/main/public/images/logo.png';
-    
-    const response = await fetch(webhook, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'PrintHive',
-        avatar_url: logoUrl,
-        embeds: [embed]
-      })
-    });
-    
-    if (response.ok) {
-      res.json({ success: true });
-    } else {
-      const errorText = await response.text();
-      console.error('Discord webhook error:', errorText);
-      res.status(400).json({ error: 'Failed to send to Discord' });
-    }
-  } catch (error) {
-    console.error('Error testing Discord webhook:', error);
-    res.status(500).json({ error: 'Failed to send test notification' });
-  }
-});
-
-// Unified notifications test endpoint (Discord, Telegram, Slack)
-app.post('/api/settings/notifications/test', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  try {
-    const { provider, type } = req.body;
-    if (!['printer', 'maintenance', 'backup'].includes(type)) {
-      return res.status(400).json({ error: 'Invalid notification type' });
-    }
-    if (!['discord', 'telegram', 'slack'].includes(provider)) {
-      return res.status(400).json({ error: 'Invalid provider' });
-    }
-
-    // Sample payloads
-    let data = { message: 'This is a test notification from PrintHive!' };
-    if (type === 'printer') {
-      data = {
-        status: 'completed',
-        message: 'This is a test notification from PrintHive!',
-        printerName: 'Test Printer',
-        modelName: 'Test Model',
-        progress: 100,
-        timeElapsed: '00:42:00'
-      };
-    } else if (type === 'maintenance') {
-      data = {
-        status: 'due',
-        message: 'This is a test notification from PrintHive!',
-        taskName: 'Test Maintenance Task',
-        printerName: 'Test Printer',
-        currentHours: 100,
-        dueAtHours: 120
-      };
-    } else if (type === 'backup') {
-      data = {
-        message: 'This is a test notification from PrintHive!',
-        size: '123 MB',
-        videos: 5,
-        library: 12,
-        includeLibrary: true,
-        covers: 4,
-        remoteUploaded: true
-      };
-    }
-
-    let ok = false;
-    if (provider === 'discord') {
-      ok = await sendDiscordNotification(type, data);
-    } else if (provider === 'telegram') {
-      ok = await sendTelegramNotification(type, data);
-    } else if (provider === 'slack') {
-      ok = await sendSlackNotification(type, data);
-    }
-
-    if (ok) return res.json({ success: true });
-    return res.status(400).json({ error: 'Provider disabled or not configured' });
-  } catch (e) {
-    console.error('Unified notifications test error:', e);
-    res.status(500).json({ error: 'Failed to send test notification' });
-  }
-});
 
 // Helper function to send Discord notifications
-async function sendDiscordNotification(type, data) {
-  try {
-    const getConfig = db.prepare('SELECT value FROM config WHERE key = ?');
-    
-    let webhookUrl, enabled;
-    if (type === 'printer') {
-      const webhookRow = getConfig.get('discord_printer_webhook');
-      const enabledRow = getConfig.get('discord_printer_enabled');
-      webhookUrl = webhookRow?.value;
-      enabled = enabledRow?.value === 'true';
-    } else if (type === 'maintenance' || type === 'backup') {
-      // Use maintenance webhook for maintenance and backup notifications
-      const webhookRow = getConfig.get('discord_maintenance_webhook');
-      const maintenanceEnabledRow = getConfig.get('discord_maintenance_enabled');
-      webhookUrl = webhookRow?.value;
-      if (type === 'backup') {
-        const backupEnabledRow = getConfig.get('discord_backup_enabled');
-        enabled = backupEnabledRow?.value === 'true';
-      } else {
-        enabled = maintenanceEnabledRow?.value === 'true';
-      }
-    }
-    
-    if (!enabled || !webhookUrl) {
-      return false;
-    }
-    
-    let embed;
-    if (type === 'printer') {
-      const statusColors = {
-        'failed': 0xFF0000,    // Red
-        'error': 0xFF0000,     // Red
-        'completed': 0x00FF00, // Green
-        'paused': 0xFFFF00,    // Yellow
-        'offline': 0x808080    // Gray
-      };
-      
-      const statusEmojis = {
-        'failed': '❌',
-        'error': '⚠️',
-        'completed': '✅',
-        'paused': '⏸️',
-        'offline': '📴'
-      };
-      
-      embed = {
-        title: `${statusEmojis[data.status] || '🖨️'} Print ${data.status?.charAt(0).toUpperCase() + data.status?.slice(1) || 'Alert'}`,
-        description: data.message || 'Printer status update',
-        color: statusColors[data.status] || 0x00D4FF,
-        fields: [],
-        footer: { text: 'PrintHive • Printer Alerts' },
-        timestamp: new Date().toISOString()
-      };
-      
-      if (data.printerName) embed.fields.push({ name: 'Printer', value: data.printerName, inline: true });
-      if (data.modelName) embed.fields.push({ name: 'Model', value: data.modelName, inline: true });
-      if (data.progress !== undefined) embed.fields.push({ name: 'Progress', value: `${data.progress}%`, inline: true });
-      if (data.timeElapsed) embed.fields.push({ name: 'Time', value: data.timeElapsed, inline: true });
-      if (data.errorCode) embed.fields.push({ name: 'Error Code', value: data.errorCode, inline: true });
-      
-    } else if (type === 'maintenance') {
-      const statusColors = {
-        'due': 0xFFA500,      // Orange
-        'overdue': 0xFF0000,  // Red
-        'completed': 0x00FF00 // Green
-      };
-      
-      const statusEmojis = {
-        'due': '⚠️',
-        'overdue': '🚨',
-        'completed': '✅'
-      };
-      
-      embed = {
-        title: `${statusEmojis[data.status] || '🔧'} Maintenance ${data.status?.charAt(0).toUpperCase() + data.status?.slice(1) || 'Alert'}`,
-        description: data.message || 'Maintenance task needs attention',
-        color: statusColors[data.status] || 0xFFA500,
-        fields: [],
-        footer: { text: 'PrintHive • Maintenance Alerts' },
-        timestamp: new Date().toISOString()
-      };
-      
-      if (data.taskName) embed.fields.push({ name: 'Task', value: data.taskName, inline: true });
-      if (data.printerName) embed.fields.push({ name: 'Printer', value: data.printerName, inline: true });
-      if (data.currentHours !== undefined) embed.fields.push({ name: 'Current Hours', value: `${data.currentHours.toFixed(1)}h`, inline: true });
-      if (data.dueAtHours !== undefined) embed.fields.push({ name: 'Due At', value: `${data.dueAtHours.toFixed(1)}h`, inline: true });
-    } else if (type === 'backup') {
-      embed = {
-        title: '💾 Database Backup Completed',
-        description: data.message || 'Database backup completed successfully',
-        color: 0x00FF00, // Green
-        fields: [],
-        footer: { text: 'PrintHive • System Backup' },
-        timestamp: new Date().toISOString()
-      };
-      
-      if (data.size) embed.fields.push({ name: 'Archive Size', value: data.size, inline: true });
-      if (data.videos !== undefined) embed.fields.push({ name: 'Videos', value: data.videos > 0 ? `${data.videos} files` : 'Excluded', inline: true });
-      if (data.library !== undefined) {
-        const libText = data.includeLibrary ? `Included (${data.library} files)` : 'Excluded';
-        embed.fields.push({ name: 'Library Files', value: libText, inline: true });
-      }
-      if (data.covers !== undefined) embed.fields.push({ name: 'Cover Images', value: data.covers > 0 ? `${data.covers} files` : 'Excluded', inline: true });
-      if (data.remoteUploaded) embed.fields.push({ name: 'Remote Upload', value: '✅ Uploaded', inline: true });
-    }
-    
-    // Get ping user ID if configured
-    const pingUserIdRow = getConfig.get('discord_ping_user_id');
-    const pingUserId = pingUserIdRow?.value || '';
-    const pingContent = pingUserId ? `<@${pingUserId}>` : '';
-    
-    // Use GitHub raw link for logo
-    const logoUrl = 'https://raw.githubusercontent.com/tr1ckz/PrintHive/refs/heads/main/public/images/logo.png';
-    
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: pingContent || undefined,
-        username: 'PrintHive',
-        avatar_url: logoUrl,
-        embeds: [embed]
-      })
-    });
-    
-    return response.ok;
-  } catch (error) {
-    console.error('Error sending Discord notification:', error);
-    return false;
-  }
-}
+// Notification dispatchers moved to server/services/notifications.js
 
 // Watchdog interval reference
 let watchdogTimer = null;
@@ -10467,7 +7824,7 @@ httpServer = app.listen(PORT, async () => {
   
   // Clean up old camera temp files on startup
   try {
-    const tempDir = path.join(__dirname, 'data', 'temp');
+    const tempDir = path.join(dataDir, 'temp');
     if (fs.existsSync(tempDir)) {
       const files = fs.readdirSync(tempDir);
       const oldFiles = files.filter(f => f.startsWith('camera-temp-'));
@@ -10612,7 +7969,7 @@ httpServer = app.listen(PORT, async () => {
   await generateAllThumbnails();
 });
 
-setupRealtimeServer(httpServer);
+setupRealtimeServer(httpServer, printerManager);
 setupGo2RtcWebSocketProxy(httpServer);
 
 // Graceful shutdown handler
@@ -10630,13 +7987,7 @@ const gracefulShutdown = (signal) => {
   } catch (e) {}
   
   // Disconnect all MQTT clients
-  for (const [key, client] of mqttClients.entries()) {
-    console.log(`Disconnecting MQTT client for ${key}`);
-    try {
-      client.disconnect();
-    } catch (e) {}
-  }
-  mqttClients.clear();
+  printerManager.disconnectAll();
   
   // Close database
   if (db) {
@@ -10646,13 +7997,7 @@ const gracefulShutdown = (signal) => {
     } catch (e) {}
   }
   
-  if (realtimeWss) {
-    try {
-      realtimeWss.clients.forEach((client) => client.close());
-      realtimeWss.close();
-      console.log('Realtime websocket server closed');
-    } catch (e) {}
-  }
+  closeRealtimeServer();
 
   // Close HTTP server
   if (httpServer) {
@@ -10843,7 +8188,7 @@ app.post('/api/settings/database/vacuum', async (req, res) => {
   }
 
   if (!queueDatabaseMaintenanceJob('vacuum', async () => {
-    const dbPath = path.join(__dirname, 'data', 'printhive.db');
+    const dbPath = path.join(dataDir, 'printhive.db');
     const sizeBefore = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0;
     const startTime = Date.now();
     db.exec('VACUUM');
@@ -10972,7 +8317,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
   const tar = require('tar');
   
   // Create backup directory if it doesn't exist
-  const backupDir = path.join(__dirname, 'data', 'backups');
+  const backupDir = path.join(dataDir, 'backups');
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
   }
@@ -11017,16 +8362,19 @@ app.post('/api/settings/database/backup', async (req, res) => {
     // Continue processing below
   }
   
+  // Serialize with other heavy work (ffmpeg conversions) so two
+  // disk-intensive jobs never run at once.
+  const releaseHeavyLane = await jobManager.acquireLane('heavy');
+
   // Perform backup
   try {
-    
+
     console.log(`Creating backup archive at ${backupFile}...`);
     console.log(`Options: Videos=${includeVideos}, Library=${includeLibrary}, Covers=${includeCovers}`);
     
     // Prepare list of files/folders to include in backup
     const filesToBackup = [];
-    const dataDir = path.join(__dirname, 'data');
-    
+
     // Always include the database (only add shm/wal if they exist)
     filesToBackup.push('printhive.db');
     if (fs.existsSync(path.join(dataDir, 'printhive.db-shm'))) {
@@ -11055,7 +8403,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
     
     // Include library files if requested (library is at project root: /app/library)
     if (includeLibrary) {
-      const libraryPath = path.join(__dirname, 'library');
+      const libraryPath = libraryDir;
       if (fs.existsSync(libraryPath)) {
         // Recursively count files in library directory (filtering by known extensions)
         const allowedExts = new Set(['.3mf', '.stl', '.gcode']);
@@ -11132,7 +8480,7 @@ app.post('/api/settings/database/backup', async (req, res) => {
     
     // Merge in optional archives (library, covers) by extracting and repacking
     const extraArchives = [];
-    if (includeLibrary && libraryCount > 0 && fs.existsSync(path.join(__dirname, 'library'))) {
+    if (includeLibrary && libraryCount > 0 && fs.existsSync(libraryDir)) {
       const libraryBackupPath = path.join(backupDir, `library_temp_${Date.now()}.tar.gz`);
       await tar.create(
         {
@@ -11359,6 +8707,8 @@ app.post('/api/settings/database/backup', async (req, res) => {
     if (!async) {
       res.status(500).json({ success: false, error: error.message || 'Unknown backup error' });
     }
+  } finally {
+    releaseHeavyLane();
   }
 });
 
@@ -11458,7 +8808,7 @@ app.delete('/api/settings/database/backups/:filename', (req, res) => {
       return res.status(400).json({ error: 'Invalid filename' });
     }
     
-    const backupDir = path.join(__dirname, 'data', 'backups');
+    const backupDir = path.join(dataDir, 'backups');
     const backupFile = path.join(backupDir, filename);
     
     if (!fs.existsSync(backupFile)) {
@@ -11488,7 +8838,7 @@ app.get('/api/settings/database/backups', (req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
-    const backupDir = path.join(__dirname, 'data', 'backups');
+    const backupDir = path.join(dataDir, 'backups');
     
     if (!fs.existsSync(backupDir)) {
       return res.json({ success: true, backups: [], stats: { count: 0, totalSize: 0, totalSizeFormatted: '0 B' } });
@@ -11587,7 +8937,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     const fs = require('fs');
     const path = require('path');
     const tar = require('tar');
-    const backupPath = path.join(__dirname, 'data', 'backups', backupFile);
+    const backupPath = path.join(dataDir, 'backups', backupFile);
     
     if (!fs.existsSync(backupPath)) {
       return res.status(404).json({ success: false, error: 'Backup file not found' });
@@ -11604,7 +8954,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     db.close();
     
     // Create a temporary extraction directory
-    const tempExtractDir = path.join(__dirname, 'data', 'temp_restore');
+    const tempExtractDir = path.join(dataDir, 'temp_restore');
     if (fs.existsSync(tempExtractDir)) {
       fs.rmSync(tempExtractDir, { recursive: true, force: true });
     }
@@ -11620,7 +8970,6 @@ app.post('/api/settings/database/restore', async (req, res) => {
     restoreJobs.set(jobId, { ...restoreJobs.get(jobId), message: 'Restoring database...', progress: 30 });
     
     // Restore database files
-    const dataDir = path.join(__dirname, 'data');
     if (fs.existsSync(path.join(tempExtractDir, 'printhive.db'))) {
       fs.copyFileSync(path.join(tempExtractDir, 'printhive.db'), path.join(dataDir, 'printhive.db'));
       console.log('✓ Database restored');
@@ -11654,7 +9003,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     // Restore library files if present (to project root /library)
     const libraryBackupPath = path.join(tempExtractDir, 'library');
     if (fs.existsSync(libraryBackupPath)) {
-      const libraryDirPath = path.join(__dirname, 'library');
+      const libraryDirPath = libraryDir;
       if (!fs.existsSync(libraryDirPath)) {
         fs.mkdirSync(libraryDirPath, { recursive: true });
       }
@@ -11702,7 +9051,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     
     // Reconnect to database
     const Database = require('better-sqlite3');
-    const dbPath = path.join(__dirname, 'data', 'printhive.db');
+    const dbPath = path.join(dataDir, 'printhive.db');
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     
@@ -11746,7 +9095,7 @@ app.post('/api/settings/database/restore', async (req, res) => {
     // Try to reconnect to database even if restore failed
     try {
       const Database = require('better-sqlite3');
-      const dbPath = path.join(__dirname, 'data', 'printhive.db');
+      const dbPath = path.join(dataDir, 'printhive.db');
       db = new Database(dbPath);
       db.pragma('journal_mode = WAL');
     } catch (reconnectError) {

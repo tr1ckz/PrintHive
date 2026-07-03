@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import './ModalProvider.css';
 
 type ModalVariant = 'primary' | 'secondary' | 'danger';
 
@@ -46,6 +45,18 @@ interface ModalContextValue {
 }
 
 const ModalContext = createContext<ModalContextValue | undefined>(undefined);
+
+const sizeClass: Record<ModalSize, string> = {
+  sm: 'sm:max-w-sm',
+  md: 'sm:max-w-lg',
+  lg: 'sm:max-w-2xl',
+};
+
+const actionClass: Record<ModalVariant, string> = {
+  primary: 'bg-accent hover:bg-accent-strong text-accent-contrast',
+  secondary: 'bg-white/5 hover:bg-white/10 text-fg-soft',
+  danger: 'bg-danger hover:opacity-90 text-white',
+};
 
 export function ModalProvider({ children }: { children: ReactNode }) {
   const [activeModal, setActiveModal] = useState<ModalOptions | null>(null);
@@ -132,7 +143,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       {activeModal && typeof document !== 'undefined'
         ? createPortal(
             <div
-              className="global-modal-backdrop"
+              className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-overlay backdrop-blur-sm p-0 sm:p-4"
               onClick={() => {
                 if (activeModal.closeOnBackdrop !== false) {
                   closeModal();
@@ -140,32 +151,43 @@ export function ModalProvider({ children }: { children: ReactNode }) {
               }}
             >
               <div
-                className={`global-modal global-modal-${activeModal.size || 'md'}`}
+                className={`w-full ${sizeClass[activeModal.size || 'md']} max-h-[90dvh] flex flex-col bg-elevated rounded-t-xl sm:rounded-xl shadow-xl animate-[ph-fade-up_0.2s_var(--ease-out)]`}
                 onClick={(event) => event.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
               >
-                <div className="global-modal-header">
-                  <div>
-                    <h3>{activeModal.title}</h3>
-                    {activeModal.description ? <p>{activeModal.description}</p> : null}
+                <div className="flex items-start gap-3 p-5 pb-0">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base font-semibold text-fg">{activeModal.title}</h3>
+                    {activeModal.description ? (
+                      <p className="mt-1 text-sm text-fg-soft">{activeModal.description}</p>
+                    ) : null}
                   </div>
-                  <button type="button" className="global-modal-close" onClick={closeModal} aria-label="Close modal">
-                    ×
+                  <button
+                    type="button"
+                    className="shrink-0 inline-flex size-11 sm:size-9 items-center justify-center rounded-md text-muted hover:text-fg hover:bg-white/5 transition-colors -mt-1.5 -mr-1.5"
+                    onClick={closeModal}
+                    aria-label="Close modal"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   </button>
                 </div>
 
-                {activeModal.content ? <div className="global-modal-body">{activeModal.content}</div> : null}
+                {activeModal.content ? (
+                  <div className="flex-1 overflow-y-auto px-5 pt-4 text-sm text-fg-soft">{activeModal.content}</div>
+                ) : null}
 
-                <div className="global-modal-actions">
+                <div className="flex gap-2 justify-end p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:pb-5">
                   {(activeModal.actions?.length
                     ? activeModal.actions
-                    : [{ label: 'Close', variant: 'secondary', onClick: closeModal }]
+                    : [{ label: 'Close', variant: 'secondary' as ModalVariant, onClick: closeModal }]
                   ).map((action) => (
                     <button
                       key={`${action.label}-${action.variant || 'primary'}`}
                       type="button"
-                      className={`global-modal-btn ${action.variant || 'primary'}`}
+                      className={`min-h-11 px-4 rounded-md text-sm font-semibold transition-colors ${actionClass[action.variant || 'primary']}`}
                       onClick={() => void handleAction(action)}
                     >
                       {action.label}

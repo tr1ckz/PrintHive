@@ -52,8 +52,7 @@ class BambuFtpService {
 
     try {
       console.log('Listing files in /timelapse directory...');
-      console.log(`DEBUG: Using IP=${this.printerIp}, AccessCode=${this.accessCode.substring(0,2)}***${this.accessCode.substring(this.accessCode.length-2)}`);
-      
+
       const { stdout } = await execAsync(
         `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --list-only ftps://${this.printerIp}:990/timelapse/`,
         { timeout: 30000, maxBuffer: 10 * 1024 * 1024 } // 30 sec timeout, 10MB buffer for large listings

@@ -7,32 +7,42 @@ interface WidgetShellProps {
   children: React.ReactNode;
 }
 
+/**
+ * Dashboard widget chrome: the raised card tier (bg shift + soft shadow,
+ * no border) with a slim uppercase header. The header keeps the
+ * `.widget-drag-handle` class in edit mode — it is the contract with
+ * react-grid-layout's `draggableHandle` prop; never rename it.
+ */
 function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShellProps) {
   return (
-    <article className="widget-shell-outer group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[4px] border border-neutral-800 bg-neutral-950 transition-[border-color,transform] duration-200 hover:-translate-y-[2px] hover:border-neutral-600">
-      <header className={`${isEditMode ? 'widget-drag-handle cursor-grab active:cursor-grabbing' : 'cursor-default'} flex shrink-0 items-center justify-between gap-2 border-b border-neutral-800 bg-neutral-950 px-3 py-2`}>
+    <article className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg bg-card shadow-sm transition duration-200 hover:shadow-md">
+      <header
+        className={`${
+          isEditMode ? 'widget-drag-handle cursor-grab active:cursor-grabbing bg-accent/5' : 'cursor-default'
+        } flex shrink-0 items-center justify-between gap-2 px-4 pt-3 pb-1.5`}
+      >
         <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={`inline-flex h-4 w-4 select-none items-center justify-center rounded-[3px] border bg-neutral-950 text-[9px] font-bold ${isEditMode ? 'border-neutral-700 text-neutral-500' : 'border-neutral-800 text-neutral-700'}`}
-            aria-hidden
-          >
-            ⠿
-          </span>
-          <h3 className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-white">{title}</h3>
+          {isEditMode && (
+            <span className="inline-flex select-none text-[10px] text-muted" aria-hidden>
+              ⠿
+            </span>
+          )}
+          <h3 className="truncate text-xs font-semibold uppercase tracking-widest text-muted">{title}</h3>
         </div>
 
         {isEditMode && onHide ? (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onHide(); }}
-            className="widget-no-drag ops-micro-btn inline-flex h-7 items-center justify-center rounded-[3px] border border-neutral-700 bg-neutral-950 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-300 hover:border-neutral-600 hover:text-white"
+            className="widget-no-drag inline-flex min-h-8 items-center justify-center rounded px-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted hover:text-fg hover:bg-white/5 transition-colors"
           >
             Hide
           </button>
         ) : null}
       </header>
 
-      <div className="widget-shell-body min-h-0 flex-1 overflow-auto">{children}</div>
+      {/* Widgets carry their own inner padding */}
+      <div className="min-h-0 flex-1 overflow-auto">{children}</div>
     </article>
   );
 }

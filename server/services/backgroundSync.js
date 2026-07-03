@@ -115,7 +115,8 @@ class BackgroundSyncService {
     }
 
     // Download timelapses
-    const videosDir = path.join(__dirname, '..', '..', 'data', 'videos');
+    const { dataDir } = require('../../database');
+    const videosDir = path.join(dataDir, 'videos');
     const downloaded = await bambuFtp.downloadAllTimelapses(videosDir);
     
     if (downloaded.length > 0) {
@@ -124,7 +125,7 @@ class BackgroundSyncService {
     }
 
     // Download 3MF files from /model directory
-    const modelsDir = path.join(__dirname, '..', '..', 'data', 'models');
+    const modelsDir = path.join(dataDir, 'models');
     const downloaded3mf = await bambuFtp.downloadAll3mfFiles(modelsDir);
     
     // Also download 3MF files from /cache directory (current prints)
@@ -151,7 +152,10 @@ class BackgroundSyncService {
         if (fs.existsSync(mp4Path)) continue;
         
         try {
-          await videoConverter.getMp4Path(aviPath);
+          // Serialize conversions through the shared heavy lane so an ffmpeg
+          // run never overlaps a backup/restore or another conversion.
+          const jobManager = require('../jobs/jobManager');
+          await jobManager.runInLane('heavy', () => videoConverter.getMp4Path(aviPath));
           convertedCount++;
           console.log(`    ✓ Converted ${aviFile}`);
           

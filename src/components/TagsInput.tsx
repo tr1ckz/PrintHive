@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import fetchWithRetry from '../utils/fetchWithRetry';
-import './TagsInput.css';
 
 interface Tag {
   id: number;
@@ -111,15 +110,15 @@ const TagsInput: React.FC<TagsInputProps> = ({ value, onChange, disabled, placeh
   };
 
   return (
-    <div className="tags-input-container">
-      <div className={`tags-input-wrapper ${disabled ? 'disabled' : ''}`}>
+    <div className="relative">
+      <div className={`flex min-h-11 flex-wrap items-center gap-1.5 rounded-md border border-line bg-card px-2 py-1.5 transition-colors focus-within:border-accent/60 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
         {currentTags.map((tag, index) => (
-          <span key={index} className="tag-chip">
+          <span key={index} className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
             {tag}
             {!disabled && (
               <button 
                 type="button"
-                className="tag-remove" 
+                className="inline-flex size-4 items-center justify-center rounded-full text-accent transition-colors hover:bg-accent/20" 
                 onClick={() => removeTag(index)}
                 title="Remove tag"
               >
@@ -137,21 +136,21 @@ const TagsInput: React.FC<TagsInputProps> = ({ value, onChange, disabled, placeh
           onFocus={() => inputValue && setShowSuggestions(suggestions.length > 0)}
           placeholder={currentTags.length === 0 ? (placeholder || 'Add tags...') : ''}
           disabled={disabled}
-          className="tags-input-field"
+          className="!min-h-0 flex-1 !border-0 !bg-transparent !p-1 text-sm !shadow-none focus:outline-none"
         />
       </div>
       
       {showSuggestions && (
-        <div className="tags-suggestions" ref={suggestionsRef}>
+        <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-md bg-elevated py-1 shadow-xl" ref={suggestionsRef}>
           {suggestions.map((tag, index) => (
             <button
               key={tag.id}
               type="button"
-              className={`suggestion-item ${index === selectedIndex ? 'selected' : ''}`}
+              className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors ${index === selectedIndex ? 'bg-accent/10 text-accent' : 'text-fg-soft hover:bg-white/5'}`}
               onClick={() => addTag(tag.name)}
             >
-              <span className="suggestion-name">{tag.name}</span>
-              <span className="suggestion-count">{tag.model_count} models</span>
+              <span className="truncate">{tag.name}</span>
+              <span className="shrink-0 text-xs text-muted">{tag.model_count} models</span>
             </button>
           ))}
         </div>

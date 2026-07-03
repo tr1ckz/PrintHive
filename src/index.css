@@ -6,6 +6,66 @@
    styles should consume these variables — never hardcode hues.
    ============================================================ */
 
+/* ------------------------------------------------------------
+   Tailwind bridge. `@theme inline` inlines the var() reference
+   into every generated utility, so the runtime accent switcher
+   (applyThemeScheme in src/utils/theme.ts) retints bg-accent,
+   text-accent, ring-accent/30 etc. live. Components use ONLY
+   these utility names — never raw hues, never neutral-*.
+   Opacity modifiers are sanctioned on accent/status/white only;
+   surface + text tokens are already-translucent rgba values.
+   ------------------------------------------------------------ */
+@theme inline {
+  /* accent (runtime-switched) */
+  --color-accent: var(--theme-accent);
+  --color-accent-strong: var(--theme-accent-strong);
+  --color-accent-contrast: var(--theme-accent-contrast);
+
+  /* surfaces */
+  --color-base: var(--bg-base);
+  --color-elevated: var(--bg-elevated);
+  --color-surface: var(--bg-surface);
+  --color-surface-2: var(--bg-surface-2);
+  --color-card: var(--bg-card);
+  --color-overlay: var(--bg-overlay);
+
+  /* text */
+  --color-fg: var(--text-primary);
+  --color-fg-soft: var(--text-secondary);
+  --color-fg-faint: var(--text-tertiary);
+  --color-muted: var(--text-muted);
+  --color-disabled: var(--text-disabled);
+
+  /* lines — the only sanctioned borders (inputs, divide-y, focus) */
+  --color-line: var(--border-primary);
+  --color-line-strong: var(--border-secondary);
+
+  /* status */
+  --color-success: var(--status-success);
+  --color-warning: var(--status-warning);
+  --color-danger: var(--status-error);
+  --color-info: var(--status-info);
+
+  /* radii — remap Tailwind's rounded-* scale onto the design scale */
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  /* shadows */
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-glow: var(--shadow-glow);
+  --shadow-glow-strong: var(--shadow-glow-strong);
+
+  /* motion */
+  --ease-out: var(--ease-out);
+  --ease-spring: var(--ease-spring);
+}
+
 :root {
   color-scheme: dark;
 
@@ -104,151 +164,157 @@
   }
 }
 
-html {
-  text-size-adjust: 100%;
-}
-
-body {
-  font-family: Inter, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  background: var(--gradient-background);
-  color: var(--text-primary);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-/* Ambient backdrop: a faint accent aurora + dot grid that sits
-   behind everything and reacts to the active theme color. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(820px 520px at 12% -8%, rgba(var(--theme-accent-rgb), 0.085) 0%, transparent 62%),
-    radial-gradient(900px 600px at 95% 4%, rgba(var(--theme-accent-rgb), 0.05) 0%, transparent 58%),
-    radial-gradient(720px 520px at 50% 108%, rgba(var(--theme-accent-rgb), 0.045) 0%, transparent 60%);
-  transition: background 0.6s ease;
-}
-
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px);
-  background-size: 26px 26px;
-  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 0%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 0%, transparent 75%);
-}
-
-#root {
-  position: relative;
-  z-index: 1;
-  min-height: 100vh;
-  width: 100%;
-  overflow-x: hidden;
-}
-
-h1, h2, h3, h4, h5, h6 {
-  letter-spacing: -0.02em;
-  text-wrap: balance;
-}
-
-::selection {
-  background: rgba(var(--theme-accent-rgb), 0.32);
-  color: #fff;
-}
-
-/* ---------- Scrollbars ---------- */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: padding-box;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--theme-accent-rgb), 0.45);
-  background-clip: padding-box;
-}
-
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/* Mobile viewport fixes */
-@media (max-width: 768px) {
-  body {
-    font-size: 14px;
+@layer base {
+  html {
+    text-size-adjust: 100%;
   }
-}
 
-/* ---------- Forms ---------- */
-input, textarea, select {
-  background: var(--bg-card, rgba(30, 30, 30, 0.95));
-  color: var(--text-primary, #ffffff);
-  border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.1));
-  accent-color: var(--theme-accent);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
-}
+  body {
+    font-family: Inter, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background: var(--gradient-background);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-input::placeholder,
-textarea::placeholder {
-  color: var(--text-muted, rgba(255, 255, 255, 0.5));
-}
+  /* Ambient backdrop: a faint accent aurora + dot grid that sits
+     behind everything and reacts to the active theme color. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(820px 520px at 12% -8%, rgba(var(--theme-accent-rgb), 0.085) 0%, transparent 62%),
+      radial-gradient(900px 600px at 95% 4%, rgba(var(--theme-accent-rgb), 0.05) 0%, transparent 58%),
+      radial-gradient(720px 520px at 50% 108%, rgba(var(--theme-accent-rgb), 0.045) 0%, transparent 60%);
+    transition: background 0.6s ease;
+  }
 
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: rgba(var(--theme-accent-rgb), 0.65);
-  box-shadow: var(--ring-focus);
-}
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+    background-size: 26px 26px;
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 0%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 0%, transparent 75%);
+  }
 
-button {
-  color: var(--text-primary, #ffffff);
-  font-family: inherit;
-}
+  #root {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    width: 100%;
+    overflow-x: hidden;
+  }
 
-/* Keyboard focus ring — visible, on-theme, never on mouse click */
-:focus-visible {
-  outline: 2px solid rgba(var(--theme-accent-rgb), 0.7);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
 
-:focus:not(:focus-visible) {
-  outline: none;
-}
+  ::selection {
+    background: rgba(var(--theme-accent-rgb), 0.32);
+    color: #fff;
+  }
 
-/* Fix autofill background for dark theme */
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px rgba(30, 30, 30, 0.95) inset !important;
-  -webkit-text-fill-color: #ffffff !important;
-  transition: background-color 5000s ease-in-out 0s;
+  /* ---------- Scrollbars ---------- */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(var(--theme-accent-rgb), 0.45);
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* ---------- Forms ---------- */
+  input, textarea, select {
+    background: var(--bg-card, rgba(30, 30, 30, 0.95));
+    color: var(--text-primary, #ffffff);
+    border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.1));
+    accent-color: var(--theme-accent);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+  }
+
+  /* Comfortable defaults so pages don't restyle every field; checkboxes
+     and radios keep their native size. Utilities can override (layered). */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    min-height: 2.5rem;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-muted, rgba(255, 255, 255, 0.5));
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: rgba(var(--theme-accent-rgb), 0.65);
+    box-shadow: var(--ring-focus);
+  }
+
+  button {
+    color: var(--text-primary, #ffffff);
+    font-family: inherit;
+  }
+
+  /* Keyboard focus ring — visible, on-theme, never on mouse click */
+  :focus-visible {
+    outline: 2px solid rgba(var(--theme-accent-rgb), 0.7);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Fix autofill background for dark theme */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px rgba(30, 30, 30, 0.95) inset !important;
+    -webkit-text-fill-color: #ffffff !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
 }
 
 /* ---------- Shared keyframes ---------- */
@@ -312,20 +378,48 @@ input:-webkit-autofill:active {
   animation: ph-shimmer 1.6s linear infinite;
 }
 
-/* Card surface used across pages */
+/* Card surface used across pages — borderless by design: separation
+   comes from the surface shift + shadow, never a hard line. */
 .ph-card {
   background: var(--bg-card);
   background-image: var(--gradient-card);
-  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
+  box-shadow: var(--shadow-sm);
+  transition: background var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
 }
 
 .ph-card-interactive:hover {
-  border-color: rgba(var(--theme-accent-rgb), 0.32);
-  box-shadow: var(--shadow-lg), 0 0 24px rgba(var(--theme-accent-rgb), 0.08);
+  background-color: var(--bg-surface-2);
+  box-shadow: var(--shadow-md), 0 0 24px rgba(var(--theme-accent-rgb), 0.08);
   transform: translateY(-2px);
+}
+
+/* ---------- Third-party chrome ----------
+   The ONLY sanctioned place for styling third-party DOM we don't
+   render ourselves. Keep it token-pure. */
+
+/* react-grid-layout (dashboard): accent-tinted drag placeholder and
+   resize handle. Structural transforms come from the library's own
+   stylesheet import — never replicate those here. */
+.command-center-grid {
+  min-height: 540px;
+  overflow: visible;
+}
+
+.command-center-grid .react-grid-item:hover {
+  z-index: 2;
+}
+
+.command-center-grid .react-grid-item.react-grid-placeholder {
+  background: rgba(var(--theme-accent-rgb), 0.08);
+  border: 1px dashed rgba(var(--theme-accent-rgb), 0.45);
+  border-radius: var(--radius-md);
+  opacity: 1;
+}
+
+.command-center-grid .react-grid-item > .react-resizable-handle::after {
+  border-right: 2px solid rgba(var(--theme-accent-rgb), 0.55);
+  border-bottom: 2px solid rgba(var(--theme-accent-rgb), 0.55);
 }
 
 /* ---------- Reduced motion ---------- */

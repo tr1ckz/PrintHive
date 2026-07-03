@@ -22,19 +22,19 @@ function HeatmapWidget({ buckets }: HeatmapWidgetProps) {
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.1em] text-white/55">Print volume by day</p>
+        <p className="text-[10px] uppercase tracking-[0.1em] text-fg/55">Print volume by day</p>
         <div className="flex gap-1 rounded border border-white/15 bg-black/20 p-1">
           <button
             type="button"
             onClick={() => setWindowSize(42)}
-            className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${windowSize === 42 ? 'bg-white/15 text-white' : 'text-white/60'}`}
+            className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${windowSize === 42 ? 'bg-white/15 text-fg' : 'text-fg/60'}`}
           >
             6w
           </button>
           <button
             type="button"
             onClick={() => setWindowSize(84)}
-            className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${windowSize === 84 ? 'bg-white/15 text-white' : 'text-white/60'}`}
+            className={`rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${windowSize === 84 ? 'bg-white/15 text-fg' : 'text-fg/60'}`}
           >
             12w
           </button>
@@ -42,7 +42,7 @@ function HeatmapWidget({ buckets }: HeatmapWidgetProps) {
       </div>
 
       {visibleBuckets.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center rounded border border-dashed border-white/20 text-xs text-white/50">
+        <div className="flex flex-1 items-center justify-center rounded border border-dashed border-white/20 text-xs text-fg/50">
           No print history for heatmap.
         </div>
       ) : (
@@ -58,7 +58,7 @@ function HeatmapWidget({ buckets }: HeatmapWidgetProps) {
                   }}
                   title={`${bucket.dateLabel}: ${bucket.count} jobs`}
                 />
-                <span className="mt-1 block text-center text-[9px] uppercase tracking-[0.08em] text-white/40">
+                <span className="mt-1 block text-center text-[9px] uppercase tracking-[0.08em] text-fg/40">
                   {bucket.dayShort}
                 </span>
               </div>

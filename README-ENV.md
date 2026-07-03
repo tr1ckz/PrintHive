@@ -6,7 +6,6 @@ This application uses environment variables for configuration. Copy `.env.exampl
 
 ### Server Configuration
 - `PORT`: Port number the server will listen on (default: 3000)
-- `SESSION_SECRET`: Secret key for session encryption (must be a random string)
 - `PUBLIC_URL`: Public URL where your application is hosted (e.g., https://your-domain.com)
 
 ### OAuth Configuration
@@ -16,7 +15,17 @@ Configure OIDC authentication with your identity provider:
 - `OAUTH_CLIENT_SECRET`: OAuth client secret
 - `OAUTH_REDIRECT_URI`: OAuth callback URL (should be PUBLIC_URL + /auth/callback)
 
-### Optional Configuration
+## Optional Environment Variables
+
+### Sessions & Cookies
+- `SESSION_SECRET`: Secret key for session encryption. **Optional** — if unset, PrintHive generates a random 32-byte secret on first boot and persists it to `<data dir>/session-secret`, so sessions survive restarts with no configuration. Set it explicitly only when you need to share one secret across multiple instances (e.g. load-balanced deployments).
+- `COOKIE_SECURE`: Set to `true` to mark the session cookie `Secure` so it is only sent over HTTPS. Leave unset/`false` for plain-HTTP LAN deployments (default: `false`).
+
+### Storage Locations
+- `PRINTHIVE_DATA_DIR`: Absolute path for the data directory (SQLite database, session secret, videos, thumbnails, backups). Default: `./data`.
+- `PRINTHIVE_LIBRARY_DIR`: Absolute path for the model library directory. Default: `./library`.
+
+### Other
 - Configure OAuth via environment variables or through the web interface Settings page
 
 ## Setup Examples
@@ -49,7 +58,7 @@ environment:
 
 ## Generating SESSION_SECRET
 
-Generate a secure random string:
+`SESSION_SECRET` is optional — PrintHive auto-generates and persists one if you don't provide it. If you do want to set it explicitly (for example to share a session across multiple instances), generate a secure random string:
 ```bash
 # Linux/Mac
 openssl rand -base64 32
