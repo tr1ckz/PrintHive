@@ -16,13 +16,14 @@ function Printers() {
   const [frigateStreamUrl, setFrigateStreamUrl] = useState('');
   const [rtspUrl, setRtspUrl] = useState('');
   const loadPrinters = usePrinterStore((state) => state.loadInitialPrinters);
-  const { printerIds, loading, error, onlineCount, activeJobs, totalPrinters, socketStatus, hasAssignedRtsp } = usePrinterStore(
+  const { printerIds, loading, error, accountErrors, onlineCount, activeJobs, totalPrinters, socketStatus, hasAssignedRtsp } = usePrinterStore(
     useShallow((state) => {
       const printers = state.printerOrder.map((id) => state.printersById[id]).filter(Boolean);
       return {
         printerIds: state.printerOrder,
         loading: state.loading,
         error: state.error,
+        accountErrors: state.accountErrors,
         onlineCount: printers.filter((printer) => printer.online).length,
         activeJobs: printers.filter((printer) => {
           const status = String(printer.current_task?.gcode_state || printer.print_status || '').toUpperCase();
@@ -109,8 +110,17 @@ function Printers() {
     ? 'Native RTSP ready'
     : `${cameraStreamType === 'frigate-webrtc' ? 'WebRTC' : 'HLS'} stream ready`;
 
+  const reconnectAccounts = accountErrors.filter((a) => a.needsReconnect);
+
   return (
     <div className="printers-container px-0 sm:px-1">
+      {reconnectAccounts.length > 0 && (
+        <div className="printers-account-banner rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 mb-4 text-sm">
+          <strong>Bambu Cloud sign-in expired.</strong>{' '}
+          {reconnectAccounts.map((a) => a.email).join(', ')} could not load printers because the cloud token is no longer valid.{' '}
+          Reconnect the account in <strong>Settings → Printer Connection</strong> to restore cloud printers. Local (LAN) printers are unaffected.
+        </div>
+      )}
       <div className="page-header printers-page-header">
         <div className="printers-inline-summary">
           <span>{onlineCount} online</span>

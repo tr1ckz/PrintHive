@@ -13,11 +13,19 @@ type RealtimeEnvelope = {
   sentAt?: string;
 };
 
+export interface BambuAccountError {
+  email: string;
+  reason: 'token_expired' | 'unauthorized' | 'fetch_failed';
+  needsReconnect: boolean;
+  status?: number | null;
+}
+
 interface PrinterStoreState {
   printersById: Record<string, Printer>;
   printerOrder: string[];
   loading: boolean;
   error: string;
+  accountErrors: BambuAccountError[];
   socketStatus: SocketStatus;
   reconnectAttempt: number;
   lastMessageAt: string | null;
@@ -77,6 +85,7 @@ export const usePrinterStore = create<PrinterStoreState>()(
     printerOrder: [],
     loading: false,
     error: '',
+    accountErrors: [],
     socketStatus: 'disconnected',
     reconnectAttempt: 0,
     lastMessageAt: null,
@@ -141,6 +150,7 @@ export const usePrinterStore = create<PrinterStoreState>()(
         const response = await fetchWithRetry(API_ENDPOINTS.PRINTERS.LIST, { credentials: 'include' });
         const data = await response.json();
         get().upsertPrinters(data.devices || []);
+        set({ accountErrors: Array.isArray(data.accountErrors) ? data.accountErrors : [] });
       } catch (error) {
         set({
           loading: false,

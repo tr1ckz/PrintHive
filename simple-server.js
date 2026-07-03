@@ -314,6 +314,26 @@ function stopAllRtspCameraProxies() {
   });
 });
 
+// Bambu Cloud access tokens are JWTs with a limited lifetime. Once expired,
+// the iot-service/api/user/bind call returns 401 and (previously) the error
+// was swallowed, leaving the UI with an empty printer list and no explanation.
+// This decodes the exp claim so we can detect expiry up front and tell the
+// user to reconnect. Returns false if the token can't be decoded (fail open —
+// let the API be the source of truth in that case).
+function isBambuTokenExpired(token) {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    if (!payload.exp) return false;
+    // 60s skew so we treat "about to expire" as expired rather than firing a
+    // doomed request.
+    return payload.exp * 1000 <= Date.now() + 60000;
+  } catch {
+    return false;
+  }
+}
+
 function getConfiguredBambuAccounts(req = null) {
   try {
     const accounts = db.prepare(`
@@ -4106,29 +4126,56 @@ app.get('/api/printers', async (req, res) => {
   
   // Get all Bambu accounts (with fallback compatibility)
   const bambuAccounts = getConfiguredBambuAccounts(req).filter((account) => account?.token);
-  
+
+  // Collect per-account failures so the UI can tell the user exactly why no
+  // cloud printers showed up (most commonly: an expired token that needs
+  // reconnecting) instead of silently rendering an empty list.
+  const accountErrors = [];
+
   // Try to get printers from all connected Bambu Cloud accounts
   if (bambuAccounts.length > 0) {
     for (const account of bambuAccounts) {
+      // Skip the doomed request if we can already see the token has expired.
+      if (isBambuTokenExpired(account.token)) {
+        logger.warn(`Bambu account ${account.email}: cloud token expired — reconnect the account in Settings.`);
+        accountErrors.push({ email: account.email, reason: 'token_expired', needsReconnect: true });
+        continue;
+      }
       try {
-        const apiUrl = account.region === 'china' 
+        const apiUrl = account.region === 'china'
           ? 'https://api.bambulab.cn/v1/iot-service/api/user/bind'
           : 'https://api.bambulab.com/v1/iot-service/api/user/bind';
-        
+
         const response = await axios.get(apiUrl, {
           headers: { 'Authorization': `Bearer ${account.token}` }
         });
-        
+
         if (response.data?.devices) {
           logger.debug(`Found ${response.data.devices.length} printers from account ${account.email}`);
           printersData.devices = [...printersData.devices, ...response.data.devices];
         }
       } catch (error) {
-        logger.warn(`Could not fetch printers from account ${account.email}:`, error.message);
+        const status = error.response?.status;
+        // 401/403 means the token is no longer accepted — surface it as a
+        // reconnect prompt rather than a generic failure.
+        const needsReconnect = status === 401 || status === 403;
+        logger.warn(`Could not fetch printers from account ${account.email} (HTTP ${status || 'network error'}): ${error.message}`);
+        accountErrors.push({
+          email: account.email,
+          reason: needsReconnect ? 'unauthorized' : 'fetch_failed',
+          needsReconnect,
+          status: status || null,
+        });
       }
     }
   }
-  
+
+  // Surface account-level problems on the response (additive; the UI shows a
+  // reconnect banner when present).
+  if (accountErrors.length > 0) {
+    printersData.accountErrors = accountErrors;
+  }
+
   // Merge in locally configured printers so manually added printers always appear in the UI
   printersData.devices = mergeConfiguredPrinters(printersData.devices);
 
