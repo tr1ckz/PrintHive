@@ -2269,19 +2269,27 @@ app.post('/api/printers/config', async (req, res) => {
       });
     };
 
-    (await respondWithDiscovery()).catch(async (error) => {
+    try {
+      await respondWithDiscovery();
+    } catch (error) {
+      // The printer was already saved; only the post-save auto-discovery failed.
+      // Still report success, but don't try to respond twice.
       logger.warn('[AutoDiscovery] Failed after save:', error.message);
-      const go2rtcInfo = (await syncGo2RtcConfigSafe());
-      res.json({
-        success: true,
-        go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath,
-        streamCount: go2rtcInfo?.streamCount || 0,
-        autoDiscovery: { success: false, error: error.message },
-      });
-    });
+      if (!res.headersSent) {
+        const go2rtcInfo = (await syncGo2RtcConfigSafe());
+        res.json({
+          success: true,
+          go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath,
+          streamCount: go2rtcInfo?.streamCount || 0,
+          autoDiscovery: { success: false, error: error.message },
+        });
+      }
+    }
   } catch (error) {
     console.error('Failed to save printer config:', error);
-    res.status(500).json({ error: 'Failed to save printer configuration' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to save printer configuration' });
+    }
   }
 });
 
