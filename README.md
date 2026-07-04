@@ -50,6 +50,7 @@ A comprehensive web application for managing 3D printers, including print histor
 ### Prerequisites
 
 - Node.js 18+ or Docker
+- PostgreSQL 13+ (required)
 - Bambu printer account
 - (Optional) OIDC identity provider for SSO
 - (Optional) SFTP/FTP server for remote backups
@@ -67,22 +68,45 @@ docker pull tr1ckz/printhive:latest
 ```yaml
 version: '3.8'
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: printhive-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: printhive
+      POSTGRES_PASSWORD: your-secure-db-password
+      POSTGRES_DB: printhive
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U printhive"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   printhive:
     image: tr1ckz/printhive:latest
     container_name: printhive
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "3000:3000"
     volumes:
       - ./data:/app/data
-      - ./sessions:/app/sessions
       - ./library:/app/library
-      - ./videos:/app/data/videos
-      - ./backups:/app/data/backups
     environment:
-      - SESSION_SECRET=your-random-secret-key
+      - PORT=3000
       - PUBLIC_URL=https://your-domain.com
-      - LOG_LEVEL=info
+      - PG_HOST=postgres:5432
+      - PG_USER=printhive
+      - PG_PASSWORD=your-secure-db-password
+      - PG_DB=printhive
+      - SESSION_SECRET=your-random-secret-key
+
+volumes:
+  postgres_data:
 ```
 
 3. Start the container:
@@ -123,12 +147,17 @@ See [README-ENV.md](README-ENV.md) for detailed environment variable documentati
 ### Required Environment Variables
 
 - `PUBLIC_URL`: Your application's public URL
+- `PG_HOST`: PostgreSQL host (supports `host:port` format, e.g., `localhost:5432`)
+- `PG_USER`: PostgreSQL database user
+- `PG_PASSWORD`: PostgreSQL database password
+- `PG_DB`: PostgreSQL database name
 
 ### Optional Environment Variables
 
+- `PG_SCHEMA`: PostgreSQL schema name (default: `public`). Useful for test isolation or multi-tenant setups.
 - `SESSION_SECRET`: Secret key for session encryption. If unset, PrintHive generates a random 32-byte secret on first boot and persists it to `data/session-secret`, so sessions survive restarts without any configuration. Set it explicitly when you want to share one secret across multiple instances.
 - `COOKIE_SECURE`: Set to `true` to mark the session cookie `Secure` (HTTPS-only). Leave unset/`false` for plain-HTTP LAN deployments. Default: `false`.
-- `PRINTHIVE_DATA_DIR`: Override the data directory (database, sessions secret, videos, thumbnails, backups). Default: `./data`.
+- `PRINTHIVE_DATA_DIR`: Override the data directory (sessions secret, videos, thumbnails, backups). Default: `./data`. **Note:** Legacy SQLite database at `./data/printhive.db` is automatically migrated to PostgreSQL on first boot if the schema is empty.
 - `PRINTHIVE_LIBRARY_DIR`: Override the model library directory. Default: `./library`.
 - `OAUTH_ISSUER`: OIDC provider URL
 - `OAUTH_CLIENT_ID`: OAuth client ID
@@ -366,10 +395,12 @@ For production deployments with authentication and reverse proxy, see our compre
 **Local Backups:**
 ```
 /app/data/backups/
-├── printhive_backup_2024-01-06_1704528000000.db
-├── printhive_backup_2024-01-05_1704441600000.db
+├── printhive_pg.dump
+├── printhive_pg.dump.1
+├── printhive_pg.dump.2
 └── ... (older backups auto-deleted based on retention)
 ```
+Backups are created using `pg_dump` in custom format and can be restored with `pg_restore`.
 
 **Remote Backups:**
 1. Enable SFTP/FTP in settings
@@ -423,11 +454,11 @@ The repo uses [Vitest](https://vitest.dev/). `npm test` runs:
 
 - **Backend**: Node.js, Express.js (modular `server/` layout)
 - **Frontend**: React 19.2, Vite 7.2, TypeScript
-- **Database**: SQLite (`printhive.db`, via better-sqlite3)
+- **Database**: PostgreSQL 13+ (async driver: node-postgres)
 - **Authentication**: OpenID Connect (OIDC), bcrypt-hashed local passwords
 - **Real-time**: direct `mqtts` to each printer, pushed to the browser over a WebSocket bridge
 - **Background work**: in-process job manager with a serialized "heavy" lane; thumbnail rendering in a worker thread
-- **Backup**: SFTP & FTP support
+- **Backup**: pg_dump/pg_restore for database; SFTP & FTP support for backup uploads
 - **Testing**: Vitest (contract snapshots + fake-printer MQTT harness)
 - **Container**: Docker with multi-architecture support
 
@@ -456,6 +487,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 See [SECURITY.md](SECURITY.md) for the full security posture.
 
 ## Changelog
+
+### Database Migration: SQLite → PostgreSQL (2026-07)
+- 🗄️ Migrated from SQLite (better-sqlite3) to PostgreSQL 13+
+- 🔄 Automatic first-boot migration: legacy `printhive.db` is automatically migrated to Postgres with verification
+- ✅ Full async rewrite: 490+ database call sites converted to async/await (db.prepare().get/all/run())
+- 🔒 SQL dialect translation: ?, @named params → $n; INSERT OR IGNORE/REPLACE; GROUP_CONCAT; datetime/julianday functions
+- 📦 Backup improvements: pg_dump/pg_restore for efficient database backups
+- 🧪 Test isolation: Per-boot PostgreSQL schema isolation for concurrent test execution
 
 ### Architecture & Security Hardening (2026-07)
 - 🏗️ Refactored the backend monolith into a modular `server/` layout (config, middleware, routers, services, realtime, jobs)
@@ -753,19 +792,44 @@ Update your `docker-compose.yml`:
 
 ```yaml
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: printhive-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: printhive
+      POSTGRES_PASSWORD: your-secure-db-password
+      POSTGRES_DB: printhive
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U printhive"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   printhive:
     image: tr1ckz/printhive:latest
     container_name: printhive
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "127.0.0.1:3000:3000"  # Only bind to localhost
     environment:
       - PUBLIC_URL=https://printhive.yourdomain.com
       - SESSION_SECRET=your-random-secret-here
+      - PG_HOST=postgres:5432
+      - PG_USER=printhive
+      - PG_PASSWORD=your-secure-db-password
+      - PG_DB=printhive
     volumes:
       - ./data:/app/data
-      - ./sessions:/app/sessions
       - ./library:/app/library
+
+volumes:
+  postgres_data:
 ```
 
 Restart the container:
@@ -852,16 +916,39 @@ cd ~/printhive-prod
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: printhive-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   printhive:
     image: tr1ckz/printhive:latest
     container_name: printhive
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "127.0.0.1:3000:3000"
     environment:
       - PORT=3000
       - PUBLIC_URL=https://printhive.yourdomain.com
       - SESSION_SECRET=${SESSION_SECRET}
+      - PG_HOST=postgres:5432
+      - PG_USER=${PG_USER}
+      - PG_PASSWORD=${PG_PASSWORD}
+      - PG_DB=${PG_DB}
       # OAuth (optional - can configure via UI)
       - OAUTH_ISSUER=${OAUTH_ISSUER:-}
       - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-}
@@ -869,13 +956,15 @@ services:
       - OAUTH_REDIRECT_URI=https://printhive.yourdomain.com/auth/callback
     volumes:
       - ./data:/app/data
-      - ./sessions:/app/sessions
       - ./library:/app/library
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+volumes:
+  postgres_data:
 ```
 
 #### 4. Create .env File
@@ -883,9 +972,13 @@ services:
 ```bash
 # Generate random session secret
 SESSION_SECRET=$(openssl rand -hex 32)
+PG_PASSWORD=$(openssl rand -hex 16)
 
 cat > .env << EOF
 SESSION_SECRET=${SESSION_SECRET}
+PG_USER=printhive
+PG_PASSWORD=${PG_PASSWORD}
+PG_DB=printhive
 # OAuth (fill in if using Authentik)
 OAUTH_ISSUER=
 OAUTH_CLIENT_ID=
@@ -975,7 +1068,7 @@ docker-compose logs -f
 
 **Backup Database Manually:**
 ```bash
-docker exec printhive sqlite3 /app/data/printhive.db ".backup '/app/data/backups/manual_backup.db'"
+docker exec printhive-postgres pg_dump -U printhive printhive > /backup/manual_backup_$(date +%s).dump
 ```
 
 **Restart Services:**
