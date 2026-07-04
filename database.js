@@ -547,6 +547,30 @@ const SCHEMA_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_bambu_accounts_user ON bambu_accounts(user_id);
+
+  CREATE TABLE IF NOT EXISTS filament_inventory (
+    id SERIAL PRIMARY KEY,
+    tray_uuid TEXT,
+    brand TEXT,
+    material TEXT,
+    color_name TEXT,
+    color_hex TEXT,
+    filament_code TEXT,
+    remain_percent INTEGER,
+    capacity_g INTEGER DEFAULT 1000,
+    remaining_g INTEGER,
+    source TEXT DEFAULT 'ams',
+    last_dev_id TEXT,
+    is_archived INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- One row per physical RFID spool. Partial unique index so many manual rows
+  -- (tray_uuid NULL/'') can coexist while genuine Bambu spools stay de-duped.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_filament_inventory_uuid
+    ON filament_inventory(tray_uuid)
+    WHERE tray_uuid IS NOT NULL AND tray_uuid != '';
 `;
 
 // Tables copied during a SQLite -> PostgreSQL migration, in an order that keeps
@@ -568,6 +592,7 @@ const MIGRATION_TABLES = [
   { name: 'library_shares', serial: true },
   { name: 'maintenance_tasks', serial: true },
   { name: 'maintenance_history', serial: true },
+  { name: 'filament_inventory', serial: true },
 ];
 
 async function tableExists(name) {

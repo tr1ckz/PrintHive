@@ -164,6 +164,12 @@ export const API_ENDPOINTS = {
   TAGS: {
     LIST: `${API_BASE_URL}/api/tags`,
   },
+
+  FILAMENT: {
+    LIST: `${API_BASE_URL}/api/filament`,
+    ADD: `${API_BASE_URL}/api/filament`,
+    ITEM: (id: number) => `${API_BASE_URL}/api/filament/${id}`,
+  },
 };
 
 // Helper function to get Bambu API URL based on region

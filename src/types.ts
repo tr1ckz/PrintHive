@@ -29,6 +29,9 @@ export interface Printer {
       remain?: number | null;
       humidity: number | null;
       temp: number | null;
+      tray_uuid?: string | null;
+      tray_info_idx?: string | null;
+      tray_id_name?: string | null;
     }>;
   };
   current_task?: {

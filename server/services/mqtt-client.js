@@ -276,7 +276,13 @@ class BambuMqttClient extends EventEmitter {
               sub_brands: (t.tray_sub_brands ?? null),
               remain: (t.remain != null && t.remain >= 0 ? t.remain : null),
               humidity: humidityRaw != null ? parseFloat(humidityRaw) : null,
-              temp: tempRaw != null ? parseFloat(tempRaw) : null
+              temp: tempRaw != null ? parseFloat(tempRaw) : null,
+              // Spool identity (present on genuine Bambu RFID spools) — drives the
+              // filament inventory: uuid de-dupes a physical spool, info_idx is the
+              // Bambu filament code, id_name is the human colour name.
+              tray_uuid: (t.tray_uuid ?? null),
+              tray_info_idx: (t.tray_info_idx ?? null),
+              tray_id_name: (t.tray_id_name ?? null)
             };
           })
         };

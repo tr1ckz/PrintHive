@@ -58,6 +58,7 @@ const {
 } = require('./server/realtime/wsServer');
 const authRoutes = require('./server/routes/auth');
 const maintenanceRoutes = require('./server/routes/maintenance');
+const filamentRoutes = require('./server/routes/filament');
 
 // Helper function to clean HTML-encoded descriptions (handles double/triple encoding)
 function cleanDescription(rawDescription) {
@@ -6918,6 +6919,7 @@ app.get('/api/statistics/costs', async (req, res) => {
 // Maintenance Tasks API
 // Maintenance routes moved to server/routes/maintenance.js
 app.use(maintenanceRoutes);
+app.use(filamentRoutes);
 
 // Admin: Restart/Reboot the application
 app.post('/api/settings/restart', async (req, res) => {

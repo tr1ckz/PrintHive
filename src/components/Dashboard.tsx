@@ -18,13 +18,14 @@ const Settings = lazy(() => import('./Settings'));
 const Maintenance = lazy(() => import('./Maintenance'));
 const Printers = lazy(() => import('./Printers'));
 const Statistics = lazy(() => import('./Statistics'));
+const Filament = lazy(() => import('./Filament'));
 const Docs = lazy(() => import('./Docs'));
 
 interface DashboardProps {
   onLogout: () => void;
 }
 
-type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics' | 'docs';
+type Tab = 'home' | 'history' | 'library' | 'duplicates' | 'maintenance' | 'settings' | 'printers' | 'statistics' | 'filament' | 'docs';
 
 const tabPaths: Record<Tab, string> = {
   home: '/',
@@ -35,6 +36,7 @@ const tabPaths: Record<Tab, string> = {
   settings: '/settings',
   printers: '/printers',
   statistics: '/statistics',
+  filament: '/filament',
   docs: '/docs'
 };
 
@@ -86,6 +88,12 @@ const pageMeta: Record<Tab, { eyebrow: string; title: string; description: strin
     title: 'Statistics',
     description: 'See output, reliability, and material usage trends without digging around.',
     breadcrumbs: ['Workspace', 'Statistics']
+  },
+  filament: {
+    eyebrow: 'Materials',
+    title: 'Filament',
+    description: 'Track your spool inventory and remaining material, auto-synced from AMS.',
+    breadcrumbs: ['Workspace', 'Filament']
   },
   docs: {
     eyebrow: 'Reference',
@@ -218,6 +226,13 @@ function Dashboard({ onLogout }: DashboardProps) {
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     )},
+    { id: 'filament' as Tab, label: 'Filament', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2"/>
+        <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="2"/>
+        <path d="M12 4v3m0 10v3m8-8h-3M7 12H4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+    )},
     { id: 'duplicates' as Tab, label: 'Duplicates', icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -266,6 +281,8 @@ function Dashboard({ onLogout }: DashboardProps) {
         return <Settings userRole={userInfo?.role} initialSection={settingsSection || undefined} />;
       case 'printers':
         return <Printers />;
+      case 'filament':
+        return <Filament userRole={userInfo?.role} />;
       case 'docs':
         return <Docs />;
       default:
