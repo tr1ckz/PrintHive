@@ -331,37 +331,70 @@ function stopAllRtspCameraProxies() {
   });
 });
 
-// Bambu Cloud access tokens are JWTs with a limited lifetime. Once expired,
-// the iot-service/api/user/bind call returns 401 and (previously) the error
-// was swallowed, leaving the UI with an empty printer list and no explanation.
-// This decodes the exp claim so we can detect expiry up front and tell the
-// user to reconnect. Returns false if the token can't be decoded (fail open —
-// let the API be the source of truth in that case).
-function isBambuTokenExpired(token) {
+// Bambu Cloud access-token/account helpers (token expiry + row de-duplication)
+// live in a dependency-free module so they can be unit-tested without the DB.
+const {
+  isBambuTokenExpired,
+  bambuAccountKey,
+  dedupeBambuAccounts,
+} = require('./server/services/bambuAccounts');
+
+// One-time repair: physically remove duplicate bambu_accounts rows, keeping the
+// best row per account (email+region). Stale leftovers — e.g. an old row with an
+// expired token that survived a token-keyed legacy migration — are what cause a
+// working account to still show a "sign-in expired" banner. Returns how many
+// rows were deleted.
+async function cleanupDuplicateBambuAccounts() {
   try {
-    const parts = String(token || '').split('.');
-    if (parts.length !== 3) return false;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-    if (!payload.exp) return false;
-    // 60s skew so we treat "about to expire" as expired rather than firing a
-    // doomed request.
-    return payload.exp * 1000 <= Date.now() + 60000;
-  } catch {
-    return false;
+    const rows = (await db.prepare(
+      'SELECT id, email, COALESCE(region, \'global\') AS region, token, is_primary, updated_at FROM bambu_accounts'
+    ).all());
+    if (rows.length < 2) return 0;
+
+    const groups = new Map();
+    for (const row of rows) {
+      const key = bambuAccountKey(row);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    }
+
+    const toDelete = [];
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      const [keep] = dedupeBambuAccounts(group); // best row for this account
+      for (const row of group) {
+        if (row.id !== keep.id) toDelete.push(row);
+      }
+    }
+
+    for (const row of toDelete) {
+      logger.info(`[BambuAuth] Removing duplicate account row id=${row.id} (${row.email}/${row.region}, token ${isBambuTokenExpired(row.token) ? 'expired' : 'valid'})`);
+      (await db.prepare('DELETE FROM bambu_accounts WHERE id = ?').run(row.id));
+    }
+    if (toDelete.length > 0) {
+      console.log(`[BambuAuth] Cleaned up ${toDelete.length} duplicate Bambu account row(s)`);
+    }
+    return toDelete.length;
+  } catch (error) {
+    logger.warn('[BambuAuth] Duplicate account cleanup failed:', error.message);
+    return 0;
   }
 }
 
 async function getConfiguredBambuAccounts(req = null) {
   try {
     const accounts = (await db.prepare(`
-      SELECT id, user_id, email, token, COALESCE(region, 'global') AS region, is_primary
+      SELECT id, user_id, email, token, COALESCE(region, 'global') AS region, is_primary, updated_at
       FROM bambu_accounts
       WHERE token IS NOT NULL AND token != ''
       ORDER BY is_primary DESC, id ASC
     `).all());
 
     if (accounts.length > 0) {
-      return accounts;
+      // Collapse duplicate rows for the same account (email+region) down to the
+      // best one so a stale leftover row can't fire a false "sign-in expired"
+      // banner or trigger a doomed API call.
+      return dedupeBambuAccounts(accounts).sort((a, b) => (b.is_primary - a.is_primary) || (a.id - b.id));
     }
   } catch (error) {
     logger.warn('[BambuAuth] Failed to load bambu_accounts:', error.message);
@@ -1256,9 +1289,11 @@ app.post('/api/bambu/accounts/add', async (req, res) => {
       const existingCount = (await db.prepare('SELECT COUNT(*) as count FROM bambu_accounts').get()).count;
       const isPrimary = existingCount === 0 ? 1 : 0;
 
-      // Upsert: if same email+region already exists, just refresh the token
+      // Upsert: if same email+region already exists, just refresh the token.
+      // COALESCE both sides so a legacy row stored with region NULL still matches
+      // a 'global' add (and vice versa) instead of spawning a duplicate.
       const existingAccount = (await db.prepare(
-        'SELECT id, is_primary FROM bambu_accounts WHERE LOWER(email) = LOWER(?) AND region = ? ORDER BY is_primary DESC LIMIT 1'
+        "SELECT id, is_primary FROM bambu_accounts WHERE LOWER(email) = LOWER(?) AND COALESCE(region, 'global') = COALESCE(?, 'global') ORDER BY is_primary DESC LIMIT 1"
       ).get(email, region));
 
       if (existingAccount) {
@@ -1267,7 +1302,7 @@ app.post('/api/bambu/accounts/add', async (req, res) => {
         ).run(token, req.session.userId, existingAccount.id));
         // Remove any duplicate rows for the same email+region (keep the one we just updated)
         (await db.prepare(
-          'DELETE FROM bambu_accounts WHERE LOWER(email) = LOWER(?) AND region = ? AND id != ?'
+          "DELETE FROM bambu_accounts WHERE LOWER(email) = LOWER(?) AND COALESCE(region, 'global') = COALESCE(?, 'global') AND id != ?"
         ).run(email, region, existingAccount.id));
       } else {
         (await db.prepare(`
@@ -7835,7 +7870,15 @@ httpServer = app.listen(PORT, async () => {
     process.exit(1);
   }
   console.log('Database: PostgreSQL');
-  
+
+  // Remove any duplicate Bambu account rows left behind by earlier migrations
+  // so a stale row can't trigger a false "cloud sign-in expired" banner.
+  try {
+    await cleanupDuplicateBambuAccounts();
+  } catch (err) {
+    console.error('Bambu account cleanup failed:', err.message);
+  }
+
   // Clean up old camera temp files on startup
   try {
     const tempDir = path.join(dataDir, 'temp');
