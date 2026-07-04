@@ -2965,19 +2965,38 @@ app.get('/api/printers', async (req, res) => {
           if (printerConfig.ip_address) deviceData.ip_address = printerConfig.ip_address;
           if (printerConfig.access_code) deviceData.access_code = printerConfig.access_code;
         }
-        
+
+        // The cloud/bind response carries the printer's current LAN access code
+        // (dev_access_code). Bambu rotates it on firmware updates and LAN-mode
+        // toggles, so a stored code silently goes stale and both MQTT and FTP
+        // start returning auth failures. Treat the cloud code as authoritative:
+        // use it for this connection and persist it so FTP/SD-card paths that
+        // read the stored code self-heal too.
+        const cloudAccessCode = getCloudDeviceAccessCodeCandidates(device)[0] || null;
+        if (cloudAccessCode) {
+          deviceData.access_code = cloudAccessCode;
+          if (printerConfig && printerConfig.access_code !== cloudAccessCode) {
+            try {
+              (await db.prepare('UPDATE printers SET access_code = ?, updated_at = CURRENT_TIMESTAMP WHERE dev_id = ?').run(cloudAccessCode, device.dev_id));
+              logger.info(`[Printer] Refreshed stored access code for ${device.dev_id} from cloud device info`);
+            } catch (e) {
+              logger.debug('[Printer] Failed to persist cloud access code:', e.message);
+            }
+          }
+        }
+
         // Fallback to global camera URL
         if (!deviceData.camera_rtsp_url && cameraUrl) {
           deviceData.camera_rtsp_url = cameraUrl;
         }
-        
+
         // Fallback to global printer IP/access code
         if (!deviceData.ip_address && printerIp) deviceData.ip_address = printerIp;
         if (!deviceData.access_code && accessCode) deviceData.access_code = accessCode;
         
         // Try to get current job from MQTT client using per-printer credentials when available
         const deviceIp = deviceData.ip_address || printerIp;
-        const deviceAccessCode = deviceData.access_code || accessCode;
+        const deviceAccessCode = String(deviceData.access_code || accessCode || '').trim();
         const deviceSerial = deviceData.serial_number || device.dev_id;
 
         if (deviceIp && deviceAccessCode && deviceSerial) {

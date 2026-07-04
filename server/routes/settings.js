@@ -341,18 +341,33 @@ router.post('/api/settings/test-printer-ftp', async (req, res) => {
   }
   
   let { printerIp, printerAccessCode } = req.body;
-  
-  // If not provided in request, use global config
+
+  // If not provided in request, resolve using the same source order as the live
+  // connection: a per-printer code (kept in sync with the cloud device info)
+  // matching this IP first, then the legacy global config. This stops the Test
+  // button from failing with 530 on a stale global code when the real, current
+  // code is already stored per-printer.
   if (!printerIp || !printerAccessCode) {
     try {
       const ip = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip'));
       const code = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code'));
       printerIp = printerIp || ip?.value;
-      printerAccessCode = printerAccessCode || code?.value;
+      if (!printerAccessCode && printerIp) {
+        const byIp = (await db.prepare(
+          "SELECT access_code FROM printers WHERE ip_address = ? AND access_code IS NOT NULL AND access_code != '' ORDER BY updated_at DESC LIMIT 1"
+        ).get(printerIp));
+        printerAccessCode = byIp?.access_code || code?.value;
+      } else {
+        printerAccessCode = printerAccessCode || code?.value;
+      }
     } catch (error) {
       console.error('Failed to load printer settings:', error);
     }
   }
+
+  // Guard against a stored code with stray whitespace mangling the curl command.
+  printerIp = String(printerIp || '').trim();
+  printerAccessCode = String(printerAccessCode || '').trim();
   
   if (!printerIp || !printerAccessCode) {
     return res.json({ success: false, error: 'Printer IP and access code are required' });
