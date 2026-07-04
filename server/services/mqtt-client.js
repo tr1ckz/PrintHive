@@ -2,6 +2,60 @@ const mqtt = require('mqtt');
 const logger = require('../../logger');
 const EventEmitter = require('events');
 
+// Normalize a Bambu AMS payload into a flat { active_tray, trays } shape.
+// A printer can have multiple AMS units: Bambu nests them under `ams.ams` (an
+// array of units, each with its own `tray` array); older/simple payloads put a
+// single unit's trays directly under `ams.tray` / `ams.trays`. We flatten every
+// unit so a 2nd/3rd AMS shows up instead of only the first, and give each tray a
+// global slot number (AMS 0 -> 0-3, AMS 1 -> 4-7, ...).
+function flattenAmsPayload(amsRaw) {
+  if (!amsRaw) return null;
+
+  let amsUnits;
+  if (Array.isArray(amsRaw.ams) && amsRaw.ams.length > 0) {
+    amsUnits = amsRaw.ams;
+  } else if (Array.isArray(amsRaw.tray)) {
+    amsUnits = [amsRaw];
+  } else if (Array.isArray(amsRaw.trays)) {
+    amsUnits = [{ ...amsRaw, tray: amsRaw.trays }];
+  } else {
+    amsUnits = [];
+  }
+
+  const activeTray = (amsRaw.active_tray ?? amsRaw.cur_tray ?? amsRaw.cur_tray_index ?? (amsRaw.tray_now ? parseInt(amsRaw.tray_now, 10) : null));
+
+  const trays = [];
+  amsUnits.forEach((unit, unitIndex) => {
+    const unitId = Number.isFinite(parseInt(unit?.id, 10)) ? parseInt(unit.id, 10) : unitIndex;
+    const unitTrays = Array.isArray(unit?.tray) ? unit.tray : (Array.isArray(unit?.trays) ? unit.trays : []);
+    unitTrays.forEach((t, idx) => {
+      const humidityRaw = t.humidity ?? t.humi ?? unit?.humidity ?? null;
+      const tempRaw = t.temp ?? t.temperature ?? unit?.temp ?? null;
+      // Prefer the tray's own id when it already looks global, else offset by unit.
+      const localId = Number.isFinite(parseInt(t.id, 10)) ? parseInt(t.id, 10) : idx;
+      const slot = localId >= unitId * 4 ? localId : unitId * 4 + localId;
+      trays.push({
+        slot,
+        ams_unit: unitId,
+        color: (t.color ?? t.tray_color ?? t.cols?.[0] ?? null),
+        type: (t.type ?? t.tray_type ?? null),
+        sub_brands: (t.tray_sub_brands ?? null),
+        remain: (t.remain != null && t.remain >= 0 ? t.remain : null),
+        humidity: humidityRaw != null ? parseFloat(humidityRaw) : null,
+        temp: tempRaw != null ? parseFloat(tempRaw) : null,
+        // Spool identity (present on genuine Bambu RFID spools) — drives the
+        // filament inventory: uuid de-dupes a physical spool, info_idx is the
+        // Bambu filament code, id_name is the human colour name.
+        tray_uuid: (t.tray_uuid ?? null),
+        tray_info_idx: (t.tray_info_idx ?? null),
+        tray_id_name: (t.tray_id_name ?? null)
+      });
+    });
+  });
+
+  return { active_tray: activeTray, trays, unitCount: amsUnits.length };
+}
+
 class BambuMqttClient extends EventEmitter {
   constructor(printerIp, serialNumber, accessCode, printerName = null, options = {}) {
     super();
@@ -246,49 +300,11 @@ class BambuMqttClient extends EventEmitter {
       // AMS information, when provided
       const amsRaw = data.ams || printData.ams;
       if (amsRaw) {
-        // Some payloads nest AMS under ams[0].tray
-        let traysSource = [];
-        let amsUnit = null;
-        
-        if (Array.isArray(amsRaw.tray)) {
-          traysSource = amsRaw.tray;
-          amsUnit = amsRaw;
-        } else if (Array.isArray(amsRaw.trays)) {
-          traysSource = amsRaw.trays;
-          amsUnit = amsRaw;
-        } else if (Array.isArray(amsRaw.ams) && amsRaw.ams.length > 0) {
-          traysSource = amsRaw.ams[0].tray || amsRaw.ams[0].trays || [];
-          amsUnit = amsRaw.ams[0];
-        }
-
-        const trays = Array.isArray(traysSource) ? traysSource : [];
-        const activeTray = (amsRaw.active_tray ?? amsRaw.cur_tray ?? amsRaw.cur_tray_index ?? (amsRaw.tray_now ? parseInt(amsRaw.tray_now, 10) : null));
-
-        newJobData.ams = {
-          active_tray: activeTray,
-          trays: trays.map((t, idx) => {
-            const humidityRaw = t.humidity ?? t.humi ?? (amsUnit ? amsUnit.humidity : null);
-            const tempRaw = t.temp ?? t.temperature ?? (amsUnit ? amsUnit.temp : null);
-            return {
-              slot: (t.id ?? t.slot ?? idx),
-              color: (t.color ?? t.tray_color ?? t.cols?.[0] ?? null),
-              type: (t.type ?? t.tray_type ?? null),
-              sub_brands: (t.tray_sub_brands ?? null),
-              remain: (t.remain != null && t.remain >= 0 ? t.remain : null),
-              humidity: humidityRaw != null ? parseFloat(humidityRaw) : null,
-              temp: tempRaw != null ? parseFloat(tempRaw) : null,
-              // Spool identity (present on genuine Bambu RFID spools) — drives the
-              // filament inventory: uuid de-dupes a physical spool, info_idx is the
-              // Bambu filament code, id_name is the human colour name.
-              tray_uuid: (t.tray_uuid ?? null),
-              tray_info_idx: (t.tray_info_idx ?? null),
-              tray_id_name: (t.tray_id_name ?? null)
-            };
-          })
-        };
+        const flattened = flattenAmsPayload(amsRaw);
+        newJobData.ams = { active_tray: flattened.active_tray, trays: flattened.trays };
 
         if (logger.isLevelEnabled('DEBUG')) {
-        logger.debug(`AMS data updated for ${this.printerName}: ${trays.length} trays, active=${activeTray ?? 'none'}`);
+        logger.debug(`AMS data updated for ${this.printerName}: ${flattened.unitCount} unit(s), ${flattened.trays.length} trays, active=${flattened.active_tray ?? 'none'}`);
       }
       } else if (this.currentJobData && this.currentJobData.ams) {
         // Preserve existing AMS data if we have it
@@ -533,3 +549,4 @@ class BambuMqttClient extends EventEmitter {
 }
 
 module.exports = BambuMqttClient;
+module.exports.flattenAmsPayload = flattenAmsPayload;

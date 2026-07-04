@@ -26,9 +26,16 @@ interface CameraFeedProps {
   ipcamBitrate?: number;
 }
 
+interface Feed {
+  key: string;
+  label: string;
+  node: React.ReactNode;
+}
+
 /**
  * Camera chrome around the existing stream players (players untouched).
- * Rounded media well; source + bitrate as quiet metadata underneath.
+ * Renders every configured feed for a printer — an assigned RTSP camera AND the
+ * built-in chamber camera show together when both are available.
  */
 const CameraFeed: React.FC<CameraFeedProps> = ({
   printerId,
@@ -40,54 +47,71 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
   assignedRtspUrl,
   ipcamBitrate,
 }) => {
-  const effectiveRtspUrl = assignedRtspUrl?.trim() || rtspUrl;
-  const hasAssignedRtsp = Boolean(assignedRtspUrl?.trim());
-  const useRtspStream = hasAssignedRtsp || cameraMode === 'native-rtsp';
-  // Built-in chamber camera: no URL to configure, the backend resolves the
-  // printer's LAN IP + access code. An assigned RTSP camera still wins.
-  const useBuiltin = !hasAssignedRtsp && cameraMode === 'builtin';
-  const streamConfigured = useBuiltin
-    ? true
-    : useRtspStream
-    ? Boolean(effectiveRtspUrl?.trim())
-    : Boolean(frigateStreamUrl?.trim());
+  const assigned = assignedRtspUrl?.trim();
+  const feeds: Feed[] = [];
 
-  if (!streamConfigured) {
+  // A printer-assigned RTSP camera is always shown when present.
+  if (assigned) {
+    feeds.push({
+      key: 'assigned-rtsp',
+      label: 'Assigned RTSP',
+      node: <RTSPCamera rtspUrl={assigned} printerId={printerId} printerName={printerName} />,
+    });
+  }
+
+  // The built-in chamber camera streams over the LAN with no URL to configure;
+  // it's shown alongside an assigned RTSP when the mode is enabled.
+  if (cameraMode === 'builtin') {
+    feeds.push({
+      key: 'builtin-chamber',
+      label: 'Built-in chamber',
+      node: <ChamberCamera printerId={printerId} printerName={printerName} />,
+    });
+  }
+
+  // Fall back to the global source only when the printer has no feed of its own.
+  if (feeds.length === 0) {
+    if (cameraMode === 'native-rtsp' && rtspUrl?.trim()) {
+      feeds.push({
+        key: 'native-rtsp',
+        label: 'Native RTSP',
+        node: <RTSPCamera rtspUrl={rtspUrl} printerId={printerId} printerName={printerName} />,
+      });
+    } else if (frigateStreamUrl?.trim()) {
+      feeds.push({
+        key: 'frigate',
+        label: cameraStreamType === 'frigate-webrtc' ? 'Frigate WebRTC' : 'Frigate HLS',
+        node: <FrigateCamera streamType={cameraStreamType} streamUrl={frigateStreamUrl} printerName={printerName} />,
+      });
+    }
+  }
+
+  if (feeds.length === 0) {
     return (
       <div className="flex aspect-video flex-col items-center justify-center gap-1 rounded-md bg-white/[0.03] p-6 text-center">
         <strong className="text-sm font-medium text-fg-soft">No camera stream configured</strong>
         <span className="text-xs text-muted">
-          Add a global camera in Settings → Camera Stream Integration, or assign an RTSP camera directly to this printer in Local Printer / FTP.
+          Add a global camera in Settings → Camera Stream Integration, assign an RTSP camera to this printer in Local Printer / FTP, or switch Camera Mode to the built-in printer camera.
         </span>
       </div>
     );
   }
 
+  const bitrate = typeof ipcamBitrate === 'number' && ipcamBitrate > 0 ? formatBitrate(ipcamBitrate) : null;
+
   return (
-    <div>
-      <div className="overflow-hidden rounded-md bg-black/40 [&_video]:w-full [&_img]:w-full">
-        {useBuiltin ? (
-          <ChamberCamera printerId={printerId} printerName={printerName} />
-        ) : useRtspStream ? (
-          <RTSPCamera rtspUrl={effectiveRtspUrl} printerId={printerId} printerName={printerName} />
-        ) : (
-          <FrigateCamera streamType={cameraStreamType} streamUrl={frigateStreamUrl} printerName={printerName} />
-        )}
-      </div>
-      <div className="mt-1.5 flex items-center justify-between text-xs text-muted">
-        <span>
-          {useBuiltin
-            ? 'Built-in chamber'
-            : useRtspStream
-            ? (hasAssignedRtsp ? 'Assigned RTSP' : 'Native RTSP')
-            : cameraStreamType === 'frigate-webrtc'
-              ? 'Frigate WebRTC'
-              : 'Frigate HLS'}
-        </span>
-        {typeof ipcamBitrate === 'number' && ipcamBitrate > 0 ? (
-          <span className="tabular-nums">{formatBitrate(ipcamBitrate)}</span>
-        ) : null}
-      </div>
+    <div className="space-y-3">
+      {feeds.map((feed, index) => (
+        <div key={feed.key}>
+          <div className="overflow-hidden rounded-md bg-black/40 [&_video]:w-full [&_img]:w-full">
+            {feed.node}
+          </div>
+          <div className="mt-1.5 flex items-center justify-between text-xs text-muted">
+            <span>{feed.label}</span>
+            {index === 0 && bitrate ? <span className="tabular-nums">{bitrate}</span> : null}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
