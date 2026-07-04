@@ -36,7 +36,7 @@ export function UISettings() {
       if (data.success) {
         setHideBmc(data.hideBmc || false);
         setColorScheme(data.colorScheme || document.documentElement.dataset.themeAccent || 'orange');
-        setCameraMode(data.cameraMode === 'native-rtsp' ? 'native-rtsp' : 'frigate');
+        setCameraMode(['native-rtsp', 'builtin'].includes(data.cameraMode) ? data.cameraMode : 'frigate');
         setCameraStreamType(data.cameraStreamType === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls');
         setFrigateStreamUrl(data.frigateStreamUrl || (data.cameraMode === 'frigate' ? data.cameraStreamUrl || '' : ''));
         setRtspUrl(data.rtspUrl || (data.cameraMode === 'native-rtsp' ? data.cameraStreamUrl || '' : ''));
@@ -156,8 +156,17 @@ export function UISettings() {
           >
             <option value="frigate">Frigate (WebRTC/HLS)</option>
             <option value="native-rtsp">Native RTSP</option>
+            <option value="builtin">Built-in printer camera (Bambu chamber)</option>
           </select>
         </div>
+
+        {cameraMode === 'builtin' && (
+          <p className="mb-4 rounded-md bg-accent/10 p-3 text-xs text-fg-soft">
+            Streams each printer's built-in chamber camera directly over your LAN using its IP and
+            access code — no Frigate or RTSP URL needed. Requires the printer to be reachable locally
+            (P1/A1/X1). If a printer also has an assigned RTSP camera, that takes priority.
+          </p>
+        )}
 
         {cameraMode === 'frigate' ? (
           <>

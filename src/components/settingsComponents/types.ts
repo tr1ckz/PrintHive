@@ -18,7 +18,7 @@ export interface MaterialCosts {
   [material: string]: number;
 }
 
-export type CameraMode = 'frigate' | 'native-rtsp';
+export type CameraMode = 'frigate' | 'native-rtsp' | 'builtin';
 export type CameraStreamType = 'frigate-hls' | 'frigate-webrtc';
 
 export interface CameraStreamSettings {

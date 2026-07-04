@@ -2,6 +2,7 @@ import React from 'react';
 import type { CameraMode, CameraStreamType } from '../../types';
 import FrigateCamera from '../FrigateCamera';
 import RTSPCamera from '../RTSPCamera';
+import ChamberCamera from './ChamberCamera';
 
 const formatBitrate = (bps?: number) => {
   if (!bps || Number.isNaN(bps)) return null;
@@ -42,7 +43,12 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
   const effectiveRtspUrl = assignedRtspUrl?.trim() || rtspUrl;
   const hasAssignedRtsp = Boolean(assignedRtspUrl?.trim());
   const useRtspStream = hasAssignedRtsp || cameraMode === 'native-rtsp';
-  const streamConfigured = useRtspStream
+  // Built-in chamber camera: no URL to configure, the backend resolves the
+  // printer's LAN IP + access code. An assigned RTSP camera still wins.
+  const useBuiltin = !hasAssignedRtsp && cameraMode === 'builtin';
+  const streamConfigured = useBuiltin
+    ? true
+    : useRtspStream
     ? Boolean(effectiveRtspUrl?.trim())
     : Boolean(frigateStreamUrl?.trim());
 
@@ -60,7 +66,9 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
   return (
     <div>
       <div className="overflow-hidden rounded-md bg-black/40 [&_video]:w-full [&_img]:w-full">
-        {useRtspStream ? (
+        {useBuiltin ? (
+          <ChamberCamera printerId={printerId} printerName={printerName} />
+        ) : useRtspStream ? (
           <RTSPCamera rtspUrl={effectiveRtspUrl} printerId={printerId} printerName={printerName} />
         ) : (
           <FrigateCamera streamType={cameraStreamType} streamUrl={frigateStreamUrl} printerName={printerName} />
@@ -68,7 +76,9 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
       </div>
       <div className="mt-1.5 flex items-center justify-between text-xs text-muted">
         <span>
-          {useRtspStream
+          {useBuiltin
+            ? 'Built-in chamber'
+            : useRtspStream
             ? (hasAssignedRtsp ? 'Assigned RTSP' : 'Native RTSP')
             : cameraStreamType === 'frigate-webrtc'
               ? 'Frigate WebRTC'

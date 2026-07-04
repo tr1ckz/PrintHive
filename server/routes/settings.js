@@ -407,7 +407,7 @@ router.get('/api/settings/ui', async (req, res) => {
     const legacyFrigateUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_url'));
     const canExposePrivateStreamSettings = Boolean(req.session?.authenticated);
 
-    const normalizedCameraMode = cameraMode?.value === 'native-rtsp' ? 'native-rtsp' : 'frigate';
+    const normalizedCameraMode = ['native-rtsp', 'builtin'].includes(cameraMode?.value) ? cameraMode.value : 'frigate';
     const normalizedStreamType = cameraStreamType?.value === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls';
     const resolvedFrigateStreamUrl = normalizeStreamRelayUrl(
       frigateStreamUrl?.value || (normalizedCameraMode === 'frigate' ? cameraStreamUrl?.value || legacyFrigateUrl?.value || '' : legacyFrigateUrl?.value || '')
@@ -465,7 +465,7 @@ router.post('/api/settings/ui', async (req, res) => {
       (await upsert.run('color_scheme', colorScheme, colorScheme));
     }
 
-    const normalizedCameraMode = cameraMode === 'native-rtsp' ? 'native-rtsp' : 'frigate';
+    const normalizedCameraMode = ['native-rtsp', 'builtin'].includes(cameraMode) ? cameraMode : 'frigate';
     const normalizedStreamType = cameraStreamType === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls';
     const normalizedFrigateStreamUrl = typeof frigateStreamUrl === 'string'
       ? normalizeStreamRelayUrl(frigateStreamUrl)

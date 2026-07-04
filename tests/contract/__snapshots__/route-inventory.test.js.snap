@@ -58,6 +58,8 @@ exports[`route inventory > matches the pinned endpoint list 1`] = `
   "GET /api/printer-transfer-status",
   "GET /api/printer/download/:modelId",
   "GET /api/printers",
+  "GET /api/printers/:devId/chamber.jpg",
+  "GET /api/printers/:devId/chamber.mjpeg",
   "GET /api/printers/config",
   "GET /api/printers/status",
   "GET /api/prints",

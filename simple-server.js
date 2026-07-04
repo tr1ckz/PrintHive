@@ -59,6 +59,7 @@ const {
 const authRoutes = require('./server/routes/auth');
 const maintenanceRoutes = require('./server/routes/maintenance');
 const filamentRoutes = require('./server/routes/filament');
+const { hub: chamberCameraHub } = require('./server/services/bambuChamberCamera');
 
 // Helper function to clean HTML-encoded descriptions (handles double/triple encoding)
 function cleanDescription(rawDescription) {
@@ -279,6 +280,23 @@ async function getConfiguredRtspSource(printerId = '') {
   }
 
   return { rtspUrl: '', proxyKey: normalizedPrinterId ? `printer:${normalizedPrinterId}` : 'global', source: 'none' };
+}
+
+// Resolve the LAN host + access code for a printer's built-in chamber camera
+// (proprietary port-6000 stream). Prefers the per-printer row (kept in sync
+// with the cloud access code), falling back to the legacy global config.
+async function resolveChamberCameraTarget(devId) {
+  const id = String(devId || '').trim();
+  let host = '';
+  let accessCode = '';
+  if (id) {
+    const row = (await db.prepare('SELECT ip_address, access_code FROM printers WHERE dev_id = ?').get(id));
+    host = String(row?.ip_address || '').trim();
+    accessCode = String(row?.access_code || '').trim();
+  }
+  if (!host) host = String((await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip'))?.value || '').trim();
+  if (!accessCode) accessCode = String((await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_access_code'))?.value || '').trim();
+  return { host, accessCode };
 }
 
 const rtspCameraProxies = new Map();
@@ -2384,6 +2402,85 @@ app.get('/api/camera/stream', async (req, res) => {
       res.end();
     }
   }
+});
+
+// Built-in chamber camera (P1/A1/X1) as an MJPEG stream. The browser renders it
+// directly in an <img>. Frames come from the printer's proprietary port-6000
+// stream via the chamber-camera bridge.
+app.get('/api/printers/:devId/chamber.mjpeg', async (req, res) => {
+  if (!req.session?.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { host, accessCode } = await resolveChamberCameraTarget(req.params.devId);
+  if (!host || !accessCode) {
+    return res.status(404).json({ error: 'No LAN IP / access code available for this printer' });
+  }
+
+  const stream = chamberCameraHub.getStream(req.params.devId, host, accessCode);
+  if (!stream) return res.status(500).json({ error: 'Failed to start chamber camera' });
+
+  res.writeHead(200, {
+    'Content-Type': 'multipart/x-mixed-replace; boundary=printhiveframe',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    Pragma: 'no-cache',
+    Connection: 'close',
+  });
+
+  const onFrame = (jpeg) => {
+    if (res.writableEnded) return;
+    res.write(`--printhiveframe\r\nContent-Type: image/jpeg\r\nContent-Length: ${jpeg.length}\r\n\r\n`);
+    res.write(jpeg);
+    res.write('\r\n');
+  };
+
+  stream.addSubscriber();
+  stream.on('frame', onFrame);
+  if (stream.lastFrame) onFrame(stream.lastFrame); // show something immediately
+
+  const cleanup = () => {
+    stream.off('frame', onFrame);
+    stream.removeSubscriber();
+  };
+  req.on('close', cleanup);
+  res.on('error', cleanup);
+});
+
+// Single latest chamber frame as a JPEG — handy for thumbnails / connectivity
+// checks without holding an MJPEG connection open.
+app.get('/api/printers/:devId/chamber.jpg', async (req, res) => {
+  if (!req.session?.authenticated) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const { host, accessCode } = await resolveChamberCameraTarget(req.params.devId);
+  if (!host || !accessCode) {
+    return res.status(404).json({ error: 'No LAN IP / access code available for this printer' });
+  }
+
+  const stream = chamberCameraHub.getStream(req.params.devId, host, accessCode);
+  if (!stream) return res.status(500).json({ error: 'Failed to start chamber camera' });
+
+  if (stream.lastFrame) {
+    res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'no-store').send(stream.lastFrame);
+    return;
+  }
+
+  // No frame cached yet — wait briefly for the first one.
+  stream.addSubscriber();
+  let done = false;
+  const finish = (jpeg) => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    stream.off('frame', finish);
+    stream.removeSubscriber();
+    if (jpeg) res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'no-store').send(jpeg);
+    else if (!res.headersSent) res.status(504).json({ error: 'Chamber camera did not produce a frame in time' });
+  };
+  const timer = setTimeout(() => finish(null), 8000);
+  stream.on('frame', finish);
+  req.on('close', () => finish(stream.lastFrame));
 });
 
 app.post('/api/camera/stop', (req, res) => {

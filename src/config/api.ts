@@ -35,6 +35,8 @@ export const API_ENDPOINTS = {
     DOWNLOAD: (modelId: string) => `${API_BASE_URL}/api/printer/download/${modelId}`,
     JOB_COVER: (deviceId: string) => `${API_BASE_URL}/api/job-cover/${deviceId}`,
     STATUS: `${API_BASE_URL}/api/printers/status`,
+    CHAMBER_MJPEG: (devId: string) => `${API_BASE_URL}/api/printers/${encodeURIComponent(devId)}/chamber.mjpeg`,
+    CHAMBER_JPG: (devId: string) => `${API_BASE_URL}/api/printers/${encodeURIComponent(devId)}/chamber.jpg`,
   },
   
   MODELS: {
