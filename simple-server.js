@@ -2473,13 +2473,24 @@ app.get('/api/printers/:devId/chamber.jpg', async (req, res) => {
     if (done) return;
     done = true;
     clearTimeout(timer);
-    stream.off('frame', finish);
+    stream.off('frame', onFrame);
     stream.removeSubscriber();
-    if (jpeg) res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'no-store').send(jpeg);
-    else if (!res.headersSent) res.status(504).json({ error: 'Chamber camera did not produce a frame in time' });
+    if (jpeg) {
+      res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'no-store').send(jpeg);
+    } else if (!res.headersSent) {
+      // Surface the concrete failure reason (refused / TLS / timeout / no auth).
+      res.status(502).json({
+        error: stream.lastError || 'Chamber camera did not produce a frame in time',
+        host: stream.host,
+      });
+    }
   };
-  const timer = setTimeout(() => finish(null), 8000);
-  stream.on('frame', finish);
+  const onFrame = (jpeg) => finish(jpeg);
+  const timer = setTimeout(() => finish(null), 12000);
+  // If the connection fails fast (refused / TLS / auth), report why instead of
+  // waiting out the full timeout.
+  stream.once('camera-error', () => setTimeout(() => finish(null), 400));
+  stream.on('frame', onFrame);
   req.on('close', () => finish(stream.lastFrame));
 });
 

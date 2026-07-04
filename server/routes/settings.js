@@ -400,6 +400,7 @@ router.get('/api/settings/ui', async (req, res) => {
     const hideBmc = (await db.prepare('SELECT value FROM config WHERE key = ?').get('hide_bmc'));
     const colorScheme = (await db.prepare('SELECT value FROM config WHERE key = ?').get('color_scheme'));
     const cameraMode = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_mode'));
+    const builtinCamera = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_builtin_enabled'));
     const cameraStreamType = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_type'));
     const cameraStreamUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_stream_url'));
     const frigateStreamUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('frigate_stream_url'));
@@ -421,6 +422,7 @@ router.get('/api/settings/ui', async (req, res) => {
       colorScheme: colorScheme?.value || 'cyan',
       cameraMode: normalizedCameraMode,
       cameraStreamType: normalizedStreamType,
+      builtinCamera: builtinCamera?.value === 'true',
       frigateStreamUrl: canExposePrivateStreamSettings ? resolvedFrigateStreamUrl : '',
       rtspUrl: canExposePrivateStreamSettings ? resolvedRtspUrl : '',
       cameraStreamUrl: canExposePrivateStreamSettings ? activeCameraStreamUrl : '',
@@ -449,6 +451,7 @@ router.post('/api/settings/ui', async (req, res) => {
       colorScheme,
       cameraMode,
       cameraStreamType,
+      builtinCamera,
       frigateStreamUrl,
       rtspUrl,
       cameraStreamUrl,
@@ -473,7 +476,9 @@ router.post('/api/settings/ui', async (req, res) => {
     const normalizedRtspUrl = typeof rtspUrl === 'string' ? String(rtspUrl).trim() : '';
     const normalizedActiveStreamUrl = normalizedCameraMode === 'native-rtsp' ? normalizedRtspUrl : normalizedFrigateStreamUrl;
 
+    const builtinCameraValue = builtinCamera ? 'true' : 'false';
     (await upsert.run('camera_mode', normalizedCameraMode, normalizedCameraMode));
+    (await upsert.run('camera_builtin_enabled', builtinCameraValue, builtinCameraValue));
     (await upsert.run('camera_stream_type', normalizedStreamType, normalizedStreamType));
     (await upsert.run('frigate_stream_url', normalizedFrigateStreamUrl, normalizedFrigateStreamUrl));
     (await upsert.run('rtsp_url', normalizedRtspUrl, normalizedRtspUrl));
@@ -486,6 +491,7 @@ router.post('/api/settings/ui', async (req, res) => {
       success: true,
       cameraMode: normalizedCameraMode,
       cameraStreamType: normalizedStreamType,
+      builtinCamera: builtinCameraValue === 'true',
       frigateStreamUrl: normalizedFrigateStreamUrl,
       rtspUrl: normalizedRtspUrl,
       cameraStreamUrl: normalizedActiveStreamUrl,

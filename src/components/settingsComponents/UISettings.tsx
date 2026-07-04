@@ -16,6 +16,7 @@ export function UISettings() {
     return 'orange';
   });
   const [cameraMode, setCameraMode] = useState<CameraMode>('frigate');
+  const [builtinCamera, setBuiltinCamera] = useState(false);
   const [cameraStreamType, setCameraStreamType] = useState<CameraStreamType>('frigate-hls');
   const [frigateStreamUrl, setFrigateStreamUrl] = useState('');
   const [rtspUrl, setRtspUrl] = useState('');
@@ -37,6 +38,7 @@ export function UISettings() {
         setHideBmc(data.hideBmc || false);
         setColorScheme(data.colorScheme || document.documentElement.dataset.themeAccent || 'orange');
         setCameraMode(['native-rtsp', 'builtin'].includes(data.cameraMode) ? data.cameraMode : 'frigate');
+        setBuiltinCamera(Boolean(data.builtinCamera));
         setCameraStreamType(data.cameraStreamType === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls');
         setFrigateStreamUrl(data.frigateStreamUrl || (data.cameraMode === 'frigate' ? data.cameraStreamUrl || '' : ''));
         setRtspUrl(data.rtspUrl || (data.cameraMode === 'native-rtsp' ? data.cameraStreamUrl || '' : ''));
@@ -70,6 +72,7 @@ export function UISettings() {
           colorScheme,
           cameraMode,
           cameraStreamType,
+          builtinCamera,
           frigateStreamUrl: trimmedFrigateUrl,
           rtspUrl: trimmedRtspUrl,
         }),
@@ -164,8 +167,25 @@ export function UISettings() {
           <p className="mb-4 rounded-md bg-accent/10 p-3 text-xs text-fg-soft">
             Streams each printer's built-in chamber camera directly over your LAN using its IP and
             access code — no Frigate or RTSP URL needed. Requires the printer to be reachable locally
-            (P1/A1/X1). If a printer also has an assigned RTSP camera, that takes priority.
+            (P1/A1/X1).
           </p>
+        )}
+
+        {cameraMode !== 'builtin' && (
+          <label className="mb-4 flex cursor-pointer items-start gap-2.5 rounded-md bg-white/[0.03] p-3">
+            <input
+              type="checkbox"
+              checked={builtinCamera}
+              onChange={(e) => setBuiltinCamera(e.target.checked)}
+              disabled={uiLoading}
+              className="mt-0.5"
+            />
+            <span className="text-xs text-fg-soft">
+              <span className="font-medium text-fg">Also show the built-in printer camera</span> — display each
+              printer's built-in chamber camera <em>in addition to</em> the {cameraMode === 'native-rtsp' ? 'RTSP' : 'Frigate'} feed
+              (and any per-printer assigned RTSP). Streams locally over LAN; no URL needed.
+            </span>
+          </label>
         )}
 
         {cameraMode === 'frigate' ? (

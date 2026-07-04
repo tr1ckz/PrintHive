@@ -12,6 +12,7 @@ function Printers() {
   const { openModal } = useModal();
   const [cameraMode, setCameraMode] = useState<CameraMode>('frigate');
   const [cameraStreamType, setCameraStreamType] = useState<CameraStreamType>('frigate-hls');
+  const [builtinCamera, setBuiltinCamera] = useState(false);
   const [frigateStreamUrl, setFrigateStreamUrl] = useState('');
   const [rtspUrl, setRtspUrl] = useState('');
   const loadPrinters = usePrinterStore((state) => state.loadInitialPrinters);
@@ -40,7 +41,8 @@ function Printers() {
       const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.UI, { credentials: 'include' });
       const data = await response.json();
       if (data.success) {
-        setCameraMode(data.cameraMode === 'native-rtsp' ? 'native-rtsp' : 'frigate');
+        setCameraMode(['native-rtsp', 'builtin'].includes(data.cameraMode) ? data.cameraMode : 'frigate');
+        setBuiltinCamera(Boolean(data.builtinCamera));
         setCameraStreamType(data.cameraStreamType === 'frigate-webrtc' ? 'frigate-webrtc' : 'frigate-hls');
         setFrigateStreamUrl(data.frigateStreamUrl || (data.cameraMode === 'frigate' ? data.cameraStreamUrl || '' : ''));
         setRtspUrl(data.rtspUrl || (data.cameraMode === 'native-rtsp' ? data.cameraStreamUrl || '' : ''));
@@ -170,6 +172,7 @@ function Printers() {
               printerId={printerId}
               cameraMode={cameraMode}
               cameraStreamType={cameraStreamType}
+              builtinCamera={builtinCamera}
               frigateStreamUrl={frigateStreamUrl}
               rtspUrl={rtspUrl}
               onOpenHardware={openHardwareModal}

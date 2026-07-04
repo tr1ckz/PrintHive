@@ -19,6 +19,8 @@ interface CameraFeedProps {
   printerName: string;
   cameraMode?: CameraMode;
   cameraStreamType?: CameraStreamType;
+  /** Show the built-in chamber camera in addition to any other feed */
+  showBuiltin?: boolean;
   frigateStreamUrl?: string;
   rtspUrl?: string;
   /** Per-printer assigned RTSP URL from the store (wins over globals) */
@@ -42,6 +44,7 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
   printerName,
   cameraMode = 'frigate',
   cameraStreamType,
+  showBuiltin,
   frigateStreamUrl,
   rtspUrl,
   assignedRtspUrl,
@@ -50,40 +53,37 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
   const assigned = assignedRtspUrl?.trim();
   const feeds: Feed[] = [];
 
-  // A printer-assigned RTSP camera is always shown when present.
+  // Base feed: a printer-assigned RTSP wins; otherwise the global source for the
+  // selected mode. (When the mode itself is "builtin" there's no separate base —
+  // the chamber below is the feed.)
   if (assigned) {
     feeds.push({
       key: 'assigned-rtsp',
       label: 'Assigned RTSP',
       node: <RTSPCamera rtspUrl={assigned} printerId={printerId} printerName={printerName} />,
     });
+  } else if (cameraMode === 'native-rtsp' && rtspUrl?.trim()) {
+    feeds.push({
+      key: 'native-rtsp',
+      label: 'Native RTSP',
+      node: <RTSPCamera rtspUrl={rtspUrl} printerId={printerId} printerName={printerName} />,
+    });
+  } else if (cameraMode === 'frigate' && frigateStreamUrl?.trim()) {
+    feeds.push({
+      key: 'frigate',
+      label: cameraStreamType === 'frigate-webrtc' ? 'Frigate WebRTC' : 'Frigate HLS',
+      node: <FrigateCamera streamType={cameraStreamType} streamUrl={frigateStreamUrl} printerName={printerName} />,
+    });
   }
 
-  // The built-in chamber camera streams over the LAN with no URL to configure;
-  // it's shown alongside an assigned RTSP when the mode is enabled.
-  if (cameraMode === 'builtin') {
+  // Built-in chamber: added on top when it's the selected mode OR the independent
+  // "also show built-in" toggle is on — so it runs alongside any base feed.
+  if (cameraMode === 'builtin' || showBuiltin) {
     feeds.push({
       key: 'builtin-chamber',
       label: 'Built-in chamber',
       node: <ChamberCamera printerId={printerId} printerName={printerName} />,
     });
-  }
-
-  // Fall back to the global source only when the printer has no feed of its own.
-  if (feeds.length === 0) {
-    if (cameraMode === 'native-rtsp' && rtspUrl?.trim()) {
-      feeds.push({
-        key: 'native-rtsp',
-        label: 'Native RTSP',
-        node: <RTSPCamera rtspUrl={rtspUrl} printerId={printerId} printerName={printerName} />,
-      });
-    } else if (frigateStreamUrl?.trim()) {
-      feeds.push({
-        key: 'frigate',
-        label: cameraStreamType === 'frigate-webrtc' ? 'Frigate WebRTC' : 'Frigate HLS',
-        node: <FrigateCamera streamType={cameraStreamType} streamUrl={frigateStreamUrl} printerName={printerName} />,
-      });
-    }
   }
 
   if (feeds.length === 0) {

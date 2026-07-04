@@ -63,6 +63,7 @@ interface ReactivePrinterCardProps {
   printerId: string;
   cameraMode?: CameraMode;
   cameraStreamType?: CameraStreamType;
+  builtinCamera?: boolean;
   frigateStreamUrl?: string;
   rtspUrl?: string;
   onOpenHardware: (printerId: string) => void;
@@ -294,6 +295,7 @@ function CameraSection({
   printerName,
   cameraMode,
   cameraStreamType,
+  builtinCamera,
   frigateStreamUrl,
   rtspUrl,
 }: {
@@ -301,6 +303,7 @@ function CameraSection({
   printerName: string;
   cameraMode?: CameraMode;
   cameraStreamType?: CameraStreamType;
+  builtinCamera?: boolean;
   frigateStreamUrl?: string;
   rtspUrl?: string;
 }) {
@@ -330,6 +333,7 @@ function CameraSection({
           printerName={printerName}
           cameraMode={cameraMode}
           cameraStreamType={cameraStreamType}
+          showBuiltin={builtinCamera}
           frigateStreamUrl={frigateStreamUrl}
           rtspUrl={rtspUrl}
           assignedRtspUrl={printerCameraRtspUrl}
@@ -349,6 +353,7 @@ function ReactivePrinterCardComponent({
   printerId,
   cameraMode,
   cameraStreamType,
+  builtinCamera,
   frigateStreamUrl,
   rtspUrl,
   onOpenHardware,
@@ -394,6 +399,7 @@ function ReactivePrinterCardComponent({
             printerName={name}
             cameraMode={cameraMode}
             cameraStreamType={cameraStreamType}
+            builtinCamera={builtinCamera}
             frigateStreamUrl={frigateStreamUrl}
             rtspUrl={rtspUrl}
           />

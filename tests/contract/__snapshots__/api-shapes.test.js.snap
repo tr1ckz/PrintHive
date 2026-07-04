@@ -970,6 +970,7 @@ exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/pr
 exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/ui 1`] = `
 {
   "body": {
+    "builtinCamera": false,
     "cameraMode": "frigate",
     "cameraStreamType": "frigate-hls",
     "cameraStreamUrl": "",

@@ -14,6 +14,7 @@ interface ChamberCameraProps {
 const ChamberCamera: React.FC<ChamberCameraProps> = ({ printerId, printerName }) => {
   const [errored, setErrored] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -23,17 +24,28 @@ const ChamberCamera: React.FC<ChamberCameraProps> = ({ printerId, printerName })
   useEffect(() => {
     setErrored(false);
     setLoaded(false);
+    setReason(null);
     // Stop the stream when unmounted so the backend can drop the printer socket.
     const img = imgRef.current;
     return () => { if (img) img.src = ''; };
   }, [printerId, nonce]);
 
+  // The MJPEG <img> can't report why it failed, so on error pull the concrete
+  // reason from the single-frame endpoint (which returns JSON on failure).
+  const handleError = () => {
+    setErrored(true);
+    fetch(API_ENDPOINTS.PRINTERS.CHAMBER_JPG(printerId), { credentials: 'include' })
+      .then((r) => (r.ok ? null : r.json().catch(() => null)))
+      .then((body) => { if (body?.error) setReason(body.error); })
+      .catch(() => { /* best effort */ });
+  };
+
   if (errored) {
     return (
       <div className="flex aspect-video flex-col items-center justify-center gap-2 bg-white/[0.03] p-6 text-center">
         <strong className="text-sm font-medium text-fg-soft">Chamber camera unavailable</strong>
-        <span className="text-xs text-muted">
-          The printer didn't return a stream. Make sure it's reachable on your LAN and the access code is current.
+        <span className="max-w-sm text-xs text-muted">
+          {reason || 'The printer didn’t return a stream. Make sure it’s reachable on your LAN and the access code is current.'}
         </span>
         <button
           onClick={() => setNonce((n) => n + 1)}
@@ -58,7 +70,7 @@ const ChamberCamera: React.FC<ChamberCameraProps> = ({ printerId, printerName })
         alt={`${printerName} chamber camera`}
         className="w-full"
         onLoad={() => setLoaded(true)}
-        onError={() => setErrored(true)}
+        onError={handleError}
       />
     </div>
   );

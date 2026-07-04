@@ -77,6 +77,8 @@ class ChamberCameraStream extends EventEmitter {
     this.accessCode = accessCode;
     this.subscribers = 0;
     this.lastFrame = null;
+    this.lastError = null;   // human-readable reason the stream isn't producing frames
+    this.gotFrame = false;   // whether this socket has yielded at least one frame
     this.socket = null;
     this.buffer = Buffer.alloc(0);
     this.closed = false;
@@ -86,17 +88,27 @@ class ChamberCameraStream extends EventEmitter {
   connect() {
     if (this.socket || this.closed) return;
     logger.debug(`[ChamberCam] Connecting to ${this.host}:${CHAMBER_PORT}`);
+    this.gotFrame = false;
 
-    // Bambu presents a self-signed cert; skip verification (LAN device).
+    // The printer presents a self-signed cert and negotiates legacy ciphers, so
+    // mirror pybambu's permissive TLS (CERT_NONE): skip verification and drop the
+    // OpenSSL security level so Node doesn't refuse the printer's cipher suite —
+    // that rejection is a common reason the built-in camera "just doesn't work".
     const socket = tls.connect({
       host: this.host,
       port: CHAMBER_PORT,
       rejectUnauthorized: false,
-      timeout: 8000,
+      minVersion: 'TLSv1',
+      ciphers: 'ALL:@SECLEVEL=0',
+      // Time out only the initial connect/handshake; once frames flow we manage
+      // liveness ourselves (P1/A1 send the chamber image slowly, ~1-2s/frame).
+      timeout: 12000,
     });
     this.socket = socket;
 
     socket.on('secureConnect', () => {
+      logger.debug(`[ChamberCam] TLS established to ${this.host}, sending auth`);
+      socket.setTimeout(0); // handshake done; don't kill a slow-but-alive stream
       socket.write(buildChamberAuthPayload(this.accessCode));
     });
 
@@ -106,6 +118,11 @@ class ChamberCameraStream extends EventEmitter {
       this.buffer = rest;
       for (const frame of frames) {
         if (!looksLikeJpeg(frame)) continue;
+        if (!this.gotFrame) {
+          this.gotFrame = true;
+          this.lastError = null;
+          logger.info(`[ChamberCam] Streaming chamber frames from ${this.host}`);
+        }
         this.lastFrame = frame;
         this.emit('frame', frame);
       }
@@ -115,14 +132,25 @@ class ChamberCameraStream extends EventEmitter {
       }
     });
 
-    socket.on('timeout', () => { this.emit('camera-error', new Error('connection timed out')); socket.destroy(); });
-    socket.on('error', (err) => { this.emit('camera-error', err); });
+    socket.on('timeout', () => {
+      this.lastError = `No response from ${this.host}:${CHAMBER_PORT} (connect timed out). Is the printer on the LAN and the camera enabled?`;
+      logger.warn(`[ChamberCam] ${this.lastError}`);
+      socket.destroy();
+    });
+    socket.on('error', (err) => {
+      // e.g. ECONNREFUSED (camera/LAN off), EHOSTUNREACH, or a TLS cipher error.
+      this.lastError = `${err.code || 'ERROR'}: ${err.message}`;
+      logger.warn(`[ChamberCam] Connection to ${this.host}:${CHAMBER_PORT} failed — ${this.lastError}`);
+    });
     socket.on('close', () => {
       this.socket = null;
       this.buffer = Buffer.alloc(0);
-      // Reconnect only while someone is still watching.
+      if (!this.gotFrame && !this.lastError) {
+        this.lastError = `Connection to ${this.host}:${CHAMBER_PORT} closed before any frame — the printer may have rejected the access code or the camera is off.`;
+      }
+      // Reconnect (with backoff) only while someone is still watching.
       if (!this.closed && this.subscribers > 0) {
-        setTimeout(() => this.connect(), 1500);
+        setTimeout(() => this.connect(), this.gotFrame ? 1500 : 5000);
       }
     });
   }
