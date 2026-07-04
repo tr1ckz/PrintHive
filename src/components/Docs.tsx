@@ -86,7 +86,6 @@ const envVars = [
   ['OAUTH_CLIENT_ID', 'Optional', 'OIDC client ID.'],
   ['OAUTH_CLIENT_SECRET', 'Optional', 'OIDC client secret.'],
   ['OAUTH_REDIRECT_URI', 'Optional', 'Usually `${PUBLIC_URL}/auth/callback`.'],
-  ['OAUTH_GROUPS_CLAIM', 'Optional', 'Claim name containing group membership, usually `groups`.'],
   ['LOCALAUTH', 'Optional', 'Set to `true` only if you want the local `/admin` login route enabled.'],
 ] as const;
 
@@ -103,7 +102,7 @@ const dockerRunExample = `docker run -d \
 
 const dockerComposeExample = `services:\n  printhive:\n    image: tr1ckz/printhive:latest\n    container_name: printhive\n    restart: unless-stopped\n    ports:\n      - \"3000:3000\"\n    environment:\n      SESSION_SECRET: change-me\n      PUBLIC_URL: https://printhive.example.com\n      PORT: 3000\n      OAUTH_ISSUER: https://auth.example.com/application/o/printhive/\n      OAUTH_CLIENT_ID: your-client-id\n      OAUTH_CLIENT_SECRET: your-client-secret\n      OAUTH_REDIRECT_URI: https://printhive.example.com/auth/callback\n    volumes:\n      - ./data:/app/data\n      - ./library:/app/library\n      - ./sessions:/app/sessions`;
 
-const ssoExample = `OAUTH_ISSUER=https://auth.example.com/application/o/printhive/\nOAUTH_CLIENT_ID=your_client_id\nOAUTH_CLIENT_SECRET=your_client_secret\nOAUTH_REDIRECT_URI=https://printhive.example.com/auth/callback\nOAUTH_GROUPS_CLAIM=groups`;
+const ssoExample = `OAUTH_ISSUER=https://auth.example.com/application/o/printhive/\nOAUTH_CLIENT_ID=your_client_id\nOAUTH_CLIENT_SECRET=your_client_secret\nOAUTH_REDIRECT_URI=https://printhive.example.com/auth/callback`;
 
 function Docs({ standalone = false }: DocsProps) {
   const searchId = useId();
@@ -374,8 +373,10 @@ function Docs({ standalone = false }: DocsProps) {
               <article className="rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
                 <h3>Role mapping</h3>
                 <ul>
-                  <li><strong>Admin</strong> / <strong>Admins</strong> group → <strong>Super Admin</strong></li>
-                  <li><strong>Users</strong> / <strong>Friends</strong> group → <strong>User</strong></li>
+                  <li>Configure in <strong>Settings → OAuth / SSO → Group → Role Mapping</strong>.</li>
+                  <li>Groups in <strong>Admin Groups</strong> → <strong>Admin</strong> role.</li>
+                  <li>Groups in <strong>User Groups</strong> (or no match) → <strong>User</strong> role.</li>
+                  <li>SSO never grants <strong>Super Admin</strong> — that tier is managed locally.</li>
                   <li>Group matching is case-insensitive.</li>
                 </ul>
               </article>

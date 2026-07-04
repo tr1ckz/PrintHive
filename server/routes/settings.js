@@ -870,7 +870,11 @@ router.get('/api/settings/oauth', requireAdmin, async (req, res) => {
       oidcIssuer: '',
       oidcClientId: '',
       oidcClientSecret: '',
-      oidcEndSessionUrl: ''
+      oidcEndSessionUrl: '',
+      groupsClaim: '',
+      adminGroups: '',
+      userGroups: '',
+      defaultRole: 'user'
     };
     
     settings.forEach(row => {
@@ -914,22 +918,33 @@ router.post('/api/settings/save-oauth', requireAdmin, async (req, res) => {
     oidcIssuer,
     oidcClientId,
     oidcClientSecret,
-    oidcEndSessionUrl
+    oidcEndSessionUrl,
+    groupsClaim,
+    adminGroups,
+    userGroups,
+    defaultRole
   } = req.body;
-  
+
   try {
     const upsert = db.prepare(`
-      INSERT INTO config (key, value, updated_at) 
+      INSERT INTO config (key, value, updated_at)
       VALUES (?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP
     `);
-    
+
     (await upsert.run('oauth_provider', provider, provider));
     (await upsert.run('oauth_publicHostname', publicHostname, publicHostname));
     (await upsert.run('oauth_googleClientId', googleClientId, googleClientId));
     (await upsert.run('oauth_oidcIssuer', oidcIssuer, oidcIssuer));
     (await upsert.run('oauth_oidcClientId', oidcClientId, oidcClientId));
     (await upsert.run('oauth_oidcEndSessionUrl', oidcEndSessionUrl || '', oidcEndSessionUrl || ''));
+
+    // OIDC group -> role mapping (only ever grants admin/user, never superadmin)
+    const safeDefaultRole = defaultRole === 'admin' ? 'admin' : 'user';
+    (await upsert.run('oauth_groupsClaim', groupsClaim || '', groupsClaim || ''));
+    (await upsert.run('oauth_adminGroups', adminGroups || '', adminGroups || ''));
+    (await upsert.run('oauth_userGroups', userGroups || '', userGroups || ''));
+    (await upsert.run('oauth_defaultRole', safeDefaultRole, safeDefaultRole));
 
     // The GET endpoint masks stored secrets; a masked or empty value coming
     // back means "keep the existing secret".

@@ -14,6 +14,10 @@ export function OAuthSettings() {
   const [oidcClientId, setOidcClientId] = useState('');
   const [oidcClientSecret, setOidcClientSecret] = useState('');
   const [oidcEndSessionUrl, setOidcEndSessionUrl] = useState('');
+  const [groupsClaim, setGroupsClaim] = useState('');
+  const [adminGroups, setAdminGroups] = useState('');
+  const [userGroups, setUserGroups] = useState('');
+  const [defaultRole, setDefaultRole] = useState('user');
   const [oauthLoading, setOauthLoading] = useState(false);
 
   useEffect(() => {
@@ -32,6 +36,10 @@ export function OAuthSettings() {
       setOidcClientId(data.oidcClientId || '');
       setOidcClientSecret(data.oidcClientSecret || '');
       setOidcEndSessionUrl(data.oidcEndSessionUrl || '');
+      setGroupsClaim(data.groupsClaim || '');
+      setAdminGroups(data.adminGroups || '');
+      setUserGroups(data.userGroups || '');
+      setDefaultRole(data.defaultRole || 'user');
     } catch (error) {
       console.error('Failed to load OAuth settings:', error);
     }
@@ -53,7 +61,11 @@ export function OAuthSettings() {
           oidcIssuer,
           oidcClientId,
           oidcClientSecret,
-          oidcEndSessionUrl
+          oidcEndSessionUrl,
+          groupsClaim,
+          adminGroups,
+          userGroups,
+          defaultRole
         }),
         credentials: 'include'
       });
@@ -200,7 +212,73 @@ export function OAuthSettings() {
                 Custom logout URL. Leave empty to auto-discover from OIDC provider.
               </small>
             </div>
-            
+
+            <div className="mb-2 mt-6 border-t border-border pt-4">
+              <h4 className="text-sm font-semibold text-fg">Group → Role Mapping</h4>
+              <p className="mt-1 text-xs text-muted">
+                Map your identity provider's groups to PrintHive roles. SSO only ever grants
+                <strong> Admin</strong> or <strong>User</strong> — the protected <strong>Super Admin</strong> tier
+                is managed locally and is never assigned or revoked via SSO.
+              </p>
+            </div>
+
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
+              <label>Groups Claim <span className="font-normal text-muted">- Optional</span></label>
+              <input
+                type="text"
+                value={groupsClaim}
+                onChange={(e) => setGroupsClaim(e.target.value)}
+                placeholder="groups"
+                disabled={oauthLoading}
+              />
+              <small className="mt-1.5 block text-xs text-muted">
+                Name of the token claim that holds the user's groups. Defaults to <code className="rounded bg-black/30 px-1 py-0.5">groups</code>.
+              </small>
+            </div>
+
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
+              <label>Admin Groups</label>
+              <input
+                type="text"
+                value={adminGroups}
+                onChange={(e) => setAdminGroups(e.target.value)}
+                placeholder="PrintHive Admins, Infra"
+                disabled={oauthLoading}
+              />
+              <small className="mt-1.5 block text-xs text-muted">
+                Comma-separated group names whose members get the <strong>Admin</strong> role (case-insensitive).
+              </small>
+            </div>
+
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
+              <label>User Groups <span className="font-normal text-muted">- Optional</span></label>
+              <input
+                type="text"
+                value={userGroups}
+                onChange={(e) => setUserGroups(e.target.value)}
+                placeholder="PrintHive Users"
+                disabled={oauthLoading}
+              />
+              <small className="mt-1.5 block text-xs text-muted">
+                Comma-separated group names that get the <strong>User</strong> role. Leave empty to grant the default role below to anyone not in an admin group.
+              </small>
+            </div>
+
+            <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
+              <label>Default Role (no matching group)</label>
+              <select
+                value={defaultRole}
+                onChange={(e) => setDefaultRole(e.target.value)}
+                disabled={oauthLoading}
+              >
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+              <small className="mt-1.5 block text-xs text-muted">
+                Role assigned when a user is in none of the groups above. <strong>User</strong> is recommended.
+              </small>
+            </div>
+
             <div className="mt-4 rounded-lg bg-accent/10 p-4 text-sm text-fg-soft">
               <strong>Setup Instructions (Authentik):</strong>
               <ol className="mt-2 list-decimal space-y-1 pl-6">

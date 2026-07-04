@@ -928,14 +928,18 @@ exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/no
 exports[`API contract snapshots (authenticated, empty DB) > GET /api/settings/oauth 1`] = `
 {
   "body": {
+    "adminGroups": "",
+    "defaultRole": "user",
     "googleClientId": "",
     "googleClientSecret": "",
+    "groupsClaim": "",
     "oidcClientId": "",
     "oidcClientSecret": "",
     "oidcEndSessionUrl": "",
     "oidcIssuer": "",
     "provider": "none",
     "publicHostname": "",
+    "userGroups": "",
   },
   "status": 200,
 }

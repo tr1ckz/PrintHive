@@ -162,7 +162,6 @@ See [README-ENV.md](README-ENV.md) for detailed environment variable documentati
 - `OAUTH_ISSUER`: OIDC provider URL
 - `OAUTH_CLIENT_ID`: OAuth client ID
 - `OAUTH_CLIENT_SECRET`: OAuth client secret
-- `OAUTH_GROUPS_CLAIM`: Claim name for groups (default: 'groups')
 - `LOCALAUTH`: Set to 'true' to enable /admin local login route (default: false)
 - `DISCORD_WEBHOOK_URL`: Discord webhook for notifications
 
@@ -208,26 +207,25 @@ environment:
 ```
 
 #### OIDC/SSO Authentication (Authentik, Keycloak, etc.)
-PrintHive supports automatic role mapping from OIDC provider groups:
+PrintHive maps OIDC provider groups to roles using a mapping you configure in
+**Settings → OAuth / SSO → Group → Role Mapping** (no environment variables required):
 
 **Group-Based Role Assignment:**
-- Users in **Admin** or **Admins** group → Assigned **Super Admin** role
-- Users in **Users** or **Friends** group → Assigned **User** role
-- Groups are case-insensitive
+- **Groups Claim** *(optional)*: name of the token claim holding the user's groups (default `groups`). Set it to `roles`, etc. if your IdP uses a different claim.
+- **Admin Groups**: comma-separated group names whose members receive the **Admin** role.
+- **User Groups** *(optional)*: comma-separated group names that receive the **User** role.
+- **Default Role**: role assigned when the user is in none of the groups above (`user` recommended).
+- Matching is case-insensitive.
 
-Configure your OIDC provider to include groups in the ID token:
-```yaml
-environment:
-  - OAUTH_ISSUER=https://auth.yourdomain.com/application/o/printhive/
-  - OAUTH_CLIENT_ID=your-client-id
-  - OAUTH_CLIENT_SECRET=your-client-secret
-  - OAUTH_GROUPS_CLAIM=groups  # Default claim name
-```
+**Important:** SSO only ever grants **Admin** or **User**. The **Super Admin** tier is
+a locally-managed bootstrap role — it is never assigned or revoked through SSO, so an
+existing super admin keeps their role even if their IdP groups change. Configure your OIDC
+provider to include the groups claim in the ID token, then set the mapping in the UI.
 
 **User Roles:**
-- **Super Admin**: Full access, can promote other users to super admin, manage all settings
-- **Admin**: Can manage users, settings, and perform administrative tasks
-- **User**: Can view and use printers, manage their own prints and library
+- **Super Admin**: Full access plus the ability to promote/demote other admins and super admins; delete-protected. Assigned locally, never via SSO. The default local `admin` account is a super admin.
+- **Admin**: Full administrative access — manage settings, backups, printers, and non-superadmin users. Can be granted via SSO group mapping.
+- **User**: Can view and use printers, manage their own prints and library. Default role for SSO users with no matching group.
 
 #### Multiple Bambu Lab Accounts
 Users can connect multiple Bambu Lab accounts to manage all their printers in one place:

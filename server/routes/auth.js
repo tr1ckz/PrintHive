@@ -9,6 +9,39 @@ const { getOidcConfig } = require('../services/oidcProvider');
 
 const router = express.Router();
 
+// Split a stored group list ("Admins, PrintHive Admins" or newline-separated)
+// into a normalized, lowercased array for case-insensitive matching.
+function parseGroupList(value) {
+  return String(value || '')
+    .split(/[\n,]/)
+    .map((g) => g.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+// Resolve an OIDC user's PrintHive role from their IdP groups using the
+// admin-configured mapping. OIDC only ever grants 'admin' or 'user' — the
+// 'superadmin' tier is a manually-assigned local bootstrap role and is never
+// derived from (or revoked by) SSO.
+async function resolveOidcRole(claims) {
+  const rows = (await db.prepare('SELECT key, value FROM config WHERE key LIKE ?').all('oauth_%'));
+  const cfg = {};
+  rows.forEach((row) => { cfg[row.key.replace('oauth_', '')] = row.value || ''; });
+
+  const groupsClaim = (cfg.groupsClaim || 'groups').trim() || 'groups';
+  const adminGroups = parseGroupList(cfg.adminGroups);
+  const userGroups = parseGroupList(cfg.userGroups);
+  const defaultRole = cfg.defaultRole === 'admin' ? 'admin' : 'user';
+
+  const raw = claims[groupsClaim];
+  const groups = (Array.isArray(raw) ? raw : (raw != null ? [raw] : []))
+    .map((g) => String(g).toLowerCase());
+  console.log(`OIDC groups (claim "${groupsClaim}"):`, groups);
+
+  if (adminGroups.length && groups.some((g) => adminGroups.includes(g))) return 'admin';
+  if (userGroups.length && groups.some((g) => userGroups.includes(g))) return 'user';
+  return defaultRole;
+}
+
 // OAuth routes (MUST be registered before static middleware to catch callbacks)
 router.get('/auth/oidc', async (req, res) => {
   console.log('=== OIDC AUTH START ===');
@@ -119,21 +152,9 @@ router.get('/auth/oidc/callback', async (req, res) => {
       }
     }
 
-    // Determine role based on Authentik groups
-    let role = 'user';
-    if (claims.groups) {
-      const groups = Array.isArray(claims.groups) ? claims.groups : [claims.groups];
-      console.log('User groups from Authentik:', groups);
-
-      // Check for admin groups (case-insensitive) - only Admin/Admins get superadmin
-      if (groups.some(g => g.toLowerCase().includes('admin'))) {
-        role = 'superadmin';
-        console.log('User is in Admin group - assigning superadmin role');
-      } else {
-        role = 'user';
-        console.log('User is not in Admin group - assigning user role');
-      }
-    }
+    // Determine role from the configured OIDC group mapping (admin | user).
+    const role = await resolveOidcRole(claims);
+    console.log('Resolved role from OIDC groups:', role);
 
     if (!user) {
       // Create new user with role based on groups
@@ -152,8 +173,9 @@ router.get('/auth/oidc/callback', async (req, res) => {
       user = (await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid));
       console.log('New user created with ID:', user.id);
     } else {
-      // Update existing user role based on current groups
-      if (user.role !== 'superadmin' || role === 'superadmin') {
+      // Re-sync role from groups on each login, but never touch a superadmin —
+      // that tier is managed locally and must not be revoked by SSO.
+      if (user.role !== 'superadmin' && user.role !== role) {
         console.log('Updating user role from', user.role, 'to', role, 'based on groups');
         (await db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, user.id));
         user.role = role;
@@ -409,3 +431,6 @@ router.get('/api/user/me', async (req, res) => {
 });
 
 module.exports = router;
+// Exported for unit testing of the OIDC group -> role mapping.
+module.exports.resolveOidcRole = resolveOidcRole;
+module.exports.parseGroupList = parseGroupList;
