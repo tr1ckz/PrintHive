@@ -1991,6 +1991,7 @@ async function discoverPrinterIp(printer, { explicitCidrs = [], cloudDevices: cl
   const reachable = tcpResults.filter((entry) => entry?.open).map((entry) => entry.ip);
   let discoveredIp = null;
   let matchedSerial = null;
+  let matchedAccessCode = null;
 
   for (const ip of reachable) {
     for (const accessCodeCandidate of accessCodeCandidates) {
@@ -1999,6 +2000,10 @@ async function discoverPrinterIp(printer, { explicitCidrs = [], cloudDevices: cl
         if (verify.ok) {
           discoveredIp = ip;
           matchedSerial = serialCandidate;
+          // Remember the code that actually authenticated — persisting the
+          // first candidate instead would write a stale code back over the
+          // (possibly cloud-sourced) one that really worked.
+          matchedAccessCode = accessCodeCandidate;
           break;
         }
       }
@@ -2042,7 +2047,7 @@ async function discoverPrinterIp(printer, { explicitCidrs = [], cloudDevices: cl
         serial_number = COALESCE(NULLIF(serial_number, ''), ?),
         updated_at = CURRENT_TIMESTAMP
     WHERE dev_id = ?
-  `).run(discoveredIp, accessCodeCandidates[0], matchedSerial || serialCandidates[0], printer.dev_id));
+  `).run(discoveredIp, matchedAccessCode || accessCodeCandidates[0], matchedSerial || serialCandidates[0], printer.dev_id));
 
   logger.info(`[Discovery] Updated printer ${printer.dev_id} with discovered IP ${discoveredIp}`);
 
