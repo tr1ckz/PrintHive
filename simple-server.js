@@ -8021,6 +8021,14 @@ httpServer = app.listen(PORT, async () => {
     console.error('Bambu account cleanup failed:', err.message);
   }
 
+  // Repair inventory rows stored with a code-shaped colour name (e.g. "A01-R1")
+  // by resolving the real name from the canonical hex catalog.
+  try {
+    await require('./server/services/filamentInventory').backfillColorNames();
+  } catch (err) {
+    console.error('Filament colour-name backfill failed:', err.message);
+  }
+
   // Clean up old camera temp files on startup
   try {
     const tempDir = path.join(dataDir, 'temp');

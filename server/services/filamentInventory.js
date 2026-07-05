@@ -7,7 +7,10 @@
 
 const { db } = require('../../database');
 const logger = require('../../logger');
-const { lookupBambuColorName } = require('../constants/bambuFilamentColors');
+const {
+  isPlaceholderColorName,
+  lookupBambuColorByHex,
+} = require('../constants/bambuFilamentColors');
 
 // ---------------------------------------------------------------------------
 // Pure helpers (no DB) — exported for unit testing.
@@ -75,12 +78,21 @@ function buildSpoolFromTray(devId, tray) {
   const remain_percent = remainRaw != null ? toInt(remainRaw) : null;
   const remaining_g = remainRaw != null ? Math.round((remainRaw / 100) * capacity_g) : null;
 
+  // The printer's own name wins, but only when it's a real name — many reads
+  // report a variant/material code ("A01-R1", "GFA01") in this field, which we
+  // treat as no-name and resolve from the canonical hex instead.
+  const color_hex = normalizeHex(tray.color);
+  const reportedName = tray.tray_id_name ? String(tray.tray_id_name).trim() : null;
+  const color_name = (reportedName && !isPlaceholderColorName(reportedName))
+    ? reportedName
+    : lookupBambuColorByHex(color_hex);
+
   return {
     tray_uuid,
     brand,
     material,
-    color_name: tray.tray_id_name ? String(tray.tray_id_name).trim() : null,
-    color_hex: normalizeHex(tray.color),
+    color_name: color_name || null,
+    color_hex,
     filament_code: tray.tray_info_idx ? String(tray.tray_info_idx).trim() : null,
     remain_percent,
     capacity_g,
@@ -246,23 +258,25 @@ function liveRemainingGrams(spool, ctx, isActive) {
 // telemetry update — it no-ops trays without an RFID identity and skips writes
 // when nothing changed. Returns the number of rows actually written so callers
 // can push a live update only when something changed.
-// When a tray reports a filament code but no friendly name, resolve one without
-// ever inventing it: first from any name this (or another) Bambu printer has
-// already reported for the same code, then from the static seed. Returns null if
-// we genuinely have nothing — the UI then shows just the hex, as before.
-async function resolveColorName(filamentCode) {
-  if (!filamentCode) return null;
+// Last-resort name fill: reuse a real name any printer has previously reported
+// for the same colour hex. Never invents a name; returns null if we have none,
+// so the UI just shows the hex. The static catalog is applied earlier in
+// buildSpoolFromTray, so this only helps for colours not in that table.
+async function resolveColorName(colorHex) {
+  if (!colorHex) return null;
   try {
     const learned = (await db.prepare(`
       SELECT color_name FROM filament_inventory
-      WHERE filament_code = ? AND color_name IS NOT NULL AND TRIM(color_name) != ''
+      WHERE UPPER(color_hex) = UPPER(?) AND color_name IS NOT NULL AND TRIM(color_name) != ''
       ORDER BY updated_at DESC LIMIT 1
-    `).get(filamentCode));
-    if (learned?.color_name) return learned.color_name;
+    `).get(colorHex));
+    if (learned?.color_name && !isPlaceholderColorName(learned.color_name)) {
+      return learned.color_name;
+    }
   } catch (error) {
     logger.debug('[Filament] color-name lookup failed:', error.message);
   }
-  return lookupBambuColorName(filamentCode);
+  return null;
 }
 
 async function syncTraysToInventory(devId, trays, ctx = null) {
@@ -271,10 +285,10 @@ async function syncTraysToInventory(devId, trays, ctx = null) {
   for (const tray of trays) {
     const spool = buildSpoolFromTray(devId, tray);
     if (!spool) continue;
-    // Fill a missing colour name from a previously-seen/seed value for this code
-    // (the printer's own name, when present, was already set in buildSpoolFromTray).
-    if (!spool.color_name && spool.filament_code) {
-      spool.color_name = await resolveColorName(spool.filament_code);
+    // Fill a still-missing colour name from a name previously learned for this
+    // hex (buildSpoolFromTray already applied the printer name + static catalog).
+    if (!spool.color_name && spool.color_hex) {
+      spool.color_name = await resolveColorName(spool.color_hex);
     }
     // Detect a roll swap in this physical slot and archive the emptied one.
     await handleSlotReplacement(devId, tray.slot, spool.tray_uuid);
@@ -298,6 +312,33 @@ async function syncTraysToInventory(devId, trays, ctx = null) {
     }
   }
   return written;
+}
+
+// One-shot repair for rows already stored with a code-shaped name (or none):
+// resolve a real name from the canonical hex catalog. Runs at startup so
+// existing inventory is fixed without waiting for the next AMS read. Only ever
+// overwrites a placeholder — a real, user-entered name is left untouched.
+async function backfillColorNames() {
+  let fixed = 0;
+  try {
+    const rows = (await db.prepare(
+      'SELECT id, color_name, color_hex FROM filament_inventory'
+    ).all());
+    for (const row of rows) {
+      if (row.color_name && !isPlaceholderColorName(row.color_name)) continue;
+      const resolved = lookupBambuColorByHex(row.color_hex) || (await resolveColorName(row.color_hex));
+      if (resolved && resolved !== row.color_name) {
+        (await db.prepare(
+          'UPDATE filament_inventory SET color_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        ).run(resolved, row.id));
+        fixed += 1;
+      }
+    }
+    if (fixed) logger.info(`[Filament] Backfilled ${fixed} colour name(s) from hex catalog`);
+  } catch (error) {
+    logger.debug('[Filament] Colour-name backfill failed:', error.message);
+  }
+  return fixed;
 }
 
 async function listInventory() {
@@ -395,6 +436,7 @@ module.exports = {
   liveRemainingGrams,
   // db
   resolveColorName,
+  backfillColorNames,
   syncTraysToInventory,
   listInventory,
   addManualSpool,

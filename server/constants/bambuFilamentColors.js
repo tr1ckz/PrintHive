@@ -1,18 +1,35 @@
-// Bambu filament code -> official colour name.
+// Bambu filament colour resolution.
 //
-// The AMS reports a filament code (`tray_info_idx`, e.g. "11700") for every
-// recognised spool, but it does not always report the friendly colour name
-// (`tray_id_name`) — third-party spools, manually-set slots, and some firmware
-// revisions send only the code + hex. This is a best-effort seed so those still
-// resolve to a real name.
+// The AMS is inconsistent about what it reports for a spool's colour name
+// (`tray_id_name`): genuine RFID reads give a friendly name ("Scarlet Red"),
+// but many reads give only a short variant code ("A01-R1", "B00-K0"), and the
+// material code (`tray_info_idx`) comes through as "GFA01" rather than a numeric
+// id. The one field that is always canonical is the colour hex — Bambu's swatch
+// colours are fixed, so #DE4343 is always Scarlet Red.
 //
-// Precedence in filamentInventory: the name the *printer* reports always wins;
-// then any name we've previously learned from this printer for the same code
-// (see resolveLearnedColorName); and only then this static seed. Unknown codes
-// fall through to just the hex, so a missing entry is never wrong — it's simply
-// no name. Add rows here as you confirm them; keys are strings.
-const BAMBU_FILAMENT_COLORS = {
-  // Verified from live P1S AMS telemetry (PLA Matte series):
+// So we resolve a name in this order (see filamentInventory):
+//   1. the printer's own name, IF it's a real name and not a code;
+//   2. this hex -> name table (Bambu catalog);
+//   3. a name previously learned from any printer for the same hex;
+//   4. nothing -> the UI shows just the hex (never a wrong name).
+
+// Canonical Bambu catalog hexes. Cross-verified against live AMS telemetry.
+const BAMBU_COLORS_BY_HEX = {
+  '#FFFFFF': 'Ivory White',
+  '#9B9EA0': 'Ash Grey',
+  '#000000': 'Charcoal',
+  '#E8AFCF': 'Sakura Pink',
+  '#AE96D4': 'Lilac Purple',
+  '#DE4343': 'Scarlet Red',
+  '#F99963': 'Mandarin Orange',
+  '#F7D959': 'Lemon Yellow',
+  '#61C680': 'Grass Green',
+  '#042F56': 'Dark Blue',
+};
+
+// Legacy numeric filament codes some firmware reports as tray_info_idx. Kept as
+// a secondary key; the hex table above is the primary source.
+const BAMBU_COLORS_BY_CODE = {
   '11100': 'Ivory White',
   '11101': 'Charcoal',
   '11200': 'Scarlet Red',
@@ -22,10 +39,29 @@ const BAMBU_FILAMENT_COLORS = {
   '11700': 'Lilac Purple',
 };
 
-function lookupBambuColorName(code) {
-  if (code == null) return null;
-  const key = String(code).trim();
-  return BAMBU_FILAMENT_COLORS[key] || null;
+// A "colour name" that is actually a machine code, e.g. "A01-R1", "B00-K0", or
+// one that echoes the filament/material code ("GFA01"). These aren't real names.
+function isPlaceholderColorName(name) {
+  if (!name) return true;
+  const s = String(name).trim();
+  if (!s) return true;
+  return /^[A-Z]{1,2}\d{2}-[A-Z0-9]+$/i.test(s) || /^GF[A-Z]\d{2}$/i.test(s);
 }
 
-module.exports = { BAMBU_FILAMENT_COLORS, lookupBambuColorName };
+function lookupBambuColorByHex(hex) {
+  if (!hex) return null;
+  return BAMBU_COLORS_BY_HEX[String(hex).trim().toUpperCase()] || null;
+}
+
+function lookupBambuColorName(code) {
+  if (code == null) return null;
+  return BAMBU_COLORS_BY_CODE[String(code).trim()] || null;
+}
+
+module.exports = {
+  BAMBU_COLORS_BY_HEX,
+  BAMBU_COLORS_BY_CODE,
+  isPlaceholderColorName,
+  lookupBambuColorByHex,
+  lookupBambuColorName,
+};
