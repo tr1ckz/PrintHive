@@ -177,6 +177,22 @@ function lookupBambuColorByHex(hex) {
   return names.size === 1 ? [...names][0] : null;
 }
 
+// Reverse lookup: the catalog hex for a (material, colour name), so a colour we
+// only know by name (e.g. from an order receipt) can be matched to inventory.
+// Scoped to the material's own product so we never borrow a same-named colour
+// from a different product (PLA Tough "Yellow" is not PETG "Yellow").
+function hexForColorName(material, name) {
+  if (!name) return null;
+  const group = groupForMaterial(material);
+  const table = group ? COLORS_BY_PRODUCT[group] : null;
+  if (!table) return null;
+  const target = String(name).trim().toLowerCase();
+  for (const [hex, colourName] of Object.entries(table)) {
+    if (colourName.toLowerCase() === target) return hex;
+  }
+  return null;
+}
+
 // Generic fallback palette — basic human colour names for hexes that aren't in
 // the Bambu catalog (third-party spools, generic profiles). Picked by nearest
 // RGB distance so every spool gets a readable label instead of a bare hex.
@@ -232,6 +248,7 @@ module.exports = {
   brandMaterialForCode,
   lookupBambuColorName,
   lookupBambuColorByHex,
+  hexForColorName,
   nearestBasicColorName,
   describeColor,
   isPlaceholderColorName,

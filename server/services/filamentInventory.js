@@ -13,6 +13,7 @@ const {
   describeColor,
   nearestBasicColorName,
   brandMaterialForCode,
+  hexForColorName,
 } = require('../constants/bambuFilamentColors');
 
 // ---------------------------------------------------------------------------
@@ -202,6 +203,9 @@ async function upsertSpool(spool) {
     spool.tray_uuid, spool.brand, spool.material, spool.color_name, spool.color_hex,
     spool.filament_code, spool.remain_percent, spool.capacity_g, spool.remaining_g, spool.last_dev_id
   ));
+  // A genuinely new spool row means a fresh roll was just loaded — use up one
+  // matching spare if we're tracking any for this colour.
+  await consumeSpareOnLoad(spool);
   return res.lastInsertRowid;
 }
 
@@ -395,6 +399,94 @@ async function backfillColorNames() {
   return fixed;
 }
 
+// ---------------------------------------------------------------------------
+// Spare / unopened refills — a count of sealed rolls you own per colour.
+// ---------------------------------------------------------------------------
+
+// A colour identity for matching a spare to an inventory spool. Prefer the hex
+// (canonical), fall back to the colour name; always scoped by brand + material.
+function spareMatchKey({ brand, material, color_hex, color_name }) {
+  const hex = normalizeHex(color_hex);
+  const colour = hex ? `hex:${hex}` : `name:${String(color_name || '').trim().toLowerCase()}`;
+  return `${String(brand || '').trim().toLowerCase()}|${String(material || '').trim().toLowerCase()}|${colour}`;
+}
+
+async function findSpareRow(identity) {
+  const key = spareMatchKey(identity);
+  const rows = (await db.prepare('SELECT * FROM filament_spares').all());
+  return rows.find((r) => spareMatchKey(r) === key) || null;
+}
+
+// Add sealed refills for a colour (from a parsed receipt or by hand). Each item:
+// { brand, material, colorName, color_hex?, code?, unitWeightG?, quantity, isRefill? }
+async function addSpares(items) {
+  if (!Array.isArray(items)) return 0;
+  let added = 0;
+  for (const item of items) {
+    const qty = Math.max(0, toInt(item.quantity ?? 1) || 0);
+    if (qty <= 0) continue;
+    const brand = (item.brand || 'Bambu Lab').trim();
+    const material = (item.material || 'Filament').trim();
+    const color_name = item.colorName || item.color_name || null;
+    const color_hex = normalizeHex(item.color_hex) || hexForColorName(material, color_name);
+    const filament_code = item.code || item.filament_code || null;
+    const unit_weight_g = toInt(item.unitWeightG ?? item.unit_weight_g) ?? 1000;
+    const is_refill = item.isRefill === false ? 0 : 1;
+
+    const existing = await findSpareRow({ brand, material, color_hex, color_name });
+    if (existing) {
+      (await db.prepare(
+        'UPDATE filament_spares SET spare_count = spare_count + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(qty, existing.id));
+    } else {
+      (await db.prepare(`
+        INSERT INTO filament_spares
+          (brand, material, color_name, color_hex, filament_code, spare_count, unit_weight_g, is_refill)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(brand, material, color_name, color_hex, filament_code, qty, unit_weight_g, is_refill));
+    }
+    added += qty;
+  }
+  return added;
+}
+
+async function listSpares() {
+  return (await db.prepare(
+    'SELECT * FROM filament_spares WHERE spare_count > 0 ORDER BY brand, material, color_name'
+  ).all());
+}
+
+// Adjust a spare row by a delta (e.g. +1 ordered, -1 loaded). Clamps at 0.
+async function adjustSpare(id, delta) {
+  const row = (await db.prepare('SELECT * FROM filament_spares WHERE id = ?').get(id));
+  if (!row) return false;
+  const next = Math.max(0, (Number(row.spare_count) || 0) + (Number(delta) || 0));
+  (await db.prepare(
+    'UPDATE filament_spares SET spare_count = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  ).run(next, id));
+  return true;
+}
+
+async function deleteSpare(id) {
+  const res = (await db.prepare('DELETE FROM filament_spares WHERE id = ?').run(id));
+  return res.changes > 0;
+}
+
+// When a genuinely new spool is loaded into the AMS, use up one matching spare.
+async function consumeSpareOnLoad(spool) {
+  try {
+    const match = await findSpareRow(spool);
+    if (match && match.spare_count > 0) {
+      (await db.prepare(
+        'UPDATE filament_spares SET spare_count = spare_count - 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(match.id));
+      logger.info(`[Filament] Used one spare of ${spool.brand} ${spool.material} ${spool.color_name || ''} (loaded)`);
+    }
+  } catch (error) {
+    logger.debug('[Filament] Spare consume-on-load failed:', error.message);
+  }
+}
+
 async function listInventory() {
   const rows = (await db.prepare(
     'SELECT * FROM filament_inventory WHERE is_archived = 0 ORDER BY brand, material, color_name'
@@ -404,10 +496,26 @@ async function listInventory() {
   const archived = (await db.prepare(
     'SELECT * FROM filament_inventory WHERE is_archived = 1 ORDER BY updated_at DESC'
   ).all());
+  const spares = await listSpares();
   const groups = groupInventory(rows);
+  // Tag each group with its total spare count so the UI can badge it, keyed by
+  // the same "Brand Material" label groupInventory produces.
+  const sparesByLabel = new Map();
+  for (const s of spares) {
+    const label = `${s.brand || 'Generic'} ${s.material || 'Filament'}`.trim();
+    sparesByLabel.set(label, (sparesByLabel.get(label) || 0) + (Number(s.spare_count) || 0));
+  }
+  for (const g of groups) g.spareCount = sparesByLabel.get(g.label) || 0;
+
   const totalSpools = rows.length;
   const totalRemainingG = rows.reduce((sum, r) => sum + (Number(r.remaining_g) || 0), 0);
-  return { groups, archived, totals: { spools: totalSpools, remainingG: totalRemainingG } };
+  const totalSpares = spares.reduce((sum, s) => sum + (Number(s.spare_count) || 0), 0);
+  return {
+    groups,
+    archived,
+    spares,
+    totals: { spools: totalSpools, remainingG: totalRemainingG, spares: totalSpares },
+  };
 }
 
 async function addManualSpool(data = {}) {
@@ -496,4 +604,9 @@ module.exports = {
   addManualSpool,
   updateSpool,
   deleteSpool,
+  // spares
+  addSpares,
+  listSpares,
+  adjustSpare,
+  deleteSpare,
 };

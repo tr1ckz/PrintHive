@@ -571,6 +571,24 @@ const SCHEMA_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_filament_inventory_uuid
     ON filament_inventory(tray_uuid)
     WHERE tray_uuid IS NOT NULL AND tray_uuid != '';
+
+  -- Spare/unopened refills you own for a colour but haven't loaded yet. One row
+  -- per colour identity; spare_count is how many sealed rolls you have. Ordering
+  -- increments it (e.g. from a parsed Bambu receipt); loading a fresh roll into
+  -- the AMS decrements it.
+  CREATE TABLE IF NOT EXISTS filament_spares (
+    id SERIAL PRIMARY KEY,
+    brand TEXT,
+    material TEXT,
+    color_name TEXT,
+    color_hex TEXT,
+    filament_code TEXT,
+    spare_count INTEGER DEFAULT 0,
+    unit_weight_g INTEGER DEFAULT 1000,
+    is_refill INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
 `;
 
 // Tables copied during a SQLite -> PostgreSQL migration, in an order that keeps
@@ -593,6 +611,7 @@ const MIGRATION_TABLES = [
   { name: 'maintenance_tasks', serial: true },
   { name: 'maintenance_history', serial: true },
   { name: 'filament_inventory', serial: true },
+  { name: 'filament_spares', serial: true },
 ];
 
 async function tableExists(name) {

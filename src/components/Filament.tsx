@@ -24,13 +24,39 @@ interface FilamentGroup {
   material: string;
   count: number;
   totalRemainingG: number;
+  spareCount?: number;
   spools: FilamentSpool[];
+}
+
+interface FilamentSpare {
+  id: number;
+  brand: string | null;
+  material: string | null;
+  color_name: string | null;
+  color_hex: string | null;
+  filament_code: string | null;
+  spare_count: number;
+  unit_weight_g: number | null;
+  is_refill: number;
 }
 
 interface InventoryResponse {
   groups: FilamentGroup[];
   archived?: FilamentSpool[];
-  totals: { spools: number; remainingG: number };
+  spares?: FilamentSpare[];
+  totals: { spools: number; remainingG: number; spares?: number };
+}
+
+interface ParsedLine {
+  brand: string;
+  material: string;
+  colorName: string | null;
+  code: string | null;
+  kind: 'refill' | 'spool';
+  isRefill: boolean;
+  unitWeightG: number;
+  quantity: number;
+  color_hex: string | null;
 }
 
 interface FilamentProps {
@@ -70,6 +96,7 @@ function Filament({ userRole }: FilamentProps) {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<FilamentSpool | null>(null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const load = async () => {
     try {
@@ -91,7 +118,7 @@ function Filament({ userRole }: FilamentProps) {
     const onUpdate = (e: Event) => {
       const detail = (e as CustomEvent<InventoryResponse | undefined>).detail;
       // Don't clobber the modal a user is editing mid-change.
-      if (editing || adding) return;
+      if (editing || adding || importing) return;
       if (detail && Array.isArray(detail.groups)) {
         setData(detail);
         setLoading(false);
@@ -101,7 +128,22 @@ function Filament({ userRole }: FilamentProps) {
     };
     window.addEventListener(FILAMENT_UPDATE_EVENT, onUpdate);
     return () => window.removeEventListener(FILAMENT_UPDATE_EVENT, onUpdate);
-  }, [editing, adding]);
+  }, [editing, adding, importing]);
+
+  // Adjust a spare count (+1 / -1), or delete when it hits zero via the API.
+  const adjustSpare = async (id: number, delta: number) => {
+    const res = await fetchWithRetry(API_ENDPOINTS.FILAMENT.SPARE_ITEM(id), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ delta }),
+    });
+    try {
+      const body = await res.json();
+      if (body?.inventory) setData(body.inventory);
+      else void load();
+    } catch { void load(); }
+  };
 
   const filteredGroups = useMemo(() => {
     if (!data) return [];
@@ -149,6 +191,7 @@ function Filament({ userRole }: FilamentProps) {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
           <span>{data?.totals.spools ?? 0} spools</span>
           <span>{totalKg} kg remaining</span>
+          {(data?.totals.spares ?? 0) > 0 && <span>{data?.totals.spares} spare refills</span>}
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -165,12 +208,20 @@ function Filament({ userRole }: FilamentProps) {
             Refresh
           </button>
           {isAdmin && (
-            <button
-              onClick={() => setAdding(true)}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-strong"
-            >
-              + Add Filament
-            </button>
+            <>
+              <button
+                onClick={() => setImporting(true)}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
+              >
+                Import order
+              </button>
+              <button
+                onClick={() => setAdding(true)}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-accent px-3 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-strong"
+              >
+                + Add Filament
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -190,6 +241,11 @@ function Filament({ userRole }: FilamentProps) {
               <div className="flex items-center gap-2 text-sm font-semibold text-fg">
                 <span>{group.label}</span>
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-muted">{group.count}</span>
+                {(group.spareCount ?? 0) > 0 && (
+                  <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent" title="Spare refills on hand">
+                    +{group.spareCount} spare
+                  </span>
+                )}
               </div>
               <span className="text-xs tabular-nums text-muted">{group.totalRemainingG} g</span>
             </div>
@@ -278,6 +334,36 @@ function Filament({ userRole }: FilamentProps) {
         </details>
       )}
 
+      {/* Spare / unopened refills */}
+      {(data?.spares?.length ?? 0) > 0 && (
+        <div className="rounded-lg bg-card shadow-sm">
+          <div className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-fg-soft">
+            Spare refills
+            <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">{data?.totals.spares ?? 0}</span>
+          </div>
+          <div className="divide-y divide-line/60 border-t border-line/60">
+            {(data?.spares ?? []).map((sp) => (
+              <div key={sp.id} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="size-7 shrink-0 rounded-md ring-1 ring-inset ring-white/10" style={{ background: sp.color_hex || 'var(--text-disabled)' }} />
+                <div className="min-w-0 flex-1 text-sm">
+                  <div className="truncate text-fg-soft">{sp.brand} {sp.material}</div>
+                  <div className="text-xs text-muted">{sp.color_name || sp.color_hex || 'Unknown colour'} · {Math.round((sp.unit_weight_g ?? 1000) / 1000 * 100) / 100} kg each</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span className="min-w-8 text-center text-sm font-semibold tabular-nums text-fg">{sp.spare_count}</span>
+                  {isAdmin && (
+                    <>
+                      <button onClick={() => void adjustSpare(sp.id, -1)} className="size-7 rounded bg-white/5 text-fg-soft hover:bg-white/10" title="Use / remove one">−</button>
+                      <button onClick={() => void adjustSpare(sp.id, 1)} className="size-7 rounded bg-white/5 text-fg-soft hover:bg-white/10" title="Add one">+</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {(adding || editing) && (
         <SpoolModal
           spool={editing}
@@ -285,6 +371,134 @@ function Filament({ userRole }: FilamentProps) {
           onSaved={() => { setAdding(false); setEditing(null); void load(); }}
         />
       )}
+
+      {importing && (
+        <ImportModal
+          onClose={() => setImporting(false)}
+          onImported={(inv) => { setImporting(false); if (inv) setData(inv); else void load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Import a Bambu order: paste the confirmation text or upload a screenshot, review
+// the parsed lines, then add them as spare refills.
+function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: (inv: InventoryResponse | null) => void }) {
+  const [text, setText] = useState('');
+  const [lines, setLines] = useState<ParsedLine[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [parsed, setParsed] = useState(false);
+
+  const parseText = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetchWithRetry(API_ENDPOINTS.FILAMENT.IMPORT, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ text }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || 'Parse failed');
+      setLines(body.items || []); setParsed(true);
+      if (!body.items?.length) setErr('No filament lines found in that text.');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Parse failed'); }
+    finally { setBusy(false); }
+  };
+
+  const parseImage = async (file: File) => {
+    setBusy(true); setErr(null);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await fetchWithRetry(API_ENDPOINTS.FILAMENT.IMPORT_IMAGE, {
+        method: 'POST', credentials: 'include', body: fd,
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || 'Could not read image');
+      setLines(body.items || []); setParsed(true);
+      if (body.text) setText(body.text);
+      if (!body.items?.length) setErr('No filament lines detected — try pasting the order text.');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Could not read image'); }
+    finally { setBusy(false); }
+  };
+
+  const setQty = (i: number, q: number) => {
+    setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, quantity: Math.max(0, q) } : l)));
+  };
+
+  const confirm = async () => {
+    const items = lines.filter((l) => l.quantity > 0);
+    if (!items.length) { setErr('Nothing to add.'); return; }
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetchWithRetry(API_ENDPOINTS.FILAMENT.SPARES, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ items }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || 'Failed to add');
+      onImported(body.inventory || null);
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to add'); setBusy(false); }
+  };
+
+  const totalRolls = lines.reduce((s, l) => s + (l.quantity || 0), 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-base font-semibold text-fg">Import Bambu order</h2>
+        <p className="mt-1 text-xs text-muted">Paste the order confirmation text, or upload a screenshot. Review the lines, then add them as spare refills.</p>
+
+        {!parsed ? (
+          <div className="mt-4 space-y-3">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={7}
+              placeholder={'Paste order text, e.g.\nPETG Basic x 1\nYellow(30402) / Refill / 1kg'}
+              className="w-full rounded-md bg-white/5 p-3 text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/40"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => void parseText()} disabled={busy || !text.trim()} className="min-h-9 rounded-md bg-accent px-3 text-sm font-semibold text-accent-contrast hover:bg-accent-strong disabled:opacity-50">
+                {busy ? 'Parsing…' : 'Parse text'}
+              </button>
+              <label className="min-h-9 cursor-pointer rounded-md bg-white/5 px-3 py-2 text-sm font-semibold text-fg-soft hover:bg-white/10">
+                Upload screenshot
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void parseImage(f); }} />
+              </label>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {lines.length === 0 && <div className="text-sm text-muted">No lines parsed.</div>}
+            {lines.map((l, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-md bg-white/[0.03] px-3 py-2">
+                <span className="size-6 shrink-0 rounded ring-1 ring-inset ring-white/10" style={{ background: l.color_hex || 'var(--text-disabled)' }} />
+                <div className="min-w-0 flex-1 text-sm">
+                  <div className="truncate text-fg-soft">{l.brand} {l.material}</div>
+                  <div className="text-xs text-muted">{l.colorName || l.color_hex || '—'} · {l.isRefill ? 'Refill' : 'With spool'} · {Math.round(l.unitWeightG / 1000 * 100) / 100} kg</div>
+                </div>
+                <input type="number" min={0} value={l.quantity} onChange={(e) => setQty(i, parseInt(e.target.value, 10) || 0)} className="w-16 rounded bg-white/5 px-2 py-1 text-right text-sm text-fg focus:outline-none focus:ring-1 focus:ring-accent/40" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {err && <div className="mt-3 rounded-md bg-danger/10 p-2 text-xs text-danger">{err}</div>}
+
+        <div className="mt-5 flex items-center justify-between gap-2">
+          <button onClick={onClose} className="min-h-9 rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft hover:bg-white/10">Cancel</button>
+          <div className="flex items-center gap-2">
+            {parsed && <button onClick={() => { setParsed(false); setLines([]); setErr(null); }} className="min-h-9 rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft hover:bg-white/10">Back</button>}
+            {parsed && (
+              <button onClick={() => void confirm()} disabled={busy || totalRolls === 0} className="min-h-9 rounded-md bg-accent px-3 text-sm font-semibold text-accent-contrast hover:bg-accent-strong disabled:opacity-50">
+                {busy ? 'Adding…' : `Add ${totalRolls} refill${totalRolls === 1 ? '' : 's'}`}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -55,7 +55,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ffmpeg \
     ca-certificates \
-    postgresql-client && \
+    postgresql-client \
+    tesseract-ocr \
+    tesseract-ocr-eng && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app /app
