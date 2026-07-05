@@ -47,9 +47,18 @@ describe('deriveBrandMaterial', () => {
 });
 
 describe('buildSpoolFromTray', () => {
-  it('returns null for a tray with no RFID identity (not auto-trackable)', () => {
-    expect(buildSpoolFromTray('dev1', { color: 'ff0000', type: 'PLA', remain: 50 })).toBeNull();
-    expect(buildSpoolFromTray('dev1', { tray_uuid: '0'.repeat(32), remain: 50 })).toBeNull();
+  it('returns null for an empty/unconfigured slot (no tag, no material)', () => {
+    expect(buildSpoolFromTray('dev1', { slot: 0, tray_uuid: '0'.repeat(32), remain: 50 })).toBeNull();
+    expect(buildSpoolFromTray('dev1', { color: 'ff0000', type: 'PLA', remain: 50 })).toBeNull(); // no slot
+  });
+
+  it('surfaces a tag-less loaded spool via a stable per-slot identity', () => {
+    const spool = buildSpoolFromTray('dev1', { slot: 2, color: 'FF0000FF', type: 'PLA', sub_brands: 'Generic PLA' });
+    expect(spool).not.toBeNull();
+    expect(spool.tray_uuid).toBe('slot:dev1:2');
+    expect(spool.material).toBe('Generic PLA');
+    // same slot -> same synthetic identity (updates one row, not duplicates)
+    expect(buildSpoolFromTray('dev1', { slot: 2, type: 'PLA', color: '00FF00FF' }).tray_uuid).toBe('slot:dev1:2');
   });
 
   it('derives grams from the remaining percentage on a 1kg spool', () => {

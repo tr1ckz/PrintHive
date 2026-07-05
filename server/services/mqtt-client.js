@@ -402,6 +402,17 @@ class BambuMqttClient extends EventEmitter {
     return Math.round(Number(value) / granularity);
   }
 
+  // Compact signature of the AMS state so a spool being loaded/removed/changed
+  // (or draining a %) counts as a meaningful update even when the print state is
+  // unchanged — otherwise the filament manager never hears about an idle load.
+  amsSignature(job) {
+    const trays = job?.ams?.trays;
+    if (!Array.isArray(trays)) return '';
+    return trays
+      .map((t) => `${t.slot}:${t.tray_uuid ?? ''}:${t.type ?? ''}:${t.color ?? ''}:${t.remain ?? ''}`)
+      .join('|');
+  }
+
   hasMeaningfulUpdate(previousJobData, nextJobData) {
     if (!previousJobData) {
       return true;
@@ -431,6 +442,7 @@ class BambuMqttClient extends EventEmitter {
       (previousJobData.print_error || 0) !== (nextJobData.print_error || 0) ||
       (previousJobData.error_message || '') !== (nextJobData.error_message || '') ||
       (previousJobData.ipcam_status || '') !== (nextJobData.ipcam_status || '') ||
+      this.amsSignature(previousJobData) !== this.amsSignature(nextJobData) ||
       telemetryChanged
     );
   }

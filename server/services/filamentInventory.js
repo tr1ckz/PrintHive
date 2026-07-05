@@ -48,12 +48,22 @@ function toInt(value) {
   return Number.isFinite(n) ? Math.round(n) : null;
 }
 
-// Build an inventory spool from one AMS tray, or null if the tray is empty /
-// not a trackable (RFID) spool.
+// Build an inventory spool from one AMS tray, or null when the tray is empty.
+// Genuine Bambu spools carry an RFID tag (tray_uuid) used as identity. Spools
+// without a tag (third-party, AMS Lite) still get surfaced via a stable
+// per-(device, slot) identity as long as the slot has a configured material —
+// so a loaded spool shows up the moment MQTT reports it, tag or not.
 function buildSpoolFromTray(devId, tray) {
   if (!tray) return null;
-  const tray_uuid = normalizeTrayUuid(tray.tray_uuid);
-  if (!tray_uuid) return null; // only auto-track spools with an RFID identity
+
+  let tray_uuid = normalizeTrayUuid(tray.tray_uuid);
+  if (!tray_uuid) {
+    const hasFilament = (tray.type && String(tray.type).trim()) ||
+      (tray.sub_brands && String(tray.sub_brands).trim());
+    // Empty/unconfigured slot, or we can't form a stable key — skip it.
+    if (!hasFilament || tray.slot == null || !devId) return null;
+    tray_uuid = `slot:${devId}:${tray.slot}`;
+  }
 
   const { brand, material } = deriveBrandMaterial(tray);
   const capacity_g = 1000;
