@@ -29,6 +29,7 @@ interface FilamentGroup {
 
 interface InventoryResponse {
   groups: FilamentGroup[];
+  archived?: FilamentSpool[];
   totals: { spools: number; remainingG: number };
 }
 
@@ -123,6 +124,18 @@ function Filament({ userRole }: FilamentProps) {
     await fetchWithRetry(API_ENDPOINTS.FILAMENT.ITEM(id), { method: 'DELETE', credentials: 'include' });
     void load();
   };
+
+  const patchSpool = async (id: number, body: Record<string, unknown>) => {
+    await fetchWithRetry(API_ENDPOINTS.FILAMENT.ITEM(id), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    void load();
+  };
+
+  const archivedSpools = data?.archived ?? [];
 
   if (loading) return <div className="p-6 text-sm text-muted">Loading filament inventory…</div>;
   if (error) return <div className="rounded-md bg-danger/10 p-4 text-sm text-danger">{error}</div>;
@@ -237,6 +250,34 @@ function Filament({ userRole }: FilamentProps) {
           </div>
         ))}
       </div>
+
+      {/* Empty / replaced rolls */}
+      {archivedSpools.length > 0 && (
+        <details className="rounded-lg bg-card shadow-sm">
+          <summary className="cursor-pointer px-4 py-2.5 text-sm font-semibold text-fg-soft">
+            Empty / replaced rolls
+            <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-muted">{archivedSpools.length}</span>
+          </summary>
+          <div className="divide-y divide-line/60 border-t border-line/60">
+            {archivedSpools.map((spool) => (
+              <div key={spool.id} className="flex items-center gap-4 px-4 py-2.5">
+                <span className="size-7 shrink-0 rounded-md opacity-60 ring-1 ring-inset ring-white/10" style={{ background: spool.color_hex || 'var(--text-disabled)' }} />
+                <div className="min-w-0 flex-1 text-sm text-muted">
+                  <span className="text-fg-soft">{spool.brand} {spool.material}</span>
+                  {spool.color_name ? ` · ${spool.color_name}` : ''} · {spool.remaining_g ?? 0} g
+                </div>
+                {isAdmin && (
+                  <div className="flex shrink-0 items-center gap-1.5 text-xs">
+                    <button onClick={() => void patchSpool(spool.id, { refill: true })} className="rounded bg-white/5 px-2 py-1 font-semibold text-fg-soft hover:bg-white/10" title="Reset to a full roll">Refill</button>
+                    <button onClick={() => void patchSpool(spool.id, { archived: false })} className="rounded bg-white/5 px-2 py-1 font-semibold text-fg-soft hover:bg-white/10">Restore</button>
+                    <button onClick={() => void remove(spool.id)} className="rounded px-2 py-1 text-muted hover:bg-danger/10 hover:text-danger">Delete</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       {(adding || editing) && (
         <SpoolModal

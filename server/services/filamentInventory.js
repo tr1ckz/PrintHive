@@ -104,11 +104,18 @@ function groupInventory(rows) {
 // ---------------------------------------------------------------------------
 
 // In-memory guard so a burst of identical AMS telemetry doesn't hammer the DB;
-// we only write when a spool's remaining % actually changed.
-const lastSynced = new Map(); // tray_uuid -> remain_percent
+// keyed by tray_uuid -> a change signature.
+const lastSynced = new Map();
+// Tracks which RFID tag was last seen in each (device, slot) so we can detect a
+// roll being swapped out and, if it was empty, archive it. Rebuilt on restart.
+const slotUuid = new Map(); // `${devId}:${slot}` -> tray_uuid
+
+// A roll at/under this remaining is considered "used up" for auto-archiving on
+// replacement (AMS often stops reading a few % above zero once removed).
+const EMPTY_PERCENT = 5;
 
 async function upsertSpool(spool) {
-  const existing = (await db.prepare('SELECT id, source FROM filament_inventory WHERE tray_uuid = ?').get(spool.tray_uuid));
+  const existing = (await db.prepare('SELECT id FROM filament_inventory WHERE tray_uuid = ?').get(spool.tray_uuid));
   if (existing) {
     (await db.prepare(`
       UPDATE filament_inventory
@@ -122,6 +129,36 @@ async function upsertSpool(spool) {
     ));
     return existing.id;
   }
+
+  // Adoption: if exactly one hand-added roll (no tag) matches this spool's
+  // brand + material + colour, attach the tag to it instead of creating a
+  // duplicate — so a roll you pre-entered at "100g" becomes the tracked one the
+  // moment the AMS reads it. Ambiguous cases (0 or >1 matches, e.g. you keep two
+  // of the same) fall through to a fresh row so nothing is mis-merged.
+  const candidates = (await db.prepare(`
+    SELECT id FROM filament_inventory
+    WHERE (tray_uuid IS NULL OR tray_uuid = '') AND is_archived = 0
+      AND LOWER(COALESCE(brand,'')) = LOWER(?)
+      AND LOWER(COALESCE(material,'')) = LOWER(?)
+      AND UPPER(COALESCE(color_hex,'')) = UPPER(COALESCE(?, ''))
+  `).all(spool.brand, spool.material, spool.color_hex));
+
+  if (candidates.length === 1) {
+    (await db.prepare(`
+      UPDATE filament_inventory
+      SET tray_uuid = ?, filament_code = COALESCE(?, filament_code),
+          color_name = COALESCE(?, color_name),
+          remain_percent = COALESCE(?, remain_percent),
+          remaining_g = COALESCE(?, remaining_g),
+          source = 'ams', last_dev_id = ?, is_archived = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      spool.tray_uuid, spool.filament_code, spool.color_name,
+      spool.remain_percent, spool.remaining_g, spool.last_dev_id, candidates[0].id
+    ));
+    return candidates[0].id;
+  }
+
   const res = (await db.prepare(`
     INSERT INTO filament_inventory
       (tray_uuid, brand, material, color_name, color_hex, filament_code,
@@ -132,6 +169,27 @@ async function upsertSpool(spool) {
     spool.filament_code, spool.remain_percent, spool.capacity_g, spool.remaining_g, spool.last_dev_id
   ));
   return res.lastInsertRowid;
+}
+
+// When a slot's tag changes, the previous roll was removed. If it was basically
+// empty, archive it (the "ran to 0, put a fresh roll in" case). If it still had
+// filament, leave it in inventory — it's a partial you pulled out, still owned.
+async function handleSlotReplacement(devId, slot, newUuid) {
+  if (slot == null) return;
+  const key = `${devId || ''}:${slot}`;
+  const prevUuid = slotUuid.get(key);
+  slotUuid.set(key, newUuid);
+  if (!prevUuid || prevUuid === newUuid) return;
+  try {
+    (await db.prepare(`
+      UPDATE filament_inventory
+      SET is_archived = 1, updated_at = CURRENT_TIMESTAMP
+      WHERE tray_uuid = ? AND is_archived = 0
+        AND (remain_percent IS NULL OR remain_percent <= ?)
+    `).run(prevUuid, EMPTY_PERCENT));
+  } catch (error) {
+    logger.debug('[Filament] Slot-replacement archive failed:', error.message);
+  }
 }
 
 // A compact signature of the fields we care about, so we write (and notify)
@@ -151,6 +209,8 @@ async function syncTraysToInventory(devId, trays) {
   for (const tray of trays) {
     const spool = buildSpoolFromTray(devId, tray);
     if (!spool) continue;
+    // Detect a roll swap in this physical slot and archive the emptied one.
+    await handleSlotReplacement(devId, tray.slot, spool.tray_uuid);
     const sig = spoolSignature(spool);
     if (lastSynced.get(spool.tray_uuid) === sig) continue; // unchanged
     try {
@@ -168,10 +228,15 @@ async function listInventory() {
   const rows = (await db.prepare(
     'SELECT * FROM filament_inventory WHERE is_archived = 0 ORDER BY brand, material, color_name'
   ).all());
+  // Empty/replaced rolls kept for history — shown separately so the active list
+  // stays clean but nothing is silently lost.
+  const archived = (await db.prepare(
+    'SELECT * FROM filament_inventory WHERE is_archived = 1 ORDER BY updated_at DESC'
+  ).all());
   const groups = groupInventory(rows);
   const totalSpools = rows.length;
   const totalRemainingG = rows.reduce((sum, r) => sum + (Number(r.remaining_g) || 0), 0);
-  return { groups, totals: { spools: totalSpools, remainingG: totalRemainingG } };
+  return { groups, archived, totals: { spools: totalSpools, remainingG: totalRemainingG } };
 }
 
 async function addManualSpool(data = {}) {
@@ -209,8 +274,15 @@ async function updateSpool(id, patch = {}) {
   if (patch.remaining_g !== undefined) {
     next.remaining_g = Math.max(0, toInt(patch.remaining_g) ?? 0);
   }
+  // "Refill" resets a roll to full capacity and brings it back into the active
+  // list (used to restore an archived/empty roll you've physically replaced).
+  if (patch.refill) {
+    next.remaining_g = Number(next.capacity_g) || 1000;
+    next.is_archived = 0;
+  }
+  if (patch.archived !== undefined) next.is_archived = patch.archived ? 1 : 0;
   // Keep remaining_g and remain_percent consistent when either weight field moves.
-  if (patch.remaining_g !== undefined || patch.capacity_g !== undefined) {
+  if (patch.remaining_g !== undefined || patch.capacity_g !== undefined || patch.refill) {
     const cap = Number(next.capacity_g) || 0;
     next.remain_percent = cap > 0 && next.remaining_g != null
       ? Math.max(0, Math.min(100, Math.round((next.remaining_g / cap) * 100)))
@@ -220,11 +292,11 @@ async function updateSpool(id, patch = {}) {
   (await db.prepare(`
     UPDATE filament_inventory
     SET brand = ?, material = ?, color_name = ?, color_hex = ?, filament_code = ?,
-        remain_percent = ?, capacity_g = ?, remaining_g = ?, updated_at = CURRENT_TIMESTAMP
+        remain_percent = ?, capacity_g = ?, remaining_g = ?, is_archived = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(
     next.brand, next.material, next.color_name, next.color_hex, next.filament_code,
-    next.remain_percent, next.capacity_g, next.remaining_g, id
+    next.remain_percent, next.capacity_g, next.remaining_g, next.is_archived ? 1 : 0, id
   ));
   return true;
 }
