@@ -5,6 +5,8 @@ const require = createRequire(import.meta.url);
 const {
   lookupBambuColorName,
   lookupBambuColorByHex,
+  nearestBasicColorName,
+  describeColor,
   brandMaterialForCode,
   isPlaceholderColorName,
 } = require('../../server/constants/bambuFilamentColors');
@@ -85,11 +87,28 @@ describe('buildSpoolFromTray', () => {
     });
     expect(spool.color_name).toBe('Lilac Purple');
   });
-  it('leaves the name null for an unknown hex (no wrong guess)', () => {
+  it('falls back to a generic colour name for a non-catalog hex', () => {
     const spool = buildSpoolFromTray('dev1', {
       slot: 0, tray_uuid: 'UUID-C', type: 'PLA', tray_id_name: 'A01-Z9',
-      tray_info_idx: 'GFA01', color: '123456FF', remain: 50,
+      tray_info_idx: 'GFA01', color: '1F79E5FF', remain: 50,
     });
-    expect(spool.color_name).toBeNull();
+    // Not a Bambu catalog hex -> nearest basic name instead of a bare hex.
+    expect(spool.color_name).toBe('Blue');
+  });
+});
+
+describe('nearestBasicColorName / describeColor', () => {
+  it('names any hex by nearest basic colour', () => {
+    expect(nearestBasicColorName('#1F79E5')).toBe('Blue');
+    expect(nearestBasicColorName('#A1FFA0')).toBe('Light Green');
+    expect(nearestBasicColorName('#000000')).toBe('Black');
+  });
+  it('describeColor prefers the exact Bambu name, else generic', () => {
+    expect(describeColor('GFA01', '#DE4343')).toBe('Scarlet Red'); // exact
+    expect(describeColor('GFG96', '#1F79E5')).toBe('Blue');        // generic
+  });
+  it('returns null only when there is no hex', () => {
+    expect(nearestBasicColorName(null)).toBeNull();
+    expect(describeColor('GFA01', null)).toBeNull();
   });
 });

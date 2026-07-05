@@ -177,6 +177,45 @@ function lookupBambuColorByHex(hex) {
   return names.size === 1 ? [...names][0] : null;
 }
 
+// Generic fallback palette — basic human colour names for hexes that aren't in
+// the Bambu catalog (third-party spools, generic profiles). Picked by nearest
+// RGB distance so every spool gets a readable label instead of a bare hex.
+const BASIC_COLORS = {
+  White: '#FFFFFF', 'Off White': '#F0EEE6', Beige: '#F5F5DC', Tan: '#D2B48C',
+  'Light Gray': '#C0C0C0', Gray: '#808080', 'Dark Gray': '#404040', Black: '#000000',
+  Red: '#E01B1B', 'Dark Red': '#8B0000', Maroon: '#5B1A18', Orange: '#FF8C1A',
+  'Burnt Orange': '#CC5500', Brown: '#7B4B27', Gold: '#D4AF37', Yellow: '#F4E01F',
+  'Light Green': '#90EE90', Lime: '#8FD400', Green: '#2E9E44', 'Dark Green': '#1F5C33',
+  Teal: '#008080', Cyan: '#3FC5D8', 'Light Blue': '#9FC8E8', 'Sky Blue': '#4FA8E0',
+  Blue: '#1F5FD0', Navy: '#0C1F52', Purple: '#7A3FB0', Violet: '#9B59B6',
+  Magenta: '#D6249A', Pink: '#F1A7C4', 'Hot Pink': '#F5547C',
+};
+
+function nearestBasicColorName(hex) {
+  const H = normHex(hex);
+  if (!H) return null;
+  const r = parseInt(H.slice(1, 3), 16);
+  const g = parseInt(H.slice(3, 5), 16);
+  const b = parseInt(H.slice(5, 7), 16);
+  let best = null;
+  let bestDist = Infinity;
+  for (const [name, ref] of Object.entries(BASIC_COLORS)) {
+    const rr = parseInt(ref.slice(1, 3), 16);
+    const rg = parseInt(ref.slice(3, 5), 16);
+    const rb = parseInt(ref.slice(5, 7), 16);
+    const d = (r - rr) ** 2 + (g - rg) ** 2 + (b - rb) ** 2;
+    if (d < bestDist) { bestDist = d; best = name; }
+  }
+  return best;
+}
+
+// Best available colour name for a spool: exact Bambu catalog name when the
+// (product, hex) is known, otherwise a nearest generic name so a hex is never
+// shown raw. Returns null only when there's no hex at all.
+function describeColor(code, hex) {
+  return lookupBambuColorName(code, hex) || nearestBasicColorName(hex);
+}
+
 // A "colour name" that is actually a machine code, e.g. "A01-R1", "B00-K0", or
 // one that echoes the filament/material code ("GFA01"). These aren't real names.
 function isPlaceholderColorName(name) {
@@ -193,5 +232,7 @@ module.exports = {
   brandMaterialForCode,
   lookupBambuColorName,
   lookupBambuColorByHex,
+  nearestBasicColorName,
+  describeColor,
   isPlaceholderColorName,
 };

@@ -10,6 +10,8 @@ const logger = require('../../logger');
 const {
   isPlaceholderColorName,
   lookupBambuColorName,
+  describeColor,
+  nearestBasicColorName,
   brandMaterialForCode,
 } = require('../constants/bambuFilamentColors');
 
@@ -90,7 +92,7 @@ function buildSpoolFromTray(devId, tray) {
   const reportedName = tray.tray_id_name ? String(tray.tray_id_name).trim() : null;
   const color_name = (reportedName && !isPlaceholderColorName(reportedName))
     ? reportedName
-    : lookupBambuColorName(filament_code, color_hex);
+    : describeColor(filament_code, color_hex);
 
   return {
     tray_uuid,
@@ -356,7 +358,11 @@ async function backfillColorNames() {
     ).all());
     for (const row of rows) {
       if (row.color_name && !isPlaceholderColorName(row.color_name)) continue;
-      const resolved = lookupBambuColorName(row.filament_code, row.color_hex) || (await resolveColorName(row.color_hex));
+      // Exact Bambu name first, then a real name learned for this hex, then a
+      // generic nearest-colour name so nothing is left as a bare hex.
+      const resolved = lookupBambuColorName(row.filament_code, row.color_hex)
+        || (await resolveColorName(row.color_hex))
+        || nearestBasicColorName(row.color_hex);
       if (resolved && resolved !== row.color_name) {
         (await db.prepare(
           'UPDATE filament_inventory SET color_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
