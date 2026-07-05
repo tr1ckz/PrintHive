@@ -7,6 +7,7 @@
 
 const { db } = require('../../database');
 const logger = require('../../logger');
+const { lookupBambuColorName } = require('../constants/bambuFilamentColors');
 
 // ---------------------------------------------------------------------------
 // Pure helpers (no DB) — exported for unit testing.
@@ -209,7 +210,7 @@ async function handleSlotReplacement(devId, slot, newUuid) {
 // A compact signature of the fields we care about, so we write (and notify) on
 // any meaningful change — including a live gram-level change during a print.
 function spoolSignature(spool) {
-  return `${spool.remaining_g}|${spool.remain_percent}|${spool.color_hex}|${spool.type ?? ''}|${spool.material}|${spool.filament_code ?? ''}`;
+  return `${spool.remaining_g}|${spool.remain_percent}|${spool.color_hex}|${spool.type ?? ''}|${spool.material}|${spool.filament_code ?? ''}|${spool.color_name ?? ''}`;
 }
 
 // Live, gram-level remaining during a print. The AMS only reports whole-percent
@@ -245,12 +246,36 @@ function liveRemainingGrams(spool, ctx, isActive) {
 // telemetry update — it no-ops trays without an RFID identity and skips writes
 // when nothing changed. Returns the number of rows actually written so callers
 // can push a live update only when something changed.
+// When a tray reports a filament code but no friendly name, resolve one without
+// ever inventing it: first from any name this (or another) Bambu printer has
+// already reported for the same code, then from the static seed. Returns null if
+// we genuinely have nothing — the UI then shows just the hex, as before.
+async function resolveColorName(filamentCode) {
+  if (!filamentCode) return null;
+  try {
+    const learned = (await db.prepare(`
+      SELECT color_name FROM filament_inventory
+      WHERE filament_code = ? AND color_name IS NOT NULL AND TRIM(color_name) != ''
+      ORDER BY updated_at DESC LIMIT 1
+    `).get(filamentCode));
+    if (learned?.color_name) return learned.color_name;
+  } catch (error) {
+    logger.debug('[Filament] color-name lookup failed:', error.message);
+  }
+  return lookupBambuColorName(filamentCode);
+}
+
 async function syncTraysToInventory(devId, trays, ctx = null) {
   if (!Array.isArray(trays) || trays.length === 0) return 0;
   let written = 0;
   for (const tray of trays) {
     const spool = buildSpoolFromTray(devId, tray);
     if (!spool) continue;
+    // Fill a missing colour name from a previously-seen/seed value for this code
+    // (the printer's own name, when present, was already set in buildSpoolFromTray).
+    if (!spool.color_name && spool.filament_code) {
+      spool.color_name = await resolveColorName(spool.filament_code);
+    }
     // Detect a roll swap in this physical slot and archive the emptied one.
     await handleSlotReplacement(devId, tray.slot, spool.tray_uuid);
     // Interpolate gram-level remaining for the active tray of a running print.
@@ -369,6 +394,7 @@ module.exports = {
   groupInventory,
   liveRemainingGrams,
   // db
+  resolveColorName,
   syncTraysToInventory,
   listInventory,
   addManualSpool,
