@@ -206,18 +206,46 @@ async function handleSlotReplacement(devId, slot, newUuid) {
   }
 }
 
-// A compact signature of the fields we care about, so we write (and notify)
-// on any meaningful change — not just remaining %, but also a swapped colour /
-// material / spool code.
+// A compact signature of the fields we care about, so we write (and notify) on
+// any meaningful change — including a live gram-level change during a print.
 function spoolSignature(spool) {
-  return `${spool.remain_percent}|${spool.color_hex}|${spool.type ?? ''}|${spool.material}|${spool.filament_code ?? ''}`;
+  return `${spool.remaining_g}|${spool.remain_percent}|${spool.color_hex}|${spool.type ?? ''}|${spool.material}|${spool.filament_code ?? ''}`;
+}
+
+// Live, gram-level remaining during a print. The AMS only reports whole-percent
+// (10g steps), but the printer knows the job's total filament weight and how far
+// along it is — so we interpolate: anchor to the AMS grams at the moment we
+// start tracking, then subtract consumed = print_weight * progress. When the AMS
+// %-step ground truth drops below our estimate, we re-anchor so drift can't
+// accumulate. Only the active tray of a running print is interpolated.
+const printAnchors = new Map(); // tray_uuid -> { amsG, consumedAtStep }
+
+function liveRemainingGrams(spool, ctx, isActive) {
+  const printing = isActive && ctx &&
+    /RUNNING|PREPARE|SLICING|PAUSE/i.test(ctx.gcodeState || '') &&
+    Number(ctx.printWeight) > 0;
+  if (!printing) { printAnchors.delete(spool.tray_uuid); return spool.remaining_g; }
+
+  const amsG = spool.remaining_g;
+  if (amsG == null) return null;
+
+  const consumed = (Number(ctx.printWeight) * (Number(ctx.progress) || 0)) / 100;
+  let anchor = printAnchors.get(spool.tray_uuid);
+  // (Re)anchor at each AMS %-step: record how much the job had consumed then,
+  // and interpolate downward from that reading until the next step.
+  if (!anchor || anchor.amsG !== amsG) {
+    anchor = { amsG, consumedAtStep: consumed };
+    printAnchors.set(spool.tray_uuid, anchor);
+  }
+  const live = Math.round(amsG - (consumed - anchor.consumedAtStep));
+  return Math.max(0, Math.min(amsG, live)); // only ever interpolate below the AMS reading
 }
 
 // Sync all trays for a device into the inventory. Safe to call on every AMS
 // telemetry update — it no-ops trays without an RFID identity and skips writes
 // when nothing changed. Returns the number of rows actually written so callers
 // can push a live update only when something changed.
-async function syncTraysToInventory(devId, trays) {
+async function syncTraysToInventory(devId, trays, ctx = null) {
   if (!Array.isArray(trays) || trays.length === 0) return 0;
   let written = 0;
   for (const tray of trays) {
@@ -225,6 +253,15 @@ async function syncTraysToInventory(devId, trays) {
     if (!spool) continue;
     // Detect a roll swap in this physical slot and archive the emptied one.
     await handleSlotReplacement(devId, tray.slot, spool.tray_uuid);
+    // Interpolate gram-level remaining for the active tray of a running print.
+    if (ctx) {
+      const isActive = ctx.activeTray != null && Number(tray.slot) === Number(ctx.activeTray);
+      const live = liveRemainingGrams(spool, ctx, isActive);
+      if (live != null && live !== spool.remaining_g) {
+        spool.remaining_g = live;
+        spool.remain_percent = spool.capacity_g > 0 ? Math.round((live / spool.capacity_g) * 100) : spool.remain_percent;
+      }
+    }
     const sig = spoolSignature(spool);
     if (lastSynced.get(spool.tray_uuid) === sig) continue; // unchanged
     try {
@@ -330,6 +367,7 @@ module.exports = {
   deriveBrandMaterial,
   buildSpoolFromTray,
   groupInventory,
+  liveRemainingGrams,
   // db
   syncTraysToInventory,
   listInventory,

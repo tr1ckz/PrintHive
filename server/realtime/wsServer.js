@@ -115,7 +115,13 @@ function attachRealtimeBridgeToMqttClient(mqttClient, clientKey, device) {
     // real time without polling. Never let it break the printer broadcast.
     if (jobData?.ams?.trays?.length) {
       try {
-        const written = await syncTraysToInventory(activeDevice?.dev_id || null, jobData.ams.trays);
+        const ctx = {
+          gcodeState: jobData.gcode_state,
+          progress: jobData.progress,
+          printWeight: jobData.print_weight,
+          activeTray: jobData.ams.active_tray,
+        };
+        const written = await syncTraysToInventory(activeDevice?.dev_id || null, jobData.ams.trays, ctx);
         if (written > 0) {
           broadcastRealtimeMessage({ type: 'filament.update', payload: await listInventory() });
         }
