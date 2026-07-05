@@ -9,7 +9,8 @@ const { db } = require('../../database');
 const logger = require('../../logger');
 const {
   isPlaceholderColorName,
-  lookupBambuColorByHex,
+  lookupBambuColorName,
+  brandMaterialForCode,
 } = require('../constants/bambuFilamentColors');
 
 // ---------------------------------------------------------------------------
@@ -69,7 +70,11 @@ function buildSpoolFromTray(devId, tray) {
     tray_uuid = `slot:${devId}:${tray.slot}`;
   }
 
-  const { brand, material } = deriveBrandMaterial(tray);
+  // The filament code (tray_info_idx, e.g. "GFA01") authoritatively identifies
+  // the product, so prefer it — it corrects "Generic PLA Matte" to "Bambu Lab
+  // PLA Matte" for genuine Bambu spools. Fall back to sub_brands/type parsing.
+  const filament_code = tray.tray_info_idx ? String(tray.tray_info_idx).trim() : null;
+  const { brand, material } = brandMaterialForCode(filament_code) || deriveBrandMaterial(tray);
   const capacity_g = 1000;
   // The AMS reports `remain` as a percentage (usually whole numbers → 10g steps
   // on a 1kg spool). Compute grams from the raw value rather than rounding the
@@ -85,7 +90,7 @@ function buildSpoolFromTray(devId, tray) {
   const reportedName = tray.tray_id_name ? String(tray.tray_id_name).trim() : null;
   const color_name = (reportedName && !isPlaceholderColorName(reportedName))
     ? reportedName
-    : lookupBambuColorByHex(color_hex);
+    : lookupBambuColorName(filament_code, color_hex);
 
   return {
     tray_uuid,
@@ -93,7 +98,7 @@ function buildSpoolFromTray(devId, tray) {
     material,
     color_name: color_name || null,
     color_hex,
-    filament_code: tray.tray_info_idx ? String(tray.tray_info_idx).trim() : null,
+    filament_code,
     remain_percent,
     capacity_g,
     remaining_g,
@@ -347,11 +352,11 @@ async function backfillColorNames() {
   let fixed = 0;
   try {
     const rows = (await db.prepare(
-      'SELECT id, color_name, color_hex FROM filament_inventory'
+      'SELECT id, color_name, color_hex, filament_code FROM filament_inventory'
     ).all());
     for (const row of rows) {
       if (row.color_name && !isPlaceholderColorName(row.color_name)) continue;
-      const resolved = lookupBambuColorByHex(row.color_hex) || (await resolveColorName(row.color_hex));
+      const resolved = lookupBambuColorName(row.filament_code, row.color_hex) || (await resolveColorName(row.color_hex));
       if (resolved && resolved !== row.color_name) {
         (await db.prepare(
           'UPDATE filament_inventory SET color_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
