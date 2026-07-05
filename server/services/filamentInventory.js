@@ -346,33 +346,51 @@ async function syncTraysToInventory(devId, trays, ctx = null) {
   return written;
 }
 
-// One-shot repair for rows already stored with a code-shaped name (or none):
-// resolve a real name from the canonical hex catalog. Runs at startup so
-// existing inventory is fixed without waiting for the next AMS read. Only ever
-// overwrites a placeholder — a real, user-entered name is left untouched.
+// One-shot repair at startup so existing inventory reflects the current catalog
+// without waiting for the printer to re-sync each slot:
+//   - colour name: fill placeholders/blanks from the catalog (never overwrites a
+//     real, user-entered name);
+//   - brand + material: for AMS spools, re-derive from the filament code, so a
+//     GFA01 roll stored as "Generic PLA Matte" becomes "Bambu Lab PLA Matte".
+//     Manual entries are left untouched.
 async function backfillColorNames() {
   let fixed = 0;
   try {
     const rows = (await db.prepare(
-      'SELECT id, color_name, color_hex, filament_code FROM filament_inventory'
+      'SELECT id, source, brand, material, color_name, color_hex, filament_code FROM filament_inventory'
     ).all());
     for (const row of rows) {
-      if (row.color_name && !isPlaceholderColorName(row.color_name)) continue;
-      // Exact Bambu name first, then a real name learned for this hex, then a
-      // generic nearest-colour name so nothing is left as a bare hex.
-      const resolved = lookupBambuColorName(row.filament_code, row.color_hex)
-        || (await resolveColorName(row.color_hex))
-        || nearestBasicColorName(row.color_hex);
-      if (resolved && resolved !== row.color_name) {
+      const sets = [];
+      const params = [];
+
+      // Colour name — only touch a placeholder/blank, never a real name.
+      if (!row.color_name || isPlaceholderColorName(row.color_name)) {
+        const resolved = lookupBambuColorName(row.filament_code, row.color_hex)
+          || (await resolveColorName(row.color_hex))
+          || nearestBasicColorName(row.color_hex);
+        if (resolved && resolved !== row.color_name) { sets.push('color_name = ?'); params.push(resolved); }
+      }
+
+      // Brand + material — re-derive from the filament code for AMS spools only.
+      if (row.source !== 'manual') {
+        const bm = brandMaterialForCode(row.filament_code);
+        if (bm && (bm.brand !== row.brand || bm.material !== row.material)) {
+          sets.push('brand = ?', 'material = ?');
+          params.push(bm.brand, bm.material);
+        }
+      }
+
+      if (sets.length) {
+        params.push(row.id);
         (await db.prepare(
-          'UPDATE filament_inventory SET color_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-        ).run(resolved, row.id));
+          `UPDATE filament_inventory SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        ).run(...params));
         fixed += 1;
       }
     }
-    if (fixed) logger.info(`[Filament] Backfilled ${fixed} colour name(s) from hex catalog`);
+    if (fixed) logger.info(`[Filament] Backfilled ${fixed} inventory row(s) from catalog`);
   } catch (error) {
-    logger.debug('[Filament] Colour-name backfill failed:', error.message);
+    logger.debug('[Filament] Inventory backfill failed:', error.message);
   }
   return fixed;
 }
