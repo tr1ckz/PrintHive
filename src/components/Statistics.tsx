@@ -13,7 +13,7 @@ interface StatisticsData {
   totalWeight: number;
   totalLength: number;
   totalTime: number;
-  materialsByColor: { [color: string]: { weight: number; length: number; count: number; type: string } };
+  materialsByColor: { [color: string]: { weight: number; length: number; count: number; type: string; name?: string | null } };
   materialsByType: { [type: string]: { weight: number; length: number; count: number } };
   printsByStatus: { [status: string]: number };
   printsByPrinter: { [printer: string]: number };
@@ -169,7 +169,9 @@ const Statistics: React.FC = () => {
         return {
           key: color,
           css,
-          name,
+          // Prefer the Bambu catalog name resolved server-side; fall back to the
+          // local generic map only when the hex isn't a known Bambu colour.
+          name: data.name || name,
           type: data.type || 'Unknown',
           count: data.count,
           weight: data.weight,

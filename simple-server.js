@@ -60,6 +60,7 @@ const authRoutes = require('./server/routes/auth');
 const maintenanceRoutes = require('./server/routes/maintenance');
 const filamentRoutes = require('./server/routes/filament');
 const { hub: chamberCameraHub } = require('./server/services/bambuChamberCamera');
+const { lookupBambuColorByHex } = require('./server/constants/bambuFilamentColors');
 
 // Helper function to clean HTML-encoded descriptions (handles double/triple encoding)
 function cleanDescription(rawDescription) {
@@ -4423,7 +4424,15 @@ app.get('/api/statistics', async (req, res) => {
         
         // Group by color
         if (!stats.materialsByColor[colorHex]) {
-          stats.materialsByColor[colorHex] = { weight: 0, length: 0, count: 0, type: materialType };
+          // Resolve the Bambu catalog name from the hex so stats match the
+          // filament manager (e.g. #DE4343 -> "Scarlet Red"); null when unknown.
+          const normHex = /^#?[0-9a-fA-F]{6}/.test(String(colorHex))
+            ? `#${String(colorHex).replace(/^#/, '').slice(0, 6).toUpperCase()}`
+            : null;
+          stats.materialsByColor[colorHex] = {
+            weight: 0, length: 0, count: 0, type: materialType,
+            name: lookupBambuColorByHex(normHex),
+          };
         }
         stats.materialsByColor[colorHex].weight += filament.weight || 0;
         stats.materialsByColor[colorHex].length += filament.length || 0;
