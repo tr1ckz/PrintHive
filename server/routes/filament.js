@@ -13,6 +13,7 @@ const {
   applyImportedItems,
   adjustSpare,
   adjustSpareForColor,
+  patchSpare,
   deleteSpare,
 } = require('../services/filamentInventory');
 const { parseBambuReceipt } = require('../services/bambuReceiptParser');
@@ -174,19 +175,20 @@ router.post('/api/filament/spares/adjust', requireAdminRole, async (req, res) =>
   }
 });
 
-// PATCH /api/filament/spares/:id — adjust a spare count (+1 ordered, -1 used).
+// PATCH /api/filament/spares/:id — adjust a spare count ({delta}), or edit a
+// spare's details ({brand, material, color_name, color_hex, filament_code, ...}).
 router.patch('/api/filament/spares/:id', requireAdminRole, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
-  const delta = Number(req.body?.delta);
-  if (!Number.isFinite(delta)) return res.status(400).json({ error: 'delta required' });
   try {
-    const ok = await adjustSpare(id, delta);
+    const ok = Number.isFinite(Number(req.body?.delta))
+      ? await adjustSpare(id, Number(req.body.delta))
+      : await patchSpare(id, req.body || {});
     if (!ok) return res.status(404).json({ error: 'Spare not found' });
     res.json({ success: true, inventory: await listInventory() });
   } catch (error) {
-    logger.error('[Filament] Failed to adjust spare:', error.message);
-    res.status(500).json({ error: 'Failed to adjust spare' });
+    logger.error('[Filament] Failed to update spare:', error.message);
+    res.status(500).json({ error: 'Failed to update spare' });
   }
 });
 

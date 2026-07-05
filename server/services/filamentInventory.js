@@ -531,6 +531,29 @@ async function adjustSpare(id, delta) {
   return true;
 }
 
+// Edit the identity of a spare (a not-yet-loaded colour): brand/material/colour
+// name/hex/code and the per-roll weight. Count is managed separately.
+async function patchSpare(id, patch = {}) {
+  const row = (await db.prepare('SELECT * FROM filament_spares WHERE id = ?').get(id));
+  if (!row) return false;
+  const val = (k, fallback) => (patch[k] !== undefined ? (patch[k] || null) : fallback);
+  const brand = val('brand', row.brand);
+  const material = val('material', row.material);
+  const color_name = val('color_name', row.color_name);
+  const color_hex = patch.color_hex !== undefined ? normalizeHex(patch.color_hex) : row.color_hex;
+  const filament_code = val('filament_code', row.filament_code);
+  const unit_weight_g = patch.unit_weight_g !== undefined
+    ? (toInt(patch.unit_weight_g) ?? row.unit_weight_g)
+    : row.unit_weight_g;
+  (await db.prepare(`
+    UPDATE filament_spares
+    SET brand = ?, material = ?, color_name = ?, color_hex = ?, filament_code = ?,
+        unit_weight_g = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(brand, material, color_name, color_hex, filament_code, unit_weight_g, id));
+  return true;
+}
+
 async function deleteSpare(id) {
   const res = (await db.prepare('DELETE FROM filament_spares WHERE id = ?').run(id));
   return res.changes > 0;
@@ -708,5 +731,6 @@ module.exports = {
   listSpares,
   adjustSpare,
   adjustSpareForColor,
+  patchSpare,
   deleteSpare,
 };

@@ -367,6 +367,43 @@ function SpareModal({ spool, brand, material, label, canEdit, onClose, onChanged
 }) {
   const [count, setCount] = useState<number>(spool.spareCount ?? 0);
   const [busy, setBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [form, setForm] = useState({
+    color_name: spool.color_name ?? '',
+    color_hex: spool.color_hex ?? '#000000',
+    material,
+    filament_code: spool.filament_code ?? '',
+    unit_weight_g: spool.capacity_g ?? 1000,
+  });
+  const setField = (k: keyof typeof form, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
+
+  const saveDetails = async () => {
+    if (!canEdit || busy || spool.spareId == null) return;
+    setBusy(true);
+    try {
+      const res = await fetchWithRetry(API_ENDPOINTS.FILAMENT.SPARE_ITEM(spool.spareId), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ ...form, brand }),
+      });
+      const body = await res.json();
+      onChanged(body?.inventory || null);
+      onClose();
+    } catch { setBusy(false); }
+  };
+
+  const removeSpare = async () => {
+    if (!canEdit || busy || spool.spareId == null) return;
+    if (!window.confirm('Remove this spare from your inventory?')) return;
+    setBusy(true);
+    try {
+      const res = await fetchWithRetry(API_ENDPOINTS.FILAMENT.SPARE_ITEM(spool.spareId), {
+        method: 'DELETE', credentials: 'include',
+      });
+      const body = await res.json();
+      onChanged(body?.inventory || null);
+      onClose();
+    } catch { setBusy(false); }
+  };
 
   const adjust = async (delta: number) => {
     if (!canEdit || busy) return;
@@ -427,6 +464,43 @@ function SpareModal({ spool, brand, material, label, canEdit, onClose, onChanged
         </div>
 
         {!canEdit && <p className="mt-3 text-center text-xs text-muted">Admin access is required to change spare counts.</p>}
+
+        {/* Edit details — only for a not-yet-loaded (sealed) colour; loaded spools
+            are edited from their pencil icon. */}
+        {canEdit && spool.is_spare && (
+          <div className="mt-4">
+            <button onClick={() => setEditOpen((o) => !o)} className="text-xs font-semibold text-accent hover:underline">
+              {editOpen ? 'Hide details' : 'Edit details'}
+            </button>
+            {editOpen && (
+              <div className="mt-3 space-y-2.5 rounded-md bg-white/[0.03] p-3">
+                <label className="block text-xs text-muted">Colour name
+                  <input value={form.color_name} onChange={(e) => setField('color_name', e.target.value)} className="mt-1 w-full rounded bg-white/5 px-2 py-1.5 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-accent/40" />
+                </label>
+                <div className="flex gap-2">
+                  <label className="block text-xs text-muted">Colour
+                    <input type="color" value={form.color_hex} onChange={(e) => setField('color_hex', e.target.value)} className="mt-1 h-9 w-12 cursor-pointer rounded bg-white/5" />
+                  </label>
+                  <label className="block flex-1 text-xs text-muted">Material
+                    <input value={form.material} onChange={(e) => setField('material', e.target.value)} className="mt-1 w-full rounded bg-white/5 px-2 py-1.5 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-accent/40" />
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <label className="block flex-1 text-xs text-muted">Filament code
+                    <input value={form.filament_code} onChange={(e) => setField('filament_code', e.target.value)} className="mt-1 w-full rounded bg-white/5 px-2 py-1.5 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-accent/40" />
+                  </label>
+                  <label className="block w-28 text-xs text-muted">Weight / roll (g)
+                    <input type="number" value={form.unit_weight_g} onChange={(e) => setField('unit_weight_g', parseInt(e.target.value, 10) || 0)} className="mt-1 w-full rounded bg-white/5 px-2 py-1.5 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-accent/40" />
+                  </label>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <button onClick={() => void removeSpare()} disabled={busy} className="rounded-md px-2 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-40">Delete</button>
+                  <button onClick={() => void saveDetails()} disabled={busy} className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast hover:bg-accent-strong disabled:opacity-40">Save</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-5 flex justify-end">
           <button onClick={onClose} className="min-h-9 rounded-md bg-white/5 px-4 text-sm font-semibold text-fg-soft hover:bg-white/10">Done</button>
