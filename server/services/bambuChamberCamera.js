@@ -16,10 +16,6 @@ const CHAMBER_PORT = 6000;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024; // sanity guard against corrupt length headers
 const IDLE_CLOSE_MS = 15000;             // drop the printer socket this long after the last viewer
 
-// ---------------------------------------------------------------------------
-// Pure protocol helpers (no sockets) — exported for unit testing.
-// ---------------------------------------------------------------------------
-
 // Build the 80-byte authentication payload the printer expects first:
 //   uint32 LE 0x40, uint32 LE 0x3000, uint32 LE 0, uint32 LE 0,
 //   username padded to 32 bytes, access code padded to 32 bytes.
@@ -65,10 +61,6 @@ function looksLikeJpeg(frame) {
     frame[0] === 0xff && frame[1] === 0xd8 &&
     frame[frame.length - 2] === 0xff && frame[frame.length - 1] === 0xd9;
 }
-
-// ---------------------------------------------------------------------------
-// Live stream + hub.
-// ---------------------------------------------------------------------------
 
 class ChamberCameraStream extends EventEmitter {
   constructor(host, accessCode) {

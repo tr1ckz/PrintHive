@@ -10,16 +10,12 @@
 //     "Jade White" for PLA Basic but "Ivory White" for PLA Matte, and #000000 is
 //     "Black" vs "Charcoal". So we look colours up by (product, hex).
 //
-// Future-proofing: an unknown code still resolves brand/material to Generic and,
-// if the hex is unambiguous across every product, still yields a name; an unknown
-// hex simply yields no name (the UI shows the hex) rather than a wrong guess.
-// filamentInventory also learns any real name the printer reports and caches it
-// by hex, so new colours fill in over time without a code change here.
+// An unknown code falls back to Generic; an unknown hex yields no name rather
+// than a wrong guess. filamentInventory also caches real names the printer
+// reports by hex, so new colours fill in over time without a change here.
 //
-// Data sources (July 2026):
-//   - Filament code -> product: greghesp/ha-bambulab pybambu/filaments.json
-//   - Product colour hexes: Bambu Lab official hex-code tables via
-//     dadequate/bambu-lab-filament-colors
+// Sources: greghesp/ha-bambulab (code -> product),
+// dadequate/bambu-lab-filament-colors (product colour hexes).
 
 // tray_info_idx (GF code) -> product name.
 const FILAMENT_PRODUCTS = {

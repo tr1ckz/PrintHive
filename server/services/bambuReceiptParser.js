@@ -1,16 +1,7 @@
-// Parse a Bambu Lab order confirmation into filament line items so refills can
-// be added to inventory in bulk. Works on text pasted from the order email and
-// on OCR text from an uploaded screenshot.
-//
-// Screenshots (and OCR of them) wrap a single item across several lines:
-//   PETG Basic x 1
-//   Black(30105) / Filament
-//   with spool / 1kg
-//   Filament Bulk Sale
-//   -$10.15 CAD
-// so we can't match line-by-line. Instead we split into blocks — each begins at
-// a "<material> x N" header — join every line of a block into one string, and
-// pull the variant ("<Colour>(<code>) / <kind> / <weight>kg") out of that.
+// Parse a Bambu Lab order (pasted email text or OCR'd screenshot) into filament
+// line items. OCR wraps a single item across lines, so we split into blocks —
+// each starting at a "<material> x N" header — join each block, and pull the
+// variant "<Colour>(<code>) / <kind> / <weight>kg" out of the joined text.
 
 const { brandMaterialForCode } = require('../constants/bambuFilamentColors');
 
@@ -37,11 +28,6 @@ function cleanColorName(raw, material) {
   return name || null;
 }
 
-/**
- * Parse order text into filament line items.
- * @param {string} text - Pasted email text or OCR output
- * @returns {Array<{brand,material,colorName,code,kind,isRefill,unitWeightG,quantity}>}
- */
 function parseBambuReceipt(text) {
   const lines = String(text || '')
     .split(/\r?\n/)

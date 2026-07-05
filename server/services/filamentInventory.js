@@ -1,9 +1,6 @@
-// Filament inventory: turns AMS tray telemetry into a persistent list of spools
-// you own, grouped by brand + material, and backs the /api/filament CRUD routes.
-//
-// Only genuine Bambu RFID spools carry the identity fields (tray_uuid, remain %,
-// filament code, colour name), so auto-sync is limited to trays that report a
-// tray_uuid; everything else can still be added manually.
+// Turns AMS tray telemetry into a persistent list of spools, grouped by brand +
+// material, and backs the /api/filament routes. Only trays with a tray_uuid
+// auto-sync; everything else is added manually.
 
 const { db } = require('../../database');
 const logger = require('../../logger');
@@ -15,10 +12,6 @@ const {
   brandMaterialForCode,
   hexForColorName,
 } = require('../constants/bambuFilamentColors');
-
-// ---------------------------------------------------------------------------
-// Pure helpers (no DB) — exported for unit testing.
-// ---------------------------------------------------------------------------
 
 // Bambu reports an all-zero uuid for empty / unknown slots; treat that as "no
 // spool identity" so those trays don't collide on a single inventory row.
@@ -133,10 +126,6 @@ function groupInventory(rows) {
   }
   return out;
 }
-
-// ---------------------------------------------------------------------------
-// DB-backed operations.
-// ---------------------------------------------------------------------------
 
 // In-memory guard so a burst of identical AMS telemetry doesn't hammer the DB;
 // keyed by tray_uuid -> a change signature.
@@ -405,9 +394,7 @@ async function backfillColorNames() {
   return fixed;
 }
 
-// ---------------------------------------------------------------------------
 // Spare / unopened refills — a count of sealed rolls you own per colour.
-// ---------------------------------------------------------------------------
 
 // A colour identity for matching a spare to an inventory spool. Prefer the hex
 // (canonical), fall back to the colour name; always scoped by brand + material.
