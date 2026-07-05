@@ -16,6 +16,17 @@ class BambuFtpService {
   }
 
   /**
+   * Parse the byte size out of a curl FTP `--head` response. Bambu's embedded
+   * FTP reports it as `Content-Length:`. Returns null when absent/unparseable.
+   * @param {string} headOutput - stdout from `curl --head`
+   * @returns {number|null}
+   */
+  static parseContentLength(headOutput) {
+    const m = String(headOutput || '').match(/Content-Length:\s*(\d+)/i);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  /**
    * Set connection credentials and test connection
    * @param {string} printerIp - Printer IP address
    * @param {string} accessCode - Printer access code
@@ -121,6 +132,40 @@ class BambuFtpService {
   }
 
   /**
+   * Read the remote size of a file over FTPS (issues an FTP SIZE via curl -I).
+   * @param {string} remotePath - Remote file path (e.g. /timelapse/x.avi)
+   * @returns {Promise<number|null>} Size in bytes, or null if unknown
+   */
+  async getRemoteSize(remotePath) {
+    try {
+      const { stdout } = await execAsync(
+        `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --silent --head ftps://${this.printerIp}:990${remotePath}`,
+        { timeout: 30000 }
+      );
+      return BambuFtpService.parseContentLength(stdout);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * A remote file is "stable" (safe to download) only if its size is known,
+   * non-zero, and unchanged across a short interval. A file that is still
+   * growing means the print is in progress and Bambu is still writing the
+   * timelapse — downloading it would grab a truncated clip.
+   * @param {string} remotePath - Remote file path
+   * @param {number} waitMs - Interval between the two size probes
+   * @returns {Promise<boolean>}
+   */
+  async isRemoteFileStable(remotePath, waitMs = 4000) {
+    const first = await this.getRemoteSize(remotePath);
+    if (!first || first <= 0) return false; // unknown or empty -> not ready
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    const second = await this.getRemoteSize(remotePath);
+    return second != null && second === first;
+  }
+
+  /**
    * Download all timelapses from the printer
    * @param {string} localDir - Local directory to save timelapses
    * @param {boolean} deleteAfterDownload - Delete files from printer after download
@@ -133,12 +178,12 @@ class BambuFtpService {
 
       for (const timelapse of timelapses) {
         const localPath = path.join(localDir, timelapse.name);
-        
+
         // Skip if already exists (check both AVI and MP4)
         const baseName = timelapse.name.replace(/\.(avi|mp4)$/i, '');
         const aviPath = path.join(localDir, baseName + '.avi');
         const mp4Path = path.join(localDir, baseName + '.mp4');
-        
+
         if (fs.existsSync(aviPath) || fs.existsSync(mp4Path)) {
           console.log(`Skipping ${timelapse.name} (already exists as AVI or MP4)`);
           downloaded.push({
@@ -146,6 +191,16 @@ class BambuFtpService {
             path: fs.existsSync(mp4Path) ? mp4Path : aviPath,
             skipped: true
           });
+          continue;
+        }
+
+        // Never pull a timelapse that's still being written (print in progress).
+        // If the remote size is still changing, skip it this round — a later
+        // sync will grab it once the print (and the file) has finished.
+        const stable = await this.isRemoteFileStable(timelapse.path);
+        if (!stable) {
+          console.log(`Skipping ${timelapse.name} (still being written — print in progress)`);
+          downloaded.push({ filename: timelapse.name, skipped: true, inProgress: true });
           continue;
         }
 
@@ -436,4 +491,6 @@ class BambuFtpService {
   }
 }
 
-module.exports = new BambuFtpService();
+const bambuFtpInstance = new BambuFtpService();
+bambuFtpInstance.BambuFtpService = BambuFtpService; // expose class for testing
+module.exports = bambuFtpInstance;
