@@ -14,8 +14,11 @@ interface FilamentSpool {
   remain_percent: number | null;
   capacity_g: number | null;
   remaining_g: number | null;
-  source: 'ams' | 'manual';
+  source: 'ams' | 'manual' | 'spare';
   last_dev_id: string | null;
+  spareCount?: number;
+  spareId?: number;
+  is_spare?: boolean;
 }
 
 interface FilamentGroup {
@@ -271,16 +274,32 @@ function Filament({ userRole }: FilamentProps) {
                         {spool.source === 'manual' && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[0.65rem] uppercase tracking-wide">manual</span>}
                       </div>
                     </div>
-                    <div className="w-40 shrink-0">
-                      <div className="mb-1 flex items-baseline justify-between text-xs tabular-nums">
-                        <strong className="text-fg-soft">{spool.remaining_g ?? 0} g</strong>
-                        <span className="text-muted">/ {spool.capacity_g ?? 1000} g</span>
+                    {spool.is_spare ? (
+                      <div className="w-40 shrink-0 text-xs text-muted">Sealed · not loaded</div>
+                    ) : (
+                      <div className="w-40 shrink-0">
+                        <div className="mb-1 flex items-baseline justify-between text-xs tabular-nums">
+                          <strong className="text-fg-soft">{spool.remaining_g ?? 0} g</strong>
+                          <span className="text-muted">/ {spool.capacity_g ?? 1000} g</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+                          <div className="h-full rounded-full" style={{ width: `${p}%`, background: barColor(p) }} />
+                        </div>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
-                        <div className="h-full rounded-full" style={{ width: `${p}%`, background: barColor(p) }} />
+                    )}
+                    {/* Spare refills for this colour, shown right on the spool. */}
+                    {spool.spareId != null && (
+                      <div className="flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1.5 py-1" title="Spare (unopened) refills of this colour">
+                        {isAdmin && (
+                          <button onClick={() => void adjustSpare(spool.spareId!, -1)} className="size-6 rounded text-accent hover:bg-accent/20" title="Use / remove one">−</button>
+                        )}
+                        <span className="min-w-8 text-center text-xs font-semibold tabular-nums text-accent">+{spool.spareCount} spare</span>
+                        {isAdmin && (
+                          <button onClick={() => void adjustSpare(spool.spareId!, 1)} className="size-6 rounded text-accent hover:bg-accent/20" title="Add one">+</button>
+                        )}
                       </div>
-                    </div>
-                    {isAdmin && (
+                    )}
+                    {isAdmin && !spool.is_spare && (
                       <div className="flex shrink-0 items-center gap-1">
                         <button
                           onClick={() => setEditing(spool)}
@@ -332,36 +351,6 @@ function Filament({ userRole }: FilamentProps) {
             ))}
           </div>
         </details>
-      )}
-
-      {/* Spare / unopened refills */}
-      {(data?.spares?.length ?? 0) > 0 && (
-        <div className="rounded-lg bg-card shadow-sm">
-          <div className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-fg-soft">
-            Spare refills
-            <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">{data?.totals.spares ?? 0}</span>
-          </div>
-          <div className="divide-y divide-line/60 border-t border-line/60">
-            {(data?.spares ?? []).map((sp) => (
-              <div key={sp.id} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="size-7 shrink-0 rounded-md ring-1 ring-inset ring-white/10" style={{ background: sp.color_hex || 'var(--text-disabled)' }} />
-                <div className="min-w-0 flex-1 text-sm">
-                  <div className="truncate text-fg-soft">{sp.brand} {sp.material}</div>
-                  <div className="text-xs text-muted">{sp.color_name || sp.color_hex || 'Unknown colour'} · {Math.round((sp.unit_weight_g ?? 1000) / 1000 * 100) / 100} kg each</div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="min-w-8 text-center text-sm font-semibold tabular-nums text-fg">{sp.spare_count}</span>
-                  {isAdmin && (
-                    <>
-                      <button onClick={() => void adjustSpare(sp.id, -1)} className="size-7 rounded bg-white/5 text-fg-soft hover:bg-white/10" title="Use / remove one">−</button>
-                      <button onClick={() => void adjustSpare(sp.id, 1)} className="size-7 rounded bg-white/5 text-fg-soft hover:bg-white/10" title="Add one">+</button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
       {(adding || editing) && (
@@ -448,7 +437,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-base font-semibold text-fg">Import Bambu order</h2>
-        <p className="mt-1 text-xs text-muted">Paste the order confirmation text, or upload a screenshot. Review the lines, then add them as spare refills.</p>
+        <p className="mt-1 text-xs text-muted">Paste the order confirmation text, or upload a screenshot. Refills add to a colour's spare count; "with spool" rolls go straight into inventory.</p>
 
         {!parsed ? (
           <div className="mt-4 space-y-3">
@@ -493,7 +482,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
             {parsed && <button onClick={() => { setParsed(false); setLines([]); setErr(null); }} className="min-h-9 rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft hover:bg-white/10">Back</button>}
             {parsed && (
               <button onClick={() => void confirm()} disabled={busy || totalRolls === 0} className="min-h-9 rounded-md bg-accent px-3 text-sm font-semibold text-accent-contrast hover:bg-accent-strong disabled:opacity-50">
-                {busy ? 'Adding…' : `Add ${totalRolls} refill${totalRolls === 1 ? '' : 's'}`}
+                {busy ? 'Adding…' : `Add ${totalRolls} item${totalRolls === 1 ? '' : 's'}`}
               </button>
             )}
           </div>

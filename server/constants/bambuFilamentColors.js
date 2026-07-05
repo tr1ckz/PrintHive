@@ -71,7 +71,8 @@ const COLORS_BY_PRODUCT = {
     '#E8AFCF': 'Sakura Pink', '#F99963': 'Mandarin Orange', '#F7D959': 'Lemon Yellow',
     '#950051': 'Plum', '#DE4343': 'Scarlet Red', '#BB3D43': 'Dark Red',
     '#68724D': 'Dark Green', '#61C680': 'Grass Green', '#C2E189': 'Apple Green',
-    '#9B9EA0': 'Ash Gray', '#0078BF': 'Marine Blue', '#000000': 'Charcoal',
+    '#9B9EA0': 'Ash Gray', '#0078BF': 'Marine Blue', '#A3D8E1': 'Ice Blue',
+    '#000000': 'Charcoal',
   },
   'PLA Tough': {
     '#FFFFFF': 'White', '#AFB1AE': 'Gray', '#000000': 'Black', '#959698': 'Silver',

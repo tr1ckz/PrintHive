@@ -48,6 +48,18 @@ describe('parseBambuReceipt', () => {
     expect(items[0]).toMatchObject({ colorName: 'Sakura Pink', code: '11202' });
   });
 
+  it('handles variant lines that wrap mid-pattern (kind/weight on the next line)', () => {
+    // The exact failure from the uploaded screenshot: "/ Filament" then "with
+    // spool / 1kg", and "/ Refill /" then "1kg".
+    const items = parseBambuReceipt(
+      'PETG Basic x 1\nBlack(30105) / Filament\nwith spool / 1kg\n-$10.15 CAD\n' +
+      'PLA Matte x 1\nMatte Ice Blue (11601) /\nRefill / 1kg'
+    );
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({ material: 'PETG Basic', colorName: 'Black', code: '30105', kind: 'spool', isRefill: false });
+    expect(items[1]).toMatchObject({ material: 'PLA Matte', colorName: 'Ice Blue', code: '11601', kind: 'refill' });
+  });
+
   it('returns nothing for unrelated text', () => {
     expect(parseBambuReceipt('Thanks for your order!\nSubtotal $50.00')).toEqual([]);
     expect(parseBambuReceipt('')).toEqual([]);

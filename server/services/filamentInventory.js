@@ -456,6 +456,40 @@ async function listSpares() {
   ).all());
 }
 
+// Apply parsed order lines: "Refill" (no spool) lines become spare counts to be
+// loaded later; "Filament with spool" lines are ready rolls, so add them to
+// active inventory now (one manual spool each) — the user shouldn't have to load
+// them into the AMS first. When such a roll is later loaded, the AMS-adoption
+// logic merges it into the manual row instead of duplicating.
+async function applyImportedItems(items) {
+  if (!Array.isArray(items)) return { spares: 0, spools: 0 };
+  const refills = items.filter((i) => i.kind !== 'spool' && i.isRefill !== false);
+  const rolls = items.filter((i) => i.kind === 'spool' || i.isRefill === false);
+
+  const spares = await addSpares(refills);
+  let spools = 0;
+  for (const it of rolls) {
+    const qty = Math.max(0, toInt(it.quantity ?? 1) || 0);
+    const material = it.material || 'Filament';
+    const color_name = it.colorName || it.color_name || null;
+    const color_hex = normalizeHex(it.color_hex) || hexForColorName(material, color_name);
+    const capacity_g = toInt(it.unitWeightG ?? it.unit_weight_g) ?? 1000;
+    for (let n = 0; n < qty; n += 1) {
+      await addManualSpool({
+        brand: it.brand || 'Bambu Lab',
+        material,
+        color_name,
+        color_hex,
+        filament_code: it.code || it.filament_code || null,
+        capacity_g,
+        remaining_g: capacity_g,
+      });
+      spools += 1;
+    }
+  }
+  return { spares, spools };
+}
+
 // Adjust a spare row by a delta (e.g. +1 ordered, -1 loaded). Clamps at 0.
 async function adjustSpare(id, delta) {
   const row = (await db.prepare('SELECT * FROM filament_spares WHERE id = ?').get(id));
@@ -498,14 +532,48 @@ async function listInventory() {
   ).all());
   const spares = await listSpares();
   const groups = groupInventory(rows);
-  // Tag each group with its total spare count so the UI can badge it, keyed by
-  // the same "Brand Material" label groupInventory produces.
-  const sparesByLabel = new Map();
-  for (const s of spares) {
-    const label = `${s.brand || 'Generic'} ${s.material || 'Filament'}`.trim();
-    sparesByLabel.set(label, (sparesByLabel.get(label) || 0) + (Number(s.spare_count) || 0));
+
+  // Show spares against the actual spool: attach the count to the matching
+  // colour's row so the UI can render a "+N" beside it. A colour you only have
+  // sealed spares of (never loaded) gets a lightweight row of its own so it
+  // still shows up. Match by hex, else by colour name, within brand+material.
+  const colourMatches = (spool, spare) => {
+    const sh = normalizeHex(spool.color_hex);
+    const ph = normalizeHex(spare.color_hex);
+    if (ph && sh) return ph === sh;
+    const sn = String(spool.color_name || '').trim().toLowerCase();
+    const pn = String(spare.color_name || '').trim().toLowerCase();
+    return !!pn && sn === pn;
+  };
+  const groupByLabel = new Map(groups.map((g) => [g.label, g]));
+
+  for (const spare of spares) {
+    const label = `${spare.brand || 'Generic'} ${spare.material || 'Filament'}`.trim();
+    let group = groupByLabel.get(label);
+    if (!group) {
+      group = {
+        label, brand: spare.brand || 'Generic', material: spare.material || 'Filament',
+        count: 0, totalRemainingG: 0, spools: [], spareCount: 0,
+      };
+      groups.push(group);
+      groupByLabel.set(label, group);
+    }
+    const target = group.spools.find((s) => colourMatches(s, spare));
+    if (target) {
+      target.spareCount = (target.spareCount || 0) + spare.spare_count;
+      target.spareId = spare.id;
+    } else {
+      // Spare-only colour — a sealed row so it appears next to loaded rolls.
+      group.spools.push({
+        id: -spare.id, tray_uuid: null, brand: spare.brand, material: spare.material,
+        color_name: spare.color_name, color_hex: spare.color_hex, filament_code: spare.filament_code,
+        remain_percent: null, capacity_g: spare.unit_weight_g || 1000, remaining_g: null,
+        source: 'spare', last_dev_id: null, is_spare: true,
+        spareCount: spare.spare_count, spareId: spare.id,
+      });
+    }
+    group.spareCount = (group.spareCount || 0) + spare.spare_count;
   }
-  for (const g of groups) g.spareCount = sparesByLabel.get(g.label) || 0;
 
   const totalSpools = rows.length;
   const totalRemainingG = rows.reduce((sum, r) => sum + (Number(r.remaining_g) || 0), 0);
@@ -606,6 +674,7 @@ module.exports = {
   deleteSpool,
   // spares
   addSpares,
+  applyImportedItems,
   listSpares,
   adjustSpare,
   deleteSpare,

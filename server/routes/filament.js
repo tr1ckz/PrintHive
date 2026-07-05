@@ -10,7 +10,7 @@ const {
   addManualSpool,
   updateSpool,
   deleteSpool,
-  addSpares,
+  applyImportedItems,
   adjustSpare,
   deleteSpare,
 } = require('../services/filamentInventory');
@@ -144,16 +144,17 @@ router.post('/api/filament/import/image', requireAdminRole, receiptUpload.single
   }
 });
 
-// POST /api/filament/spares — add sealed refills (from a confirmed preview).
+// POST /api/filament/spares — apply a confirmed import: "Refill" lines become
+// spare counts, "Filament with spool" lines become ready rolls in inventory.
 router.post('/api/filament/spares', requireAdminRole, async (req, res) => {
   try {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     if (!items.length) return res.status(400).json({ error: 'No items provided' });
-    const added = await addSpares(items);
-    res.json({ success: true, added, inventory: await listInventory() });
+    const { spares, spools } = await applyImportedItems(items);
+    res.json({ success: true, added: spares + spools, spares, spools, inventory: await listInventory() });
   } catch (error) {
-    logger.error('[Filament] Failed to add spares:', error.message);
-    res.status(500).json({ error: 'Failed to add spares' });
+    logger.error('[Filament] Failed to apply import:', error.message);
+    res.status(500).json({ error: 'Failed to add items' });
   }
 });
 
