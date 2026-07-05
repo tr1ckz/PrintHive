@@ -67,8 +67,12 @@ function buildSpoolFromTray(devId, tray) {
 
   const { brand, material } = deriveBrandMaterial(tray);
   const capacity_g = 1000;
-  const remain_percent = tray.remain != null && tray.remain >= 0 ? toInt(tray.remain) : null;
-  const remaining_g = remain_percent != null ? Math.round((remain_percent / 100) * capacity_g) : null;
+  // The AMS reports `remain` as a percentage (usually whole numbers → 10g steps
+  // on a 1kg spool). Compute grams from the raw value rather than rounding the
+  // percent first, so any sub-percent precision the firmware provides is kept.
+  const remainRaw = tray.remain != null && tray.remain >= 0 ? Number(tray.remain) : null;
+  const remain_percent = remainRaw != null ? toInt(remainRaw) : null;
+  const remaining_g = remainRaw != null ? Math.round((remainRaw / 100) * capacity_g) : null;
 
   return {
     tray_uuid,
