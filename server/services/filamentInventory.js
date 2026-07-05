@@ -367,12 +367,18 @@ async function backfillColorNames() {
       const sets = [];
       const params = [];
 
-      // Colour name — only touch a placeholder/blank, never a real name.
+      // Colour name. Fill a placeholder/blank from the catalog; and upgrade an
+      // auto-generated generic name (e.g. "Light Blue") to the exact catalog
+      // name ("Ice Blue") now that we know it. A user-typed name won't equal the
+      // generic nearest name, so it's left untouched.
+      const exactName = lookupBambuColorName(row.filament_code, row.color_hex);
       if (!row.color_name || isPlaceholderColorName(row.color_name)) {
-        const resolved = lookupBambuColorName(row.filament_code, row.color_hex)
+        const resolved = exactName
           || (await resolveColorName(row.color_hex))
           || nearestBasicColorName(row.color_hex);
         if (resolved && resolved !== row.color_name) { sets.push('color_name = ?'); params.push(resolved); }
+      } else if (exactName && row.color_name !== exactName && row.color_name === nearestBasicColorName(row.color_hex)) {
+        sets.push('color_name = ?'); params.push(exactName);
       }
 
       // Brand + material — re-derive from the filament code for AMS spools only.

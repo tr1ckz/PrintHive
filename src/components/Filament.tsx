@@ -255,65 +255,57 @@ function Filament({ userRole }: FilamentProps) {
             <div className="divide-y divide-line/60">
               {group.spools.map((spool) => {
                 const p = pct(spool);
+                const stepper = spool.spareId != null && (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1 py-0.5" title="Spare (unopened) refills of this colour">
+                    {isAdmin && <button onClick={() => void adjustSpare(spool.spareId!, -1)} className="flex size-5 items-center justify-center rounded text-accent hover:bg-accent/20" title="Use / remove one">−</button>}
+                    <span className="px-0.5 text-xs font-semibold tabular-nums text-accent">{spool.spareCount} spare</span>
+                    {isAdmin && <button onClick={() => void adjustSpare(spool.spareId!, 1)} className="flex size-5 items-center justify-center rounded text-accent hover:bg-accent/20" title="Add one">+</button>}
+                  </span>
+                );
                 return (
-                  <div key={spool.id} className="flex items-center gap-4 px-4 py-3">
+                  <div key={spool.id} className="flex items-center gap-3 px-4 py-3">
                     <span
                       className="size-9 shrink-0 rounded-md ring-1 ring-inset ring-white/10"
                       style={{ background: spool.color_hex || 'var(--text-disabled)' }}
                     />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-fg">{group.label}</div>
-                      <div
-                        className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted"
-                        title={[spool.color_name, spool.filament_code, spool.color_hex].filter(Boolean).join('  ·  ')}
-                      >
-                        <span className="inline-flex items-center gap-1">
-                          <span className="size-2 rounded-full" style={{ background: spool.color_hex || 'transparent' }} />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      {/* Colour name is the row title (material is in the group header) */}
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium text-fg" title={[spool.filament_code, spool.color_hex].filter(Boolean).join('  ·  ')}>
                           {spool.color_name || spool.color_hex || 'Unknown colour'}
                         </span>
-                        {spool.source === 'manual' && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[0.65rem] uppercase tracking-wide">manual</span>}
+                        {spool.source === 'manual' && <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[0.6rem] uppercase tracking-wide text-muted">manual</span>}
                       </div>
+                      {spool.is_spare ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted">Sealed refill · not loaded</span>
+                          {stepper}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
+                            <div className="h-full rounded-full" style={{ width: `${p}%`, background: barColor(p) }} />
+                          </div>
+                          <span className="shrink-0 text-xs tabular-nums text-muted">{spool.remaining_g ?? 0} / {spool.capacity_g ?? 1000} g</span>
+                          {stepper}
+                        </div>
+                      )}
                     </div>
-                    {spool.is_spare ? (
-                      <div className="w-40 shrink-0 text-xs text-muted">Sealed · not loaded</div>
-                    ) : (
-                      <div className="w-40 shrink-0">
-                        <div className="mb-1 flex items-baseline justify-between text-xs tabular-nums">
-                          <strong className="text-fg-soft">{spool.remaining_g ?? 0} g</strong>
-                          <span className="text-muted">/ {spool.capacity_g ?? 1000} g</span>
-                        </div>
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
-                          <div className="h-full rounded-full" style={{ width: `${p}%`, background: barColor(p) }} />
-                        </div>
-                      </div>
-                    )}
-                    {/* Spare refills for this colour, shown right on the spool. */}
-                    {spool.spareId != null && (
-                      <div className="flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1.5 py-1" title="Spare (unopened) refills of this colour">
-                        {isAdmin && (
-                          <button onClick={() => void adjustSpare(spool.spareId!, -1)} className="size-6 rounded text-accent hover:bg-accent/20" title="Use / remove one">−</button>
-                        )}
-                        <span className="min-w-8 text-center text-xs font-semibold tabular-nums text-accent">+{spool.spareCount} spare</span>
-                        {isAdmin && (
-                          <button onClick={() => void adjustSpare(spool.spareId!, 1)} className="size-6 rounded text-accent hover:bg-accent/20" title="Add one">+</button>
-                        )}
-                      </div>
-                    )}
                     {isAdmin && !spool.is_spare && (
-                      <div className="flex shrink-0 items-center gap-1">
+                      <div className="flex shrink-0 items-center gap-0.5">
                         <button
                           onClick={() => setEditing(spool)}
                           className="rounded p-1.5 text-muted transition-colors hover:bg-white/10 hover:text-fg"
                           title="Edit"
                         >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         </button>
                         <button
                           onClick={() => void remove(spool.id)}
                           className="rounded p-1.5 text-muted transition-colors hover:bg-danger/10 hover:text-danger"
                           title="Delete"
                         >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         </button>
                       </div>
                     )}
