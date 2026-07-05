@@ -20,24 +20,37 @@ describe('liveRemainingGrams', () => {
     expect(liveRemainingGrams(spool(370), ctx({ printWeight: 200, progress: 50 }), false)).toBe(370);
   });
 
-  it('interpolates below the AMS 10g step as the print consumes filament', () => {
+  it('uses cloud print_weight as an explicit rate when present', () => {
     const s = spool(370);
-    // First reading anchors at the AMS value; then it refines downward as the
-    // job progresses (job total 200g).
-    expect(liveRemainingGrams(s, ctx({ printWeight: 200, progress: 4 }), true)).toBe(370); // anchor (8g consumed)
-    expect(liveRemainingGrams(s, ctx({ printWeight: 200, progress: 8 }), true)).toBe(362); // +8g consumed -> 362
+    // 200 g job -> 2 g/%. Anchor at progress 4, then at progress 8 => -8 g.
+    expect(liveRemainingGrams(s, ctx({ printWeight: 200, progress: 4 }), true)).toBe(370); // anchor
+    expect(liveRemainingGrams(s, ctx({ printWeight: 200, progress: 8 }), true)).toBe(362);
   });
 
-  it('re-anchors down when the AMS %-step ground truth drops', () => {
-    const s = { tray_uuid: `R${n}`, remaining_g: 370, capacity_g: 1000 };
-    liveRemainingGrams(s, ctx({ printWeight: 200, progress: 2 }), true); // anchor at 370
-    s.remaining_g = 360; // AMS stepped down
-    expect(liveRemainingGrams(s, ctx({ printWeight: 200, progress: 5 }), true)).toBe(360); // snaps to truth
+  it('self-calibrates from AMS steps when print_weight is absent (P1S local)', () => {
+    const s = { tray_uuid: `C${n}`, remaining_g: 370, capacity_g: 1000 };
+    // No print_weight at all — only AMS % and progress.
+    expect(liveRemainingGrams(s, ctx({ progress: 0 }), true)).toBe(370); // anchor, uncalibrated
+    // Before calibration we can't interpolate, so still the AMS reading.
+    expect(liveRemainingGrams(s, ctx({ progress: 3 }), true)).toBe(370);
+    // AMS drops 10 g over 5% of progress -> 2 g/% learned, re-anchors at 360.
+    s.remaining_g = 360;
+    expect(liveRemainingGrams(s, ctx({ progress: 5 }), true)).toBe(360);
+    // Now interpolate: +3% * 2 g/% = 6 g below 360.
+    expect(liveRemainingGrams(s, ctx({ progress: 8 }), true)).toBe(354);
   });
 
-  it('never goes negative', () => {
-    const s = spool(50);
-    liveRemainingGrams(s, ctx({ printWeight: 1000, progress: 0 }), true); // anchor at 50
-    expect(liveRemainingGrams(s, ctx({ printWeight: 1000, progress: 90 }), true)).toBe(0); // 900g consumed
+  it('never interpolates past the current 10 g band', () => {
+    const s = { tray_uuid: `B${n}`, remaining_g: 370, capacity_g: 1000 };
+    liveRemainingGrams(s, ctx({ printWeight: 1000, progress: 0 }), true); // anchor, 10 g/%
+    // 10 g/% * 5% = 50 g, but must stay within this band -> clamps at 361.
+    expect(liveRemainingGrams(s, ctx({ printWeight: 1000, progress: 5 }), true)).toBe(361);
+  });
+
+  it('re-anchors upward on a refill/swap (AMS goes up)', () => {
+    const s = { tray_uuid: `R${n}`, remaining_g: 100, capacity_g: 1000 };
+    liveRemainingGrams(s, ctx({ printWeight: 200, progress: 10 }), true); // anchor at 100
+    s.remaining_g = 1000; // fresh roll loaded
+    expect(liveRemainingGrams(s, ctx({ printWeight: 200, progress: 12 }), true)).toBe(1000);
   });
 });

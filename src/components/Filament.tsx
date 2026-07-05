@@ -204,15 +204,14 @@ function Filament({ userRole }: FilamentProps) {
                     />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-fg">{group.label}</div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-                        {spool.color_name && (
-                          <span className="inline-flex items-center gap-1">
-                            <span className="size-2 rounded-full" style={{ background: spool.color_hex || 'transparent' }} />
-                            {spool.color_name}
-                          </span>
-                        )}
-                        {spool.filament_code && <span>· {spool.filament_code}</span>}
-                        {spool.color_hex && <span>· {spool.color_hex}</span>}
+                      <div
+                        className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted"
+                        title={[spool.color_name, spool.filament_code, spool.color_hex].filter(Boolean).join('  ·  ')}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <span className="size-2 rounded-full" style={{ background: spool.color_hex || 'transparent' }} />
+                          {spool.color_name || spool.color_hex || 'Unknown colour'}
+                        </span>
                         {spool.source === 'manual' && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[0.65rem] uppercase tracking-wide">manual</span>}
                       </div>
                     </div>

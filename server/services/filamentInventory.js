@@ -226,32 +226,57 @@ function spoolSignature(spool) {
 }
 
 // Live, gram-level remaining during a print. The AMS only reports whole-percent
-// (10g steps), but the printer knows the job's total filament weight and how far
-// along it is — so we interpolate: anchor to the AMS grams at the moment we
-// start tracking, then subtract consumed = print_weight * progress. When the AMS
-// %-step ground truth drops below our estimate, we re-anchor so drift can't
-// accumulate. Only the active tray of a running print is interpolated.
-const printAnchors = new Map(); // tray_uuid -> { amsG, consumedAtStep }
+// (10g steps on a 1kg spool), and the P1S local MQTT push does NOT include the
+// job's filament weight (print_weight is cloud-only), so we can't just do
+// weight * progress. Instead we self-calibrate: watch how many grams the AMS
+// drops (always 10) against how much print progress elapsed over that drop, which
+// gives grams-per-percent for this job. Between AMS steps we interpolate down
+// from the last reading using that rate and the live progress, so the number
+// ticks by ~1-2 g instead of jumping 10. Each real AMS step re-anchors, so the
+// estimate can't drift past the ground truth. When print_weight *is* available
+// (cloud), we use it directly as the rate. Only the active tray of a running
+// print is interpolated.
+const printAnchors = new Map(); // tray_uuid -> { amsG, progressAtStep, gPerPct }
 
 function liveRemainingGrams(spool, ctx, isActive) {
   const printing = isActive && ctx &&
-    /RUNNING|PREPARE|SLICING|PAUSE/i.test(ctx.gcodeState || '') &&
-    Number(ctx.printWeight) > 0;
+    /RUNNING|PREPARE|SLICING|PAUSE/i.test(ctx.gcodeState || '');
   if (!printing) { printAnchors.delete(spool.tray_uuid); return spool.remaining_g; }
 
   const amsG = spool.remaining_g;
   if (amsG == null) return null;
 
-  const consumed = (Number(ctx.printWeight) * (Number(ctx.progress) || 0)) / 100;
+  const progress = Number(ctx.progress) || 0;
+  // Explicit rate from cloud weight if we ever get it; else learned from the AMS.
+  const explicitRate = Number(ctx.printWeight) > 0 ? Number(ctx.printWeight) / 100 : null;
+
   let anchor = printAnchors.get(spool.tray_uuid);
-  // (Re)anchor at each AMS %-step: record how much the job had consumed then,
-  // and interpolate downward from that reading until the next step.
-  if (!anchor || anchor.amsG !== amsG) {
-    anchor = { amsG, consumedAtStep: consumed };
-    printAnchors.set(spool.tray_uuid, anchor);
+
+  // First sighting, spool swap, or a refill (AMS went up): (re)anchor, no guess.
+  if (!anchor || amsG > anchor.amsG) {
+    printAnchors.set(spool.tray_uuid, { amsG, progressAtStep: progress, gPerPct: explicitRate });
+    return amsG;
   }
-  const live = Math.round(amsG - (consumed - anchor.consumedAtStep));
-  return Math.max(0, Math.min(amsG, live)); // only ever interpolate below the AMS reading
+
+  // AMS stepped down (ground truth): learn the consumption rate from how much
+  // progress that 10 g took, then re-anchor at the new reading.
+  if (amsG < anchor.amsG) {
+    const dProg = progress - anchor.progressAtStep;
+    const observed = dProg > 0 ? (anchor.amsG - amsG) / dProg : null;
+    printAnchors.set(spool.tray_uuid, {
+      amsG,
+      progressAtStep: progress,
+      gPerPct: explicitRate ?? observed ?? anchor.gPerPct,
+    });
+    return amsG;
+  }
+
+  // Same AMS band — interpolate downward using the (learned or explicit) rate.
+  const rate = explicitRate ?? anchor.gPerPct;
+  if (!rate || rate <= 0) return amsG; // not calibrated yet
+  const live = Math.round(amsG - rate * (progress - anchor.progressAtStep));
+  // Stay within this 10 g band until the AMS itself confirms the next step.
+  return Math.max(amsG - 9, Math.max(0, Math.min(amsG, live)));
 }
 
 // Sync all trays for a device into the inventory. Safe to call on every AMS
