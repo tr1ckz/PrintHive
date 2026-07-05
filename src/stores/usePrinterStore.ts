@@ -7,11 +7,15 @@ import fetchWithRetry from '../utils/fetchWithRetry';
 type SocketStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
 type RealtimeEnvelope = {
-  type: 'realtime.welcome' | 'printer.telemetry' | 'printer.snapshot';
+  type: 'realtime.welcome' | 'printer.telemetry' | 'printer.snapshot' | 'filament.update';
   printerId?: string;
-  payload?: Partial<Printer>;
+  payload?: Partial<Printer> | unknown;
   sentAt?: string;
 };
+
+// Event the filament manager listens for so it can update live off the same
+// realtime socket without polling.
+export const FILAMENT_UPDATE_EVENT = 'printhive:filament-update';
 
 export interface BambuAccountError {
   email: string;
@@ -194,8 +198,11 @@ export const usePrinterStore = create<PrinterStoreState>()(
           const message = JSON.parse(String(event.data)) as RealtimeEnvelope;
 
           if ((message.type === 'printer.telemetry' || message.type === 'printer.snapshot') && message.printerId && message.payload) {
-            get().mergePrinterUpdate(message.printerId, message.payload);
+            get().mergePrinterUpdate(message.printerId, message.payload as Partial<Printer>);
             set({ lastMessageAt: message.sentAt || new Date().toISOString() });
+          } else if (message.type === 'filament.update') {
+            // Hand the fresh inventory off to the filament manager (if mounted).
+            window.dispatchEvent(new CustomEvent(FILAMENT_UPDATE_EVENT, { detail: message.payload }));
           }
         } catch (error) {
           console.error('Failed to parse realtime printer payload:', error);

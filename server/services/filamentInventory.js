@@ -134,19 +134,28 @@ async function upsertSpool(spool) {
   return res.lastInsertRowid;
 }
 
+// A compact signature of the fields we care about, so we write (and notify)
+// on any meaningful change — not just remaining %, but also a swapped colour /
+// material / spool code.
+function spoolSignature(spool) {
+  return `${spool.remain_percent}|${spool.color_hex}|${spool.type ?? ''}|${spool.material}|${spool.filament_code ?? ''}`;
+}
+
 // Sync all trays for a device into the inventory. Safe to call on every AMS
 // telemetry update — it no-ops trays without an RFID identity and skips writes
-// when nothing changed.
+// when nothing changed. Returns the number of rows actually written so callers
+// can push a live update only when something changed.
 async function syncTraysToInventory(devId, trays) {
   if (!Array.isArray(trays) || trays.length === 0) return 0;
   let written = 0;
   for (const tray of trays) {
     const spool = buildSpoolFromTray(devId, tray);
     if (!spool) continue;
-    if (lastSynced.get(spool.tray_uuid) === spool.remain_percent) continue; // unchanged
+    const sig = spoolSignature(spool);
+    if (lastSynced.get(spool.tray_uuid) === sig) continue; // unchanged
     try {
       await upsertSpool(spool);
-      lastSynced.set(spool.tray_uuid, spool.remain_percent);
+      lastSynced.set(spool.tray_uuid, sig);
       written += 1;
     } catch (error) {
       logger.debug('[Filament] Failed to sync tray to inventory:', error.message);

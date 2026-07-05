@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import { FILAMENT_UPDATE_EVENT } from '../stores/usePrinterStore';
 
 interface FilamentSpool {
   id: number;
@@ -82,6 +83,24 @@ function Filament({ userRole }: FilamentProps) {
   };
 
   useEffect(() => { void load(); }, []);
+
+  // Live updates: the backend pushes the fresh inventory over the realtime
+  // socket whenever an AMS spool changes, so the manager reflects it instantly.
+  useEffect(() => {
+    const onUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<InventoryResponse | undefined>).detail;
+      // Don't clobber the modal a user is editing mid-change.
+      if (editing || adding) return;
+      if (detail && Array.isArray(detail.groups)) {
+        setData(detail);
+        setLoading(false);
+      } else {
+        void load();
+      }
+    };
+    window.addEventListener(FILAMENT_UPDATE_EVENT, onUpdate);
+    return () => window.removeEventListener(FILAMENT_UPDATE_EVENT, onUpdate);
+  }, [editing, adding]);
 
   const filteredGroups = useMemo(() => {
     if (!data) return [];

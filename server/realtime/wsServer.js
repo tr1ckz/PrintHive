@@ -1,7 +1,7 @@
 const { WebSocketServer, WebSocket } = require('ws');
 const logger = require('../../logger');
 const { db } = require('../../database');
-const { syncTraysToInventory } = require('../services/filamentInventory');
+const { syncTraysToInventory, listInventory } = require('../services/filamentInventory');
 
 // WebSocket bridge for live printer telemetry (/ws/printers). Owns the wss
 // instance; the PrinterConnectionManager gets `attachRealtimeBridgeToMqttClient`
@@ -110,10 +110,15 @@ function attachRealtimeBridgeToMqttClient(mqttClient, clientKey, device) {
     }
 
     // Keep the filament inventory in step with live AMS telemetry (throttled +
-    // no-ops trays without an RFID identity). Never let it break the broadcast.
+    // no-ops trays without an RFID identity). When something actually changed,
+    // push the fresh inventory to clients so the filament manager updates in
+    // real time without polling. Never let it break the printer broadcast.
     if (jobData?.ams?.trays?.length) {
       try {
-        await syncTraysToInventory(activeDevice?.dev_id || null, jobData.ams.trays);
+        const written = await syncTraysToInventory(activeDevice?.dev_id || null, jobData.ams.trays);
+        if (written > 0) {
+          broadcastRealtimeMessage({ type: 'filament.update', payload: await listInventory() });
+        }
       } catch (error) {
         logger.debug('[Realtime] Filament inventory sync failed:', error.message);
       }
