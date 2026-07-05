@@ -111,6 +111,7 @@ exports[`route inventory > matches the pinned endpoint list 1`] = `
   "POST /api/filament/import",
   "POST /api/filament/import/image",
   "POST /api/filament/spares",
+  "POST /api/filament/spares/adjust",
   "POST /api/library/:id/auto-tag",
   "POST /api/library/auto-tag-all",
   "POST /api/library/auto-tag-cancel",

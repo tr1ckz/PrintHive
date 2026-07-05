@@ -12,6 +12,7 @@ const {
   deleteSpool,
   applyImportedItems,
   adjustSpare,
+  adjustSpareForColor,
   deleteSpare,
 } = require('../services/filamentInventory');
 const { parseBambuReceipt } = require('../services/bambuReceiptParser');
@@ -155,6 +156,21 @@ router.post('/api/filament/spares', requireAdminRole, async (req, res) => {
   } catch (error) {
     logger.error('[Filament] Failed to apply import:', error.message);
     res.status(500).json({ error: 'Failed to add items' });
+  }
+});
+
+// POST /api/filament/spares/adjust — add/remove spares for a colour identity
+// (creates the row on the first +1), so a colour with no spares yet can be
+// managed straight from its spool.
+router.post('/api/filament/spares/adjust', requireAdminRole, async (req, res) => {
+  const { brand, material, color_hex, color_name, filament_code, delta } = req.body || {};
+  if (!Number.isFinite(Number(delta))) return res.status(400).json({ error: 'delta required' });
+  try {
+    const count = await adjustSpareForColor({ brand, material, color_hex, color_name, filament_code }, Number(delta));
+    res.json({ success: true, count, inventory: await listInventory() });
+  } catch (error) {
+    logger.error('[Filament] Failed to adjust colour spares:', error.message);
+    res.status(500).json({ error: 'Failed to adjust spares' });
   }
 });
 

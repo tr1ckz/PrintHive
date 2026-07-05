@@ -100,6 +100,7 @@ function Filament({ userRole }: FilamentProps) {
   const [editing, setEditing] = useState<FilamentSpool | null>(null);
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [managing, setManaging] = useState<{ spool: FilamentSpool; brand: string; material: string; label: string } | null>(null);
 
   const load = async () => {
     try {
@@ -121,7 +122,7 @@ function Filament({ userRole }: FilamentProps) {
     const onUpdate = (e: Event) => {
       const detail = (e as CustomEvent<InventoryResponse | undefined>).detail;
       // Don't clobber the modal a user is editing mid-change.
-      if (editing || adding || importing) return;
+      if (editing || adding || importing || managing) return;
       if (detail && Array.isArray(detail.groups)) {
         setData(detail);
         setLoading(false);
@@ -131,22 +132,7 @@ function Filament({ userRole }: FilamentProps) {
     };
     window.addEventListener(FILAMENT_UPDATE_EVENT, onUpdate);
     return () => window.removeEventListener(FILAMENT_UPDATE_EVENT, onUpdate);
-  }, [editing, adding, importing]);
-
-  // Adjust a spare count (+1 / -1), or delete when it hits zero via the API.
-  const adjustSpare = async (id: number, delta: number) => {
-    const res = await fetchWithRetry(API_ENDPOINTS.FILAMENT.SPARE_ITEM(id), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ delta }),
-    });
-    try {
-      const body = await res.json();
-      if (body?.inventory) setData(body.inventory);
-      else void load();
-    } catch { void load(); }
-  };
+  }, [editing, adding, importing, managing]);
 
   const filteredGroups = useMemo(() => {
     if (!data) return [];
@@ -255,15 +241,13 @@ function Filament({ userRole }: FilamentProps) {
             <div className="divide-y divide-line/60">
               {group.spools.map((spool) => {
                 const p = pct(spool);
-                const stepper = spool.spareId != null && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1 py-0.5" title="Spare (unopened) refills of this colour">
-                    {isAdmin && <button onClick={() => void adjustSpare(spool.spareId!, -1)} className="flex size-5 items-center justify-center rounded text-accent hover:bg-accent/20" title="Use / remove one">−</button>}
-                    <span className="px-0.5 text-xs font-semibold tabular-nums text-accent">{spool.spareCount} spare</span>
-                    {isAdmin && <button onClick={() => void adjustSpare(spool.spareId!, 1)} className="flex size-5 items-center justify-center rounded text-accent hover:bg-accent/20" title="Add one">+</button>}
-                  </span>
-                );
                 return (
-                  <div key={spool.id} className="flex items-center gap-3 px-4 py-3">
+                  <div
+                    key={spool.id}
+                    onClick={() => setManaging({ spool, brand: group.brand, material: group.material, label: group.label })}
+                    className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
+                    title="Manage spare refills for this colour"
+                  >
                     <span
                       className="size-9 shrink-0 rounded-md ring-1 ring-inset ring-white/10"
                       style={{ background: spool.color_hex || 'var(--text-disabled)' }}
@@ -274,25 +258,26 @@ function Filament({ userRole }: FilamentProps) {
                         <span className="truncate text-sm font-medium text-fg" title={[spool.filament_code, spool.color_hex].filter(Boolean).join('  ·  ')}>
                           {spool.color_name || spool.color_hex || 'Unknown colour'}
                         </span>
+                        {(spool.spareCount ?? 0) > 0 && (
+                          <span className="shrink-0 rounded bg-accent/15 px-1.5 py-0.5 text-[0.65rem] font-semibold tabular-nums text-accent" title={`${spool.spareCount} spare refill${spool.spareCount === 1 ? '' : 's'} on hand`}>
+                            +{spool.spareCount}
+                          </span>
+                        )}
                         {spool.source === 'manual' && <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[0.6rem] uppercase tracking-wide text-muted">manual</span>}
                       </div>
                       {spool.is_spare ? (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-muted">Sealed refill · not loaded</span>
-                          {stepper}
-                        </div>
+                        <span className="text-xs text-muted">Sealed refill · not loaded</span>
                       ) : (
                         <div className="flex items-center gap-2">
                           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
                             <div className="h-full rounded-full" style={{ width: `${p}%`, background: barColor(p) }} />
                           </div>
                           <span className="shrink-0 text-xs tabular-nums text-muted">{spool.remaining_g ?? 0} / {spool.capacity_g ?? 1000} g</span>
-                          {stepper}
                         </div>
                       )}
                     </div>
                     {isAdmin && !spool.is_spare && (
-                      <div className="flex shrink-0 items-center gap-0.5">
+                      <div className="flex shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => setEditing(spool)}
                           className="rounded p-1.5 text-muted transition-colors hover:bg-white/10 hover:text-fg"
@@ -359,6 +344,94 @@ function Filament({ userRole }: FilamentProps) {
           onImported={(inv) => { setImporting(false); if (inv) setData(inv); else void load(); }}
         />
       )}
+
+      {managing && (
+        <SpareModal
+          spool={managing.spool}
+          brand={managing.brand}
+          material={managing.material}
+          label={managing.label}
+          canEdit={isAdmin}
+          onClose={() => setManaging(null)}
+          onChanged={(inv) => { if (inv) setData(inv); else void load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Manage spare (unopened) refills for one colour. Opened by tapping a spool row.
+function SpareModal({ spool, brand, material, label, canEdit, onClose, onChanged }: {
+  spool: FilamentSpool; brand: string; material: string; label: string; canEdit: boolean;
+  onClose: () => void; onChanged: (inv: InventoryResponse | null) => void;
+}) {
+  const [count, setCount] = useState<number>(spool.spareCount ?? 0);
+  const [busy, setBusy] = useState(false);
+
+  const adjust = async (delta: number) => {
+    if (!canEdit || busy) return;
+    setBusy(true);
+    try {
+      const res = await fetchWithRetry(API_ENDPOINTS.FILAMENT.SPARE_ADJUST, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({
+          brand, material,
+          color_hex: spool.color_hex, color_name: spool.color_name, filament_code: spool.filament_code,
+          delta,
+        }),
+      });
+      const body = await res.json();
+      if (typeof body?.count === 'number') setCount(body.count);
+      onChanged(body?.inventory || null);
+    } catch { /* leave count as-is */ }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-lg bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3">
+          <span className="size-10 shrink-0 rounded-md ring-1 ring-inset ring-white/10" style={{ background: spool.color_hex || 'var(--text-disabled)' }} />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-fg">{spool.color_name || spool.color_hex || 'Unknown colour'}</div>
+            <div className="truncate text-xs text-muted">{label}</div>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-md bg-white/[0.03] p-4">
+          <div className="text-center text-[0.7rem] font-semibold uppercase tracking-widest text-muted">Spare refills on hand</div>
+          <div className="mt-3 flex items-center justify-center gap-5">
+            <button
+              onClick={() => void adjust(-1)}
+              disabled={!canEdit || busy || count === 0}
+              className="flex size-11 items-center justify-center rounded-full bg-white/5 text-xl text-fg-soft transition-colors hover:bg-white/10 disabled:opacity-40"
+              title="Remove one (e.g. you loaded it)"
+            >−</button>
+            <span className="min-w-12 text-center text-3xl font-bold tabular-nums text-fg">{count}</span>
+            <button
+              onClick={() => void adjust(1)}
+              disabled={!canEdit || busy}
+              className="flex size-11 items-center justify-center rounded-full bg-accent/15 text-xl text-accent transition-colors hover:bg-accent/25 disabled:opacity-40"
+              title="Add one"
+            >+</button>
+          </div>
+          {canEdit && (
+            <div className="mt-4 flex justify-center gap-2">
+              {[2, 3, 5].map((n) => (
+                <button key={n} onClick={() => void adjust(n)} disabled={busy} className="rounded-md bg-white/5 px-3 py-1 text-xs font-semibold text-fg-soft hover:bg-white/10 disabled:opacity-40">
+                  +{n}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {!canEdit && <p className="mt-3 text-center text-xs text-muted">Admin access is required to change spare counts.</p>}
+
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="min-h-9 rounded-md bg-white/5 px-4 text-sm font-semibold text-fg-soft hover:bg-white/10">Done</button>
+        </div>
+      </div>
     </div>
   );
 }

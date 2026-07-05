@@ -174,6 +174,7 @@ export const API_ENDPOINTS = {
     IMPORT: `${API_BASE_URL}/api/filament/import`,
     IMPORT_IMAGE: `${API_BASE_URL}/api/filament/import/image`,
     SPARES: `${API_BASE_URL}/api/filament/spares`,
+    SPARE_ADJUST: `${API_BASE_URL}/api/filament/spares/adjust`,
     SPARE_ITEM: (id: number) => `${API_BASE_URL}/api/filament/spares/${id}`,
   },
 };

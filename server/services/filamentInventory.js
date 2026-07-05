@@ -496,6 +496,30 @@ async function applyImportedItems(items) {
   return { spares, spools };
 }
 
+// Adjust the spare count for a colour identity (not a row id), creating the row
+// on the first +1. Lets the UI manage spares for any colour — even one with no
+// spare row yet. Returns the new count.
+async function adjustSpareForColor(identity, delta) {
+  const d = Number(delta) || 0;
+  const existing = await findSpareRow(identity);
+  if (existing) {
+    const next = Math.max(0, (Number(existing.spare_count) || 0) + d);
+    (await db.prepare(
+      'UPDATE filament_spares SET spare_count = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(next, existing.id));
+    return next;
+  }
+  if (d > 0) {
+    await addSpares([{
+      brand: identity.brand, material: identity.material,
+      colorName: identity.color_name, color_hex: identity.color_hex,
+      code: identity.filament_code, quantity: d, isRefill: true,
+    }]);
+    return d;
+  }
+  return 0;
+}
+
 // Adjust a spare row by a delta (e.g. +1 ordered, -1 loaded). Clamps at 0.
 async function adjustSpare(id, delta) {
   const row = (await db.prepare('SELECT * FROM filament_spares WHERE id = ?').get(id));
@@ -683,5 +707,6 @@ module.exports = {
   applyImportedItems,
   listSpares,
   adjustSpare,
+  adjustSpareForColor,
   deleteSpare,
 };
