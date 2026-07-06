@@ -156,7 +156,6 @@ exports[`route inventory > matches the pinned endpoint list 1`] = `
   "POST /api/settings/profile",
   "POST /api/settings/request-code",
   "POST /api/settings/restart",
-  "POST /api/settings/restart",
   "POST /api/settings/save-oauth",
   "POST /api/settings/save-printer-ftp",
   "POST /api/settings/test-printer-ftp",

@@ -4884,53 +4884,6 @@ app.use(createLibraryRouter({
   cleanDescription,
 }));
 
-// Admin: Restart/Reboot the application
-app.post('/api/settings/restart', async (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  // Check if user is admin
-  const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
-  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  console.log('=== RESTART REQUESTED BY ADMIN ===');
-  res.json({ success: true, message: 'Server restarting...', shouldRestart: true });
-  
-  // Give time for response to be sent
-  setTimeout(() => {
-    console.log('Shutting down for restart - Docker/PM2 will auto-restart...');
-    
-    // Close database gracefully
-    if (db) {
-      try {
-        db.close();
-        console.log('Database closed');
-      } catch (e) {
-        console.error('Error closing database:', e);
-      }
-    }
-    
-    // Close the HTTP server gracefully
-    if (httpServer) {
-      httpServer.close(() => {
-        console.log('HTTP server closed');
-        process.exit(0);
-      });
-      
-      // Force exit after 3 seconds if server doesn't close gracefully
-      setTimeout(() => {
-        console.log('Force exit after timeout');
-        process.exit(1);
-      }, 5000);
-    } else {
-      process.exit(1);
-    }
-  }, 2000);
-});
-
 // Health check endpoint for Docker/watchdog
 app.get('/api/health', async (req, res) => {
   try {
