@@ -34,17 +34,17 @@ module.exports = function createLibraryRouter(ctx) {
     
     // Skip if already extracted
     if (fs.existsSync(outputPath)) {
-      console.log(`Geometry already cached for file ${fileId}`);
+      logger.info(`Geometry already cached for file ${fileId}`);
       return;
     }
 
-    console.log(`Extracting geometry for file ${fileId} (${fileType})...`);
+    logger.info(`Extracting geometry for file ${fileId} (${fileType})...`);
 
     try {
       if (fileType === 'stl') {
         // Just copy STL files
         fs.copyFileSync(filePath, outputPath);
-        console.log(`✓ Cached STL geometry for file ${fileId}`);
+        logger.info(`✓ Cached STL geometry for file ${fileId}`);
       } else if (fileType === '3mf') {
         // Extract STL from 3MF using adm-zip
         const AdmZip = require('adm-zip');
@@ -61,13 +61,13 @@ module.exports = function createLibraryRouter(ctx) {
           // The 3D viewer will need to handle the 3MF XML format or we convert to STL
           const modelData = modelEntry.getData();
           fs.writeFileSync(outputPath.replace('.stl', '.model'), modelData);
-          console.log(`✓ Extracted 3MF model data for file ${fileId}`);
+          logger.info(`✓ Extracted 3MF model data for file ${fileId}`);
         } else {
-          console.log(`⚠ No model data found in 3MF for file ${fileId}`);
+          logger.info(`⚠ No model data found in 3MF for file ${fileId}`);
         }
       }
     } catch (error) {
-      console.error(`Failed to extract geometry for file ${fileId}:`, error.message);
+      logger.error(`Failed to extract geometry for file ${fileId}:`, error.message);
     }
   }
 
@@ -96,7 +96,7 @@ module.exports = function createLibraryRouter(ctx) {
         res.status(404).json({ error: 'Geometry not extracted yet' });
       }
     } catch (error) {
-      console.error('Geometry fetch error:', error.message);
+      logger.error('Geometry fetch error:', error.message);
       res.status(500).json({ error: 'Failed to fetch geometry' });
     }
   });
@@ -130,7 +130,7 @@ module.exports = function createLibraryRouter(ctx) {
       
       res.json(filesWithTags);
     } catch (error) {
-      console.error('Library fetch error:', error.message);
+      logger.error('Library fetch error:', error.message);
       res.status(500).json({ error: 'Failed to fetch library' });
     }
   });
@@ -169,7 +169,7 @@ module.exports = function createLibraryRouter(ctx) {
       if (fileType === '3mf' || fileType === 'stl') {
         setImmediate(() => {
           extractGeometry(fileId, req.file.path, fileType).catch(err => {
-            console.error(`Failed to extract geometry for file ${fileId}:`, err.message);
+            logger.error(`Failed to extract geometry for file ${fileId}:`, err.message);
           });
         });
       }
@@ -181,7 +181,7 @@ module.exports = function createLibraryRouter(ctx) {
         originalName: req.file.originalname
       });
     } catch (error) {
-      console.error('Upload error:', error.message);
+      logger.error('Upload error:', error.message);
       res.status(500).json({ error: 'Failed to upload file' });
     }
   });
@@ -212,7 +212,7 @@ module.exports = function createLibraryRouter(ctx) {
       
       res.json({ hash });
     } catch (error) {
-      console.error('Share generation error:', error.message);
+      logger.error('Share generation error:', error.message);
       res.status(500).json({ error: 'Failed to generate share link' });
     }
   });
@@ -253,13 +253,13 @@ module.exports = function createLibraryRouter(ctx) {
       fileStream.pipe(res);
       
       fileStream.on('error', (err) => {
-        console.error('File stream error:', err.message);
+        logger.error('File stream error:', err.message);
         if (!res.headersSent) {
           res.status(500).json({ error: 'Failed to stream file' });
         }
       });
     } catch (error) {
-      console.error('Share download error:', error.message);
+      logger.error('Share download error:', error.message);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Failed to download file' });
       }
@@ -331,7 +331,7 @@ module.exports = function createLibraryRouter(ctx) {
         res.status(400).json({ error: 'Unsupported file format for 3D viewing' });
       }
     } catch (error) {
-      console.error('Share geometry error:', error.message);
+      logger.error('Share geometry error:', error.message);
       res.status(500).json({ error: 'Failed to load geometry' });
     }
   });
@@ -357,11 +357,11 @@ module.exports = function createLibraryRouter(ctx) {
         res.setHeader('Cache-Control', 'public, max-age=86400');
         return res.send(thumbnail);
       } catch (err) {
-        console.error('Failed to generate thumbnail:', err.message);
+        logger.error('Failed to generate thumbnail:', err.message);
         res.status(404).json({ error: 'Thumbnail not available' });
       }
     } catch (error) {
-      console.error('Share thumbnail error:', error.message);
+      logger.error('Share thumbnail error:', error.message);
       res.status(500).json({ error: 'Failed to load thumbnail' });
     }
   });
@@ -386,7 +386,7 @@ module.exports = function createLibraryRouter(ctx) {
       const resolvedPath = path.resolve(filePath);
       const resolvedLibraryDir = path.resolve(libraryDir);
       if (!resolvedPath.startsWith(resolvedLibraryDir)) {
-        console.error('Path traversal attempt detected:', filePath);
+        logger.error('Path traversal attempt detected:', filePath);
         return res.status(403).json({ error: 'Access denied' });
       }
       
@@ -405,13 +405,13 @@ module.exports = function createLibraryRouter(ctx) {
       fileStream.pipe(res);
       
       fileStream.on('error', (err) => {
-        console.error('File stream error:', err.message);
+        logger.error('File stream error:', err.message);
         if (!res.headersSent) {
           res.status(500).json({ error: 'Failed to stream file' });
         }
       });
     } catch (error) {
-      console.error('Library download error:', error.message);
+      logger.error('Library download error:', error.message);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Failed to download file' });
       }
@@ -438,8 +438,8 @@ module.exports = function createLibraryRouter(ctx) {
       res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
       res.send(thumbnail);
     } catch (error) {
-      console.error('Thumbnail error:', error.message);
-      console.error('Stack:', error.stack);
+      logger.error('Thumbnail error:', error.message);
+      logger.error('Stack:', error.stack);
       res.status(500).json({ error: 'Failed to generate thumbnail' });
     }
   });
@@ -545,7 +545,7 @@ module.exports = function createLibraryRouter(ctx) {
       
       res.json({ duplicates });
     } catch (error) {
-      console.error('Duplicates error:', error.message);
+      logger.error('Duplicates error:', error.message);
       res.status(500).json({ error: 'Failed to find duplicates' });
     }
   });
@@ -570,7 +570,7 @@ module.exports = function createLibraryRouter(ctx) {
       const resolvedPath = path.resolve(filePath);
       const resolvedLibraryDir = path.resolve(libraryDir);
       if (!resolvedPath.startsWith(resolvedLibraryDir)) {
-        console.error('Path traversal attempt in delete:', filePath);
+        logger.error('Path traversal attempt in delete:', filePath);
         return res.status(403).json({ error: 'Access denied' });
       }
       
@@ -586,17 +586,17 @@ module.exports = function createLibraryRouter(ctx) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Delete error:', error.message);
+      logger.error('Delete error:', error.message);
       res.status(500).json({ error: 'Failed to delete file' });
     }
   });
 
   // Update library file (description)
   router.patch('/api/library/:id', async (req, res) => {
-    console.log('=== PATCH /api/library/:id ===');
-    console.log('File ID:', req.params.id);
-    console.log('Body:', req.body);
-    console.log('Authenticated:', req.session.authenticated);
+    logger.info('=== PATCH /api/library/:id ===');
+    logger.info('File ID:', req.params.id);
+    logger.info('Body:', req.body);
+    logger.info('Authenticated:', req.session.authenticated);
     
     if (!req.session.authenticated) {
       return res.status(401).json({ error: 'Not authenticated' });
@@ -613,7 +613,7 @@ module.exports = function createLibraryRouter(ctx) {
 
       // Check if file exists
       const file = (await db.prepare('SELECT id FROM library WHERE id = ?').get(fileId));
-      console.log('File found:', !!file);
+      logger.info('File found:', !!file);
       
       if (!file) {
         return res.status(404).json({ error: 'File not found' });
@@ -626,10 +626,10 @@ module.exports = function createLibraryRouter(ctx) {
       (await db.prepare('UPDATE library SET description = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?')
         .run(safeDescription, fileId));
 
-      console.log('Description updated successfully');
+      logger.info('Description updated successfully');
       res.json({ success: true });
     } catch (error) {
-      console.error('Update error:', error.message);
+      logger.error('Update error:', error.message);
       res.status(500).json({ error: 'Failed to delete file' });
     }
   });
@@ -653,7 +653,7 @@ module.exports = function createLibraryRouter(ctx) {
 
       res.json({ tags: tags.map(t => t.name) });
     } catch (error) {
-      console.error('Get tags error:', error.message);
+      logger.error('Get tags error:', error.message);
       res.status(500).json({ error: 'Failed to get tags' });
     }
   });
@@ -697,7 +697,7 @@ module.exports = function createLibraryRouter(ctx) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Update tags error:', error.message);
+      logger.error('Update tags error:', error.message);
       res.status(500).json({ error: 'Failed to update tags' });
     }
   });
@@ -752,7 +752,7 @@ module.exports = function createLibraryRouter(ctx) {
         (await processAutoTagQueue());
       }
     } catch (error) {
-      console.error('Auto-tag queue error:', error);
+      logger.error('Auto-tag queue error:', error);
       res.status(500).json({ error: 'Failed to queue auto-tag: ' + error.message });
     }
   });
@@ -820,7 +820,7 @@ module.exports = function createLibraryRouter(ctx) {
         queue: [...fileIds]
       });
 
-      console.log(`=== BULK DELETE: Starting background job for ${fileIds.length} files ===`);
+      logger.info(`=== BULK DELETE: Starting background job for ${fileIds.length} files ===`);
 
       // Return immediately with job started
       res.json({
@@ -832,7 +832,7 @@ module.exports = function createLibraryRouter(ctx) {
       // Start processing in background
       (await processBulkDeleteQueue());
     } catch (error) {
-      console.error('Failed to start bulk delete:', error.message);
+      logger.error('Failed to start bulk delete:', error.message);
       res.status(500).json({ error: 'Failed to start bulk delete: ' + error.message });
     }
   });
@@ -900,10 +900,10 @@ module.exports = function createLibraryRouter(ctx) {
         }
         
         bulkDeleteJob.deleted++;
-        console.log(`  [${bulkDeleteJob.processed + 1}/${bulkDeleteJob.total}] Deleted: ${file?.originalName || fileId}`);
+        logger.info(`  [${bulkDeleteJob.processed + 1}/${bulkDeleteJob.total}] Deleted: ${file?.originalName || fileId}`);
       } catch (error) {
         bulkDeleteJob.failed++;
-        console.error(`Failed to delete file ${fileId}:`, error.message);
+        logger.error(`Failed to delete file ${fileId}:`, error.message);
       }
       
       bulkDeleteJob.processed++;
@@ -913,7 +913,7 @@ module.exports = function createLibraryRouter(ctx) {
     
     if (bulkDeleteJob.processed >= bulkDeleteJob.total) {
       const elapsed = ((Date.now() - bulkDeleteJob.startTime) / 1000).toFixed(1);
-      console.log(`=== BULK DELETE COMPLETE: ${bulkDeleteJob.deleted} deleted, ${bulkDeleteJob.failed} failed in ${elapsed}s ===`);
+      logger.info(`=== BULK DELETE COMPLETE: ${bulkDeleteJob.deleted} deleted, ${bulkDeleteJob.failed} failed in ${elapsed}s ===`);
       bulkDeleteJob.running = false;
       bulkDeleteJob.currentFile = '';
     }
@@ -930,7 +930,7 @@ module.exports = function createLibraryRouter(ctx) {
     autoTagJob.processed = 0;
     autoTagJob.startTime = Date.now();
     
-    console.log(`=== AUTO-TAG JOB STARTED: ${autoTagJob.total} files queued ===`);
+    logger.info(`=== AUTO-TAG JOB STARTED: ${autoTagJob.total} files queued ===`);
     
     try {
       while (autoTagJob.queue.length > 0 && autoTagJob.running) {
@@ -938,7 +938,7 @@ module.exports = function createLibraryRouter(ctx) {
         autoTagJob.processed++;
         autoTagJob.currentFile = fileData.originalName;
         
-        console.log(`[${autoTagJob.processed}/${autoTagJob.total}] Analyzing: ${fileData.originalName}`);
+        logger.info(`[${autoTagJob.processed}/${autoTagJob.total}] Analyzing: ${fileData.originalName}`);
         
         try {
           // Try multiple possible file paths
@@ -978,7 +978,7 @@ module.exports = function createLibraryRouter(ctx) {
           }
           
           if (!actualFilePath) {
-            console.error(`  ✗ File not found for ID ${fileData.id}`);
+            logger.error(`  ✗ File not found for ID ${fileData.id}`);
             autoTagJob.failed++;
           } else {
             // Run auto-analysis
@@ -1003,11 +1003,11 @@ module.exports = function createLibraryRouter(ctx) {
               }
             }
             
-            console.log(`  ✓ Completed: ${fileData.originalName}`);
+            logger.info(`  ✓ Completed: ${fileData.originalName}`);
             autoTagJob.completed++;
           }
         } catch (error) {
-          console.error(`  ✗ Error analyzing ${fileData.originalName}:`, error.message);
+          logger.error(`  ✗ Error analyzing ${fileData.originalName}:`, error.message);
           autoTagJob.failed++;
         }
         
@@ -1016,9 +1016,9 @@ module.exports = function createLibraryRouter(ctx) {
       }
       
       const elapsed = ((Date.now() - autoTagJob.startTime) / 1000).toFixed(1);
-      console.log(`=== AUTO-TAG JOB COMPLETE: ${autoTagJob.completed} completed, ${autoTagJob.failed} failed in ${elapsed}s ===`);
+      logger.info(`=== AUTO-TAG JOB COMPLETE: ${autoTagJob.completed} completed, ${autoTagJob.failed} failed in ${elapsed}s ===`);
     } catch (error) {
-      console.error('Auto-tag job error:', error);
+      logger.error('Auto-tag job error:', error);
     } finally {
       autoTagJob.running = false;
       autoTagJob.currentFile = '';
@@ -1052,7 +1052,7 @@ module.exports = function createLibraryRouter(ctx) {
         totalChecked: items.length 
       });
     } catch (error) {
-      console.error('Clean descriptions error:', error);
+      logger.error('Clean descriptions error:', error);
       res.status(500).json({ error: 'Failed to clean descriptions' });
     }
   });
@@ -1071,7 +1071,7 @@ module.exports = function createLibraryRouter(ctx) {
     
     try {
       const items = (await db.prepare('SELECT * FROM library').all());
-      console.log(`=== LIBRARY CLEANUP: Checking ${items.length} files ===`);
+      logger.info(`=== LIBRARY CLEANUP: Checking ${items.length} files ===`);
       
       let removed = 0;
       let checked = 0;
@@ -1113,14 +1113,14 @@ module.exports = function createLibraryRouter(ctx) {
         }
         
         if (!fileExists) {
-          console.log(`  Removing missing file: ${item.originalName} (${item.fileName})`);
+          logger.info(`  Removing missing file: ${item.originalName} (${item.fileName})`);
           (await db.prepare('DELETE FROM library WHERE id = ?').run(item.id));
           removedFiles.push(item.originalName);
           removed++;
         }
       }
       
-      console.log(`=== LIBRARY CLEANUP COMPLETE: Removed ${removed} missing files ===`);
+      logger.info(`=== LIBRARY CLEANUP COMPLETE: Removed ${removed} missing files ===`);
       
       res.json({ 
         success: true, 
@@ -1130,7 +1130,7 @@ module.exports = function createLibraryRouter(ctx) {
         removedFiles
       });
     } catch (error) {
-      console.error('Library cleanup error:', error);
+      logger.error('Library cleanup error:', error);
       res.status(500).json({ error: 'Failed to cleanup library' });
     }
   });
@@ -1164,7 +1164,7 @@ module.exports = function createLibraryRouter(ctx) {
       autoTagJob.startTime = Date.now();
       autoTagJob.queue = []; // Clear queue
       
-      console.log(`=== AUTO-TAG ALL: Starting background job for ${items.length} files ===`);
+      logger.info(`=== AUTO-TAG ALL: Starting background job for ${items.length} files ===`);
       
       // Return immediately with job started status
       res.json({ 
@@ -1178,7 +1178,7 @@ module.exports = function createLibraryRouter(ctx) {
         for (const file of items) {
           // Check if job was cancelled
           if (!autoTagJob.running) {
-            console.log('  Auto-tag job cancelled by user');
+            logger.info('  Auto-tag job cancelled by user');
             break;
           }
           
@@ -1186,14 +1186,14 @@ module.exports = function createLibraryRouter(ctx) {
             autoTagJob.processed++;
             autoTagJob.currentFile = file.originalName;
             
-            console.log(`  [${autoTagJob.processed}/${autoTagJob.total}] Analyzing: ${file.originalName}`);
+            logger.info(`  [${autoTagJob.processed}/${autoTagJob.total}] Analyzing: ${file.originalName}`);
             
             // Build correct file path using fileName (stored path may be outdated)
             const actualFilePath = path.join(libraryDir, file.fileName);
             
             // Skip if file doesn't exist
             if (!fs.existsSync(actualFilePath)) {
-              console.log(`    File not found: ${actualFilePath}`);
+              logger.info(`    File not found: ${actualFilePath}`);
               autoTagJob.errors++;
               // Yield control to event loop
               await yieldToEventLoop();
@@ -1244,7 +1244,7 @@ module.exports = function createLibraryRouter(ctx) {
             await yieldToEventLoop();
             
           } catch (err) {
-            console.error(`  Error processing ${file.originalName}:`, err.message);
+            logger.error(`  Error processing ${file.originalName}:`, err.message);
             autoTagJob.failed++;
             // Yield even on error
             await yieldToEventLoop();
@@ -1252,14 +1252,14 @@ module.exports = function createLibraryRouter(ctx) {
         }
         
         const elapsed = ((Date.now() - autoTagJob.startTime) / 1000).toFixed(1);
-        console.log(`=== AUTO-TAG ALL COMPLETE: ${autoTagJob.completed} completed, ${autoTagJob.failed} failed in ${elapsed}s ===`);
+        logger.info(`=== AUTO-TAG ALL COMPLETE: ${autoTagJob.completed} completed, ${autoTagJob.failed} failed in ${elapsed}s ===`);
         
         autoTagJob.running = false;
         autoTagJob.currentFile = '';
       })();
       
     } catch (error) {
-      console.error('Auto-tag all error:', error);
+      logger.error('Auto-tag all error:', error);
       autoTagJob.running = false;
       res.status(500).json({ error: 'Failed to start auto-tag job' });
     }
@@ -1281,7 +1281,7 @@ module.exports = function createLibraryRouter(ctx) {
     }
 
     try {
-      console.log(`Scanning library directory: ${libraryDir}`);
+      logger.info(`Scanning library directory: ${libraryDir}`);
       const allFiles = walkDirectory(libraryDir);
       
       // Filter to only supported files
@@ -1301,7 +1301,7 @@ module.exports = function createLibraryRouter(ctx) {
         startTime: Date.now()
       });
       
-      console.log(`=== LIBRARY SCAN: Starting background job for ${supportedFiles.length} files ===`);
+      logger.info(`=== LIBRARY SCAN: Starting background job for ${supportedFiles.length} files ===`);
       
       // Return immediately with job started status
       res.json({ 
@@ -1317,7 +1317,7 @@ module.exports = function createLibraryRouter(ctx) {
         for (const filePath of supportedFiles) {
           // Check if job was cancelled
           if (!libraryScanJob.running) {
-            console.log('  Library scan job cancelled by user');
+            logger.info('  Library scan job cancelled by user');
             break;
           }
           
@@ -1342,14 +1342,14 @@ module.exports = function createLibraryRouter(ctx) {
               `).run(fileName, fileName, fileType, stats.size, relativePath, '', ''));
               
               libraryScanJob.added++;
-              console.log(`  [${libraryScanJob.processed}/${libraryScanJob.total}] Added: ${fileName}`);
+              logger.info(`  [${libraryScanJob.processed}/${libraryScanJob.total}] Added: ${fileName}`);
               
               // Queue for geometry extraction
               if (fileType === '3mf' || fileType === 'stl') {
                 extractionQueue.push({ id: result.lastInsertRowid, path: filePath, type: fileType });
               }
             } catch (err) {
-              console.error(`  Error adding ${fileName}:`, err.message);
+              logger.error(`  Error adding ${fileName}:`, err.message);
             }
           } else {
             libraryScanJob.skipped++;
@@ -1360,15 +1360,15 @@ module.exports = function createLibraryRouter(ctx) {
         }
         
         const elapsed = ((Date.now() - libraryScanJob.startTime) / 1000).toFixed(1);
-        console.log(`=== LIBRARY SCAN COMPLETE: ${libraryScanJob.added} added, ${libraryScanJob.skipped} skipped in ${elapsed}s ===`);
+        logger.info(`=== LIBRARY SCAN COMPLETE: ${libraryScanJob.added} added, ${libraryScanJob.skipped} skipped in ${elapsed}s ===`);
         
         // Trigger background extraction for all new files
         if (extractionQueue.length > 0) {
-          console.log(`Queuing geometry extraction for ${extractionQueue.length} file(s)...`);
+          logger.info(`Queuing geometry extraction for ${extractionQueue.length} file(s)...`);
           setImmediate(() => {
             extractionQueue.forEach(({ id, path: fPath, type }) => {
               extractGeometry(id, fPath, type).catch(err => {
-                console.error(`Failed to extract geometry for file ${id}:`, err.message);
+                logger.error(`Failed to extract geometry for file ${id}:`, err.message);
               });
             });
           });
@@ -1379,7 +1379,7 @@ module.exports = function createLibraryRouter(ctx) {
       })();
       
     } catch (error) {
-      console.error('Scan error:', error.message);
+      logger.error('Scan error:', error.message);
       libraryScanJob.running = false;
       res.status(500).json({ error: 'Failed to start library scan' });
     }
@@ -1513,7 +1513,7 @@ module.exports = function createLibraryRouter(ctx) {
       
       res.json({ models, total, limit: parseInt(limit), offset: parseInt(offset) });
     } catch (error) {
-      console.error('Library search error:', error);
+      logger.error('Library search error:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -1540,14 +1540,14 @@ module.exports = function createLibraryRouter(ctx) {
             processed++;
           }
         } catch (error) {
-          console.error(`Error hashing model ${model.id}:`, error.message);
+          logger.error(`Error hashing model ${model.id}:`, error.message);
           errors++;
         }
       }
       
       res.json({ success: true, processed, errors, total: models.length });
     } catch (error) {
-      console.error('Calculate all hashes error:', error);
+      logger.error('Calculate all hashes error:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -1658,7 +1658,7 @@ module.exports = function createLibraryRouter(ctx) {
       
       res.json({ success: true, detected, models_checked: models.length });
     } catch (error) {
-      console.error('Detect problems error:', error);
+      logger.error('Detect problems error:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -1708,7 +1708,7 @@ module.exports = function createLibraryRouter(ctx) {
       
       res.json({ success: true, processed });
     } catch (error) {
-      console.error('Parse folder tags error:', error);
+      logger.error('Parse folder tags error:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -1745,7 +1745,7 @@ module.exports = function createLibraryRouter(ctx) {
       
       res.json(stats);
     } catch (error) {
-      console.error('Get library stats error:', error);
+      logger.error('Get library stats error:', error);
       res.status(500).json({ error: error.message });
     }
   });

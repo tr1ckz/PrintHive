@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const logger = require('../../logger');
 const { db } = require('../../database');
 
 // Model tag, hash, problem, and bulk routes. Self-contained on the DB; file
@@ -40,7 +41,7 @@ router.post('/api/models/:id/tags', async (req, res) => {
       }
     }
   } catch (error) {
-    console.error('Add tag error:', error);
+    logger.error('Add tag error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -54,7 +55,7 @@ router.delete('/api/models/:id/tags/:tagId', async (req, res) => {
     (await db.prepare('DELETE FROM model_tags WHERE model_id = ? AND tag_id = ?').run(id, tagId));
     res.json({ success: true });
   } catch (error) {
-    console.error('Remove tag error:', error);
+    logger.error('Remove tag error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -73,7 +74,7 @@ router.get('/api/models/:id/tags', async (req, res) => {
     `).all(id));
     res.json(tags);
   } catch (error) {
-    console.error('Get model tags error:', error);
+    logger.error('Get model tags error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -103,7 +104,7 @@ router.post('/api/models/:id/calculate-hash', async (req, res) => {
 
     res.json({ success: true, hash });
   } catch (error) {
-    console.error('Calculate hash error:', error);
+    logger.error('Calculate hash error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -125,7 +126,7 @@ router.get('/api/models/:id/problems', async (req, res) => {
     `).all(id));
     res.json(problems);
   } catch (error) {
-    console.error('Get problems error:', error);
+    logger.error('Get problems error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -167,7 +168,7 @@ router.post('/api/models/bulk/tags', async (req, res) => {
 
     res.json({ success: true, added });
   } catch (error) {
-    console.error('Bulk add tags error:', error);
+    logger.error('Bulk add tags error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -199,7 +200,7 @@ router.delete('/api/models/bulk/tags', async (req, res) => {
 
     res.json({ success: true, removed: result.changes });
   } catch (error) {
-    console.error('Bulk remove tags error:', error);
+    logger.error('Bulk remove tags error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -239,14 +240,14 @@ router.post('/api/models/bulk/delete', async (req, res) => {
           deleted++;
         }
       } catch (error) {
-        console.error(`Error deleting model ${modelId}:`, error.message);
+        logger.error(`Error deleting model ${modelId}:`, error.message);
         errors++;
       }
     }
 
     res.json({ success: true, deleted, errors });
   } catch (error) {
-    console.error('Bulk delete error:', error);
+    logger.error('Bulk delete error:', error);
     res.status(500).json({ error: error.message });
   }
 });

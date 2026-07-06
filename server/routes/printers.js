@@ -131,7 +131,7 @@ module.exports = function createPrinterRouter(ctx) {
       const printers = (await db.prepare('SELECT * FROM printers ORDER BY name').all());
       res.json({ success: true, printers });
     } catch (error) {
-      console.error('Failed to load printer configs:', error);
+      logger.error('Failed to load printer configs:', error);
       res.status(500).json({ error: 'Failed to load printer configurations' });
     }
   });
@@ -257,7 +257,7 @@ module.exports = function createPrinterRouter(ctx) {
         }
       }
     } catch (error) {
-      console.error('Failed to save printer config:', error);
+      logger.error('Failed to save printer config:', error);
       if (!res.headersSent) {
         res.status(500).json({ error: 'Failed to save printer configuration' });
       }
@@ -315,7 +315,7 @@ module.exports = function createPrinterRouter(ctx) {
       const go2rtcInfo = (await syncGo2RtcConfigSafe());
       res.json({ success: true, clearedLegacyConfig: matchesLegacyConfig, go2rtcConfigPath: go2rtcInfo?.path || go2rtcConfigPath, streamCount: go2rtcInfo?.streamCount || 0 });
     } catch (error) {
-      console.error('Failed to delete printer config:', error);
+      logger.error('Failed to delete printer config:', error);
       res.status(500).json({ error: 'Failed to delete printer configuration' });
     }
   });
@@ -735,7 +735,7 @@ module.exports = function createPrinterRouter(ctx) {
         total: printers.length
       });
     } catch (error) {
-      console.error('Printer status error:', error.message);
+      logger.error('Printer status error:', error.message);
 
       const fallbackPrinters = (await mergeConfiguredPrinters([])).map(device => ({
         id: device.dev_id,
@@ -795,15 +795,15 @@ module.exports = function createPrinterRouter(ctx) {
       
       res.json(printsWithCovers);
     } catch (error) {
-      console.error('Prints error:', error.message);
+      logger.error('Prints error:', error.message);
       res.json([]);
     }
   });
 
   // Download from printer SD card
   router.get('/api/printer/download/:modelId', async (req, res) => {
-    console.log('=== PRINTER DOWNLOAD REQUEST ===');
-    console.log('Model ID:', req.params.modelId);
+    logger.info('=== PRINTER DOWNLOAD REQUEST ===');
+    logger.info('Model ID:', req.params.modelId);
     
     if (!req.session.authenticated) {
       return res.status(401).json({ error: 'Not authenticated' });
@@ -815,19 +815,19 @@ module.exports = function createPrinterRouter(ctx) {
         return res.status(404).json({ error: 'Print not found in database' });
       }
       
-      console.log('Found print:', { id: print.id, title: print.title, profileId: print.profileId });
+      logger.info('Found print:', { id: print.id, title: print.title, profileId: print.profileId });
       
       // The 3MF file is stored on the printer at: ftp://<printer_ip>/cache/<profileId>.3mf
       // We need to use the Bambu API to access it via signed URL
       const fileUrl = `https://api.bambulab.com/v1/iot-service/api/user/project/${print.profileId}`;
-      console.log('Fetching file info from:', fileUrl);
+      logger.info('Fetching file info from:', fileUrl);
       
       const fileResponse = await axios.get(fileUrl, {
         headers: { 'Authorization': `Bearer ${req.session.token}` }
       });
       
       if (fileResponse.data && fileResponse.data.url) {
-        console.log('Downloading from printer:', fileResponse.data.url);
+        logger.info('Downloading from printer:', fileResponse.data.url);
         const downloadResponse = await axios.get(fileResponse.data.url, { 
           responseType: 'arraybuffer',
           timeout: 30000
@@ -840,7 +840,7 @@ module.exports = function createPrinterRouter(ctx) {
         res.status(404).json({ error: 'File URL not available from printer' });
       }
     } catch (error) {
-      console.error('Printer download error:', error.message);
+      logger.error('Printer download error:', error.message);
       res.status(500).json({ error: 'Failed to download from printer', details: error.message });
     }
   });
