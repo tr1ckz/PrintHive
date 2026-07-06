@@ -38,7 +38,6 @@ exports[`route inventory > matches the pinned endpoint list 1`] = `
   "GET /api/library/bulk-delete-status",
   "GET /api/library/download/:id",
   "GET /api/library/duplicates",
-  "GET /api/library/duplicates",
   "GET /api/library/geometry/:id",
   "GET /api/library/scan-status",
   "GET /api/library/search",

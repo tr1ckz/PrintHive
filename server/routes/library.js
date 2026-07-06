@@ -1552,40 +1552,6 @@ module.exports = function createLibraryRouter(ctx) {
     }
   });
 
-  // Find duplicate files
-  router.get('/api/library/duplicates', async (req, res) => {
-    if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
-    try {
-      const duplicates = (await db.prepare(`
-        SELECT fileHash, COUNT(*) as count, GROUP_CONCAT(id) as model_ids
-        FROM library
-        WHERE fileHash IS NOT NULL
-        GROUP BY fileHash
-        HAVING count > 1
-        ORDER BY count DESC
-      `).all());
-      
-      const detailedDuplicates = await Promise.all(duplicates.map(async dup => {
-        const ids = dup.model_ids.split(',').map(id => parseInt(id));
-        const models = (await db.prepare(`
-          SELECT * FROM library WHERE id IN (${ids.map(() => '?').join(',')})
-        `).all(...ids));
-
-        return {
-          hash: dup.fileHash,
-          count: dup.count,
-          models
-        };
-      }));
-      
-      res.json(detailedDuplicates);
-    } catch (error) {
-      console.error('Find duplicates error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // Detect problems for all models
   router.post('/api/library/detect-problems', async (req, res) => {
     if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
