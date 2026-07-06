@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../../logger');
+const { requireAuth } = require('../middleware/requireAuth');
 const { db } = require('../../database');
 
 // Model tag, hash, problem, and bulk routes. Self-contained on the DB; file
@@ -11,9 +12,7 @@ const ROOT = path.join(__dirname, '..', '..');
 const router = express.Router();
 
 // Add tag to model
-router.post('/api/models/:id/tags', async (req, res) => {
-  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+router.post('/api/models/:id/tags', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { tag } = req.body;
@@ -47,9 +46,7 @@ router.post('/api/models/:id/tags', async (req, res) => {
 });
 
 // Remove tag from model
-router.delete('/api/models/:id/tags/:tagId', async (req, res) => {
-  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+router.delete('/api/models/:id/tags/:tagId', requireAuth, async (req, res) => {
   try {
     const { id, tagId } = req.params;
     (await db.prepare('DELETE FROM model_tags WHERE model_id = ? AND tag_id = ?').run(id, tagId));
@@ -61,9 +58,7 @@ router.delete('/api/models/:id/tags/:tagId', async (req, res) => {
 });
 
 // Get model tags
-router.get('/api/models/:id/tags', async (req, res) => {
-  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+router.get('/api/models/:id/tags', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const tags = (await db.prepare(`
@@ -132,9 +127,7 @@ router.get('/api/models/:id/problems', async (req, res) => {
 });
 
 // Bulk add tags
-router.post('/api/models/bulk/tags', async (req, res) => {
-  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+router.post('/api/models/bulk/tags', requireAuth, async (req, res) => {
   try {
     const { modelIds, tags } = req.body;
 
@@ -174,9 +167,7 @@ router.post('/api/models/bulk/tags', async (req, res) => {
 });
 
 // Bulk remove tags
-router.delete('/api/models/bulk/tags', async (req, res) => {
-  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+router.delete('/api/models/bulk/tags', requireAuth, async (req, res) => {
   try {
     const { modelIds, tags } = req.body;
 

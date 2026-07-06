@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const logger = require('../../logger');
+const { requireAuth } = require('../middleware/requireAuth');
 const { db, dataDir, getPrintByModelIdFromDb } = require('../../database');
 const { broadcastRealtimeMessage, attachRealtimeBridgeToMqttClient } = require('../realtime/wsServer');
 const { isBambuTokenExpired } = require('../services/bambuAccounts');
@@ -33,11 +34,7 @@ module.exports = function createPrinterRouter(ctx) {
   const router = express.Router();
 
   // Discover and save local printer IP
-  router.post('/api/printers/discover-ip', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.post('/api/printers/discover-ip', requireAuth, async (req, res) => {
     const devId = String(req.body?.dev_id || '').trim();
     const explicitCidrs = Array.isArray(req.body?.scanCidrs)
       ? req.body.scanCidrs.map((value) => String(value || '').trim()).filter(Boolean)
@@ -62,11 +59,7 @@ module.exports = function createPrinterRouter(ctx) {
   });
 
   // Manual discover for unresolved printers (not a background job)
-  router.post('/api/printers/discover-missing-ips', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.post('/api/printers/discover-missing-ips', requireAuth, async (req, res) => {
     const explicitCidrs = Array.isArray(req.body?.scanCidrs)
       ? req.body.scanCidrs.map((value) => String(value || '').trim()).filter(Boolean)
       : [];
@@ -122,11 +115,7 @@ module.exports = function createPrinterRouter(ctx) {
   });
 
   // Get all printer configurations
-  router.get('/api/printers/config', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.get('/api/printers/config', requireAuth, async (req, res) => {
     try {
       const printers = (await db.prepare('SELECT * FROM printers ORDER BY name').all());
       res.json({ success: true, printers });
@@ -137,11 +126,7 @@ module.exports = function createPrinterRouter(ctx) {
   });
 
   // Save or update printer configuration
-  router.post('/api/printers/config', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.post('/api/printers/config', requireAuth, async (req, res) => {
     const { dev_id, name, ip_address, access_code, serial_number, camera_rtsp_url } = req.body;
     
     if (!dev_id) {
@@ -265,11 +250,7 @@ module.exports = function createPrinterRouter(ctx) {
   });
 
   // Delete printer configuration
-  router.delete('/api/printers/config/:dev_id', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.delete('/api/printers/config/:dev_id', requireAuth, async (req, res) => {
     const { dev_id } = req.params;
     
     try {
@@ -323,11 +304,7 @@ module.exports = function createPrinterRouter(ctx) {
   // Built-in chamber camera (P1/A1/X1) as an MJPEG stream. The browser renders it
   // directly in an <img>. Frames come from the printer's proprietary port-6000
   // stream via the chamber-camera bridge.
-  router.get('/api/printers/:devId/chamber.mjpeg', async (req, res) => {
-    if (!req.session?.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.get('/api/printers/:devId/chamber.mjpeg', requireAuth, async (req, res) => {
     const { host, accessCode } = await resolveChamberCameraTarget(req.params.devId);
     if (!host || !accessCode) {
       return res.status(404).json({ error: 'No LAN IP / access code available for this printer' });
@@ -364,11 +341,7 @@ module.exports = function createPrinterRouter(ctx) {
 
   // Single latest chamber frame as a JPEG — handy for thumbnails / connectivity
   // checks without holding an MJPEG connection open.
-  router.get('/api/printers/:devId/chamber.jpg', async (req, res) => {
-    if (!req.session?.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.get('/api/printers/:devId/chamber.jpg', requireAuth, async (req, res) => {
     const { host, accessCode } = await resolveChamberCameraTarget(req.params.devId);
     if (!host || !accessCode) {
       return res.status(404).json({ error: 'No LAN IP / access code available for this printer' });
@@ -411,14 +384,10 @@ module.exports = function createPrinterRouter(ctx) {
   });
 
   // API routes
-  router.get('/api/printers', async (req, res) => {
+  router.get('/api/printers', requireAuth, async (req, res) => {
     logger.info('Printers request');
-    logger.debug('Auth:', req.session.authenticated, 'Token present:', !!req.session.token);
+    logger.debug('Token present:', !!req.session.token);
 
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
     // Get camera URL and printer settings from global config
     const cameraUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('camera_rtsp_url'))?.value || null;
     const printerIp = (await db.prepare('SELECT value FROM config WHERE key = ?').get('printer_ip'))?.value;
@@ -658,11 +627,7 @@ module.exports = function createPrinterRouter(ctx) {
   });
 
   // Simple printer status for dashboard
-  router.get('/api/printers/status', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.get('/api/printers/status', requireAuth, async (req, res) => {
     try {
       let devices = [];
 
@@ -758,11 +723,7 @@ module.exports = function createPrinterRouter(ctx) {
   });
 
   // Get recent prints for dashboard
-  router.get('/api/prints', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.get('/api/prints', requireAuth, async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     
     try {
@@ -801,14 +762,10 @@ module.exports = function createPrinterRouter(ctx) {
   });
 
   // Download from printer SD card
-  router.get('/api/printer/download/:modelId', async (req, res) => {
+  router.get('/api/printer/download/:modelId', requireAuth, async (req, res) => {
     logger.info('=== PRINTER DOWNLOAD REQUEST ===');
     logger.info('Model ID:', req.params.modelId);
-    
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+
     try {
       const print = (await getPrintByModelIdFromDb(req.params.modelId));
       if (!print) {
@@ -845,12 +802,8 @@ module.exports = function createPrinterRouter(ctx) {
     }
   });
 
-  router.get('/api/printer-transfer-status', (req, res) => {
+  router.get('/api/printer-transfer-status', requireAuth, (req, res) => {
     const printerTransferJob = getPrinterTransferJob();
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
     const elapsed = printerTransferJob.startTime ? ((Date.now() - printerTransferJob.startTime) / 1000).toFixed(1) : 0;
     const percent = printerTransferJob.total > 0
       ? Math.round((printerTransferJob.processed / Math.max(printerTransferJob.total, 1)) * 100)

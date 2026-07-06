@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const logger = require('../../logger');
+const { requireAuth } = require('../middleware/requireAuth');
 const { db, dataDir, libraryDir } = require('../../database');
 const { getThumbnail, clearThumbnailCache } = require('../jobs/thumbnailClient');
 const { autoDescribeModel } = require('../../ai-describer');
@@ -72,11 +73,7 @@ module.exports = function createLibraryRouter(ctx) {
   }
 
   // Geometry endpoint - serves pre-extracted geometry
-  router.get('/api/library/geometry/:id', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.get('/api/library/geometry/:id', requireAuth, async (req, res) => {
     try {
       const fileId = parseInt(req.params.id, 10);
       if (Number.isNaN(fileId) || fileId < 0) {
@@ -101,11 +98,7 @@ module.exports = function createLibraryRouter(ctx) {
     }
   });
 
-  router.get('/api/library', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.get('/api/library', requireAuth, async (req, res) => {
     try {
       const files = (await db.prepare(`
         SELECT l.id, l.fileName, l.originalName, l.fileType, l.fileSize, l.filePath,
@@ -135,11 +128,7 @@ module.exports = function createLibraryRouter(ctx) {
     }
   });
 
-  router.post('/api/library/upload', upload.single('file'), async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.post('/api/library/upload', upload.single('file'), requireAuth, async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
@@ -187,11 +176,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Generate share link for library item
-  router.post('/api/library/share/:id', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.post('/api/library/share/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const file = (await db.prepare('SELECT * FROM library WHERE id = ?').get(id));
@@ -366,11 +351,7 @@ module.exports = function createLibraryRouter(ctx) {
     }
   });
 
-  router.get('/api/library/download/:id', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.get('/api/library/download/:id', requireAuth, async (req, res) => {
     try {
       const file = (await db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id));
       
@@ -419,11 +400,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Thumbnail endpoint - generates and caches thumbnails
-  router.get('/api/library/thumbnail/:id', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.get('/api/library/thumbnail/:id', requireAuth, async (req, res) => {
     try {
       const file = (await db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id));
 
@@ -445,11 +422,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Get duplicate files
-  router.get('/api/library/duplicates', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.get('/api/library/duplicates', requireAuth, async (req, res) => {
     try {
       const groupBy = req.query.groupBy || 'name';
       const files = (await db.prepare('SELECT * FROM library ORDER BY originalName, id').all());
@@ -550,11 +523,7 @@ module.exports = function createLibraryRouter(ctx) {
     }
   });
 
-  router.delete('/api/library/:id', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.delete('/api/library/:id', requireAuth, async (req, res) => {
     try {
       const file = (await db.prepare('SELECT * FROM library WHERE id = ?').get(req.params.id));
       
@@ -592,15 +561,10 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Update library file (description)
-  router.patch('/api/library/:id', async (req, res) => {
+  router.patch('/api/library/:id', requireAuth, async (req, res) => {
     logger.info('=== PATCH /api/library/:id ===');
     logger.info('File ID:', req.params.id);
     logger.info('Body:', req.body);
-    logger.info('Authenticated:', req.session.authenticated);
-    
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
 
     try {
       const { description } = req.body;
@@ -635,11 +599,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Get tags for a library file
-  router.get('/api/library/:id/tags', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.get('/api/library/:id/tags', requireAuth, async (req, res) => {
     try {
       const fileId = req.params.id;
       
@@ -659,11 +619,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Update tags for a library file
-  router.put('/api/library/:id/tags', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.put('/api/library/:id/tags', requireAuth, async (req, res) => {
     try {
       const fileId = req.params.id;
       const { tags } = req.body;
@@ -703,11 +659,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Auto-tag endpoint - queues file for background analysis
-  router.post('/api/library/:id/auto-tag', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.post('/api/library/:id/auto-tag', requireAuth, async (req, res) => {
     try {
       const fileId = parseInt(req.params.id);
       
@@ -758,11 +710,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Get auto-tag job status
-  router.get('/api/library/auto-tag-status', (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.get('/api/library/auto-tag-status', requireAuth, (req, res) => {
     res.json({
       running: autoTagJob.running,
       total: autoTagJob.total,
@@ -776,11 +724,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Cancel auto-tag job
-  router.post('/api/library/auto-tag-cancel', (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.post('/api/library/auto-tag-cancel', requireAuth, (req, res) => {
     autoTagJob.running = false;
     autoTagJob.queue = [];
     
@@ -788,11 +732,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Bulk delete endpoint - queues files for background deletion
-  router.post('/api/library/bulk-delete', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.post('/api/library/bulk-delete', requireAuth, async (req, res) => {
     const { fileIds } = req.body;
     
     if (!Array.isArray(fileIds) || fileIds.length === 0) {
@@ -838,11 +778,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Get bulk delete job status
-  router.get('/api/library/bulk-delete-status', (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.get('/api/library/bulk-delete-status', requireAuth, (req, res) => {
     res.json({
       running: bulkDeleteJob.running,
       total: bulkDeleteJob.total,
@@ -856,11 +792,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Cancel bulk delete job
-  router.post('/api/library/bulk-delete-cancel', (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
+  router.post('/api/library/bulk-delete-cancel', requireAuth, (req, res) => {
     bulkDeleteJob.running = false;
     bulkDeleteJob.queue = [];
 
@@ -1026,11 +958,7 @@ module.exports = function createLibraryRouter(ctx) {
   }
 
   // Clean HTML-encoded descriptions in library
-  router.post('/api/library/clean-descriptions', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.post('/api/library/clean-descriptions', requireAuth, async (req, res) => {
     try {
       // Get all library items with descriptions
       const items = (await db.prepare('SELECT id, description FROM library WHERE description IS NOT NULL AND description != ""').all());
@@ -1058,11 +986,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Remove library entries where the file no longer exists
-  router.post('/api/library/cleanup-missing', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.post('/api/library/cleanup-missing', requireAuth, async (req, res) => {
     // Check if user is admin
     const user = (await db.prepare('SELECT role FROM users WHERE id = ?').get(req.session.userId));
     if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
@@ -1136,11 +1060,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Auto-tag all library files (non-blocking background job)
-  router.post('/api/library/auto-tag-all', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.post('/api/library/auto-tag-all', requireAuth, async (req, res) => {
     // Check if already running
     if (autoTagJob.running) {
       return res.json({ 
@@ -1266,11 +1186,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Scan library folder endpoint - recursively scans the library directory (non-blocking)
-  router.post('/api/library/scan', async (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.post('/api/library/scan', requireAuth, async (req, res) => {
     // Check if already running
     if (libraryScanJob.running) {
       return res.json({ 
@@ -1386,11 +1302,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Check library scan job status
-  router.get('/api/library/scan-status', (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.get('/api/library/scan-status', requireAuth, (req, res) => {
     const elapsed = libraryScanJob.startTime ? ((Date.now() - libraryScanJob.startTime) / 1000).toFixed(1) : 0;
     const percent = libraryScanJob.total > 0 ? Math.round((libraryScanJob.processed / libraryScanJob.total) * 100) : 0;
     
@@ -1402,11 +1314,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Cancel library scan job
-  router.post('/api/library/scan-cancel', (req, res) => {
-    if (!req.session.authenticated) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
+  router.post('/api/library/scan-cancel', requireAuth, (req, res) => {
     if (!libraryScanJob.running) {
       return res.json({ success: false, message: 'No library scan job running' });
     }
@@ -1416,9 +1324,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Advanced library search
-  router.get('/api/library/search', async (req, res) => {
-    if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+  router.get('/api/library/search', requireAuth, async (req, res) => {
     try {
       const { q, tags, fileType, hasHash, hasPrint, hasProblem, limit = 100, offset = 0 } = req.query;
       
@@ -1519,9 +1425,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Calculate hashes for all models
-  router.post('/api/library/calculate-all-hashes', async (req, res) => {
-    if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+  router.post('/api/library/calculate-all-hashes', requireAuth, async (req, res) => {
     try {
       const models = (await db.prepare('SELECT * FROM library WHERE fileHash IS NULL').all());
       const crypto = require('crypto');
@@ -1553,9 +1457,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Detect problems for all models
-  router.post('/api/library/detect-problems', async (req, res) => {
-    if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+  router.post('/api/library/detect-problems', requireAuth, async (req, res) => {
     try {
       const models = (await db.prepare('SELECT * FROM library').all());
       let detected = 0;
@@ -1664,9 +1566,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Parse tags from folder structure
-  router.post('/api/library/parse-folder-tags', async (req, res) => {
-    if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+  router.post('/api/library/parse-folder-tags', requireAuth, async (req, res) => {
     try {
       const models = (await db.prepare('SELECT * FROM library').all());
       let processed = 0;
@@ -1714,9 +1614,7 @@ module.exports = function createLibraryRouter(ctx) {
   });
 
   // Get library statistics
-  router.get('/api/library/stats', async (req, res) => {
-    if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
-
+  router.get('/api/library/stats', requireAuth, async (req, res) => {
     try {
       const stats = {
         total_models: (await db.prepare('SELECT COUNT(*) as count FROM library').get()).count,
