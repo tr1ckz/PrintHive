@@ -6294,22 +6294,6 @@ app.get('/api/settings/database/backups', async (req, res) => {
   }
 });
 
-// Check restore job status
-app.get('/api/settings/database/restore/status/:jobId', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  const { jobId } = req.params;
-  const job = restoreJobs.get(jobId);
-  
-  if (!job) {
-    return res.status(404).json({ error: 'Job not found' });
-  }
-  
-  res.json(job);
-});
-
 // Restore from backup
 app.post('/api/settings/database/restore', async (req, res) => {
   if (!req.session.authenticated) {

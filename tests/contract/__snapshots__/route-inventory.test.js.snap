@@ -71,7 +71,6 @@ exports[`route inventory > matches the pinned endpoint list 1`] = `
   "GET /api/settings/database/backups",
   "GET /api/settings/database/maintenance-status",
   "GET /api/settings/database/restore/status/:jobId",
-  "GET /api/settings/database/restore/status/:jobId",
   "GET /api/settings/discord",
   "GET /api/settings/notifications",
   "GET /api/settings/oauth",
