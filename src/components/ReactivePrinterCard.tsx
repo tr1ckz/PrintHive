@@ -387,11 +387,17 @@ function ReactivePrinterCardComponent({
         </button>
       </div>
 
-      {/* Body: mobile stacks in priority order; xl = camera left / status+temps right, AMS full width */}
+      {/* Body: mobile stacks status/temps, camera, then AMS full width.
+          xl = camera left / status+temps+AMS right (AMS fills the space under
+          Telemetry instead of spanning a full-width row). */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_minmax(0,1fr)]">
         <div className="space-y-5 xl:order-2">
           <StatusSection printerId={printerId} />
           <TelemetrySection printerId={printerId} />
+          {/* Desktop only: AMS under Telemetry */}
+          <div className="hidden xl:block">
+            <AmsSection printerId={printerId} />
+          </div>
         </div>
         <div className="xl:order-1">
           <CameraSection
@@ -404,7 +410,8 @@ function ReactivePrinterCardComponent({
             rtspUrl={rtspUrl}
           />
         </div>
-        <div className="xl:order-3 xl:col-span-2">
+        {/* Mobile/tablet only: AMS full width at the bottom */}
+        <div className="xl:hidden xl:order-3">
           <AmsSection printerId={printerId} />
         </div>
       </div>
