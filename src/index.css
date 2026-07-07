@@ -167,6 +167,13 @@
   --gradient-background: linear-gradient(180deg, #0a0a0c 0%, #0e0f13 100%);
   --gradient-dark: linear-gradient(180deg, rgba(19, 19, 23, 0.96) 0%, rgba(11, 11, 15, 0.98) 100%);
   --gradient-card: linear-gradient(160deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.008) 45%, transparent 100%);
+
+  /* Aurora palette — all derived from the live accent, with perceptual
+     hue-shifts toward teal and violet so the curtains have depth while still
+     retinting instantly when the accent changes. */
+  --aurora-a: color-mix(in srgb, var(--theme-accent) 46%, transparent);
+  --aurora-b: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 58%, #22e3c4) 42%, transparent);
+  --aurora-c: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 55%, #8b5cf6) 40%, transparent);
 }
 
 /* Base reset lives in @layer base so Tailwind's utility layer
@@ -192,26 +199,56 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    background: var(--gradient-background);
+    /* Static ambient accent glow anchored in the corners so there's always
+       light for the animated aurora curtains (below) to build on, at every
+       frame and every accent. */
+    background:
+      radial-gradient(1100px 720px at 14% -6%, rgba(var(--theme-accent-rgb), 0.12) 0%, transparent 58%),
+      radial-gradient(1000px 700px at 92% 110%, rgba(var(--theme-accent-rgb), 0.09) 0%, transparent 58%),
+      var(--gradient-background);
+    background-attachment: fixed;
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
   }
 
-  /* Ambient backdrop: a faint accent aurora + dot grid that sits
-     behind everything and reacts to the active theme color. */
+  /* Ambient backdrop: a slow-flowing aurora borealis, tinted entirely by the
+     active accent (with teal/violet hue-shifts for depth) so it re-themes live,
+     plus a masked dot grid for texture. Two counter-drifting layers sell the
+     "curtain" motion; blend:screen makes overlaps glow like real aurora. */
   body::before {
     content: '';
     position: fixed;
-    inset: 0;
+    inset: -20%;
     z-index: 0;
     pointer-events: none;
+    mix-blend-mode: screen;
+    filter: blur(46px);
     background:
-      radial-gradient(820px 520px at 12% -8%, rgba(var(--theme-accent-rgb), 0.13) 0%, transparent 62%),
-      radial-gradient(900px 600px at 95% 4%, rgba(var(--theme-accent-rgb), 0.08) 0%, transparent 58%),
-      radial-gradient(640px 460px at 70% 55%, rgba(var(--theme-accent-rgb), 0.035) 0%, transparent 65%),
-      radial-gradient(720px 520px at 50% 108%, rgba(var(--theme-accent-rgb), 0.07) 0%, transparent 60%);
-    transition: background 0.6s ease;
+      radial-gradient(46% 70% at 18% 8%, var(--aurora-a) 0%, transparent 60%),
+      radial-gradient(38% 62% at 78% 18%, var(--aurora-c) 0%, transparent 62%),
+      radial-gradient(52% 46% at 62% 92%, var(--aurora-b) 0%, transparent 60%),
+      radial-gradient(30% 80% at 42% 60%, var(--aurora-a) 0%, transparent 64%);
+    animation: aurora-a 30s var(--ease-out) infinite;
+    will-change: transform;
+  }
+
+  /* Second curtain layer (on #root so it stacks above body's gradients but
+     below app content) — taller, slower, counter-moving. */
+  #root::before {
+    content: '';
+    position: fixed;
+    inset: -25%;
+    z-index: -1;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    filter: blur(58px);
+    background:
+      radial-gradient(26% 90% at 30% 40%, var(--aurora-b) 0%, transparent 60%),
+      radial-gradient(22% 80% at 66% 55%, var(--aurora-c) 0%, transparent 62%),
+      radial-gradient(34% 70% at 88% 30%, var(--aurora-a) 0%, transparent 64%);
+    animation: aurora-b 44s var(--ease-out) infinite;
+    will-change: transform;
   }
 
   body::after {
@@ -375,6 +412,18 @@
 
 @keyframes ph-spin {
   to { transform: rotate(360deg); }
+}
+
+/* Aurora curtains — slow, organic drift. Two layers run these in opposition. */
+@keyframes aurora-a {
+  0%, 100% { transform: translate3d(-3%, -2%, 0) rotate(-4deg) scale(1.05); }
+  33% { transform: translate3d(4%, 1%, 0) rotate(3deg) scale(1.18); }
+  66% { transform: translate3d(-1%, 4%, 0) rotate(-1deg) scale(1.1); }
+}
+
+@keyframes aurora-b {
+  0%, 100% { transform: translate3d(3%, 2%, 0) rotate(4deg) scale(1.12); }
+  50% { transform: translate3d(-4%, -3%, 0) rotate(-5deg) scale(1.26); }
 }
 
 /* ---------- Shared primitives ---------- */

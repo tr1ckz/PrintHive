@@ -92,7 +92,7 @@ function Login({ onLoginSuccess }: LoginProps) {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-base px-4 py-8">
+    <div className="flex min-h-dvh items-center justify-center px-4 py-8">
       <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl sm:p-8">
         <div className="mb-6 flex flex-col items-center gap-1.5 text-center">
           <img src="/images/logo.png" alt="PrintHive" className="mb-1 size-20 object-contain" />
