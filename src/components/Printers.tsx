@@ -79,7 +79,6 @@ function Printers() {
 
     openModal({
       title: `${printer.name} hardware info`,
-      description: 'Static identifiers are tucked into a modal so the live dashboard stays focused on what is changing right now.',
       content: (
         <div className="space-y-1">
           {details.map((detail) => (
@@ -96,7 +95,7 @@ function Printers() {
   }, [openModal]);
 
   if (loading) {
-    return <LoadingScreen message="Building your printer overview..." variant="panel" />;
+    return <LoadingScreen message="Loading printers..." variant="panel" />;
   }
 
   if (error) {
@@ -141,17 +140,14 @@ function Printers() {
         <div className="rounded-lg bg-card p-4 shadow-sm">
           <span className="text-xs text-muted">Online printers</span>
           <strong className="mt-1 block text-2xl font-semibold tabular-nums text-fg">{onlineCount}/{totalPrinters || 0}</strong>
-          <p className="mt-1 text-xs text-muted">Live devices ready for monitoring.</p>
         </div>
         <div className="rounded-lg bg-card p-4 shadow-sm">
           <span className="text-xs text-muted">Active jobs</span>
           <strong className="mt-1 block text-2xl font-semibold tabular-nums text-fg">{activeJobs}</strong>
-          <p className="mt-1 text-xs text-muted">Current prints surfaced with ETA and progress.</p>
         </div>
         <div className="rounded-lg bg-card p-4 shadow-sm">
           <span className="text-xs text-muted">Camera integration</span>
           <strong className="mt-1 block text-2xl font-semibold text-fg">{cameraConfigured ? 'Configured' : 'Not set'}</strong>
-          <p className="mt-1 text-xs text-muted">Switch between direct Frigate playback and the Native RTSP relay from one global setting.</p>
         </div>
       </div>
 
@@ -162,7 +158,7 @@ function Printers() {
             <path d="M8 20h8M12 16v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           <h3 className="text-base font-semibold text-fg">No printers found</h3>
-          <p className="text-sm text-muted">Connect your printer to populate the new monitoring dashboard.</p>
+          <p className="text-sm text-muted">Connect a printer in Settings to start monitoring.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">

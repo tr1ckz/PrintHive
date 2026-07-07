@@ -70,7 +70,7 @@ interface ReactivePrinterCardProps {
 }
 
 const SectionLabel = ({ children }: { children: ReactNode }) => (
-  <h4 className="text-xs font-semibold uppercase tracking-widest text-muted">{children}</h4>
+  <h4 className="text-sm font-semibold text-fg-soft">{children}</h4>
 );
 
 /** Status + progress + ETA. The lead section on every viewport. */

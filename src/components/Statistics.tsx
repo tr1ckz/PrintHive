@@ -258,10 +258,7 @@ const Statistics: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-widest text-accent">Analytics snapshot</span>
-        </div>
+      <div className="flex items-center justify-end">
         <button onClick={fetchStatistics} className="inline-flex min-h-11 md:min-h-9 items-center gap-2 rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
           <span>🔄</span> Refresh
         </button>
@@ -269,8 +266,7 @@ const Statistics: React.FC = () => {
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
         <div className="col-span-2 md:col-span-3 xl:col-span-6 rounded-lg bg-card p-5 shadow-sm ring-1 ring-accent/20">
-          <div className="text-xs font-semibold uppercase tracking-widest text-muted">PrintHive overview</div>
-          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
               <div className="text-2xl font-semibold tabular-nums tracking-tight text-fg">{formatNumber(stats.totalPrints)}</div>
               <div className="mt-0.5 text-xs text-muted">Total prints recorded</div>
@@ -328,7 +324,7 @@ const Statistics: React.FC = () => {
 
       {/* Cost Calculator Section */}
       {costs && (
-        <div className="space-y-3 [&>h2]:text-xs [&>h2]:font-semibold [&>h2]:uppercase [&>h2]:tracking-widest [&>h2]:text-muted">
+        <div className="space-y-3 [&>h2]:text-sm [&>h2]:font-semibold [&>h2]:text-fg">
           <h2>💰 Cost Calculator</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div className="flex items-start gap-3 rounded-lg bg-card p-4 shadow-sm ring-1 ring-accent/20">

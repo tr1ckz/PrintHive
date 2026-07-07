@@ -27,14 +27,14 @@ function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShel
               ⠿
             </span>
           )}
-          <h3 className="truncate text-xs font-semibold uppercase tracking-widest text-muted">{title}</h3>
+          <h3 className="truncate text-sm font-semibold text-fg-soft">{title}</h3>
         </div>
 
         {isEditMode && onHide ? (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onHide(); }}
-            className="widget-no-drag inline-flex min-h-8 items-center justify-center rounded px-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted hover:text-fg hover:bg-white/5 transition-colors"
+            className="widget-no-drag inline-flex min-h-8 items-center justify-center rounded px-2.5 text-xs font-semibold text-muted hover:text-fg hover:bg-white/5 transition-colors"
           >
             Hide
           </button>

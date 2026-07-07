@@ -558,7 +558,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   if (isInitialLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-base text-white/50">
-        Loading command center data...
+        Loading dashboard...
       </div>
     );
   }
@@ -671,11 +671,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       <header className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-widest text-accent">Command Center</p>
-            <h2 className="mt-0.5 text-2xl font-semibold tracking-tight text-fg">Operations Grid</h2>
-            <p className="mt-0.5 hidden sm:block text-sm text-muted">
-              Modular dashboard · drag/resize widgets · persisted layout
-            </p>
+            <h2 className="text-2xl font-semibold tracking-tight text-fg">Operations Grid</h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -800,7 +796,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
 
           {isEditMode && showWidgetLibrary ? (
             <aside className="absolute right-0 top-0 z-10 w-64 rounded-lg bg-elevated p-4 shadow-xl">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted">Widget Library</h3>
+              <h3 className="text-sm font-semibold text-fg">Widget Library</h3>
               <p className="mb-3 mt-0.5 text-xs text-muted">Re-enable hidden widgets</p>
               <div className="space-y-1">
                 {dashboardWidgetRegistry.map((widget) => {
