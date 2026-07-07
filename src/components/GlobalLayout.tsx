@@ -112,9 +112,9 @@ function GlobalLayout({
                 onClick={() => onSelect(item.id)}
                 title={item.label}
                 aria-current={active ? 'page' : undefined}
-                className={`flex w-full items-center gap-3 min-h-11 rounded-md px-3 text-sm font-medium transition-colors ${
+                className={`flex w-full items-center gap-3 min-h-11 rounded-md px-3 text-sm font-medium transition-all duration-200 ${
                   active
-                    ? 'bg-accent/10 text-accent'
+                    ? 'ph-nav-active'
                     : 'text-fg-soft hover:text-fg hover:bg-white/5'
                 }`}
               >
