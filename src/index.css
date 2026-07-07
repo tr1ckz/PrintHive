@@ -98,8 +98,8 @@
   --bg-modal: rgba(0, 0, 0, 0.55);
 
   /* Glass */
-  --glass-blur: 20px;
-  --glass-saturate: 1.4;
+  --glass-blur: 13px;
+  --glass-saturate: 1.2;
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   --glass-edge: 0 0 0 1px rgba(255, 255, 255, 0.05);
   /* Diagonal sheen: a lit top-left corner falling off to nothing. */
@@ -199,56 +199,51 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    /* Static ambient accent glow anchored in the corners so there's always
-       light for the animated aurora curtains (below) to build on, at every
-       frame and every accent. */
+    /* Static ambient accent glow anchored in the corners. */
     background:
       radial-gradient(1100px 720px at 14% -6%, rgba(var(--theme-accent-rgb), 0.12) 0%, transparent 58%),
       radial-gradient(1000px 700px at 92% 110%, rgba(var(--theme-accent-rgb), 0.09) 0%, transparent 58%),
       var(--gradient-background);
-    background-attachment: fixed;
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
   }
 
-  /* Ambient backdrop: a slow-flowing aurora borealis, tinted entirely by the
-     active accent (with teal/violet hue-shifts for depth) so it re-themes live,
-     plus a masked dot grid for texture. Two counter-drifting layers sell the
-     "curtain" motion; blend:screen makes overlaps glow like real aurora. */
+  /* Ambient backdrop: an aurora borealis tinted entirely by the active accent
+     (with teal/violet hue-shifts for depth) so it re-themes live. Two static
+     layers + screen blend give the glowing "curtain" look. Deliberately NOT
+     animated: dozens of backdrop-filter glass panels sit above this, and any
+     motion here forces all of them to re-blur every frame — the animated
+     version tanked INP. Static, the glass only re-samples on scroll. */
   body::before {
     content: '';
     position: fixed;
-    inset: -20%;
+    inset: 0;
     z-index: 0;
     pointer-events: none;
     mix-blend-mode: screen;
-    filter: blur(46px);
+    filter: blur(44px);
     background:
-      radial-gradient(46% 70% at 18% 8%, var(--aurora-a) 0%, transparent 60%),
-      radial-gradient(38% 62% at 78% 18%, var(--aurora-c) 0%, transparent 62%),
-      radial-gradient(52% 46% at 62% 92%, var(--aurora-b) 0%, transparent 60%),
-      radial-gradient(30% 80% at 42% 60%, var(--aurora-a) 0%, transparent 64%);
-    animation: aurora-a 30s var(--ease-out) infinite;
-    will-change: transform;
+      radial-gradient(46% 70% at 16% 4%, var(--aurora-a) 0%, transparent 60%),
+      radial-gradient(38% 62% at 82% 14%, var(--aurora-c) 0%, transparent 62%),
+      radial-gradient(52% 46% at 60% 96%, var(--aurora-b) 0%, transparent 60%),
+      radial-gradient(30% 80% at 40% 58%, var(--aurora-a) 0%, transparent 64%);
   }
 
   /* Second curtain layer (on #root so it stacks above body's gradients but
-     below app content) — taller, slower, counter-moving. */
+     below app content). */
   #root::before {
     content: '';
     position: fixed;
-    inset: -25%;
+    inset: 0;
     z-index: -1;
     pointer-events: none;
     mix-blend-mode: screen;
-    filter: blur(58px);
+    filter: blur(56px);
     background:
-      radial-gradient(26% 90% at 30% 40%, var(--aurora-b) 0%, transparent 60%),
-      radial-gradient(22% 80% at 66% 55%, var(--aurora-c) 0%, transparent 62%),
-      radial-gradient(34% 70% at 88% 30%, var(--aurora-a) 0%, transparent 64%);
-    animation: aurora-b 44s var(--ease-out) infinite;
-    will-change: transform;
+      radial-gradient(26% 90% at 28% 36%, var(--aurora-b) 0%, transparent 60%),
+      radial-gradient(22% 80% at 68% 58%, var(--aurora-c) 0%, transparent 62%),
+      radial-gradient(34% 70% at 90% 26%, var(--aurora-a) 0%, transparent 64%);
   }
 
   body::after {
@@ -412,18 +407,6 @@
 
 @keyframes ph-spin {
   to { transform: rotate(360deg); }
-}
-
-/* Aurora curtains — slow, organic drift. Two layers run these in opposition. */
-@keyframes aurora-a {
-  0%, 100% { transform: translate3d(-3%, -2%, 0) rotate(-4deg) scale(1.05); }
-  33% { transform: translate3d(4%, 1%, 0) rotate(3deg) scale(1.18); }
-  66% { transform: translate3d(-1%, 4%, 0) rotate(-1deg) scale(1.1); }
-}
-
-@keyframes aurora-b {
-  0%, 100% { transform: translate3d(3%, 2%, 0) rotate(4deg) scale(1.12); }
-  50% { transform: translate3d(-4%, -3%, 0) rotate(-5deg) scale(1.26); }
 }
 
 /* ---------- Shared primitives ---------- */
