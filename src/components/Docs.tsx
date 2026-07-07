@@ -131,18 +131,11 @@ function Docs({ standalone = false }: DocsProps) {
     <div className={`space-y-8 ${standalone ? 'mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8' : ''}`}>
       <header className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-4 [&_h1]:mt-2 [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:text-fg [&_h1+p]:mt-2 [&_h1+p]:max-w-prose [&_h1+p]:text-sm [&_h1+p]:leading-relaxed [&_h1+p]:text-fg-soft">
-          <div>
-            <span className="inline-block rounded-full bg-accent/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-widest text-accent">/docs</span>
-            {standalone ? (
-              <>
-                <h1>PrintHive Documentation</h1>
-                <p>
-                  Everything you need to install, secure, connect, and run PrintHive — including Docker,
-                  SSO, printer onboarding, sync, backups, and day-to-day workflows.
-                </p>
-              </>
-            ) : null}
-          </div>
+          {standalone ? (
+            <div>
+              <h1>PrintHive Documentation</h1>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap gap-2">
             {visibleTocItems.slice(0, 6).map((item) => (
@@ -155,14 +148,6 @@ function Docs({ standalone = false }: DocsProps) {
                 Open App
               </a>
             )}
-          </div>
-
-          <div className="flex flex-wrap gap-1.5 [&>span]:rounded-full [&>span]:bg-white/5 [&>span]:px-2.5 [&>span]:py-1 [&>span]:text-[11px] [&>span]:text-muted">
-            <span>Docker-ready</span>
-            <span>OIDC / SSO</span>
-            <span>MQTT live status</span>
-            <span>Backups + restore</span>
-            <span>Cloud + local sync</span>
           </div>
 
           <div className="space-y-1.5">
@@ -192,7 +177,7 @@ function Docs({ standalone = false }: DocsProps) {
 
         <div className="space-y-4">
           <div className="rounded-lg bg-card p-4 shadow-sm">
-            <span className="text-xs font-semibold uppercase tracking-widest text-accent">Recommended rollout</span>
+            <h2 className="text-sm font-semibold text-fg">Recommended rollout</h2>
             <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-fg-soft [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs">
               <li>Deploy with Docker and mount persistent data volumes.</li>
               <li>Connect Bambu cloud or LAN printers from Settings.</li>
@@ -248,14 +233,6 @@ function Docs({ standalone = false }: DocsProps) {
               <strong>Best fit:</strong> users who want one place to manage Bambu accounts, LAN printers,
               timelapses, model files, maintenance, and team access.
             </div>
-            <div className="flex flex-wrap gap-1.5 [&>span]:rounded-full [&>span]:bg-white/5 [&>span]:px-2.5 [&>span]:py-1 [&>span]:text-[11px] [&>span]:text-muted">
-              <span>Docker-ready</span>
-              <span>OIDC / SSO</span>
-              <span>MQTT live status</span>
-              <span>Backups + restore</span>
-              <span>Multi-user</span>
-              <span>Cloud + local sync</span>
-            </div>
           </section>
           ) : null}
 
@@ -283,7 +260,7 @@ function Docs({ standalone = false }: DocsProps) {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {pageGuide.map(([page, description]) => (
                 <article key={page} className="flex flex-col gap-1 rounded-lg bg-card p-4 shadow-sm text-sm leading-relaxed text-fg-soft [&>h3]:mb-2 [&>h3]:text-sm [&>h3]:font-semibold [&>h3]:text-fg [&>ul]:list-disc [&>ul]:space-y-1.5 [&>ul]:pl-5 [&_code]:rounded [&_code]:bg-black/30 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_strong]:text-fg">
-                  <span className="text-xs font-semibold uppercase tracking-widest text-accent">{page}</span>
+                  <span className="text-sm font-semibold text-fg">{page}</span>
                   <p>{description}</p>
                 </article>
               ))}

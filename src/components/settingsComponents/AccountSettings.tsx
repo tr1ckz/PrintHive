@@ -103,10 +103,7 @@ export function AccountSettings() {
   return (
     <>
       <CollapsibleSection title="User Profile" icon="📝">
-        <p className="mb-4 text-sm text-fg-soft">
-          Manage your account information and display preferences
-        </p>
-        
+
         <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Username</label>
           <input
@@ -161,10 +158,7 @@ export function AccountSettings() {
       {userProfile.oauthProvider === 'none' && (
         <CollapsibleSection title="Account Security" icon="🔒">
           <form onSubmit={handlePasswordChange} className="block">
-            <p className="mb-4 text-sm text-fg-soft">
-              Change your account password
-            </p>
-          
+
           <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Current Password</label>
             <input

@@ -525,10 +525,7 @@ export function SystemSettings() {
   return (
     <>
       <CollapsibleSection title="System" icon="🖥️">
-        <p className="mb-4 text-sm text-fg-soft">
-          Application management and maintenance
-        </p>
-        
+
         <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Log Level</label>
           <div className="flex items-center gap-2.5 [&>select]:min-w-0 [&>select]:flex-1">

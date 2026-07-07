@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, memo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 // Lazy so three.js (~600KB) only downloads when a model is actually opened.
 const ModelViewer = lazy(() => import('./ModelViewer'));
 import TagsInput from './TagsInput';
@@ -176,17 +176,6 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
     const paginatedFiles = filteredFiles.slice(startIndex, endIndex);
     return { totalPages, paginatedFiles };
   }, [filteredFiles, currentPage, itemsPerPage]);
-
-  const fileTypeBreakdown = useMemo(() => {
-    const counts = files.reduce<Record<string, number>>((acc, file) => {
-      acc[file.fileType] = (acc[file.fileType] || 0) + 1;
-      return acc;
-    }, {});
-
-    return ['3mf', 'stl', 'gcode']
-      .filter((type) => (counts[type] || 0) > 0)
-      .map((type) => `${counts[type] || 0} ${type.toUpperCase()}`);
-  }, [files]);
 
   // Reset to page 1 when search changes
   useEffect(() => {
@@ -755,33 +744,19 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
         </Modal>
       )}
 
-      <section className="space-y-4">
-        <div className="space-y-2">
-          <span className="text-xs font-semibold uppercase tracking-widest text-accent">Model workspace</span>
-          <div className="flex flex-wrap gap-1.5 text-xs [&>span]:rounded-full [&>span]:bg-white/5 [&>span]:px-2.5 [&>span]:py-1 [&>span]:text-muted">
-            {(fileTypeBreakdown.length > 0 ? fileTypeBreakdown : ['3MF · STL · G-code support']).map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-            <span>{filteredFiles.length} visible results</span>
-            {isAdmin && <span>Admin tools enabled</span>}
-          </div>
-        </div>
-
+      <section>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <article className="rounded-lg bg-card p-4 shadow-sm [&>strong]:mt-1 [&>strong]:block [&>strong]:text-2xl [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-fg [&>small]:mt-1 [&>small]:block [&>small]:text-xs [&>small]:text-muted">
+          <article className="rounded-lg bg-card p-4 shadow-sm [&>strong]:mt-1 [&>strong]:block [&>strong]:text-2xl [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-fg">
             <span className="text-xs text-muted">Total files</span>
             <strong>{files.length}</strong>
-            <small>Uploads plus auto-imported models</small>
           </article>
-          <article className="rounded-lg bg-card p-4 shadow-sm [&>strong]:mt-1 [&>strong]:block [&>strong]:text-2xl [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-fg [&>small]:mt-1 [&>small]:block [&>small]:text-xs [&>small]:text-muted">
+          <article className="rounded-lg bg-card p-4 shadow-sm [&>strong]:mt-1 [&>strong]:block [&>strong]:text-2xl [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-fg">
             <span className="text-xs text-muted">Selected</span>
             <strong>{selectedFiles.size}</strong>
-            <small>Ready for bulk tags or delete</small>
           </article>
-          <article className="rounded-lg bg-card p-4 shadow-sm [&>strong]:mt-1 [&>strong]:block [&>strong]:text-2xl [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-fg [&>small]:mt-1 [&>small]:block [&>small]:text-xs [&>small]:text-muted">
+          <article className="rounded-lg bg-card p-4 shadow-sm [&>strong]:mt-1 [&>strong]:block [&>strong]:text-2xl [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-fg">
             <span className="text-xs text-muted">Page</span>
             <strong>{Math.max(totalPages, 1) === 0 ? 1 : currentPage}/{Math.max(totalPages, 1)}</strong>
-            <small>Current filtered view</small>
           </article>
         </div>
       </section>

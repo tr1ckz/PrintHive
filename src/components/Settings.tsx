@@ -86,7 +86,6 @@ function Settings({ userRole, initialSection }: SettingsProps) {
           adminOnly: true,
           render: () => (
             <CollapsibleSection title="User Management" icon="👥" defaultExpanded={true}>
-              <p className="mb-4 text-sm text-fg-soft">Manage user accounts and permissions for shared PrintHive installs.</p>
               <UserManagement />
             </CollapsibleSection>
           ),
@@ -293,8 +292,7 @@ function Settings({ userRole, initialSection }: SettingsProps) {
           {/* Content */}
           <main className="min-w-0">
             <div className="mb-4">
-              <span className="text-xs font-semibold uppercase tracking-widest text-accent">{activeCategoryConfig.label}</span>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-fg">{activePanelConfig.label}</h2>
+              <h2 className="text-2xl font-semibold tracking-tight text-fg">{activePanelConfig.label}</h2>
             </div>
             <div className="space-y-4">
               {activePanelConfig.render()}

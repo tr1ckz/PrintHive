@@ -216,7 +216,7 @@ function Filament({ userRole }: FilamentProps) {
       </div>
 
       {(!data || data.groups.length === 0) && (
-        <div className="rounded-lg border border-dashed border-line p-10 text-center text-sm text-muted">
+        <div className="rounded-lg bg-card p-10 text-center text-sm text-muted shadow-sm">
           No filament tracked yet. Genuine Bambu spools loaded in an AMS appear here automatically
           {isAdmin ? ', or add one manually.' : '.'}
         </div>

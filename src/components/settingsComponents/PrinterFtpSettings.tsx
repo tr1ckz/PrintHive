@@ -248,11 +248,7 @@ export function PrinterFtpSettings() {
 
   return (
     <CollapsibleSection title="Local Printer / FTP" icon="📡" defaultExpanded={true}>
-      <p className="mb-4 text-sm text-fg-soft">
-        Configure your printers' local FTP connections and optionally assign a dedicated RTSP camera to each printer.
-      </p>
-
-      {!editingPrinter && (
+{!editingPrinter && (
         <div className="mb-3 [&>button]:mr-2 [&>button]:mt-2">
           <small className="block text-xs text-muted">
             Discover IP now auto-scans local interfaces, route-table networks, ARP neighbors, and remembered subnets.

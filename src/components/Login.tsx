@@ -97,7 +97,6 @@ function Login({ onLoginSuccess }: LoginProps) {
         <div className="mb-6 flex flex-col items-center gap-1.5 text-center">
           <img src="/images/logo.png" alt="PrintHive" className="mb-1 size-20 object-contain" />
           <h1 className="text-2xl font-semibold tracking-tight text-fg">PrintHive</h1>
-          <p className="text-sm text-muted">Sign in to your account</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">

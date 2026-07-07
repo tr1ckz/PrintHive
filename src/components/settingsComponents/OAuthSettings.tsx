@@ -87,10 +87,7 @@ export function OAuthSettings() {
   return (
     <CollapsibleSection title="OAuth / SSO Authentication" icon="🔑">
       <form onSubmit={handleSaveOAuthSettings}>
-        <p className="mb-4 text-sm text-fg-soft">
-          Configure Single Sign-On (SSO) authentication for user logins
-        </p>
-        
+
         <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Authentication Provider</label>
           <select

@@ -98,11 +98,7 @@ export function UISettings() {
   return (
     <>
       <CollapsibleSection title="UI Settings" icon="🖥️">
-        <p className="mb-4 text-sm text-fg-soft">
-          Customize the interface appearance
-        </p>
-
-        <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
+<div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
           <label>Color Scheme</label>
           <select
             value={colorScheme}

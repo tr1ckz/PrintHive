@@ -174,11 +174,7 @@ export function BambuSettings() {
 
   return (
     <CollapsibleSection title="Bambu Lab Accounts" icon="🔗" defaultExpanded={true}>
-      <p className="mb-4 text-sm text-fg-soft">
-        Connect multiple Bambu Lab accounts to manage all your printers in one place.
-      </p>
-
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <span className="text-xs text-muted">
           {accounts.length > 0 ? `${accounts.length} connected account${accounts.length > 1 ? 's' : ''}` : 'No accounts connected yet'}
         </span>
@@ -238,11 +234,7 @@ export function BambuSettings() {
       {/* Add Account Form */}
       {showAddForm && (
         <form onSubmit={codeSent ? handleConnect : handleRequestCode} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-white/[0.03] p-4 [&>div]:w-full [&>p]:w-full">
-          <p className="mb-4 text-sm text-fg-soft">
-            Connect a Bambu Lab account to access printers
-          </p>
-
-          <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
+<div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
             <label>Bambu Lab Email</label>
             <input
               type="email"

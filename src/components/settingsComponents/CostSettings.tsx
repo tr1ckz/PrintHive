@@ -80,10 +80,7 @@ export function CostSettings() {
 
   return (
     <CollapsibleSection title="Cost Calculator" icon="💰">
-      <p className="mb-4 text-sm text-fg-soft">
-        Configure costs to track printing expenses
-      </p>
-      
+
       <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
         <label>Currency</label>
         <select

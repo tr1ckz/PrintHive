@@ -181,11 +181,7 @@ export function NotificationSettings() {
 
   return (
     <CollapsibleSection title="Notifications" icon="🔔">
-      <p className="mb-4 text-sm text-fg-soft">
-        Configure notification providers and alert types for Printer, Maintenance, and Backup.
-      </p>
-
-      {/* Discord */}
+{/* Discord */}
       <div className="mb-8">
         <h3 className="mb-3 text-sm font-semibold text-fg">💬 Discord</h3>
         <div className="mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">

@@ -57,10 +57,7 @@ export function WatchdogSettings() {
 
   return (
     <CollapsibleSection title="Watchdog / Health Check" icon="🐕">
-      <p className="mb-4 text-sm text-fg-soft">
-        Keep the application alive and monitor health status
-      </p>
-      
+
       <div className="mb-4 space-y-1">
         <label className="flex cursor-pointer items-center gap-2.5 py-1 text-sm text-fg-soft [&>input]:size-4 [&>input]:shrink-0 [&>input]:accent-accent">
           <input
