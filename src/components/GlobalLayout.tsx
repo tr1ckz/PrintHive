@@ -11,9 +11,6 @@ export interface GlobalLayoutNavItem {
 interface GlobalLayoutProps {
   appName?: string;
   pageTitle: string;
-  pageDescription?: string;
-  pageEyebrow?: string;
-  breadcrumbs?: string[];
   navItems: GlobalLayoutNavItem[];
   activeId: string;
   onSelect: (id: string) => void;
@@ -52,9 +49,6 @@ const openCommandPalette = () => {
 function GlobalLayout({
   appName = 'PrintHive',
   pageTitle,
-  pageDescription,
-  pageEyebrow,
-  breadcrumbs = ['Workspace', pageTitle],
   navItems,
   activeId,
   onSelect,
@@ -77,7 +71,7 @@ function GlobalLayout({
       {/* ---- Sidebar (md: icon rail, lg: full unless collapsed) ---- */}
       <aside
         aria-label="Desktop navigation"
-        className={`hidden md:flex sticky top-0 h-dvh shrink-0 flex-col bg-elevated/60 transition-[width] duration-250 ease-out ${
+        className={`ph-glass hidden md:flex sticky top-0 h-dvh shrink-0 flex-col transition-[width] duration-250 ease-out ${
           railOnly ? 'md:w-[76px]' : 'md:w-[76px] lg:w-[264px]'
         }`}
       >
@@ -91,10 +85,7 @@ function GlobalLayout({
           >
             <img src="/images/logo.png" alt="" className="size-9 shrink-0 object-contain" />
             {!railOnly && (
-              <span className="hidden lg:block min-w-0 text-left">
-                <span className="block text-[0.62rem] font-semibold uppercase tracking-widest text-muted">3D Print Ops</span>
-                <span className="block text-sm font-semibold text-fg truncate">{appName}</span>
-              </span>
+              <span className="hidden lg:block min-w-0 text-left text-sm font-semibold text-fg truncate">{appName}</span>
             )}
           </button>
           {!railOnly && (
@@ -112,11 +103,6 @@ function GlobalLayout({
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1" aria-label="Primary navigation">
-          {!railOnly && (
-            <span className="hidden lg:block px-3 pb-2 text-[0.62rem] font-semibold uppercase tracking-widest text-muted">
-              Workspace
-            </span>
-          )}
           {navItems.map((item) => {
             const active = activeId === item.id;
             return (
@@ -160,27 +146,10 @@ function GlobalLayout({
       {/* ---- Main column ---- */}
       <div className="flex-1 min-w-0 flex flex-col min-h-dvh">
         {/* Sticky topbar */}
-        <header className="sticky top-0 z-20 bg-base/80 backdrop-blur border-b border-line">
+        <header className="sticky top-0 z-20 bg-base/60 backdrop-blur-xl backdrop-saturate-150 border-b border-line">
           <div className="flex items-center gap-3 px-4 sm:px-6 lg:px-8 h-14 md:h-16">
             <div className="min-w-0 flex-1">
-              {pageEyebrow && (
-                <span className="hidden sm:block text-[0.62rem] font-semibold uppercase tracking-widest text-accent">
-                  {pageEyebrow}
-                </span>
-              )}
-              <div className="flex items-baseline gap-3 min-w-0">
-                <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-fg truncate">{pageTitle}</h1>
-                {breadcrumbs.length > 0 && (
-                  <nav aria-label="Breadcrumb" className="hidden xl:flex items-center gap-1.5 text-xs text-muted min-w-0">
-                    {breadcrumbs.map((crumb, index) => (
-                      <span key={`${crumb}-${index}`} className="flex items-center gap-1.5 truncate">
-                        {index > 0 && <span aria-hidden>/</span>}
-                        {crumb}
-                      </span>
-                    ))}
-                  </nav>
-                )}
-              </div>
+              <h1 className="text-lg md:text-xl font-semibold tracking-tight text-fg truncate">{pageTitle}</h1>
             </div>
 
             {rightSlot && <div className="hidden md:flex items-center shrink-0">{rightSlot}</div>}
@@ -215,9 +184,6 @@ function GlobalLayout({
               </button>
             </div>
           </div>
-          {pageDescription && (
-            <p className="hidden md:block px-4 sm:px-6 lg:px-8 pb-3 -mt-1 text-sm text-muted max-w-3xl">{pageDescription}</p>
-          )}
         </header>
 
         {/* Page content — bottom padding clears the mobile tab bar */}

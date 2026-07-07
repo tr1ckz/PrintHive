@@ -40,67 +40,17 @@ const tabPaths: Record<Tab, string> = {
   docs: '/docs'
 };
 
-const pageMeta: Record<Tab, { eyebrow: string; title: string; description: string; breadcrumbs: string[] }> = {
-  home: {
-    eyebrow: 'Command center',
-    title: 'Overview',
-    description: 'Your workshop at a glance with jobs, insights, and the next actions that matter.',
-    breadcrumbs: ['Workspace', 'Overview']
-  },
-  history: {
-    eyebrow: 'Operations',
-    title: 'Print History',
-    description: 'Audit completed jobs, timelapses, and outcomes without leaving the shared shell.',
-    breadcrumbs: ['Workspace', 'History']
-  },
-  library: {
-    eyebrow: 'Design library',
-    title: 'Model Library',
-    description: 'Browse, organize, and enrich your printable assets in one clean catalog.',
-    breadcrumbs: ['Workspace', 'Library']
-  },
-  duplicates: {
-    eyebrow: 'Library hygiene',
-    title: 'Duplicates',
-    description: 'Spot redundant files quickly and keep the collection lean.',
-    breadcrumbs: ['Workspace', 'Duplicates']
-  },
-  maintenance: {
-    eyebrow: 'Workshop care',
-    title: 'Maintenance',
-    description: 'Track recurring upkeep and keep every machine in top condition.',
-    breadcrumbs: ['Workspace', 'Maintenance']
-  },
-  settings: {
-    eyebrow: 'System preferences',
-    title: 'Settings',
-    description: 'Navigate every configuration area with scoped categories and focused panels.',
-    breadcrumbs: ['Workspace', 'Settings']
-  },
-  printers: {
-    eyebrow: 'Live monitoring',
-    title: 'Printers',
-    description: 'A unified bento dashboard for cameras, telemetry, AMS state, and print progress.',
-    breadcrumbs: ['Workspace', 'Printers']
-  },
-  statistics: {
-    eyebrow: 'Reporting',
-    title: 'Statistics',
-    description: 'See output, reliability, and material usage trends without digging around.',
-    breadcrumbs: ['Workspace', 'Statistics']
-  },
-  filament: {
-    eyebrow: 'Materials',
-    title: 'Filament',
-    description: 'Track your spool inventory and remaining material, auto-synced from AMS.',
-    breadcrumbs: ['Workspace', 'Filament']
-  },
-  docs: {
-    eyebrow: 'Reference',
-    title: 'Documentation',
-    description: 'Read guides and integration notes from the same consistent workspace shell.',
-    breadcrumbs: ['Workspace', 'Docs']
-  }
+const pageTitles: Record<Tab, string> = {
+  home: 'Overview',
+  history: 'Print History',
+  library: 'Model Library',
+  duplicates: 'Duplicates',
+  maintenance: 'Maintenance',
+  settings: 'Settings',
+  printers: 'Printers',
+  statistics: 'Statistics',
+  filament: 'Filament',
+  docs: 'Documentation',
 };
 
 const getSettingsSectionFromLocation = () => {
@@ -197,8 +147,6 @@ function Dashboard({ onLogout }: DashboardProps) {
     setSettingsSection(hashSection || null);
   };
 
-  const isAdmin = userInfo?.role === 'admin' || userInfo?.role === 'superadmin';
-  const currentMeta = pageMeta[activeTab];
 
   const navItems = [
     { id: 'home' as Tab, label: 'Home', icon: (
@@ -257,10 +205,15 @@ function Dashboard({ onLogout }: DashboardProps) {
   ];
 
   const rightSlot = (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="rounded-full bg-accent/10 px-2.5 py-1 font-medium text-accent">{isAdmin ? 'Admin access' : 'Workspace member'}</span>
-      <span className="rounded-full bg-white/5 px-2.5 py-1 text-muted">⌘K Command palette</span>
-    </div>
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent('printhive:open-command-palette'))}
+      className="flex items-center gap-2 rounded-md bg-white/5 px-2.5 py-1.5 text-xs text-muted transition-colors hover:bg-white/10 hover:text-fg"
+      title="Search and commands"
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+      <kbd className="font-sans">⌘K</kbd>
+    </button>
   );
 
   const renderActiveView = () => {
@@ -296,10 +249,7 @@ function Dashboard({ onLogout }: DashboardProps) {
         navItems={navItems}
         activeId={activeTab}
         onSelect={(tab) => handleTabChange(tab as Tab)}
-        pageTitle={currentMeta.title}
-        pageDescription={currentMeta.description}
-        pageEyebrow={currentMeta.eyebrow}
-        breadcrumbs={currentMeta.breadcrumbs}
+        pageTitle={pageTitles[activeTab]}
         userName={userInfo?.display_name || userInfo?.username || 'User'}
         userRole={userInfo?.role}
         userAvatarText={(userInfo?.display_name || userInfo?.username)?.[0]?.toUpperCase() || 'U'}

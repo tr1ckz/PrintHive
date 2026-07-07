@@ -83,17 +83,25 @@
   --color-accent: var(--theme-accent);
   --color-accent-soft: rgba(var(--theme-accent-rgb), 0.12);
 
-  /* Premium dark surfaces */
+  /* Premium dark surfaces — translucent so the aurora backdrop shows
+     through; the glass treatment below adds the blur. */
   --bg-base: #0a0a0c;
-  --bg-elevated: #121216;
-  --bg-surface: #17171c;
-  --bg-surface-2: #1e1e24;
+  --bg-elevated: rgba(19, 19, 24, 0.72);
+  --bg-surface: rgba(24, 24, 30, 0.60);
+  --bg-surface-2: rgba(32, 32, 40, 0.62);
   --bg-dark: rgba(18, 18, 22, 0.94);
-  --bg-overlay: rgba(10, 10, 12, 0.88);
-  --bg-card: rgba(23, 23, 28, 0.92);
+  --bg-overlay: rgba(10, 10, 12, 0.82);
+  --bg-card: rgba(24, 24, 31, 0.55);
+  --bg-input: rgba(255, 255, 255, 0.045);
   --bg-hover: rgba(var(--theme-accent-rgb), 0.10);
   --bg-hover-intense: rgba(var(--theme-accent-rgb), 0.16);
   --bg-modal: rgba(0, 0, 0, 0.55);
+
+  /* Glass */
+  --glass-blur: 18px;
+  --glass-saturate: 1.35;
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --glass-edge: 0 0 0 1px rgba(255, 255, 255, 0.05);
 
   /* Typography */
   --text-primary: #fafafa;
@@ -194,9 +202,10 @@
     z-index: 0;
     pointer-events: none;
     background:
-      radial-gradient(820px 520px at 12% -8%, rgba(var(--theme-accent-rgb), 0.085) 0%, transparent 62%),
-      radial-gradient(900px 600px at 95% 4%, rgba(var(--theme-accent-rgb), 0.05) 0%, transparent 58%),
-      radial-gradient(720px 520px at 50% 108%, rgba(var(--theme-accent-rgb), 0.045) 0%, transparent 60%);
+      radial-gradient(820px 520px at 12% -8%, rgba(var(--theme-accent-rgb), 0.13) 0%, transparent 62%),
+      radial-gradient(900px 600px at 95% 4%, rgba(var(--theme-accent-rgb), 0.08) 0%, transparent 58%),
+      radial-gradient(640px 460px at 70% 55%, rgba(var(--theme-accent-rgb), 0.035) 0%, transparent 65%),
+      radial-gradient(720px 520px at 50% 108%, rgba(var(--theme-accent-rgb), 0.07) 0%, transparent 60%);
     transition: background 0.6s ease;
   }
 
@@ -263,7 +272,7 @@
 
   /* ---------- Forms ---------- */
   input, textarea, select {
-    background: var(--bg-card, rgba(30, 30, 30, 0.95));
+    background: var(--bg-input, rgba(255, 255, 255, 0.045));
     color: var(--text-primary, #ffffff);
     border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.1));
     accent-color: var(--theme-accent);
@@ -396,6 +405,37 @@
   background-color: var(--bg-surface-2);
   box-shadow: var(--shadow-md), 0 0 24px rgba(var(--theme-accent-rgb), 0.08);
   transform: translateY(-2px);
+}
+
+/* ---------- Glass ----------
+   Every card/surface element gets frosted glass automatically: the surface
+   tokens are translucent, so blurring the backdrop picks up the accent
+   aurora behind the shell. The inset highlight fakes a lit top edge. */
+@layer components {
+  .bg-card,
+  .bg-surface,
+  .bg-surface-2,
+  .bg-elevated,
+  .ph-card,
+  .ph-glass {
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  }
+
+  .bg-card,
+  .ph-card,
+  .ph-glass {
+    box-shadow: var(--glass-highlight), var(--glass-edge), var(--shadow-sm);
+    /* Tailwind shadow-* utilities override the box-shadow above but compose
+       this var back in, so the lit top edge survives either way. */
+    --tw-inset-shadow: var(--glass-highlight);
+  }
+
+  /* Standalone glass panel for shells that don't use the surface tokens */
+  .ph-glass {
+    background: var(--bg-card);
+    background-image: var(--gradient-card);
+  }
 }
 
 /* ---------- Third-party chrome ----------
