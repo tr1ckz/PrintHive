@@ -50,6 +50,7 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
   assignedRtspUrl,
   ipcamBitrate,
 }) => {
+  const [expandedKey, setExpandedKey] = React.useState<string | null>(null);
   const assigned = assignedRtspUrl?.trim();
   const feeds: Feed[] = [];
 
@@ -98,21 +99,60 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
   }
 
   const bitrate = typeof ipcamBitrate === 'number' && ipcamBitrate > 0 ? formatBitrate(ipcamBitrate) : null;
+  const multiple = feeds.length > 1;
+  const expandedFeed = expandedKey ? feeds.find((f) => f.key === expandedKey) : undefined;
 
   return (
-    <div className="space-y-3">
-      {feeds.map((feed, index) => (
-        <div key={feed.key}>
-          <div className="overflow-hidden rounded-md bg-black/40 [&_video]:w-full [&_img]:w-full">
-            {feed.node}
+    <>
+      {/* Compact by default: multiple feeds sit side by side on desktop (each ~half
+          size), a lone feed is capped; everything stacks full-width on mobile.
+          Tap the expand button to view a feed large in a modal. */}
+      <div className={multiple ? 'grid grid-cols-1 gap-3 lg:grid-cols-2' : 'space-y-3'}>
+        {feeds.map((feed, index) => (
+          <div key={feed.key} className={multiple ? undefined : 'lg:max-w-lg'}>
+            <div className="group relative overflow-hidden rounded-md bg-black/40 [&_video]:w-full [&_img]:w-full">
+              {feed.node}
+              <button
+                type="button"
+                onClick={() => setExpandedKey(feed.key)}
+                title="Enlarge"
+                aria-label="Enlarge camera"
+                className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md bg-black/50 text-white/80 opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/70 hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M15 3h6m0 0v6m0-6l-7 7M9 21H3m0 0v-6m0 6l7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-xs text-muted">
+              <span>{feed.label}</span>
+              {index === 0 && bitrate ? <span className="tabular-nums">{bitrate}</span> : null}
+            </div>
           </div>
-          <div className="mt-1.5 flex items-center justify-between text-xs text-muted">
-            <span>{feed.label}</span>
-            {index === 0 && bitrate ? <span className="tabular-nums">{bitrate}</span> : null}
+        ))}
+      </div>
+
+      {expandedFeed && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setExpandedKey(null)}
+        >
+          <div className="w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
+            <div className="overflow-hidden rounded-lg bg-black shadow-xl [&_video]:w-full [&_img]:w-full">
+              {expandedFeed.node}
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-sm font-medium text-white/85">{expandedFeed.label}</span>
+              <button
+                type="button"
+                onClick={() => setExpandedKey(null)}
+                className="inline-flex min-h-9 items-center rounded-md bg-white/10 px-3 text-sm font-semibold text-white transition-colors hover:bg-white/20"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 };
 
