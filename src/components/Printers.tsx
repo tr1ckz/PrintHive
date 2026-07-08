@@ -137,17 +137,32 @@ function Printers() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-lg bg-card p-4 shadow-sm">
-          <span className="text-xs text-muted">Online printers</span>
-          <strong className="mt-1 block text-2xl font-semibold tabular-nums text-fg">{onlineCount}/{totalPrinters || 0}</strong>
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-card p-4 shadow-sm">
+          <div className="min-w-0">
+            <span className="text-xs text-muted">Online printers</span>
+            <strong className="mt-1 block text-2xl font-semibold tabular-nums text-fg">{onlineCount}/{totalPrinters || 0}</strong>
+          </div>
+          <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent [&_svg]:size-5">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 20h8M12 16v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          </span>
         </div>
-        <div className="rounded-lg bg-card p-4 shadow-sm">
-          <span className="text-xs text-muted">Active jobs</span>
-          <strong className="mt-1 block text-2xl font-semibold tabular-nums text-fg">{activeJobs}</strong>
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-card p-4 shadow-sm">
+          <div className="min-w-0">
+            <span className="text-xs text-muted">Active jobs</span>
+            <strong className="mt-1 block text-2xl font-semibold tabular-nums text-fg">{activeJobs}</strong>
+          </div>
+          <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent [&_svg]:size-5">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 2L4.5 13H11l-1 9 8.5-11H12l1-9z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </span>
         </div>
-        <div className="rounded-lg bg-card p-4 shadow-sm">
-          <span className="text-xs text-muted">Camera integration</span>
-          <strong className="mt-1 block text-2xl font-semibold text-fg">{cameraConfigured ? 'Configured' : 'Not set'}</strong>
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-card p-4 shadow-sm">
+          <div className="min-w-0">
+            <span className="text-xs text-muted">Camera integration</span>
+            <strong className="mt-1 block text-2xl font-semibold text-fg">{cameraConfigured ? 'Configured' : 'Not set'}</strong>
+          </div>
+          <span aria-hidden className={`flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg]:size-5 ${cameraConfigured ? 'bg-success/10 text-success' : 'bg-white/5 text-muted'}`}>
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 6h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </span>
         </div>
       </div>
 
