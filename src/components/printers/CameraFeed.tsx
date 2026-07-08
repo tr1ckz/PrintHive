@@ -105,11 +105,11 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
   return (
     <>
       {/* Compact by default: multiple feeds sit side by side on desktop (each ~half
-          size), a lone feed is capped; everything stacks full-width on mobile.
-          Tap the expand button to view a feed large in a modal. */}
+          size); a lone feed is capped on tablet but fills its column on xl (where
+          it shares the card with the status stack). Tap expand for the modal. */}
       <div className={multiple ? 'grid grid-cols-1 gap-3 lg:grid-cols-2' : 'space-y-3'}>
         {feeds.map((feed, index) => (
-          <div key={feed.key} className={multiple ? undefined : 'lg:max-w-lg'}>
+          <div key={feed.key} className={multiple ? undefined : 'lg:max-w-lg xl:max-w-none'}>
             <div className="group relative overflow-hidden rounded-md bg-black/40 [&_video]:w-full [&_img]:w-full">
               {feed.node}
               <button

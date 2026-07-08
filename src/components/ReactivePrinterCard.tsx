@@ -399,7 +399,7 @@ function ReactivePrinterCardComponent({
             <AmsSection printerId={printerId} />
           </div>
         </div>
-        <div className="xl:order-1">
+        <div className="xl:order-1 xl:self-center">
           <CameraSection
             printerId={printerId}
             printerName={name}

@@ -67,7 +67,7 @@ function GlobalLayout({
   const railOnly = sidebarCollapsed;
 
   return (
-    <div className="min-h-dvh md:flex">
+    <div className="h-full md:flex">
       {/* ---- Sidebar (md: icon rail, lg: full unless collapsed) ---- */}
       <aside
         aria-label="Desktop navigation"
@@ -144,7 +144,7 @@ function GlobalLayout({
       </aside>
 
       {/* ---- Main column ---- */}
-      <div className="flex-1 min-w-0 flex flex-col min-h-dvh">
+      <div className="flex-1 min-w-0 flex flex-col">
         {/* Sticky topbar */}
         <header className="sticky top-0 z-20 bg-base/60 backdrop-blur-xl backdrop-saturate-150 border-b border-line">
           <div className="flex items-center gap-3 px-4 sm:px-6 lg:px-8 h-14 md:h-16">
