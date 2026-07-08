@@ -318,7 +318,7 @@ function CameraSection({
   }));
 
   return (
-    <section>
+    <section className="flex flex-col xl:h-full">
       <div className="flex items-center justify-between gap-2">
         <SectionLabel>Live View</SectionLabel>
         {ipcamStatus ? (
@@ -327,7 +327,7 @@ function CameraSection({
           </span>
         ) : null}
       </div>
-      <div className="mt-2">
+      <div className="mt-2 min-h-0 flex-1">
         <CameraFeed
           printerId={printerId}
           printerName={printerName}
@@ -399,7 +399,7 @@ function ReactivePrinterCardComponent({
             <AmsSection printerId={printerId} />
           </div>
         </div>
-        <div className="xl:order-1 xl:self-center">
+        <div className="xl:order-1">
           <CameraSection
             printerId={printerId}
             printerName={name}

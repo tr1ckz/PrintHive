@@ -105,12 +105,22 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
   return (
     <>
       {/* Compact by default: multiple feeds sit side by side on desktop (each ~half
-          size); a lone feed is capped on tablet but fills its column on xl (where
-          it shares the card with the status stack). Tap expand for the modal. */}
-      <div className={multiple ? 'grid grid-cols-1 gap-3 lg:grid-cols-2' : 'space-y-3'}>
+          size); a lone feed is capped on tablet but on xl fills its column AND
+          stretches to the height of the status stack beside it — the player is
+          object-cover, so it grows into the space instead of leaving a void.
+          Tap expand for the modal. */}
+      <div className={multiple ? 'grid grid-cols-1 gap-3 lg:grid-cols-2' : 'flex h-full flex-col space-y-3'}>
         {feeds.map((feed, index) => (
-          <div key={feed.key} className={multiple ? undefined : 'lg:max-w-lg xl:max-w-none'}>
-            <div className="group relative overflow-hidden rounded-md bg-black/40 [&_video]:w-full [&_img]:w-full">
+          <div key={feed.key} className={multiple ? undefined : 'flex min-h-0 flex-1 flex-col lg:max-w-lg xl:max-w-none'}>
+            <div
+              className={
+                multiple
+                  ? 'group relative overflow-hidden rounded-md bg-black/40 [&_img]:w-full [&_video]:w-full'
+                  // Lone feed: the frame grows to fill the column; the player is
+                  // object-cover so it crops to fill rather than letterboxing.
+                  : 'group relative min-h-[250px] flex-1 overflow-hidden rounded-md bg-black/40 [&_img]:h-full [&_img]:w-full [&_video]:h-full [&_video]:w-full'
+              }
+            >
               {feed.node}
               <button
                 type="button"
