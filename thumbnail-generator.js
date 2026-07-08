@@ -11,7 +11,7 @@ const MAX_MODEL_VERTICES = 18000;
 // Bump whenever the render/compositing pipeline changes in a way that should
 // invalidate every cached thumbnail (e.g. the white-background chroma-key
 // fix below) — old cache files are simply orphaned and regenerated on read.
-const THUMB_CACHE_VERSION = 2;
+const THUMB_CACHE_VERSION = 3;
 
 // Ensure thumbnail directory exists
 if (!fs.existsSync(THUMB_DIR)) {
@@ -26,8 +26,17 @@ function sampleVertices(vertices, maxVertices = MAX_MODEL_VERTICES) {
     return vertices;
   }
 
-  const step = Math.ceil(vertices.length / maxVertices);
-  return vertices.filter((_, index) => index % step === 0);
+  // Down-sample whole triangles (every 3 vertices), never individual vertices —
+  // dropping a lone vertex would shift every following triangle's grouping and
+  // shred the mesh into a scatter of misconnected faces.
+  const triCount = Math.floor(vertices.length / 3);
+  const maxTris = Math.max(1, Math.floor(maxVertices / 3));
+  const triStep = Math.ceil(triCount / maxTris);
+  const out = [];
+  for (let t = 0; t < triCount; t += triStep) {
+    out.push(vertices[t * 3], vertices[t * 3 + 1], vertices[t * 3 + 2]);
+  }
+  return out;
 }
 
 /**
@@ -201,54 +210,116 @@ function parse3MF(filePath) {
 }
 
 /**
- * Project 3D vertices to 2D isometric view
+ * Render a mesh (triangle soup: every 3 vertices = one triangle) as a shaded
+ * isometric solid, so an STL — which has no slicer-embedded preview — gets a
+ * real model thumbnail instead of a flat placeholder card. Draws on whatever
+ * (transparent) canvas is passed, with no background or label, so the result
+ * composites onto the app's dark card the same way the chroma-keyed 3MF
+ * previews do.
+ *
+ * Uses actual per-triangle surface normals for Lambert shading (not the old
+ * depth-index fake), a painter's sort along the true view axis for correct
+ * occlusion, and abs() lighting so inconsistent STL winding never yields
+ * black faces.
+ *
+ * @returns {boolean} true if anything was drawn
  */
-function projectIsometric(vertices, scaleBase = 250) {
-  if (!vertices || vertices.length === 0) return [];
-  
-  // Find bounding box
-  let minX = Infinity, maxX = -Infinity;
-  let minY = Infinity, maxY = -Infinity;
-  let minZ = Infinity, maxZ = -Infinity;
-  
+function renderShadedModel(ctx, vertices, width, height) {
+  const triCount = Math.floor((vertices?.length || 0) / 3);
+  if (triCount === 0) return false;
+
+  // Bounding box → center + uniform scale to fit the frame with a margin.
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
   for (const [x, y, z] of vertices) {
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-    minZ = Math.min(minZ, z);
-    maxZ = Math.max(maxZ, z);
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
   }
-  
-  // Center and scale
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-  const centerZ = (minZ + maxZ) / 2;
-  const rangeX = maxX - minX;
-  const rangeY = maxY - minY;
-  const rangeZ = maxZ - minZ;
-  const maxRange = Math.max(rangeX, rangeY, rangeZ);
-  const scale = maxRange > 0 ? scaleBase / maxRange : 1;
-  
-  // Isometric projection
-  const projected = [];
-  for (const [x, y, z] of vertices) {
-    const nx = (x - centerX) * scale;
-    const ny = (y - centerY) * scale;
-    const nz = (z - centerZ) * scale;
-    
-    // Apply -90 degree rotation around X axis (Z-up to Y-up)
-    const rotY = -nz;
-    const rotZ = ny;
-    
-    // Isometric projection
-    const isoX = (nx - rotZ) * Math.cos(Math.PI / 6);
-    const isoY = (nx + rotZ) * Math.sin(Math.PI / 6) - rotY;
-    
-    projected.push([isoX, isoY]);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cz = (minZ + maxZ) / 2;
+
+  // Isometric view of a Z-up model: yaw around the up axis, then tilt down.
+  const az = Math.PI / 4;   // 45° turntable
+  const el = Math.PI / 6;   // 30° elevation
+  const ca = Math.cos(az), sa = Math.sin(az);
+  const ce = Math.cos(el), se = Math.sin(el);
+
+  // Model (Z-up) → camera space (sx = right, sy = up, depth toward viewer).
+  const toCamera = (x, y, z) => {
+    const mx = x - cx, my = y - cy, mz = z - cz;
+    // yaw about Z
+    const ax = mx * ca - my * sa;
+    const ay = mx * sa + my * ca;
+    // tilt about the rotated X axis
+    const depth = ay * ce + mz * se;      // toward the camera
+    const up = -ay * se + mz * ce;        // model up on screen
+    return [ax, up, depth];
+  };
+
+  // First pass: transform, track projected extent for a tight fit.
+  const cam = new Array(vertices.length);
+  let pMinX = Infinity, pMaxX = -Infinity, pMinY = Infinity, pMaxY = -Infinity;
+  for (let i = 0; i < vertices.length; i++) {
+    const [x, y, z] = vertices[i];
+    const c = toCamera(x, y, z);
+    cam[i] = c;
+    if (c[0] < pMinX) pMinX = c[0]; if (c[0] > pMaxX) pMaxX = c[0];
+    if (c[1] < pMinY) pMinY = c[1]; if (c[1] > pMaxY) pMaxY = c[1];
   }
-  
-  return projected;
+  const spanX = pMaxX - pMinX || 1;
+  const spanY = pMaxY - pMinY || 1;
+  const margin = 0.86;
+  const scale = Math.min(width / spanX, height / spanY) * margin;
+  const offX = width / 2 - ((pMinX + pMaxX) / 2) * scale;
+  const offY = height / 2 + ((pMinY + pMaxY) / 2) * scale; // +Y up → screen y flips
+
+  // Build triangles with a Lambert shade and a view-depth key.
+  const L = (() => { const v = [-0.4, 0.72, 0.57]; const m = Math.hypot(...v); return [v[0] / m, v[1] / m, v[2] / m]; })();
+  const base = [206, 212, 221]; // cool neutral "raw model" gray
+  const tris = [];
+  for (let t = 0; t < triCount; t++) {
+    const a = cam[t * 3], b = cam[t * 3 + 1], c = cam[t * 3 + 2];
+    // face normal in camera space
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+    const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const nl = Math.hypot(nx, ny, nz) || 1;
+    nx /= nl; ny /= nl; nz /= nl;
+    const lambert = Math.abs(nx * L[0] + ny * L[1] + nz * L[2]); // abs → winding-agnostic
+    const shade = 0.34 + 0.66 * lambert; // ambient floor + diffuse
+    tris.push({
+      x1: offX + a[0] * scale, y1: offY - a[1] * scale,
+      x2: offX + b[0] * scale, y2: offY - b[1] * scale,
+      x3: offX + c[0] * scale, y3: offY - c[1] * scale,
+      depth: (a[2] + b[2] + c[2]) / 3,
+      shade,
+    });
+  }
+
+  // Painter's algorithm: far (small depth) first.
+  tris.sort((p, q) => p.depth - q.depth);
+
+  for (const tri of tris) {
+    const r = Math.round(base[0] * tri.shade);
+    const g = Math.round(base[1] * tri.shade);
+    const bl = Math.round(base[2] * tri.shade);
+    const fill = `rgb(${r}, ${g}, ${bl})`;
+    ctx.beginPath();
+    ctx.moveTo(tri.x1, tri.y1);
+    ctx.lineTo(tri.x2, tri.y2);
+    ctx.lineTo(tri.x3, tri.y3);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    // Stroke the same color to seal sub-pixel AA seams between adjacent faces.
+    ctx.strokeStyle = fill;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  return true;
 }
 
 /**
@@ -291,16 +362,10 @@ async function generateModelThumbnail(file, filePath) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Background
-  const colorScheme = file.fileType === '3mf' 
-    ? { bg: '#4CAF50', accent: '#1B5E20' }
-    : { bg: '#2196F3', accent: '#0D47A1' };
-
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, colorScheme.bg);
-  gradient.addColorStop(1, adjustBrightness(colorScheme.bg, -20));
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+  // Transparent background on purpose — a parsed model (STL, or a 3MF with no
+  // embedded preview) is drawn as a shaded solid that composites onto the app's
+  // dark card, matching the chroma-keyed embedded-PNG previews. No colored card,
+  // no file-type label.
 
   // Try to parse and render the model
   console.log('Parsing', file.fileType, 'file...');
@@ -347,76 +412,16 @@ async function generateModelThumbnail(file, filePath) {
     return canvas.toBuffer('image/png', PNG_OPTIONS);
   }
 
-  if (vertices && vertices.length > 0) {
-    console.log('Successfully parsed', vertices.length, 'vertices');
-    // Project to 2D
-    console.log('Projecting to isometric view...');
-    const projected = projectIsometric(vertices, Math.min(width, height) * 0.6);
-    
-    if (projected.length > 0) {
-      console.log('Rendering', projected.length, 'projected vertices...');
-      
-      // Calculate triangle normals for lighting
-      const triangles = [];
-      for (let i = 0; i < projected.length; i += 3) {
-        if (i + 2 < projected.length) {
-          triangles.push({
-            vertices: [projected[i], projected[i + 1], projected[i + 2]],
-            z: (projected[i][1] + projected[i + 1][1] + projected[i + 2][1]) / 3 // Average Y for depth
-          });
-        }
-      }
-      
-      // Sort triangles by depth (painter's algorithm)
-      triangles.sort((a, b) => b.z - a.z);
-      
-      // Draw triangles with solid fill and subtle shading
-      triangles.forEach((tri, idx) => {
-        const [v1, v2, v3] = tri.vertices;
-        const [x1, y1] = v1;
-        const [x2, y2] = v2;
-        const [x3, y3] = v3;
-        
-        ctx.beginPath();
-        ctx.moveTo(width / 2 + x1, height / 2 + y1 - 30);
-        ctx.lineTo(width / 2 + x2, height / 2 + y2 - 30);
-        ctx.lineTo(width / 2 + x3, height / 2 + y3 - 30);
-        ctx.closePath();
-        
-        // Use gradient shading based on depth
-        const brightness = 0.5 + (idx / triangles.length) * 0.5; // 0.5 to 1.0
-        ctx.fillStyle = `rgba(255, 255, 255, ${brightness * 0.9})`;
-        ctx.fill();
-        
-        // Subtle edge lines
-        ctx.strokeStyle = `rgba(0, 0, 0, 0.1)`;
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-      });
-    }
+  const rendered = renderShadedModel(ctx, vertices, width, height);
+  if (rendered) {
+    console.log('Rendered shaded model from', vertices.length, 'vertices');
   } else {
     console.log('No vertices found, falling back to cube icon');
-    // Fallback to cube icon if parsing fails
+    // Fallback to a neutral cube icon if parsing produced no geometry.
     const cubeSize = Math.round(width * 0.3);
     const verticalOffset = Math.round(height * 0.08);
     drawCube(ctx, width / 2, height / 2 - verticalOffset, cubeSize);
   }
-
-  // File type label
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-  ctx.font = `bold ${Math.round(width * 0.12)}px Arial`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(file.fileType.toUpperCase(), width / 2, height - Math.round(height * 0.15));
-
-  // File name (truncated)
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.font = `${Math.round(width * 0.05)}px Arial`;
-  const maxNameLength = 30;
-  const fileName = file.originalName.length > maxNameLength 
-    ? file.originalName.substring(0, maxNameLength) + '...' 
-    : file.originalName;
-  ctx.fillText(fileName, width / 2, height - Math.round(height * 0.05));
 
   return canvas.toBuffer('image/png', PNG_OPTIONS);
 }
