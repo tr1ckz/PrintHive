@@ -8,6 +8,10 @@ const THUMB_DIR = path.join(dataDir, 'thumbnails');
 const THUMB_SIZE = 256;
 const PNG_OPTIONS = { compressionLevel: 9 };
 const MAX_MODEL_VERTICES = 18000;
+// Bump whenever the render/compositing pipeline changes in a way that should
+// invalidate every cached thumbnail (e.g. the white-background chroma-key
+// fix below) — old cache files are simply orphaned and regenerated on read.
+const THUMB_CACHE_VERSION = 2;
 
 // Ensure thumbnail directory exists
 if (!fs.existsSync(THUMB_DIR)) {
@@ -248,6 +252,36 @@ function projectIsometric(vertices, scaleBase = 250) {
 }
 
 /**
+ * Chroma-key out the near-white/near-gray studio floor a slicer bakes into
+ * embedded plate thumbnails, so the model renders on transparency instead of
+ * a solid white square. Low-saturation pixels above the brightness floor are
+ * faded to transparent, with a soft ramp (rather than a hard cutoff) so
+ * anti-aliased model edges don't get a jagged or white-fringed cutout.
+ */
+function stripNearWhiteBackground(ctx, width, height) {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const FADE_START = 190; // below this, always opaque (real object color)
+  const FADE_END = 235;   // at/above this, fully transparent (background)
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const min = Math.min(r, g, b);
+    const max = Math.max(r, g, b);
+    const isNeutral = (max - min) < 18; // low saturation = white/gray, not a colored part
+
+    if (isNeutral && min > FADE_START) {
+      const fade = Math.min(1, (min - FADE_START) / (FADE_END - FADE_START));
+      data[i + 3] = Math.round(data[i + 3] * (1 - fade));
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+/**
  * Generate thumbnail from actual 3D model data
  */
 async function generateModelThumbnail(file, filePath) {
@@ -295,21 +329,21 @@ async function generateModelThumbnail(file, filePath) {
     console.log('Original embedded thumbnail size:', image.width, 'x', image.height);
     const canvas = createCanvas(THUMB_SIZE, THUMB_SIZE);
     const ctx = canvas.getContext('2d');
-    
-    // Draw a soft ivory mat instead of stark white — pure #fff renders as a
-    // blown-out slab against the app's dark UI. Only visible where the
-    // embedded thumbnail doesn't fully cover the square (letterboxing).
-    ctx.fillStyle = '#eae6de';
-    ctx.fillRect(0, 0, THUMB_SIZE, THUMB_SIZE);
-    
-    // Calculate scaling to fit image in 800x800 while maintaining aspect ratio
+
+    // Leave the canvas transparent (no background fill) — slicer-embedded
+    // plate thumbnails are rendered on a flat white studio floor, which we
+    // chroma-key out below so the model sits on the app's dark card
+    // background instead of a blown-out white slab.
+
+    // Calculate scaling to fit image in THUMB_SIZE x THUMB_SIZE while maintaining aspect ratio
     const scale = Math.min(THUMB_SIZE / image.width, THUMB_SIZE / image.height);
     const scaledWidth = image.width * scale;
     const scaledHeight = image.height * scale;
     const x = (THUMB_SIZE - scaledWidth) / 2;
     const y = (THUMB_SIZE - scaledHeight) / 2;
-    
+
     ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
+    stripNearWhiteBackground(ctx, THUMB_SIZE, THUMB_SIZE);
     return canvas.toBuffer('image/png', PNG_OPTIONS);
   }
 
@@ -560,8 +594,8 @@ function adjustBrightness(color, percent) {
  */
 async function getThumbnail(file) {
 
-  
-  const thumbPath = path.join(THUMB_DIR, `${file.id}.png`);
+
+  const thumbPath = path.join(THUMB_DIR, `${file.id}.v${THUMB_CACHE_VERSION}.png`);
 
   // Check if thumbnail exists in cache
   if (fs.existsSync(thumbPath)) {
@@ -599,12 +633,19 @@ async function getThumbnail(file) {
 }
 
 /**
- * Clear thumbnail cache for a specific file
+ * Clear thumbnail cache for a specific file. Removes both the current
+ * versioned cache file and the legacy unversioned one (pre-cache-versioning),
+ * so nothing orphaned is left behind in either scheme.
  */
 function clearThumbnailCache(fileId) {
-  const thumbPath = path.join(THUMB_DIR, `${fileId}.png`);
-  if (fs.existsSync(thumbPath)) {
-    fs.unlinkSync(thumbPath);
+  const paths = [
+    path.join(THUMB_DIR, `${fileId}.v${THUMB_CACHE_VERSION}.png`),
+    path.join(THUMB_DIR, `${fileId}.png`),
+  ];
+  for (const thumbPath of paths) {
+    if (fs.existsSync(thumbPath)) {
+      fs.unlinkSync(thumbPath);
+    }
   }
 }
 

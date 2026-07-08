@@ -816,17 +816,10 @@ module.exports = function createLibraryRouter(ctx) {
         (await db.prepare('DELETE FROM library WHERE id = ?').run(fileId));
         
         // Delete associated thumbnail and geometry cache
-        const thumbPath = path.join(dataDir, 'thumbnails', `${fileId}.png`);
+        clearThumbnailCache(fileId);
         const geoPath = path.join(dataDir, 'geometry', `${fileId}.stl`);
-        
-        const [thumbExists, geoExists] = await Promise.all([
-          fs.promises.access(thumbPath).then(() => true).catch(() => false),
-          fs.promises.access(geoPath).then(() => true).catch(() => false),
-        ]);
 
-        if (thumbExists) {
-          await fs.promises.unlink(thumbPath).catch(() => {});
-        }
+        const geoExists = await fs.promises.access(geoPath).then(() => true).catch(() => false);
         if (geoExists) {
           await fs.promises.unlink(geoPath).catch(() => {});
         }
