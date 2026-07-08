@@ -93,10 +93,16 @@ function Login({ onLoginSuccess }: LoginProps) {
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-4 py-8">
-      <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl sm:p-8">
-        <div className="mb-6 flex flex-col items-center gap-1.5 text-center">
-          <img src="/images/logo.png" alt="PrintHive" className="mb-1 size-20 object-contain" />
+      <div className="relative w-full max-w-sm overflow-hidden rounded-xl bg-card p-6 shadow-xl sm:p-8">
+        {/* Lit top edge — a thin accent gradient that fades in from the corners */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/60 to-transparent" />
+        <div className="mb-7 flex flex-col items-center gap-2 text-center">
+          <div className="relative mb-1">
+            <div aria-hidden className="absolute inset-0 -z-10 scale-125 rounded-full bg-accent/25 blur-2xl" />
+            <img src="/images/logo.png" alt="PrintHive" className="size-20 object-contain drop-shadow-[0_4px_16px_rgba(var(--theme-accent-rgb),0.35)]" />
+          </div>
           <h1 className="text-2xl font-semibold tracking-tight text-fg">PrintHive</h1>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">3D Print Ops Workspace</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
@@ -133,7 +139,7 @@ function Login({ onLoginSuccess }: LoginProps) {
 
           <button
             type="submit"
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-accent px-3 text-sm font-semibold text-accent-contrast transition-colors hover:bg-accent-strong disabled:pointer-events-none disabled:opacity-40"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-accent bg-gradient-to-b from-accent-strong to-accent px-3 text-sm font-semibold text-accent-contrast shadow-sm transition-all duration-200 hover:shadow-glow hover:brightness-105 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-40"
             disabled={loading}
           >
             {loading ? 'Signing in...' : 'Sign In'}
