@@ -1017,15 +1017,19 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                 
               </label>
               
-              <div 
-                className="relative aspect-square w-full overflow-hidden bg-white/[0.03]" 
+              <div
+                className="relative aspect-square w-full overflow-hidden bg-[#eae6de]"
                 onClick={() => handleView3D(file)}
                 style={{ cursor: (file.fileType === 'stl' || file.fileType === '3mf') ? 'pointer' : 'default' }}
               >
-                <img 
-                  src={`/api/library/thumbnail/${file.id}`} 
+                {/* Most model thumbnails are baked with a stark pure-white studio
+                    background (from Bambu Studio's embedded plate render) — a
+                    harsh blown-out slab next to the rest of the dark UI. Tone
+                    it down to a soft ivory mat rather than clinical #fff. */}
+                <img
+                  src={`/api/library/thumbnail/${file.id}`}
                   alt={file.originalName}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover brightness-[0.91] sepia-[0.1] saturate-[0.94]"
                   loading="lazy"
                   decoding="async"
                   onError={(e) => {

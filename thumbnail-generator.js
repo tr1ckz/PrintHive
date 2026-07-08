@@ -296,8 +296,10 @@ async function generateModelThumbnail(file, filePath) {
     const canvas = createCanvas(THUMB_SIZE, THUMB_SIZE);
     const ctx = canvas.getContext('2d');
     
-    // Draw white background
-    ctx.fillStyle = '#ffffff';
+    // Draw a soft ivory mat instead of stark white — pure #fff renders as a
+    // blown-out slab against the app's dark UI. Only visible where the
+    // embedded thumbnail doesn't fully cover the square (letterboxing).
+    ctx.fillStyle = '#eae6de';
     ctx.fillRect(0, 0, THUMB_SIZE, THUMB_SIZE);
     
     // Calculate scaling to fit image in 800x800 while maintaining aspect ratio
