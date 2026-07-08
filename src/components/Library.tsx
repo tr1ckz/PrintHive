@@ -52,6 +52,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
   const [uploading, setUploading] = useState(false);
   const [folderPath, setFolderPath] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const [viewingModel, setViewingModel] = useState<LibraryFile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -476,6 +477,64 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
       }
     } catch (err) {
       console.error('Error cancelling scan:', err);
+    }
+  };
+
+  // Reconcile the catalog against what's on disk. Read-only first (report the
+  // count of entries whose file is missing), then only prune after the user
+  // confirms — so an unmounted/misconfigured library folder can't wipe metadata.
+  const reconcileLibrary = async (prune: boolean) => {
+    const response = await fetchWithRetry(API_ENDPOINTS.LIBRARY.RECONCILE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prune }),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Reconcile request failed');
+    return response.json();
+  };
+
+  const handleReconcile = async () => {
+    setReconciling(true);
+    try {
+      const report = await reconcileLibrary(false);
+      const missing = Number(report.missingCount || 0);
+      if (missing === 0) {
+        setToast({ message: `All ${report.total} entries have their file on disk — nothing to clean up.`, type: 'success' });
+        return;
+      }
+      const sample = Array.isArray(report.missing)
+        ? report.missing.slice(0, 6).map((m: { name: string }) => `• ${m.name}`).join('\n')
+        : '';
+      const allMissing = missing === report.total;
+      setConfirmModal({
+        title: 'Missing files found',
+        message:
+          `${missing} of ${report.total} library entries have no file on disk` +
+          ` (these show a placeholder thumbnail and fail to download).` +
+          (allMissing
+            ? `\n\n⚠️ EVERY entry is missing — this usually means the library folder isn't mounted or points at the wrong path. Fix the mount before pruning, or you'll erase the whole catalog.`
+            : '') +
+          (sample ? `\n\n${sample}${missing > 6 ? `\n…and ${missing - 6} more` : ''}` : '') +
+          `\n\nRemove these ${missing} orphaned entries from the database? (The files are already gone; this only clears the dead entries.)`,
+        onConfirm: async () => {
+          setReconciling(true);
+          try {
+            const result = await reconcileLibrary(true);
+            setToast({ message: `Removed ${result.pruned} orphaned entr${result.pruned === 1 ? 'y' : 'ies'}.`, type: 'success' });
+            setCurrentPage(1);
+            fetchFiles();
+          } catch {
+            setToast({ message: 'Failed to remove orphaned entries', type: 'error' });
+          } finally {
+            setReconciling(false);
+          }
+        },
+      });
+    } catch {
+      setToast({ message: 'Failed to check the library against disk', type: 'error' });
+    } finally {
+      setReconciling(false);
     }
   };
 
@@ -955,6 +1014,14 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
                   ✕ Cancel Scan
                 </button>
               )}
+              <button
+                onClick={handleReconcile}
+                disabled={reconciling}
+                title="Check every library entry against the files on disk and clean up any whose file is missing"
+                className="inline-flex min-h-11 md:min-h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
+              >
+                {reconciling ? '⏳ Checking...' : '🩺 Check for Missing Files'}
+              </button>
               {!autoTagProgress ? (
                 <button 
                   onClick={handleAutoTagAll} 

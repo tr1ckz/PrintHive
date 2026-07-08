@@ -61,6 +61,7 @@ export const API_ENDPOINTS = {
     SCAN: `${API_BASE_URL}/api/library/scan`,
     SCAN_STATUS: `${API_BASE_URL}/api/library/scan-status`,
     SCAN_CANCEL: `${API_BASE_URL}/api/library/scan-cancel`,
+    RECONCILE: `${API_BASE_URL}/api/library/reconcile`,
     AUTO_TAG: (id: number) => `${API_BASE_URL}/api/library/${id}/auto-tag`,
     AUTO_TAG_ALL: `${API_BASE_URL}/api/library/auto-tag-all`,
     AUTO_TAG_STATUS: `${API_BASE_URL}/api/library/auto-tag-status`,

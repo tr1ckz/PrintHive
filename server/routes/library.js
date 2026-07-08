@@ -1311,9 +1311,73 @@ module.exports = function createLibraryRouter(ctx) {
     if (!libraryScanJob.running) {
       return res.json({ success: false, message: 'No library scan job running' });
     }
-    
+
     libraryScanJob.running = false;
     res.json({ success: true, message: 'Library scan job cancelled' });
+  });
+
+  // Reconcile the database against what's actually on disk. Every library row is
+  // resolved to a file the same way downloads/thumbnails do; rows whose file
+  // can't be found anywhere are reported as "missing" (these are the entries
+  // that 404 on download and fall back to a placeholder thumbnail).
+  //
+  // POST body { prune: true } deletes those orphaned rows (and their cached
+  // thumbnail + geometry). Without prune it's read-only — report only — so a
+  // simply-unmounted library volume can never silently wipe the whole catalog.
+  const resolveLibraryFile = (row) => {
+    const candidates = [];
+    if (row.fileName) candidates.push(path.join(libraryDir, sanitizeFilePath(row.fileName)));
+    if (row.filePath) {
+      candidates.push(path.join(ROOT, row.filePath));
+      candidates.push(path.join(libraryDir, row.filePath));
+    }
+    return candidates.find((p) => {
+      try { return fs.existsSync(p); } catch { return false; }
+    }) || null;
+  };
+
+  router.post('/api/library/reconcile', requireAuth, async (req, res) => {
+    try {
+      const prune = req.body && req.body.prune === true;
+      const rows = (await db.prepare('SELECT id, fileName, originalName, fileType, filePath FROM library').all());
+
+      const missing = [];
+      for (const row of rows) {
+        if (!resolveLibraryFile(row)) {
+          missing.push({ id: row.id, name: row.originalName || row.fileName, fileType: row.fileType });
+        }
+      }
+
+      let pruned = 0;
+      if (prune && missing.length > 0) {
+        for (const item of missing) {
+          try {
+            (await db.prepare('DELETE FROM library WHERE id = ?').run(item.id));
+            clearThumbnailCache(item.id);
+            const geoPath = path.join(dataDir, 'geometry', `${item.id}.stl`);
+            if (fs.existsSync(geoPath)) fs.unlinkSync(geoPath);
+            pruned++;
+          } catch (err) {
+            logger.error(`Reconcile: failed to prune library row ${item.id}:`, err.message);
+          }
+        }
+        logger.info(`Reconcile: pruned ${pruned} orphaned library entr${pruned === 1 ? 'y' : 'ies'}`);
+      }
+
+      res.json({
+        success: true,
+        total: rows.length,
+        present: rows.length - missing.length,
+        missingCount: missing.length,
+        // Cap the returned sample so a badly-broken mount doesn't ship a huge payload.
+        missing: missing.slice(0, 100),
+        pruned,
+        libraryDir,
+      });
+    } catch (error) {
+      logger.error('Library reconcile error:', error.message);
+      res.status(500).json({ error: 'Failed to reconcile library' });
+    }
   });
 
   // Advanced library search
