@@ -361,6 +361,42 @@ Manage users in **Settings > Administration > User Management**:
 - **User**: Basic access to printers, prints, and personal library
 - View user activity
 
+### Resetting the Admin Password
+
+If you're locked out of the `admin` account (forgotten password, botched OIDC
+migration, etc.), reset it directly against the database with the bundled
+script — no UI access required:
+
+```bash
+# Generates a random password and prints it once
+npm run reset-admin
+
+# Or set a specific password
+npm run reset-admin -- --password=MyNewPassword123
+
+# Or reset a different/custom superadmin username
+npm run reset-admin -- --username=root --password=MyNewPassword123
+```
+
+The script connects using the same `PG_HOST`/`PG_USER`/`PG_PASSWORD`/`PG_DB`
+variables as the app, so run it from the host (or `docker exec` into the
+container) wherever those are set. It updates the user's password and forces
+their role to `superadmin`, creating the account if it doesn't already exist.
+
+In Docker:
+
+```bash
+docker exec -it printhive npm run reset-admin -- --password=MyNewPassword123
+```
+
+Passwords must be at least 8 characters. To avoid a plaintext password
+lingering in shell history, set `ADMIN_RESET_PASSWORD` as an env var instead
+of passing `--password`:
+
+```bash
+ADMIN_RESET_PASSWORD=MyNewPassword123 npm run reset-admin
+```
+
 ### Settings Organization
 
 Settings are organized in collapsible categories:
