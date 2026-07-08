@@ -630,9 +630,15 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
     }
   }, [sliceHeight]);
 
+  // Opaque surfaces on purpose: this is a full-screen WebGL viewer with an
+  // animating canvas. A translucent overlay or glass panel here would force the
+  // compositor to re-run a full-viewport backdrop-filter over the whole live app
+  // (aurora + every glass surface) on every rendered frame — that's what made
+  // this viewer lag while the standalone share page (nothing behind it) stayed
+  // smooth. None of those blurs were visible behind the black canvas anyway.
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/90 backdrop-blur-md animate-[ph-fade-in_0.2s_ease-out]" onClick={onClose}>
-      <div className="flex h-dvh w-screen max-w-[1400px] flex-col overflow-hidden bg-elevated shadow-xl sm:h-[90vh] sm:w-[90vw] sm:rounded-xl animate-[ph-fade-up_0.3s_var(--ease-out)]" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/95 animate-[ph-fade-in_0.2s_ease-out]" onClick={onClose}>
+      <div className="flex h-dvh w-screen max-w-[1400px] flex-col overflow-hidden bg-[#141419] shadow-xl sm:h-[90vh] sm:w-[90vw] sm:rounded-xl animate-[ph-fade-up_0.3s_var(--ease-out)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="truncate text-lg font-semibold text-fg sm:text-xl">{fileName}</h2>
@@ -648,7 +654,7 @@ const ModelViewer: React.FC<ModelViewerProps> = ({ fileId, fileName, fileType, o
         <div ref={containerRef} className="relative z-[1] min-h-[500px] w-full flex-1 cursor-grab overflow-hidden bg-black active:cursor-grabbing [&>canvas]:!absolute [&>canvas]:!inset-0 [&>canvas]:!block [&>canvas]:!h-full [&>canvas]:!w-full [&>canvas]:!touch-none"></div>
 
         {/* Viewer Controls Sidebar */}
-        <div className="absolute right-3 top-24 z-50 flex flex-col gap-2 rounded-xl bg-black/60 p-2 backdrop-blur sm:right-5">
+        <div className="absolute right-3 top-24 z-50 flex flex-col gap-2 rounded-xl bg-black/70 p-2 sm:right-5">
           <button
             className={`inline-flex size-9 items-center justify-center rounded-md transition-colors sm:size-11 ${wireframe ? 'bg-accent text-accent-contrast' : 'bg-white/10 text-fg-soft hover:bg-white/20 hover:text-fg'}`}
             onClick={toggleWireframe}
