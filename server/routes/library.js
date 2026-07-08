@@ -1324,12 +1324,23 @@ module.exports = function createLibraryRouter(ctx) {
   // POST body { prune: true } deletes those orphaned rows (and their cached
   // thumbnail + geometry). Without prune it's read-only — report only — so a
   // simply-unmounted library volume can never silently wipe the whole catalog.
+  // Crash-proof per row: a single bad path (e.g. a name that trips the
+  // traversal guard) must skip that candidate, never blow up the whole scan.
+  const pushCandidate = (list, ...segments) => {
+    try {
+      const p = path.join(...segments);
+      if (p) list.push(p);
+    } catch { /* bad segment — skip */ }
+  };
   const resolveLibraryFile = (row) => {
     const candidates = [];
-    if (row.fileName) candidates.push(path.join(libraryDir, sanitizeFilePath(row.fileName)));
+    if (row.fileName) {
+      try { pushCandidate(candidates, libraryDir, sanitizeFilePath(row.fileName)); }
+      catch { pushCandidate(candidates, libraryDir, row.fileName); }
+    }
     if (row.filePath) {
-      candidates.push(path.join(ROOT, row.filePath));
-      candidates.push(path.join(libraryDir, row.filePath));
+      pushCandidate(candidates, ROOT, row.filePath);
+      pushCandidate(candidates, libraryDir, row.filePath);
     }
     return candidates.find((p) => {
       try { return fs.existsSync(p); } catch { return false; }
@@ -1339,7 +1350,9 @@ module.exports = function createLibraryRouter(ctx) {
   router.post('/api/library/reconcile', requireAuth, async (req, res) => {
     try {
       const prune = req.body && req.body.prune === true;
-      const rows = (await db.prepare('SELECT id, fileName, originalName, fileType, filePath FROM library').all());
+      // SELECT * to match the proven listing query — avoids any column-name
+      // mismatch on older/migrated schemas.
+      const rows = (await db.prepare('SELECT * FROM library').all());
 
       const missing = [];
       for (const row of rows) {
@@ -1375,8 +1388,10 @@ module.exports = function createLibraryRouter(ctx) {
         libraryDir,
       });
     } catch (error) {
-      logger.error('Library reconcile error:', error.message);
-      res.status(500).json({ error: 'Failed to reconcile library' });
+      logger.error('Library reconcile error:', error && error.stack ? error.stack : error);
+      // Surface the message (admin-only, authed endpoint) so a persistent
+      // failure can be diagnosed from the response instead of only the logs.
+      res.status(500).json({ error: 'Failed to reconcile library', detail: String(error && error.message || error) });
     }
   });
 
