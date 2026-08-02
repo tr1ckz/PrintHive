@@ -1073,7 +1073,7 @@ const Library: React.FC<LibraryProps> = ({ userRole }) => {
           </div>
         ) : (
           paginatedFiles.map(file => (
-            <div key={file.id} className={`group relative flex flex-col overflow-hidden rounded-lg bg-card shadow-sm transition hover:bg-surface-2 hover:shadow-md ${selectedFiles.has(file.id) ? 'ring-1 ring-accent/50' : ''}`}>
+            <div key={file.id} className={`group relative flex flex-col overflow-hidden rounded-lg bg-card shadow-sm transition-[background-color,box-shadow] duration-200 hover:bg-surface-2 hover:shadow-md ${selectedFiles.has(file.id) ? 'ring-1 ring-accent/50' : ''}`}>
               {/* Selection checkbox */}
               <label className="absolute left-1.5 top-1.5 z-10 flex size-11 md:size-9 cursor-pointer items-center justify-center [&>input]:size-5" onClick={e => e.stopPropagation()}>
                 <input

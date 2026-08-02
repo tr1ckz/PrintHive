@@ -573,7 +573,7 @@ const PrintHistory: React.FC = () => {
             const { statusClassName, statusDisplay } = getPrintStatus(print.status);
 
             return (
-              <div key={print.id} className="group flex flex-col overflow-hidden rounded-lg bg-card shadow-sm transition hover:bg-surface-2 hover:shadow-md">
+              <div key={print.id} className="group flex flex-col overflow-hidden rounded-lg bg-card shadow-sm transition-[background-color,box-shadow] duration-200 hover:bg-surface-2 hover:shadow-md">
                 <div className="relative aspect-video w-full overflow-hidden bg-white/[0.03] [&>img]:h-full [&>img]:w-full [&>img]:object-cover">
                   {print.coverUrl ? (
                     <img 
@@ -585,7 +585,11 @@ const PrintHistory: React.FC = () => {
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs text-muted">No Image</div>
                   )}
-                  <div className={`absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider backdrop-blur ${statusClassName === 'success' ? 'bg-success/20 text-success' : statusClassName === 'failed' ? 'bg-danger/20 text-danger' : 'bg-white/15 text-fg'}`}>
+                  {/* No backdrop-blur here: this pill renders once per history
+                      card, and each blurred element is its own render surface
+                      that re-samples the cover art behind it on every scroll.
+                      A denser tint reads the same over a photo for free. */}
+                  <div className={`absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusClassName === 'success' ? 'bg-success/30 text-success' : statusClassName === 'failed' ? 'bg-danger/30 text-danger' : 'bg-white/25 text-fg'}`}>
                     {statusDisplay}
                   </div>
                 </div>

@@ -83,8 +83,9 @@
   --color-accent: var(--theme-accent);
   --color-accent-soft: rgba(var(--theme-accent-rgb), 0.12);
 
-  /* Premium dark surfaces — translucent so the aurora backdrop shows
-     through; the glass treatment below adds the blur. */
+  /* Premium dark surfaces — translucent so the aurora backdrop shows through.
+     The glass treatment below adds the sheen and grain to all of them, and a
+     real backdrop blur to the floating ones only (see @layer components). */
   --bg-base: #0a0a0c;
   --bg-elevated: rgba(19, 19, 24, 0.72);
   --bg-surface: rgba(24, 24, 30, 0.60);
@@ -170,10 +171,14 @@
 
   /* Aurora palette — all derived from the live accent, with perceptual
      hue-shifts toward teal and violet so the curtains have depth while still
-     retinting instantly when the accent changes. */
-  --aurora-a: color-mix(in srgb, var(--theme-accent) 46%, transparent);
-  --aurora-b: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 58%, #22e3c4) 42%, transparent);
-  --aurora-c: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 55%, #8b5cf6) 40%, transparent);
+     retinting instantly when the accent changes.
+
+     Tuned down from 46/42/40% to match the old blurred+screen-blended stack:
+     the curtains now composite normally instead of adding light, and they are
+     no longer smeared by a 44px blur, so the same alphas read hotter. */
+  --aurora-a: color-mix(in srgb, var(--theme-accent) 43%, transparent);
+  --aurora-b: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 58%, #22e3c4) 39%, transparent);
+  --aurora-c: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 55%, #8b5cf6) 37%, transparent);
 }
 
 /* Base reset lives in @layer base so Tailwind's utility layer
@@ -210,37 +215,32 @@
   }
 
   /* Ambient backdrop: an aurora borealis tinted entirely by the active accent
-     (with teal/violet hue-shifts for depth) so it re-themes live. Two static
-     layers + screen blend give the glowing "curtain" look. Deliberately NOT
-     animated: dozens of backdrop-filter glass panels sit above this, and any
-     motion here forces all of them to re-blur every frame — the animated
-     version tanked INP. Static, the glass only re-samples on scroll. */
+     (with teal/violet hue-shifts for depth) so it re-themes live.
+
+     Deliberately NOT animated: glass panels sit above this, and any motion here
+     forces them to re-blur every frame — the animated version tanked INP.
+
+     Also deliberately cheap. This used to be two fixed full-viewport layers,
+     each with `filter: blur(44px+)` and `mix-blend-mode: screen`. Both were
+     paid for on every scroll: a large-surface blur is one of the most
+     expensive filters there is, and a blend mode on a fixed backdrop forces
+     everything painted above it into the same non-composited blend group, so
+     the compositor cannot cache the backdrop and scroll past it. Now it is a
+     single plain-painted layer. The visual is preserved because the curtains
+     are radial gradients with soft `transparent` falloffs — already smooth, so
+     the blur was mostly redundant — and `screen` over a near-black base
+     (#0a0a0c) is within a hair of normal source-over anyway. */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    mix-blend-mode: screen;
-    filter: blur(44px);
     background:
       radial-gradient(46% 70% at 16% 4%, var(--aurora-a) 0%, transparent 60%),
       radial-gradient(38% 62% at 82% 14%, var(--aurora-c) 0%, transparent 62%),
       radial-gradient(52% 46% at 60% 96%, var(--aurora-b) 0%, transparent 60%),
-      radial-gradient(30% 80% at 40% 58%, var(--aurora-a) 0%, transparent 64%);
-  }
-
-  /* Second curtain layer (on #root so it stacks above body's gradients but
-     below app content). */
-  #root::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    mix-blend-mode: screen;
-    filter: blur(56px);
-    background:
+      radial-gradient(30% 80% at 40% 58%, var(--aurora-a) 0%, transparent 64%),
       radial-gradient(26% 90% at 28% 36%, var(--aurora-b) 0%, transparent 60%),
       radial-gradient(22% 80% at 68% 58%, var(--aurora-c) 0%, transparent 62%),
       radial-gradient(34% 70% at 90% 26%, var(--aurora-a) 0%, transparent 64%);
@@ -263,7 +263,12 @@
     z-index: 1;
     min-height: 100vh;
     width: 100%;
-    overflow-x: hidden;
+    /* MUST be `clip`, never `hidden`. `overflow-x: hidden` computes the other
+       axis to `auto`, which makes #root a scroll container — every
+       `position: sticky` inside it (the topbar, the sidebar rail) then anchors
+       to a box that never scrolls, so they just scroll away with the page.
+       `clip` suppresses horizontal overflow without creating a scrollport. */
+    overflow-x: clip;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -455,14 +460,32 @@
   .bg-elevated,
   .ph-card,
   .ph-glass {
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
     /* Sheen + frosted grain layered over whatever surface color the token set.
        These are background-images, so the token's background-color shows through
-       the transparent parts. */
+       the transparent parts. Cheap — they paint once and scroll with the page. */
     background-image: var(--glass-sheen), var(--glass-noise);
     background-size: auto, 160px 160px;
     background-repeat: no-repeat, repeat;
+  }
+
+  /* Real backdrop blur is reserved for FLOATING chrome — the handful of
+     surfaces that overlap scrolling content and need to read as a pane of
+     glass in front of it (sidebar rail, popovers, bottom tab bar, modals).
+
+     It is deliberately NOT on .bg-card / .bg-surface / .bg-surface-2, which are
+     the in-flow content surfaces: a library page or dashboard renders dozens of
+     them at once, and every backdrop-filter element is its own render surface
+     that re-samples and re-blurs whatever is behind it whenever the page
+     scrolls. That was the jank — cost scaling with the number of cards on
+     screen. Those cards sit on a static, already-soft gradient backdrop, so
+     blurring behind them was near-invisible work; the surface tint below
+     restores the density the blur+saturate was contributing.
+
+     Rule of thumb: if it scrolls with the content, it does not get glass. */
+  .bg-elevated,
+  .ph-glass {
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   }
 
   .bg-card,

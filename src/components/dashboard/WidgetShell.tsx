@@ -15,7 +15,7 @@ interface WidgetShellProps {
  */
 function WidgetShell({ title, isEditMode = false, onHide, children }: WidgetShellProps) {
   return (
-    <article className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg bg-card shadow-sm transition duration-200 hover:shadow-md">
+    <article className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg bg-card shadow-sm transition-[box-shadow] duration-200 hover:shadow-md">
       <header
         className={`${
           isEditMode ? 'widget-drag-handle cursor-grab active:cursor-grabbing bg-accent/5' : 'cursor-default'
