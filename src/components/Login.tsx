@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
+import {
+  decideSsoRedirect,
+  isSsoRedirectSuppressed,
+  markSsoRedirectAttempt,
+  readSsoRedirectAttempt,
+} from '../utils/ssoRedirect';
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -13,6 +19,7 @@ function Login({ onLoginSuccess }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const [oauthProvider, setOauthProvider] = useState<string | null>(null);
   const [isAdminRoute, setIsAdminRoute] = useState(false);
+  const [ssoNotice, setSsoNotice] = useState('');
 
   useEffect(() => {
     // Check if we're on /admin route
@@ -26,39 +33,43 @@ function Login({ onLoginSuccess }: LoginProps) {
 
   const fetchOAuthConfig = async () => {
     try {
-      console.log('[Login] fetchOAuthConfig called');
-      console.log('[Login] Current URL:', window.location.href);
-      console.log('[Login] Pathname:', window.location.pathname);
-      console.log('[Login] Search:', window.location.search);
-      
       const response = await fetchWithRetry(API_ENDPOINTS.SETTINGS.OAUTH_PUBLIC, { credentials: 'include' });
       const data = await response.json();
-      console.log('[Login] OAuth provider:', data.provider);
-      setOauthProvider(data.provider || 'none');
+      const provider = data.provider || 'none';
+      setOauthProvider(provider);
 
-      // Check if we're coming back from a logout (query param ?logout=1)
-      const urlParams = new URLSearchParams(window.location.search);
-      const isLogout = urlParams.get('logout') === '1';
-      console.log('[Login] isLogout check:', isLogout);
-      console.log('[Login] URL params:', Object.fromEntries(urlParams));
+      const decision = decideSsoRedirect({
+        provider,
+        pathname: window.location.pathname,
+        search: window.location.search,
+        suppressed: isSsoRedirectSuppressed(),
+        lastAttemptAt: readSsoRedirectAttempt(),
+        now: Date.now(),
+      });
 
-      const onAdminRoute = window.location.pathname.startsWith('/admin');
-      console.log('[Login] On admin route:', onAdminRoute);
-      
-      const shouldRedirect = data.provider && data.provider !== 'none' && 
-                            !onAdminRoute && 
-                            !isLogout;
-      console.log('[Login] Should redirect to OAuth:', shouldRedirect);
+      if (decision.redirect) {
+        startSsoRedirect(provider);
+        return;
+      }
 
-      // Auto-redirect to OAuth if configured, NOT on admin route, and NOT after logout
-      if (shouldRedirect) {
-        console.log('[Login] Redirecting to:', `/auth/${data.provider}`);
-        window.location.href = `/auth/${data.provider}`;
+      if (decision.reason === 'bounced') {
+        // We already sent the browser to the IdP and it handed us back here
+        // without a session. Redirecting again would just spin the page.
+        setSsoNotice('Single sign-on returned you here without signing you in. Try again below, or use a local account.');
+      } else if (decision.reason === 'sso-error') {
+        setSsoNotice('Single sign-on failed. Try again below, or use a local account.');
       }
     } catch (error) {
       console.error('Failed to fetch OAuth config:', error);
       setOauthProvider('none');
     }
+  };
+
+  // Every trip to the IdP — automatic or from the buttons below — is recorded,
+  // so a bounce straight back to this page stops the next auto-redirect.
+  const startSsoRedirect = (provider: string) => {
+    markSsoRedirectAttempt();
+    window.location.href = `/auth/${provider}`;
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -104,6 +115,10 @@ function Login({ onLoginSuccess }: LoginProps) {
           <h1 className="text-2xl font-semibold tracking-tight text-fg">PrintHive</h1>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">3D Print Ops Workspace</p>
         </div>
+
+        {ssoNotice && (
+          <div className="mb-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning" role="status">{ssoNotice}</div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
@@ -154,7 +169,7 @@ function Login({ onLoginSuccess }: LoginProps) {
               </div>
 
               {oauthProvider === 'google' && (
-                <a href="/auth/google" className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
+                <a href="/auth/google" onClick={() => markSsoRedirectAttempt()} className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
                     <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
                     <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
@@ -166,7 +181,7 @@ function Login({ onLoginSuccess }: LoginProps) {
               )}
               
               {oauthProvider === 'oidc' && (
-                <a href="/auth/oidc" className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
+                <a href="/auth/oidc" onClick={() => markSsoRedirectAttempt()} className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white/5 px-3 text-sm font-semibold text-fg-soft transition-colors hover:bg-white/10 hover:text-fg">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
                     <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V9h7V2.99c3.72 1.15 6.47 4.82 7 8.94h-7v1.06z" fill="currentColor"/>
                   </svg>

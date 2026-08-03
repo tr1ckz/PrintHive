@@ -316,8 +316,10 @@ router.post('/auth/logout', (req, res) => {
       console.error('Session destroy error:', err);
       res.json({ success: false, error: 'Failed to logout' });
     } else {
-      // If OIDC user, return the end-session URL for redirect
-      if (isOidcUser) {
+      // If OIDC user, return the end-session URL for redirect.
+      // isOidcUser is a promise for logged-in sessions, so it must be awaited —
+      // otherwise every local account gets bounced through the IdP on logout.
+      if (await isOidcUser) {
         try {
           const publicHostname = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_publicHostname'));
           const configuredEndSessionUrl = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcEndSessionUrl'));

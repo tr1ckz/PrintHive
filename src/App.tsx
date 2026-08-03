@@ -12,6 +12,7 @@ import { API_ENDPOINTS } from './config/api';
 import { fetchWithRetry } from './utils/fetchWithRetry';
 import { usePrinterStore } from './stores/usePrinterStore';
 import { applyThemeScheme } from './utils/theme';
+import { clearSsoRedirectState, suppressSsoRedirect } from './utils/ssoRedirect';
 import packageInfo from '../package.json';
 
 function App() {
@@ -96,6 +97,10 @@ function App() {
         { maxRetries: 0, timeoutMs: 6000 }
       );
       const data = await response.json();
+      if (data.authenticated) {
+        // The SSO round-trip worked; forget the loop breaker.
+        clearSsoRedirectState();
+      }
       setIsAuthenticated(data.authenticated);
     } catch (error) {
       setIsAuthenticated(false);
@@ -103,10 +108,16 @@ function App() {
   };
 
   const handleLoginSuccess = () => {
+    clearSsoRedirectState();
     setIsAuthenticated(true);
   };
 
   const handleLogout = async () => {
+    // Logging out means staying on the login page. Without this the login
+    // screen would bounce straight back into the IdP, which still holds a
+    // session, and the user could never actually sign out.
+    suppressSsoRedirect();
+
     try {
       const response = await fetchWithRetry(API_ENDPOINTS.AUTH.LOGOUT, {
         method: 'POST',
