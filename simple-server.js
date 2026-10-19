@@ -46,6 +46,7 @@ const { PORT, BCRYPT_ROUNDS, isBcryptHash, loadSessionSecret, getBambuApiBase } 
 const { securityHeaders, appHeaders, rejectCrossSite } = require('./server/middleware/security');
 const { requireAuth, requireAdmin } = require('./server/middleware/requireAuth');
 const { configureOIDC, getOidcConfig } = require('./server/services/oidcProvider');
+const { SSO_BOUNCE_COOKIE } = require('./server/routes/auth');
 const { sendNotification, sendDiscordNotification, sendTelegramNotification, sendSlackNotification } = require('./server/services/notifications');
 const jobManager = require('./server/jobs/jobManager');
 const PrinterConnectionManager = require('./server/services/printerConnectionManager');
@@ -1157,19 +1158,31 @@ app.get('/', async (req, res) => {
     return res.sendFile(path.join(__dirname, staticDir, 'index.html'));
   }
   
-  // Check if OIDC is configured
-  try {
-    const providerRow = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_provider'));
-    console.log('OAuth provider:', providerRow?.value);
-    console.log('oidcConfig exists:', !!getOidcConfig());
+  // Auto-redirect to the IdP, but never when the browser is coming back from
+  // a failed or just-finished SSO trip: an error/logout marker in the query,
+  // or the bounce cookie /auth/oidc sets, means the last redirect did not end
+  // in a session. Redirecting again here is exactly the loop that made the
+  // page "refresh forever" — the SPA shows the login form with a notice instead.
+  const cameBackFromSso = String(req.headers.cookie || '')
+    .split(';')
+    .some((part) => part.trim().startsWith(`${SSO_BOUNCE_COOKIE}=`));
+  const hasSsoMarker = typeof req.query.error === 'string' || typeof req.query.logout === 'string';
+  if (!cameBackFromSso && !hasSsoMarker) {
+    try {
+      const providerRow = (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_provider'));
+      console.log('OAuth provider:', providerRow?.value);
+      console.log('oidcConfig exists:', !!getOidcConfig());
 
-    if (providerRow?.value === 'oidc' && getOidcConfig()) {
-      // Auto-redirect to OIDC login
-      console.log('Redirecting to /auth/oidc');
-      return res.redirect('/auth/oidc');
+      if (providerRow?.value === 'oidc' && getOidcConfig()) {
+        // Auto-redirect to OIDC login
+        console.log('Redirecting to /auth/oidc');
+        return res.redirect('/auth/oidc');
+      }
+    } catch (error) {
+      console.error('Error checking OAuth provider:', error);
     }
-  } catch (error) {
-    console.error('Error checking OAuth provider:', error);
+  } else {
+    console.log('Skipping SSO auto-redirect (returning from SSO), serving login page');
   }
   
   // Default: serve login page
@@ -1186,8 +1199,11 @@ app.get('/admin', (req, res) => {
   const localAuthEnabled = process.env.LOCALAUTH === 'true';
   
   if (!localAuthEnabled) {
-    // Redirect to home if local auth is disabled
-    return res.redirect('/');
+    // Redirect to home if local auth is disabled. Keep the query string: the
+    // IdP sends us back to /admin?logout=1 after RP-initiated logout, and
+    // dropping it made `/` sign the user straight back in.
+    const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    return res.redirect(`/${query}`);
   }
   
   const distExists = fs.existsSync(path.join(__dirname, 'dist', 'index.html'));

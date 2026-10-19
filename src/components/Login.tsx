@@ -12,6 +12,20 @@ interface LoginProps {
   onLoginSuccess: () => void;
 }
 
+// Error codes come from the server's /auth/oidc* redirects.
+function describeSsoError(code: string | null): string {
+  switch (code) {
+    case 'invalid_session':
+      return 'Single sign-on came back but your session cookie was not kept. Behind a reverse proxy check COOKIE_SECURE and X-Forwarded-Proto, then try again.';
+    case 'oidc_not_configured':
+      return 'Single sign-on is enabled but the identity provider could not be reached. Try again, or use a local account.';
+    case 'oidc_callback_failed':
+      return 'The identity provider rejected the sign-in (often a redirect URI mismatch; check the server log). Try again below, or use a local account.';
+    default:
+      return 'Single sign-on failed. Try again below, or use a local account.';
+  }
+}
+
 function Login({ onLoginSuccess }: LoginProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -57,7 +71,7 @@ function Login({ onLoginSuccess }: LoginProps) {
         // without a session. Redirecting again would just spin the page.
         setSsoNotice('Single sign-on returned you here without signing you in. Try again below, or use a local account.');
       } else if (decision.reason === 'sso-error') {
-        setSsoNotice('Single sign-on failed. Try again below, or use a local account.');
+        setSsoNotice(describeSsoError(new URLSearchParams(window.location.search).get('error')));
       }
     } catch (error) {
       console.error('Failed to fetch OAuth config:', error);

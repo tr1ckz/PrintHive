@@ -28,8 +28,15 @@ async function configureOIDC() {
         : `${issuerUrl}/.well-known/openid-configuration`;
 
       const axios = require('axios');
-      const response = await axios.get(wellKnownUrl);
+      const response = await axios.get(wellKnownUrl, { timeout: 10000 });
       const metadata = response.data;
+
+      // The document must describe the issuer we were told to trust;
+      // otherwise a hijacked discovery URL could point us at another AS.
+      const normalize = (u) => String(u || '').replace(/\/+$/, '');
+      if (!metadata || normalize(metadata.issuer) !== normalize(issuerUrl)) {
+        throw new Error(`Discovery issuer mismatch: configured "${issuerUrl}", document says "${metadata?.issuer}"`);
+      }
 
       console.log('Discovered issuer:', metadata.issuer);
       console.log('Authorization endpoint:', metadata.authorization_endpoint);
@@ -42,6 +49,13 @@ async function configureOIDC() {
         oauthConfig.oidcClientId, // client ID
         oauthConfig.oidcClientSecret // client secret (can be string or object)
       );
+
+      // openid-client refuses plain-http endpoints by default; LAN IdPs
+      // (and docker-internal hostnames) are commonly http.
+      if (issuerUrl.startsWith('http://')) {
+        oidc.allowInsecureRequests(server);
+        console.warn('OIDC issuer is plain http; allowing insecure requests to the IdP');
+      }
 
       // Store configuration for use in routes
       oidcConfig = {

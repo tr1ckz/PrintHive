@@ -5,9 +5,38 @@ const oidc = require('openid-client');
 const { db } = require('../../database');
 const { isBcryptHash } = require('../config');
 const { loginRateLimiter } = require('../middleware/security');
-const { getOidcConfig } = require('../services/oidcProvider');
+const { getOidcConfig, configureOIDC } = require('../services/oidcProvider');
 
 const router = express.Router();
+
+// Short-lived cookie set when we send the browser to the IdP. If the browser
+// comes back to `/` still unauthenticated while it is present, the main route
+// serves the login page instead of bouncing to the IdP again — that bounce is
+// what used to turn any failed SSO round-trip into an endless redirect loop.
+const SSO_BOUNCE_COOKIE = 'printhive.sso';
+const SSO_BOUNCE_MAX_AGE_MS = 5 * 60 * 1000;
+
+function setSsoBounceCookie(req, res) {
+  res.cookie(SSO_BOUNCE_COOKIE, '1', {
+    maxAge: SSO_BOUNCE_MAX_AGE_MS,
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: req.secure,
+    path: '/',
+  });
+}
+
+function clearSsoBounceCookie(res) {
+  res.clearCookie(SSO_BOUNCE_COOKIE, { path: '/' });
+}
+
+// Where to send the browser when SSO fails. `/admin` only works when
+// LOCALAUTH is on; otherwise it bounced to `/`, which bounced to the IdP, and
+// the error never reached anyone. `/?error=` is handled by the main route and
+// the login page, which shows the form plus a notice instead of redirecting.
+function ssoErrorRedirect(code) {
+  return `/?error=${encodeURIComponent(code)}`;
+}
 
 // Split a stored group list ("Admins, PrintHive Admins" or newline-separated)
 // into a normalized, lowercased array for case-insensitive matching.
@@ -46,21 +75,31 @@ async function resolveOidcRole(claims) {
 router.get('/auth/oidc', async (req, res) => {
   console.log('=== OIDC AUTH START ===');
 
-  const oidcConfig = getOidcConfig();
+  // Discovery runs once at boot; if the IdP was still starting (docker-compose
+  // brings both up together) the client stayed unconfigured until an admin
+  // re-saved the settings. Retry discovery on demand instead.
+  let oidcConfig = getOidcConfig();
+  if (!oidcConfig) {
+    console.log('OIDC client not configured, retrying discovery');
+    await configureOIDC();
+    oidcConfig = getOidcConfig();
+  }
   if (!oidcConfig) {
     console.error('OIDC client not configured');
-    return res.redirect('/admin?error=oidc_not_configured');
+    return res.redirect(ssoErrorRedirect('oidc_not_configured'));
   }
 
   try {
-    // Generate PKCE code verifier and state
+    // Generate PKCE code verifier, state and nonce
     const code_verifier = oidc.randomPKCECodeVerifier();
     const code_challenge = await oidc.calculatePKCECodeChallenge(code_verifier);
     const state = oidc.randomState();
+    const nonce = oidc.randomNonce();
 
     // Store in session for callback
     req.session.oidc_code_verifier = code_verifier;
     req.session.oidc_state = state;
+    req.session.oidc_nonce = nonce;
 
     await new Promise((resolve, reject) => {
       req.session.save((err) => err ? reject(err) : resolve());
@@ -73,13 +112,15 @@ router.get('/auth/oidc', async (req, res) => {
       code_challenge,
       code_challenge_method: 'S256',
       state,
+      nonce,
     });
 
     console.log('Redirecting to:', authUrl.href);
+    setSsoBounceCookie(req, res);
     res.redirect(authUrl.href);
   } catch (error) {
     console.error('OIDC auth error:', error);
-    res.redirect('/admin?error=oidc_auth_failed');
+    res.redirect(ssoErrorRedirect('oidc_auth_failed'));
   }
 });
 
@@ -90,21 +131,37 @@ router.get('/auth/oidc/callback', async (req, res) => {
   const oidcConfig = getOidcConfig();
   if (!oidcConfig) {
     console.error('OIDC client not configured');
-    return res.redirect('/admin?error=oidc_not_configured');
+    return res.redirect(ssoErrorRedirect('oidc_not_configured'));
+  }
+
+  // Two tabs can race to the IdP; the second one's cookie wins and the first
+  // callback arrives against a session that was already signed in by the
+  // other tab. Nothing is wrong — just go to the app.
+  if (req.session.authenticated && !req.session.oidc_code_verifier) {
+    console.log('Session already authenticated, skipping token exchange');
+    clearSsoBounceCookie(res);
+    return res.redirect('/');
   }
 
   try {
-    // Get code verifier and state from session
+    // Get code verifier, state and nonce from session
     const code_verifier = req.session.oidc_code_verifier;
     const saved_state = req.session.oidc_state;
+    const saved_nonce = req.session.oidc_nonce;
 
     if (!code_verifier) {
-      console.error('No code verifier in session');
-      return res.redirect('/admin?error=invalid_session');
+      console.error('No code verifier in session (session cookie did not survive the IdP round-trip)');
+      return res.redirect(ssoErrorRedirect('invalid_session'));
     }
 
-    // Build current URL for callback
-    const currentUrl = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
+    // openid-client derives the redirect_uri it sends to the token endpoint
+    // from this URL. Behind a reverse proxy req.protocol/host often read as
+    // http://printhive:3000 while the IdP has https://public.host registered,
+    // and the exchange fails with invalid_grant. Use the configured redirect
+    // URI (the one buildAuthorizationUrl sent) and only take the IdP's query
+    // string from the actual request.
+    const currentUrl = new URL(oidcConfig.redirectUri);
+    currentUrl.search = new URL(req.originalUrl, 'http://localhost').search;
 
     console.log('Calling authorizationCodeGrant...');
 
@@ -115,7 +172,8 @@ router.get('/auth/oidc/callback', async (req, res) => {
       currentUrl,
       {
         pkceCodeVerifier: code_verifier,
-        expectedState: saved_state
+        expectedState: saved_state,
+        ...(saved_nonce ? { expectedNonce: saved_nonce } : {}),
       }
     );
 
@@ -190,27 +248,34 @@ router.get('/auth/oidc/callback', async (req, res) => {
     req.session.userId = user.id;
     req.session.username = user.username;
     req.session.role = user.role || 'user';
+    // Kept for id_token_hint on RP-initiated logout (Keycloak and friends
+    // refuse post_logout_redirect_uri without it).
+    req.session.oidc_id_token = tokens.id_token;
 
     // Clean up OIDC session data
     delete req.session.oidc_code_verifier;
     delete req.session.oidc_state;
+    delete req.session.oidc_nonce;
 
     await new Promise((resolve, reject) => {
       req.session.save((err) => err ? reject(err) : resolve());
     });
 
     console.log('Session saved successfully, redirecting to /');
+    clearSsoBounceCookie(res);
     res.redirect('/');
   } catch (error) {
     console.error('=== OIDC CALLBACK ERROR ===');
     console.error('Error:', error.message);
+    if (error.cause) console.error('Cause:', error.cause);
     console.error('Stack:', error.stack);
 
     // Clean up session on error
     delete req.session.oidc_code_verifier;
     delete req.session.oidc_state;
+    delete req.session.oidc_nonce;
 
-    res.redirect('/admin?error=oidc_callback_failed');
+    res.redirect(ssoErrorRedirect('oidc_callback_failed'));
   }
 });
 
@@ -300,6 +365,9 @@ router.get('/api/check-auth', async (req, res) => {
 router.post('/auth/logout', (req, res) => {
   console.log('=== LOGOUT ===');
 
+  // The session is destroyed below; keep what the end-session request needs.
+  const idTokenHint = req.session.oidc_id_token;
+
   // Check if user logged in via OIDC
   const isOidcUser = req.session.userId ? (async () => {
     try {
@@ -333,6 +401,10 @@ router.post('/auth/logout', (req, res) => {
             const logoutUrl = new URL(configuredEndSessionUrl.value);
             // Add flag to prevent auto-redirect after logout
             logoutUrl.searchParams.set('post_logout_redirect_uri', `${publicUrl}/admin?logout=1`);
+            if (idTokenHint) logoutUrl.searchParams.set('id_token_hint', idTokenHint);
+            const clientId = getOidcConfig()?.clientId
+              || (await db.prepare('SELECT value FROM config WHERE key = ?').get('oauth_oidcClientId'))?.value;
+            if (clientId && !logoutUrl.searchParams.has('client_id')) logoutUrl.searchParams.set('client_id', clientId);
             endSessionUrl = logoutUrl.href;
             console.log('OIDC logout using configured URL:', endSessionUrl);
           } else if (getOidcConfig()) {
@@ -340,6 +412,7 @@ router.post('/auth/logout', (req, res) => {
             try {
               const builtUrl = oidc.buildEndSessionUrl(getOidcConfig().server, {
                 post_logout_redirect_uri: `${publicUrl}/admin?logout=1`,
+                ...(idTokenHint ? { id_token_hint: idTokenHint } : {}),
               });
               endSessionUrl = builtUrl.href;
               console.log('OIDC logout using discovered URL:', endSessionUrl);
@@ -436,3 +509,4 @@ module.exports = router;
 // Exported for unit testing of the OIDC group -> role mapping.
 module.exports.resolveOidcRole = resolveOidcRole;
 module.exports.parseGroupList = parseGroupList;
+module.exports.SSO_BOUNCE_COOKIE = SSO_BOUNCE_COOKIE;
