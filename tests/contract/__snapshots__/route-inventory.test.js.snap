@@ -120,6 +120,7 @@ exports[`route inventory > matches the pinned endpoint list 1`] = `
   "POST /api/library/cleanup-missing",
   "POST /api/library/detect-problems",
   "POST /api/library/parse-folder-tags",
+  "POST /api/library/reconcile",
   "POST /api/library/scan",
   "POST /api/library/scan-cancel",
   "POST /api/library/share/:id",
