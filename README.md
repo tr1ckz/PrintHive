@@ -401,7 +401,7 @@ ADMIN_RESET_PASSWORD=MyNewPassword123 npm run reset-admin
 
 Settings are organized in collapsible categories:
 
-- **Printer Connection**: Bambu Lab account, FTP settings, RTSP camera
+- **Hardware**: Bambu Link (Bambu Lab cloud accounts) and Local Network (LAN printers, FTP, per-printer RTSP)
 - **Account**: Profile, security, password changes
 - **Preferences**: Cost calculator, UI settings
 - **Integrations**: Discord webhooks, OAuth/SSO
@@ -1064,7 +1064,7 @@ Follow the [Authentik SSO Integration](#authentik-sso-integration) section above
    - Go to Settings > Account
    - Click "Change Password"
 4. Configure your Bambu Lab printer:
-   - Settings > Printer Connection
+   - Settings > Hardware > Local Network
    - Enter IP, access code, serial number
 
 #### 10. Configure Backups

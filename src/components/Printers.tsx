@@ -8,6 +8,17 @@ import { usePrinterStore } from '../stores/usePrinterStore';
 import LoadingScreen from './LoadingScreen';
 import ReactivePrinterCard from './ReactivePrinterCard';
 
+const BAMBU_LINK_SETTINGS_URL = '/settings?section=hardware.bambu';
+
+// In-app navigation: Dashboard routes on popstate, so push the URL and let it
+// switch tabs instead of reloading the whole app.
+function openBambuLinkSettings(event: React.MouseEvent<HTMLAnchorElement>) {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return; // new tab etc.
+  event.preventDefault();
+  window.history.pushState({ tab: 'settings' }, '', BAMBU_LINK_SETTINGS_URL);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
+
 function Printers() {
   const { openModal } = useModal();
   const [cameraMode, setCameraMode] = useState<CameraMode>('frigate');
@@ -118,7 +129,15 @@ function Printers() {
         <div className="rounded-md bg-warning/10 px-4 py-3 text-sm text-warning">
           <strong>Bambu Cloud sign-in expired.</strong>{' '}
           {reconnectAccounts.map((a) => a.email).join(', ')} could not load printers because the cloud token is no longer valid.{' '}
-          Reconnect the account in <strong>Settings → Printer Connection</strong> to restore cloud printers. Local (LAN) printers are unaffected.
+          Sign in again under{' '}
+          <a
+            href={BAMBU_LINK_SETTINGS_URL}
+            onClick={openBambuLinkSettings}
+            className="font-semibold underline underline-offset-2 hover:text-fg"
+          >
+            Settings → Hardware → Bambu Link
+          </a>{' '}
+          to restore cloud printers. Local (LAN) printers are unaffected.
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">

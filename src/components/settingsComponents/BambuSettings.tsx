@@ -4,6 +4,7 @@ import fetchWithRetry from '../../utils/fetchWithRetry';
 import { useSettingsContext } from './SettingsContext';
 import { CollapsibleSection } from './CollapsibleSection';
 import { useModal } from '../ModalProvider';
+import { usePrinterStore } from '../../stores/usePrinterStore';
 
 interface BambuAccount {
   id: number;
@@ -24,6 +25,24 @@ export function BambuSettings() {
   const [codeSent, setCodeSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [showAddForm, setShowAddForm] = useState(false);
+  // Accounts whose cloud token was rejected or has expired, as found by the
+  // last printer load (the same data behind the Printers page banner).
+  const accountErrors = usePrinterStore((state) => state.accountErrors);
+  const loadInitialPrinters = usePrinterStore((state) => state.loadInitialPrinters);
+  const needsReconnect = (accountEmail: string) => accountErrors.some(
+    (e) => e.needsReconnect && e.email.toLowerCase() === accountEmail.toLowerCase()
+  );
+
+  // Signing in again with the same email + region refreshes the stored token
+  // in place (the add endpoint upserts), so "reconnect" is the add form
+  // pre-filled for that account.
+  const startReconnect = (account: BambuAccount) => {
+    setEmail(account.email);
+    setRegion(account.region === 'china' ? 'china' : 'global');
+    setCode('');
+    setCodeSent(false);
+    setShowAddForm(true);
+  };
 
   useEffect(() => {
     loadAccounts();
@@ -98,6 +117,9 @@ export function BambuSettings() {
         setCodeSent(false);
         setShowAddForm(false);
         await loadAccounts();
+        // Re-fetch printers so the expired-sign-in banner clears and cloud
+        // printers come back without a page reload.
+        void loadInitialPrinters();
       } else {
         setToast({ message: data.error, type: 'error' });
       }
@@ -202,12 +224,24 @@ export function BambuSettings() {
                     {account.is_primary && (
                       <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">Primary</span>
                     )}
+                    {needsReconnect(account.email) && (
+                      <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning">Sign-in expired</span>
+                    )}
                   </div>
                   <span className="text-xs text-muted">
                     {account.region === 'china' ? 'China' : 'Global'} • Updated {new Date(account.updated_at).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-1.5">
+                  {needsReconnect(account.email) && (
+                    <button
+                      className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
+                      onClick={() => startReconnect(account)}
+                      disabled={loading}
+                    >
+                      Reconnect
+                    </button>
+                  )}
                   {!account.is_primary && (
                     <button
                       className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
