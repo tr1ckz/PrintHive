@@ -5,7 +5,7 @@ interface ProgressBarProps {
   value: number;
   tone?: 'accent' | 'success' | 'warning' | 'danger';
   /** Bar thickness */
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
   className?: string;
 }
 
@@ -27,7 +27,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ value, tone = 'accent', size 
       aria-valuemax={100}
       className={[
         'w-full rounded-full bg-white/8 overflow-hidden',
-        size === 'sm' ? 'h-1.5' : 'h-2.5',
+        size === 'xs' ? 'h-1' : size === 'sm' ? 'h-1.5' : 'h-2.5',
         className || '',
       ]
         .filter(Boolean)

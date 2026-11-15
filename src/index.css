@@ -83,16 +83,16 @@
   --color-accent: var(--theme-accent);
   --color-accent-soft: rgba(var(--theme-accent-rgb), 0.12);
 
-  /* Premium dark surfaces — translucent so the aurora backdrop shows through.
-     The glass treatment below adds the sheen and grain to all of them, and a
-     real backdrop blur to the floating ones only (see @layer components). */
+  /* Dark surfaces. One step of lightness per tier; they stay slightly
+     translucent so the (faint) accent backdrop tints them, but dense enough
+     that a card reads as a calm, solid plane rather than a pane of glass. */
   --bg-base: #0a0a0c;
-  --bg-elevated: rgba(19, 19, 24, 0.72);
-  --bg-surface: rgba(24, 24, 30, 0.60);
-  --bg-surface-2: rgba(32, 32, 40, 0.62);
+  --bg-elevated: rgba(19, 19, 24, 0.82);
+  --bg-surface: rgba(24, 24, 30, 0.72);
+  --bg-surface-2: rgba(34, 34, 42, 0.78);
   --bg-dark: rgba(18, 18, 22, 0.94);
   --bg-overlay: rgba(10, 10, 12, 0.82);
-  --bg-card: rgba(24, 24, 31, 0.55);
+  --bg-card: rgba(23, 23, 29, 0.78);
   --bg-input: rgba(255, 255, 255, 0.045);
   --bg-hover: rgba(var(--theme-accent-rgb), 0.10);
   --bg-hover-intense: rgba(var(--theme-accent-rgb), 0.16);
@@ -101,13 +101,8 @@
   /* Glass */
   --glass-blur: 13px;
   --glass-saturate: 1.2;
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  --glass-edge: 0 0 0 1px rgba(255, 255, 255, 0.05);
-  /* Diagonal sheen: a lit top-left corner falling off to nothing. */
-  --glass-sheen: linear-gradient(150deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.015) 26%, transparent 55%);
-  /* Frosted micro-texture — grayscale turbulence baked to ~4% alpha, so real
-     glass grain shows under the blur instead of a flat translucent wash. */
-  --glass-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.038'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glass-edge: 0 0 0 1px rgba(255, 255, 255, 0.06);
 
   /* Typography */
   --text-primary: #fafafa;
@@ -133,11 +128,11 @@
   --status-info: #22d3ee;
 
   /* Radii */
-  --radius-xs: 8px;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-full: 999px;
 
   /* Shadows + glows */
@@ -167,18 +162,13 @@
   --gradient-accent: linear-gradient(135deg, var(--theme-accent) 0%, var(--theme-accent-strong) 100%);
   --gradient-background: linear-gradient(180deg, #0a0a0c 0%, #0e0f13 100%);
   --gradient-dark: linear-gradient(180deg, rgba(19, 19, 23, 0.96) 0%, rgba(11, 11, 15, 0.98) 100%);
-  --gradient-card: linear-gradient(160deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.008) 45%, transparent 100%);
 
-  /* Aurora palette — all derived from the live accent, with perceptual
-     hue-shifts toward teal and violet so the curtains have depth while still
-     retinting instantly when the accent changes.
-
-     Tuned down from 46/42/40% to match the old blurred+screen-blended stack:
-     the curtains now composite normally instead of adding light, and they are
-     no longer smeared by a 44px blur, so the same alphas read hotter. */
-  --aurora-a: color-mix(in srgb, var(--theme-accent) 43%, transparent);
-  --aurora-b: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 58%, #22e3c4) 39%, transparent);
-  --aurora-c: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 55%, #8b5cf6) 37%, transparent);
+  /* Backdrop tint — derived from the live accent so it retints with the
+     theme. Deliberately faint: it gives the page a sense of place without
+     competing with status colors or washing out card surfaces. */
+  --aurora-a: color-mix(in srgb, var(--theme-accent) 13%, transparent);
+  --aurora-b: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 58%, #22e3c4) 9%, transparent);
+  --aurora-c: color-mix(in srgb, color-mix(in oklab, var(--theme-accent) 55%, #8b5cf6) 10%, transparent);
 }
 
 /* Base reset lives in @layer base so Tailwind's utility layer
@@ -204,11 +194,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    /* Static ambient accent glow anchored in the corners. */
-    background:
-      radial-gradient(1100px 720px at 14% -6%, rgba(var(--theme-accent-rgb), 0.12) 0%, transparent 58%),
-      radial-gradient(1000px 700px at 92% 110%, rgba(var(--theme-accent-rgb), 0.09) 0%, transparent 58%),
-      var(--gradient-background);
+    background: var(--gradient-background);
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
@@ -237,13 +223,9 @@
     z-index: 0;
     pointer-events: none;
     background:
-      radial-gradient(46% 70% at 16% 4%, var(--aurora-a) 0%, transparent 60%),
-      radial-gradient(38% 62% at 82% 14%, var(--aurora-c) 0%, transparent 62%),
-      radial-gradient(52% 46% at 60% 96%, var(--aurora-b) 0%, transparent 60%),
-      radial-gradient(30% 80% at 40% 58%, var(--aurora-a) 0%, transparent 64%),
-      radial-gradient(26% 90% at 28% 36%, var(--aurora-b) 0%, transparent 60%),
-      radial-gradient(22% 80% at 68% 58%, var(--aurora-c) 0%, transparent 62%),
-      radial-gradient(34% 70% at 90% 26%, var(--aurora-a) 0%, transparent 64%);
+      radial-gradient(50% 60% at 12% 0%, var(--aurora-a) 0%, transparent 62%),
+      radial-gradient(40% 55% at 88% 8%, var(--aurora-c) 0%, transparent 62%),
+      radial-gradient(55% 45% at 60% 100%, var(--aurora-b) 0%, transparent 60%);
   }
 
   body::after {
@@ -288,8 +270,8 @@
   }
 
   *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
 
   *::-webkit-scrollbar-track {
@@ -299,7 +281,7 @@
   *::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.12);
     border-radius: 999px;
-    border: 3px solid transparent;
+    border: 2px solid transparent;
     background-clip: padding-box;
   }
 
@@ -327,9 +309,9 @@
   textarea,
   select {
     border-radius: var(--radius-sm);
-    padding: 0.5rem 0.75rem;
+    padding: 0.375rem 0.75rem;
     font-size: 0.875rem;
-    min-height: 2.5rem;
+    min-height: 2.25rem;
   }
 
   input::placeholder,
@@ -437,9 +419,7 @@
    comes from the surface shift + shadow, never a hard line. */
 .ph-card {
   background: var(--bg-card);
-  background-image: var(--gradient-card);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
   transition: background var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
 }
 
@@ -449,38 +429,24 @@
   transform: translateY(-2px);
 }
 
-/* ---------- Glass ----------
-   Every card/surface element gets frosted glass automatically: the surface
-   tokens are translucent, so blurring the backdrop picks up the accent
-   aurora behind the shell. The inset highlight fakes a lit top edge. */
+/* ---------- Surfaces ----------
+   Cards are flat planes: surface color + a 1px hairline edge. No sheen, no
+   grain, no drop shadow — separation comes from the tier shift alone, so a
+   page full of cards stays calm. */
 @layer components {
   .bg-card,
-  .bg-surface,
-  .bg-surface-2,
-  .bg-elevated,
   .ph-card,
   .ph-glass {
-    /* Sheen + frosted grain layered over whatever surface color the token set.
-       These are background-images, so the token's background-color shows through
-       the transparent parts. Cheap — they paint once and scroll with the page. */
-    background-image: var(--glass-sheen), var(--glass-noise);
-    background-size: auto, 160px 160px;
-    background-repeat: no-repeat, repeat;
+    box-shadow: var(--glass-highlight), var(--glass-edge);
+    /* Tailwind shadow-* utilities override the box-shadow above but compose
+       this var back in, so the hairline top edge survives either way. */
+    --tw-inset-shadow: var(--glass-highlight);
   }
 
-  /* Real backdrop blur is reserved for FLOATING chrome — the handful of
-     surfaces that overlap scrolling content and need to read as a pane of
-     glass in front of it (sidebar rail, popovers, bottom tab bar, modals).
-
-     It is deliberately NOT on .bg-card / .bg-surface / .bg-surface-2, which are
-     the in-flow content surfaces: a library page or dashboard renders dozens of
-     them at once, and every backdrop-filter element is its own render surface
-     that re-samples and re-blurs whatever is behind it whenever the page
-     scrolls. That was the jank — cost scaling with the number of cards on
-     screen. Those cards sit on a static, already-soft gradient backdrop, so
-     blurring behind them was near-invisible work; the surface tint below
-     restores the density the blur+saturate was contributing.
-
+  /* Real backdrop blur is reserved for FLOATING chrome — surfaces that overlap
+     scrolling content (popovers, bottom tab bar, modals, the mobile sheet).
+     In-flow cards never get it: every backdrop-filter element is its own
+     render surface that re-blurs on scroll, and a dashboard has dozens.
      Rule of thumb: if it scrolls with the content, it does not get glass. */
   .bg-elevated,
   .ph-glass {
@@ -488,67 +454,16 @@
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   }
 
-  .bg-card,
-  .ph-card,
-  .ph-glass {
-    box-shadow: var(--glass-highlight), var(--glass-edge), var(--shadow-sm);
-    /* Tailwind shadow-* utilities override the box-shadow above but compose
-       this var back in, so the lit top edge survives either way. */
-    --tw-inset-shadow: var(--glass-highlight);
-  }
-
   /* Standalone glass panel for shells that don't use the surface tokens */
   .ph-glass {
     background-color: var(--bg-card);
   }
 
-  /* Active nav item: a lit accent pill that glows against the glass rail. */
+  /* Active nav item: accent text on a quiet accent wash. No glow. */
   .ph-nav-active {
-    background: rgba(var(--theme-accent-rgb), 0.13);
+    background: rgba(var(--theme-accent-rgb), 0.1);
     color: var(--color-accent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 0 22px -8px rgba(var(--theme-accent-rgb), 0.6);
   }
-
-  /* Recessed inner panels — the low-alpha white insets that sit ON a glass
-     card. Not blurred (glass-on-glass is muddy); instead a pressed-in look:
-     a dark top lip + faint hairline frame so they read as defined shelves. */
-  [class*="bg-white/[0.02]"],
-  [class*="bg-white/[0.03]"] {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.035),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.02),
-      inset 0 6px 16px -8px rgba(0, 0, 0, 0.35);
-  }
-}
-
-/* ---------- Third-party chrome ----------
-   The ONLY sanctioned place for styling third-party DOM we don't
-   render ourselves. Keep it token-pure. */
-
-/* react-grid-layout (dashboard): accent-tinted drag placeholder and
-   resize handle. Structural transforms come from the library's own
-   stylesheet import — never replicate those here. */
-.command-center-grid {
-  min-height: 540px;
-  overflow: visible;
-}
-
-.command-center-grid .react-grid-item:hover {
-  z-index: 2;
-}
-
-.command-center-grid .react-grid-item.react-grid-placeholder {
-  background: rgba(var(--theme-accent-rgb), 0.08);
-  border: 1px dashed rgba(var(--theme-accent-rgb), 0.45);
-  border-radius: var(--radius-md);
-  opacity: 1;
-}
-
-.command-center-grid .react-grid-item > .react-resizable-handle::after {
-  border-right: 2px solid rgba(var(--theme-accent-rgb), 0.55);
-  border-bottom: 2px solid rgba(var(--theme-accent-rgb), 0.55);
 }
 
 /* ---------- Reduced motion ---------- */

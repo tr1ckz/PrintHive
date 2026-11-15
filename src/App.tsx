@@ -145,7 +145,7 @@ function App() {
     <ErrorBoundary>
       <ModalProvider>
         <div className="min-h-dvh flex flex-col">
-          <div className="flex-1 min-h-0">
+          <div className="flex min-h-0 flex-1 flex-col">
             {isDocsRoute && !isAuthenticated ? (
               <Suspense fallback={<LoadingScreen message="Loading docs..." title="PrintHive" />}>
                 <Docs standalone />
@@ -158,9 +158,9 @@ function App() {
           </div>
 
           {/* Desktop-only footer: mobile gives the space to content + tab bar */}
-          <footer className="hidden md:block shrink-0 border-t border-line bg-base/90 px-6 py-3">
-            <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 text-xs">
-              <span className="font-semibold text-fg-soft">PrintHive v{footerVersion}</span>
+          <footer className="hidden md:block shrink-0 border-t border-line bg-base/90 px-6 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+              <span className="text-muted">PrintHive v{footerVersion}</span>
               <div className="flex items-center gap-2 text-muted">
                 <span>3D print ops workspace</span>
                 <span aria-hidden className="opacity-50">•</span>

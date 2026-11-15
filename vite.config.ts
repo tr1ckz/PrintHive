@@ -31,7 +31,6 @@ export default defineConfig({
         manualChunks: {
           react: ['react', 'react-dom'],
           three: ['three'],
-          grid: ['react-grid-layout'],
           query: ['@tanstack/react-query']
         }
       }

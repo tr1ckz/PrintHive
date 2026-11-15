@@ -1,4 +1,16 @@
 import { useMemo, useState } from 'react';
+import ProgressBar from '../../common/ProgressBar';
+import { EmptyLine, MoreLine, Segmented, StatusLabel, type Tone } from '../primitives';
+
+/** Live LAN link health reported by /api/printers/status (absent for cloud-only printers). */
+export interface PrinterConnection {
+  connected?: boolean;
+  connectedSince?: string | number | null;
+  lastMessageAt?: string | number | null;
+  drops?: number;
+  lastDropAt?: string | number | null;
+  lastDropReason?: string | null;
+}
 
 export interface LivePrinterRow {
   id: string;
@@ -8,16 +20,60 @@ export interface LivePrinterRow {
   online: boolean;
   progress: number;
   currentPrint: string | null;
+  connection?: PrinterConnection | null;
 }
 
 interface LivePrintersWidgetProps {
   printers: LivePrinterRow[];
-  density?: 'compact' | 'comfortable' | 'expanded';
-  onOpenPrinters: () => void;
 }
 
-function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters }: LivePrintersWidgetProps) {
-  const [scope, setScope] = useState<'all' | 'online' | 'active'>('all');
+type Scope = 'all' | 'online' | 'active';
+
+const MAX_ROWS = 8;
+/** Below this the filter is noise — the whole fleet is already on screen. */
+const FILTER_THRESHOLD = 4;
+
+const PRINTING_STATES = new Set(['RUNNING', 'PRINTING', 'PREPARE', 'SLICING']);
+const PAUSED_STATES = new Set(['PAUSE', 'PAUSED']);
+const ERROR_STATES = new Set(['FAILED', 'ERROR']);
+
+export interface PrinterState {
+  label: string;
+  tone: Tone;
+  pulse: boolean;
+  /** Whether a job is in flight, i.e. progress is meaningful */
+  busy: boolean;
+}
+
+/** Maps the API's `online` + raw `status` onto the dashboard's four states. */
+export function describePrinterState(online: boolean, status: string | null | undefined, hasJob: boolean): PrinterState {
+  if (!online) return { label: 'Offline', tone: 'neutral', pulse: false, busy: false };
+  const key = String(status || '').toUpperCase();
+  if (ERROR_STATES.has(key)) return { label: 'Error', tone: 'danger', pulse: false, busy: false };
+  if (PAUSED_STATES.has(key)) return { label: 'Paused', tone: 'warning', pulse: false, busy: true };
+  if (PRINTING_STATES.has(key) || hasJob) return { label: 'Printing', tone: 'accent', pulse: true, busy: true };
+  if (key === 'FINISH' || key === 'SUCCESS') return { label: 'Finished', tone: 'success', pulse: false, busy: false };
+  return { label: 'Idle', tone: 'success', pulse: false, busy: false };
+}
+
+/**
+ * Quiet link-health note for a row's second line: only speaks up when the
+ * LAN connection has been unstable, so healthy printers stay uncluttered.
+ */
+function connectionHint(online: boolean, connection?: PrinterConnection | null): string | null {
+  if (!connection) return null;
+  const drops = Number(connection.drops || 0);
+  if (!online && connection.connected === false && (drops > 0 || connection.connectedSince)) {
+    return 'Reconnecting…';
+  }
+  if (drops > 0) {
+    return `${drops} connection drop${drops === 1 ? '' : 's'}`;
+  }
+  return null;
+}
+
+function LivePrintersWidget({ printers }: LivePrintersWidgetProps) {
+  const [scope, setScope] = useState<Scope>('all');
 
   const filtered = useMemo(() => {
     if (scope === 'online') return printers.filter((printer) => printer.online);
@@ -25,87 +81,61 @@ function LivePrintersWidget({ printers, density = 'comfortable', onOpenPrinters 
     return printers;
   }, [printers, scope]);
 
-  const limit = density === 'compact' ? 4 : density === 'expanded' ? 8 : 6;
-  const visibleRows = filtered.slice(0, limit);
-
   if (printers.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 rounded-md border border-dashed border-line p-5 text-xs text-muted">
-        <p>No printers configured.</p>
-        <button
-          type="button"
-          onClick={onOpenPrinters}
-          className="min-h-9 rounded-md border border-line bg-white/[0.04] px-2.5 py-1.5 text-[10px] uppercase tracking-[0.08em] text-fg"
-        >
-          Open Printers
-        </button>
-      </div>
-    );
+    return <EmptyLine>No printers configured yet.</EmptyLine>;
   }
 
+  const visibleRows = filtered.slice(0, MAX_ROWS);
+
   return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2 rounded-md border border-line bg-white/[0.04] p-3">
-          {(['all', 'online', 'active'] as const).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setScope(item)}
-              className={`min-h-9 rounded px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${scope === item ? 'bg-white/10 text-fg' : 'text-fg-faint'}`}
-            >
-              {item}
-            </button>
-          ))}
+    <div>
+      {printers.length >= FILTER_THRESHOLD ? (
+        <div className="pb-2">
+          <Segmented<Scope>
+            label="Filter printers"
+            value={scope}
+            onChange={setScope}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'online', label: 'Online' },
+              { value: 'active', label: 'Printing' },
+            ]}
+          />
         </div>
-        <button
-          type="button"
-          onClick={onOpenPrinters}
-          className="min-h-9 rounded-md border border-line bg-white/[0.04] px-3.5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg hover:border-line-strong"
-        >
-          Open
-        </button>
-      </div>
-
-      <div className="space-y-2 rounded-md border border-line bg-white/[0.04] p-3">
-        {visibleRows.map((printer) => (
-          <div key={printer.id} className="transition-colors hover:bg-white/[0.06] rounded border border-transparent px-2 py-2.5 last:border-b-0">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex items-center gap-1.5">
-                {printer.online && printer.currentPrint ? (
-                  <span className="animate-pulse inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success" aria-hidden />
-                ) : printer.online ? (
-                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" aria-hidden />
-                ) : (
-                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-white/25" aria-hidden />
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold leading-tight text-fg/90">{printer.name}</p>
-                  <p className="truncate text-xs text-muted">{printer.model}</p>
-                </div>
-              </div>
-              <span
-                className={`shrink-0 rounded border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] ${printer.online ? 'border-success/55 text-success' : 'border-danger/50 text-danger'}`}
-              >
-                {printer.online ? 'Online' : 'Offline'}
-              </span>
-            </div>
-
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded border border-line bg-transparent">
-              <div className={`h-full ${printer.online ? 'bg-success' : 'bg-danger'}`} style={{ width: `${Math.max(0, Math.min(100, printer.progress || 0))}%` }} />
-            </div>
-
-            <div className="mt-1.5 flex items-center justify-between text-xs text-muted">
-              <span className="truncate">{printer.currentPrint || printer.status || 'Idle'}</span>
-              <span className="tabular-nums text-fg-soft">{Math.max(0, Math.min(100, printer.progress || 0))}%</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {filtered.length > limit ? (
-        <p className="text-[10px] uppercase tracking-[0.08em] text-fg/45">Showing {limit} of {filtered.length} printers.</p>
       ) : null}
+
+      {visibleRows.length === 0 ? (
+        <EmptyLine>No printers match this filter.</EmptyLine>
+      ) : (
+        <ul className="divide-y divide-line">
+          {visibleRows.map((printer) => {
+            const state = describePrinterState(printer.online, printer.status, Boolean(printer.currentPrint));
+            const progress = Math.max(0, Math.min(100, Math.round(printer.progress || 0)));
+            const hint = connectionHint(printer.online, printer.connection);
+            return (
+              <li key={printer.id} className="py-2.5 first:pt-0 last:pb-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={`truncate text-[13px] font-medium ${printer.online ? 'text-fg' : 'text-fg-soft'}`}>{printer.name}</p>
+                    <p className="truncate text-xs text-muted">
+                      {state.busy && printer.currentPrint ? printer.currentPrint : printer.model}
+                      {hint ? <span className="text-warning"> · {hint}</span> : null}
+                    </p>
+                  </div>
+                  <StatusLabel tone={state.tone} pulse={state.pulse}>
+                    {state.busy ? `${state.label} ${progress}%` : state.label}
+                  </StatusLabel>
+                </div>
+                {state.busy ? (
+                  <ProgressBar value={progress} tone={state.tone === 'warning' ? 'warning' : 'accent'} size="xs" className="mt-2" />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {filtered.length > MAX_ROWS ? <MoreLine>+{filtered.length - MAX_ROWS} more printers</MoreLine> : null}
     </div>
   );
 }

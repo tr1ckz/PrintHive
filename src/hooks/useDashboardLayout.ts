@@ -1,7 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Layout, ResponsiveLayouts } from 'react-grid-layout/legacy';
-
-type Layouts = ResponsiveLayouts;
 
 export type DashboardWidgetId =
   | 'livePrinters'
@@ -20,9 +17,27 @@ export interface DashboardWidgetRegistryItem {
   title: string;
 }
 
+/**
+ * One entry of the persisted layout. The dashboard is a content-sized flow
+ * layout now, so only the ORDER matters — but the settings endpoint only
+ * stores (and re-emits) react-grid-layout shaped items, so the order travels
+ * inside that shape. See `encodeOrder` / `decodeOrder`.
+ */
+interface WireLayoutItem {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+}
+
+type WireLayouts = Record<string, WireLayoutItem[]>;
+
 export interface DashboardLayoutPreferences {
   version: number;
-  layouts: Layouts;
+  layouts: WireLayouts;
   hiddenWidgetIds: DashboardWidgetId[];
 }
 
@@ -33,11 +48,6 @@ interface UseDashboardLayoutOptions {
   onPersist?: (next: DashboardLayoutPreferences) => void;
   saveDebounceMs?: number;
 }
-
-type SnapProfile = {
-  widths: number[];
-  heights: number[];
-};
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
@@ -52,261 +62,75 @@ function runWhenIdle(callback: () => void): void {
   window.setTimeout(callback, 0);
 }
 
-const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = [
-  'livePrinters',
+/**
+ * Default reading order. `healthSummary` (the stat strip) is pinned full-width
+ * above the flow, so its position in this list is irrelevant.
+ */
+export const DEFAULT_WIDGET_ORDER: DashboardWidgetId[] = [
   'healthSummary',
-  'materialUsage',
-  'queuePressure',
+  'livePrinters',
   'fleetAlerts',
-  'backgroundJobs',
   'activityStream',
   'upcomingSchedule',
+  'materialUsage',
+  'queuePressure',
+  'backgroundJobs',
   'failureWatch',
   'mqttStatus',
 ];
+
+/** Widgets rendered full-width above the flow; they can be hidden but not reordered. */
+export const PINNED_WIDGET_IDS: DashboardWidgetId[] = ['healthSummary'];
 
 const DEFAULT_HIDDEN_WIDGET_IDS: DashboardWidgetId[] = ['mqttStatus'];
 
 export const dashboardWidgetRegistry: DashboardWidgetRegistryItem[] = [
-  { id: 'livePrinters', title: 'Live Printers' },
   { id: 'healthSummary', title: 'Quick Stats' },
+  { id: 'livePrinters', title: 'Printers' },
+  { id: 'fleetAlerts', title: 'Needs Attention' },
+  { id: 'activityStream', title: 'Recent Prints' },
+  { id: 'upcomingSchedule', title: 'Maintenance' },
   { id: 'materialUsage', title: 'Material Usage' },
   { id: 'queuePressure', title: 'Queue Pressure' },
-  { id: 'fleetAlerts', title: 'Fleet Alerts' },
   { id: 'backgroundJobs', title: 'Background Jobs' },
-  { id: 'mqttStatus', title: 'Print Status (MQTT)' },
-  { id: 'activityStream', title: 'Activity Stream' },
-  { id: 'upcomingSchedule', title: 'Maintenance Upcoming' },
   { id: 'failureWatch', title: 'Failure Watch' },
+  { id: 'mqttStatus', title: 'MQTT Telemetry' },
 ];
+
+const BREAKPOINT_KEYS = ['lg', 'md', 'sm', 'xs', 'xxs'] as const;
 
 /**
- * Fixed stacking order for the mobile (<md) dashboard, honoring
- * Status > Temps > Camera > Controls. LivePrinters leads because it carries
- * status/temps/camera per printer; ops widgets follow; feeds trail.
- * DashboardHome renders this order in a single column below md, where
- * react-grid-layout is not mounted at all.
+ * Signature of a flow-order layout on the wire: every item is `w:12 h:2
+ * minW:12 minH:2`. No layout saved by the old drag/resize grid can look like
+ * this (its heights and minimums were always >= 4), so the marker cleanly
+ * separates "order saved by this version" from "stale grid coordinates".
  */
-export const MOBILE_WIDGET_PRIORITY: DashboardWidgetId[] = [
-  'livePrinters',
-  'healthSummary',
-  'fleetAlerts',
-  'queuePressure',
-  'backgroundJobs',
-  'materialUsage',
-  'upcomingSchedule',
-  'activityStream',
-  'failureWatch',
-  'mqttStatus',
-];
+const FLOW_W = 12;
+const FLOW_H = 2;
 
-export const defaultDashboardLayouts: Layouts = {
-  lg: [
-    { i: 'livePrinters', x: 0, y: 0, w: 5, h: 7, minW: 4, minH: 5 },
-    { i: 'healthSummary', x: 5, y: 0, w: 3, h: 5, minW: 3, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 7, w: 5, h: 5, minW: 4, minH: 4 },
-    { i: 'queuePressure', x: 5, y: 11, w: 3, h: 6, minW: 3, minH: 5 },
-    { i: 'fleetAlerts', x: 8, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'upcomingSchedule', x: 5, y: 5, w: 3, h: 6, minW: 3, minH: 5 },
-    { i: 'backgroundJobs', x: 8, y: 5, w: 4, h: 6, minW: 3, minH: 5 },
-    { i: 'activityStream', x: 8, y: 11, w: 4, h: 8, minW: 4, minH: 6 },
-    { i: 'failureWatch', x: 5, y: 17, w: 3, h: 4, minW: 3, minH: 4 },
-    { i: 'mqttStatus', x: 0, y: 12, w: 5, h: 5, minW: 4, minH: 4 },
-  ],
-  md: [
-    { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 5 },
-    { i: 'healthSummary', x: 6, y: 0, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 6, w: 6, h: 5, minW: 4, minH: 4 },
-    { i: 'queuePressure', x: 6, y: 10, w: 4, h: 6, minW: 3, minH: 5 },
-    { i: 'fleetAlerts', x: 6, y: 5, w: 4, h: 5, minW: 3, minH: 4 },
-    { i: 'upcomingSchedule', x: 0, y: 11, w: 4, h: 6, minW: 3, minH: 5 },
-    { i: 'backgroundJobs', x: 4, y: 11, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'activityStream', x: 0, y: 17, w: 10, h: 8, minW: 5, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 25, w: 10, h: 5, minW: 5, minH: 4 },
-    { i: 'mqttStatus', x: 0, y: 30, w: 10, h: 5, minW: 5, minH: 4 },
-  ],
-  sm: [
-    { i: 'livePrinters', x: 0, y: 0, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'healthSummary', x: 0, y: 6, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 11, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 16, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'fleetAlerts', x: 0, y: 22, w: 6, h: 5, minW: 3, minH: 4 },
-    { i: 'backgroundJobs', x: 0, y: 27, w: 6, h: 6, minW: 3, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 33, w: 6, h: 6, minW: 4, minH: 5 },
-    { i: 'activityStream', x: 0, y: 39, w: 6, h: 8, minW: 4, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 47, w: 6, h: 6, minW: 4, minH: 5 },
-    { i: 'mqttStatus', x: 0, y: 53, w: 6, h: 5, minW: 4, minH: 4 },
-  ],
-  xs: [
-    { i: 'livePrinters', x: 0, y: 0, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'healthSummary', x: 0, y: 6, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 11, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 16, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'fleetAlerts', x: 0, y: 22, w: 4, h: 5, minW: 2, minH: 4 },
-    { i: 'backgroundJobs', x: 0, y: 27, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 33, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'activityStream', x: 0, y: 39, w: 4, h: 8, minW: 2, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 47, w: 4, h: 6, minW: 2, minH: 5 },
-    { i: 'mqttStatus', x: 0, y: 53, w: 4, h: 5, minW: 2, minH: 4 },
-  ],
-  xxs: [
-    { i: 'livePrinters', x: 0, y: 0, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'healthSummary', x: 0, y: 6, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'materialUsage', x: 0, y: 11, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'queuePressure', x: 0, y: 16, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'fleetAlerts', x: 0, y: 22, w: 2, h: 5, minW: 2, minH: 4 },
-    { i: 'backgroundJobs', x: 0, y: 27, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'upcomingSchedule', x: 0, y: 33, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'activityStream', x: 0, y: 39, w: 2, h: 8, minW: 2, minH: 6 },
-    { i: 'failureWatch', x: 0, y: 47, w: 2, h: 6, minW: 2, minH: 5 },
-    { i: 'mqttStatus', x: 0, y: 53, w: 2, h: 5, minW: 2, minH: 4 },
-  ],
-};
-
-const BREAKPOINT_ORDER: Array<keyof Layouts> = ['lg', 'md', 'sm', 'xs', 'xxs'];
-const BREAKPOINT_COLUMNS: Record<keyof Layouts, number> = {
-  lg: 12,
-  md: 10,
-  sm: 6,
-  xs: 4,
-  xxs: 2,
-};
-
-const DEFAULT_SNAP_PROFILE: SnapProfile = {
-  widths: [2, 3, 4, 5, 6, 7, 8, 10, 12],
-  heights: [4, 5, 6, 7, 8, 10, 12],
-};
-
-const WIDGET_SNAP_PROFILES: Record<DashboardWidgetId, SnapProfile> = {
-  livePrinters: { widths: [4, 5, 6, 8, 10, 12], heights: [5, 6, 7, 8, 10] },
-  healthSummary: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
-  materialUsage: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
-  queuePressure: { widths: [3, 4, 5, 6], heights: [5, 6, 7, 8] },
-  fleetAlerts: { widths: [3, 4, 5, 6], heights: [4, 5, 6, 7] },
-  backgroundJobs: { widths: [3, 4, 5, 6], heights: [5, 6, 7, 8] },
-  mqttStatus: { widths: [4, 5, 6, 8, 10, 12], heights: [4, 5, 6, 7, 8] },
-  activityStream: { widths: [4, 6, 8, 10, 12], heights: [6, 8, 10, 12, 14, 16, 18] },
-  upcomingSchedule: { widths: [4, 5, 6, 7, 8], heights: [5, 6, 7, 8, 10] },
-  failureWatch: { widths: [4, 5, 6, 8, 10, 12], heights: [5, 6, 7, 8] },
-};
+const PREFERENCES_VERSION = 4;
 
 function isWidgetId(value: string): value is DashboardWidgetId {
-  return DASHBOARD_WIDGET_IDS.includes(value as DashboardWidgetId);
+  return DEFAULT_WIDGET_ORDER.includes(value as DashboardWidgetId);
 }
 
-function parseNumber(input: unknown, fallback: number, min: number, max: number): number {
-  const parsed = Number.parseInt(String(input), 10);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.min(max, parsed));
-}
-
-function nearestSnap(value: number, options: number[], fallback: number): number {
-  if (!options.length) return fallback;
-  let best = options[0];
-  let bestDistance = Math.abs(options[0] - value);
-  for (let index = 1; index < options.length; index += 1) {
-    const distance = Math.abs(options[index] - value);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = options[index];
-    }
-  }
-  return best;
-}
-
-function sanitizeLayoutItem(item: Partial<Layout>, fallback: Layout): Layout {
-  const snapProfile = isWidgetId(fallback.i) ? WIDGET_SNAP_PROFILES[fallback.i] : DEFAULT_SNAP_PROFILE;
-  const minW = parseNumber(item.minW, fallback.minW || 1, 1, 24);
-  const minH = parseNumber(item.minH, fallback.minH || 2, 2, 24);
-  const rawW = parseNumber(item.w, fallback.w, minW, 24);
-  const rawH = parseNumber(item.h, fallback.h, minH, 24);
-
-  return {
-    i: fallback.i,
-    x: parseNumber(item.x, fallback.x, 0, 24),
-    y: parseNumber(item.y, fallback.y, 0, 999),
-    w: Math.max(minW, nearestSnap(rawW, snapProfile.widths, fallback.w)),
-    h: Math.max(minH, nearestSnap(rawH, snapProfile.heights, fallback.h)),
-    minW,
-    minH,
-  };
-}
-
-function intersects(a: Layout, b: Layout): boolean {
-  return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
-}
-
-function resolveCollisions(items: Layout[], columns: number): Layout[] {
-  const sorted = [...items].sort((a, b) => {
-    if (a.y !== b.y) return a.y - b.y;
-    if (a.x !== b.x) return a.x - b.x;
-    return a.i.localeCompare(b.i);
-  });
-
-  const placed: Layout[] = [];
-
-  for (const rawItem of sorted) {
-    const next: Layout = {
-      ...rawItem,
-      w: Math.max(1, Math.min(rawItem.w, columns)),
-      x: Math.max(0, Math.min(rawItem.x, Math.max(0, columns - Math.min(rawItem.w, columns)))),
-      y: Math.max(0, rawItem.y),
-    };
-
-    while (placed.some((existing) => intersects(existing, next))) {
-      next.y += 1;
-    }
-
-    placed.push(next);
-  }
-
-  return placed;
-}
-
-function normalizeLayouts(input?: Partial<Layouts> | null): Layouts {
-  const next: Layouts = {};
-
-  BREAKPOINT_ORDER.forEach((breakpoint) => {
-    const columns = BREAKPOINT_COLUMNS[breakpoint];
-    const defaults = defaultDashboardLayouts[breakpoint] || [];
-    const defaultMap = new Map<string, Layout>(defaults.map((item) => [item.i, { ...item }]));
-    const incoming = input?.[breakpoint];
-
-    if (Array.isArray(incoming)) {
-      for (const item of incoming) {
-        if (!item || typeof item.i !== 'string' || !isWidgetId(item.i)) {
-          continue;
-        }
-        const fallback = defaultMap.get(item.i) || {
-          i: item.i,
-          x: 0,
-          y: 0,
-          w: 4,
-          h: 4,
-          minW: 2,
-          minH: 2,
-        };
-        defaultMap.set(item.i, sanitizeLayoutItem(item, fallback));
+/** Dedupes, drops unknown ids, and appends any widget missing from the list. */
+function normalizeOrder(input?: unknown): DashboardWidgetId[] {
+  const out: DashboardWidgetId[] = [];
+  if (Array.isArray(input)) {
+    for (const rawId of input) {
+      const id = String(rawId || '').trim();
+      if (isWidgetId(id) && !out.includes(id)) {
+        out.push(id);
       }
     }
-
-    const ordered = DASHBOARD_WIDGET_IDS.map((id) => {
-      const fallback = defaults.find((entry) => entry.i === id) || {
-        i: id,
-        x: 0,
-        y: 0,
-        w: 4,
-        h: 4,
-        minW: 2,
-        minH: 2,
-      };
-      return defaultMap.get(id) || fallback;
-    });
-
-    next[breakpoint] = resolveCollisions(ordered, columns);
-  });
-
-  return next;
+  }
+  for (const id of DEFAULT_WIDGET_ORDER) {
+    if (!out.includes(id)) {
+      out.push(id);
+    }
+  }
+  return out;
 }
 
 function normalizeHiddenIds(input?: unknown): DashboardWidgetId[] {
@@ -325,82 +149,82 @@ function normalizeHiddenIds(input?: unknown): DashboardWidgetId[] {
   return out;
 }
 
-function withDefaultHidden(ids: DashboardWidgetId[], version: number): DashboardWidgetId[] {
-  if (version >= 3) {
-    return ids;
-  }
+function encodeOrder(order: DashboardWidgetId[]): WireLayouts {
+  const items: WireLayoutItem[] = order.map((id, index) => ({
+    i: id,
+    x: 0,
+    y: index,
+    w: FLOW_W,
+    h: FLOW_H,
+    minW: FLOW_W,
+    minH: FLOW_H,
+  }));
 
-  const merged = [...ids];
-  for (const id of DEFAULT_HIDDEN_WIDGET_IDS) {
-    if (!merged.includes(id)) {
-      merged.push(id);
-    }
+  const layouts: WireLayouts = {};
+  for (const key of BREAKPOINT_KEYS) {
+    layouts[key] = items;
   }
-
-  return merged;
+  return layouts;
 }
 
-function layoutItemEquals(a: Layout, b: Layout): boolean {
-  return a.i === b.i
-    && a.x === b.x
-    && a.y === b.y
-    && a.w === b.w
-    && a.h === b.h
-    && (a.minW || 0) === (b.minW || 0)
-    && (a.minH || 0) === (b.minH || 0);
-}
-
-function layoutsEqual(a: Layouts, b: Layouts): boolean {
-  for (const breakpoint of BREAKPOINT_ORDER) {
-    const aList = a[breakpoint] || [];
-    const bList = b[breakpoint] || [];
-
-    if (aList.length !== bList.length) {
-      return false;
-    }
-
-    for (let index = 0; index < aList.length; index += 1) {
-      if (!layoutItemEquals(aList[index], bList[index])) {
-        return false;
-      }
-    }
+/**
+ * Reads the widget order out of a persisted layout. Returns null for anything
+ * that is not a flow-order layout — legacy grid coordinates, the server's
+ * generated defaults, or malformed data — so callers fall back to the default
+ * order instead of trying to interpret stale positions.
+ */
+function decodeOrder(layouts: unknown): DashboardWidgetId[] | null {
+  const list = (layouts as WireLayouts | null | undefined)?.lg;
+  if (!Array.isArray(list) || list.length === 0) {
+    return null;
   }
 
-  return true;
-}
-
-function hiddenIdsEqual(a: DashboardWidgetId[], b: DashboardWidgetId[]): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  const aSorted = [...a].sort();
-  const bSorted = [...b].sort();
-  for (let index = 0; index < aSorted.length; index += 1) {
-    if (aSorted[index] !== bSorted[index]) {
-      return false;
+  const entries: Array<{ id: DashboardWidgetId; y: number }> = [];
+  for (const item of list) {
+    if (!item || typeof item.i !== 'string' || !isWidgetId(item.i)) {
+      continue;
     }
+    const isFlowItem = Number(item.w) === FLOW_W
+      && Number(item.h) === FLOW_H
+      && Number(item.minW) === FLOW_W
+      && Number(item.minH) === FLOW_H;
+    if (!isFlowItem) {
+      return null;
+    }
+    entries.push({ id: item.i, y: Number(item.y) || 0 });
   }
 
-  return true;
+  if (entries.length === 0) {
+    return null;
+  }
+
+  entries.sort((a, b) => a.y - b.y);
+  return normalizeOrder(entries.map((entry) => entry.id));
 }
 
-const DEFAULT_NORMALIZED_LAYOUTS: Layouts = normalizeLayouts(defaultDashboardLayouts);
+function arraysEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
 
-function readLocalState(storageKey: string): DashboardLayoutPreferences | null {
+interface LocalState {
+  order: DashboardWidgetId[];
+  hiddenWidgetIds: DashboardWidgetId[];
+}
+
+function readLocalState(storageKey: string): LocalState | null {
   try {
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) {
       return null;
     }
     const parsed = JSON.parse(raw) as Partial<DashboardLayoutPreferences>;
-    const parsedVersion = Number(parsed.version || 0);
-    const hiddenIds = withDefaultHidden(normalizeHiddenIds(parsed.hiddenWidgetIds), parsedVersion);
-
+    const order = decodeOrder(parsed.layouts);
+    if (!order) {
+      return null;
+    }
     return {
-      version: 3,
-      layouts: normalizeLayouts(parsed.layouts),
-      hiddenWidgetIds: hiddenIds,
+      order,
+      hiddenWidgetIds: normalizeHiddenIds(parsed.hiddenWidgetIds),
     };
   } catch {
     return null;
@@ -409,7 +233,8 @@ function readLocalState(storageKey: string): DashboardLayoutPreferences | null {
 
 export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   const {
-    storageKey = 'printhive.command-center.layout.v5',
+    // New key: layouts saved by the old drag/resize grid are intentionally left behind.
+    storageKey = 'printhive.command-center.layout.v6',
     backendState,
     backendReady,
     onPersist,
@@ -417,19 +242,19 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   } = options;
 
   const localState = useMemo(() => readLocalState(storageKey), [storageKey]);
-  const [layouts, setLayouts] = useState<Layouts>(localState?.layouts || normalizeLayouts(defaultDashboardLayouts));
+  const [order, setOrder] = useState<DashboardWidgetId[]>(localState?.order || [...DEFAULT_WIDGET_ORDER]);
   const [hiddenWidgetIds, setHiddenWidgetIds] = useState<DashboardWidgetId[]>(localState?.hiddenWidgetIds || [...DEFAULT_HIDDEN_WIDGET_IDS]);
-  const layoutsRef = useRef<Layouts>(localState?.layouts || normalizeLayouts(defaultDashboardLayouts));
-  const hiddenWidgetIdsRef = useRef<DashboardWidgetId[]>(localState?.hiddenWidgetIds || [...DEFAULT_HIDDEN_WIDGET_IDS]);
+  const orderRef = useRef(order);
+  const hiddenWidgetIdsRef = useRef(hiddenWidgetIds);
 
   const didHydrateBackendRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
   const onPersistRef = useRef(onPersist);
   const lastPersistSignatureRef = useRef('');
 
-  const buildPayload = useCallback((nextLayouts: Layouts, nextHiddenWidgetIds: DashboardWidgetId[]): DashboardLayoutPreferences => ({
-    version: 3,
-    layouts: nextLayouts,
+  const buildPayload = useCallback((nextOrder: DashboardWidgetId[], nextHiddenWidgetIds: DashboardWidgetId[]): DashboardLayoutPreferences => ({
+    version: PREFERENCES_VERSION,
+    layouts: encodeOrder(nextOrder),
     hiddenWidgetIds: nextHiddenWidgetIds,
   }), []);
 
@@ -438,8 +263,8 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
   }, [onPersist]);
 
   useEffect(() => {
-    layoutsRef.current = layouts;
-  }, [layouts]);
+    orderRef.current = order;
+  }, [order]);
 
   useEffect(() => {
     hiddenWidgetIdsRef.current = hiddenWidgetIds;
@@ -451,28 +276,28 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     }
 
     if (backendState) {
-      const backendVersion = Number(backendState.version || 0);
-      const backendLayouts = normalizeLayouts(backendState.layouts);
-      const backendHiddenIds = withDefaultHidden(normalizeHiddenIds(backendState.hiddenWidgetIds), backendVersion);
-      const backendLooksDefault = layoutsEqual(backendLayouts, DEFAULT_NORMALIZED_LAYOUTS)
-        && hiddenIdsEqual(backendHiddenIds, DEFAULT_HIDDEN_WIDGET_IDS);
-      const currentLooksCustom = !layoutsEqual(layouts, DEFAULT_NORMALIZED_LAYOUTS)
-        || !hiddenIdsEqual(hiddenWidgetIds, DEFAULT_HIDDEN_WIDGET_IDS);
+      const backendOrder = decodeOrder(backendState.layouts);
+      const backendHiddenIds = normalizeHiddenIds(backendState.hiddenWidgetIds);
 
-      // Keep current customized layout if backend still only has generated defaults.
-      if (!(currentLooksCustom && backendLooksDefault)) {
-        layoutsRef.current = backendLayouts;
+      if (backendOrder) {
+        // Saved by this version: the server copy wins over this browser's cache.
+        orderRef.current = backendOrder;
         hiddenWidgetIdsRef.current = backendHiddenIds;
-        setLayouts(backendLayouts);
+        setOrder(backendOrder);
+        setHiddenWidgetIds(backendHiddenIds);
+      } else if (!localState) {
+        // Legacy grid layout (or server defaults): positions are discarded, but
+        // the user's show/hide choices still mean something, so keep those.
+        hiddenWidgetIdsRef.current = backendHiddenIds;
         setHiddenWidgetIds(backendHiddenIds);
       }
     }
 
     didHydrateBackendRef.current = true;
-  }, [backendReady, backendState, layouts, hiddenWidgetIds]);
+  }, [backendReady, backendState, localState]);
 
   useEffect(() => {
-    const payload = buildPayload(layouts, hiddenWidgetIds);
+    const payload = buildPayload(order, hiddenWidgetIds);
     const payloadSignature = JSON.stringify(payload);
 
     try {
@@ -510,56 +335,37 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
         window.clearTimeout(persistTimerRef.current);
       }
     };
-  }, [layouts, hiddenWidgetIds, storageKey, backendReady, saveDebounceMs, buildPayload]);
+  }, [order, hiddenWidgetIds, storageKey, backendReady, saveDebounceMs, buildPayload]);
 
+  /** Visible widgets in user order (pinned widgets included). */
   const visibleWidgetIds = useMemo(
-    () => DASHBOARD_WIDGET_IDS.filter((id) => !hiddenWidgetIds.includes(id)),
-    [hiddenWidgetIds]
+    () => order.filter((id) => !hiddenWidgetIds.includes(id)),
+    [order, hiddenWidgetIds]
   );
 
-  const visibleLayouts = useMemo(() => {
-    const visibleSet = new Set(visibleWidgetIds);
-    const next: Layouts = {};
-    BREAKPOINT_ORDER.forEach((breakpoint) => {
-      next[breakpoint] = (layouts[breakpoint] || []).filter((entry) => visibleSet.has(entry.i as DashboardWidgetId));
-    });
-    return next;
-  }, [layouts, visibleWidgetIds]);
-
-  const handleLayoutsChange = useCallback((nextLayouts: Layouts) => {
-    const normalized = normalizeLayouts(nextLayouts);
-    setLayouts((current) => (layoutsEqual(current, normalized) ? current : normalized));
-  }, []);
-
-  const snapBreakpointLayout = useCallback((breakpoint: keyof Layouts, incomingLayout: Layout[]) => {
-    setLayouts((current) => {
-      const existing = current[breakpoint] || [];
-      const byId = new Map<string, Layout>(existing.map((item) => [item.i, item]));
-
-      for (const item of incomingLayout) {
-        if (!item || typeof item.i !== 'string' || !isWidgetId(item.i)) {
-          continue;
-        }
-        const fallback = byId.get(item.i) || {
-          i: item.i,
-          x: 0,
-          y: 0,
-          w: 4,
-          h: 4,
-          minW: 2,
-          minH: 2,
-        };
-        byId.set(item.i, sanitizeLayoutItem(item, fallback));
+  /**
+   * Moves a widget one step earlier/later among the VISIBLE, reorderable
+   * widgets — hidden and pinned ones are skipped over so every click produces
+   * a change the user can see.
+   */
+  const moveWidget = useCallback((widgetId: DashboardWidgetId, direction: -1 | 1) => {
+    setOrder((current) => {
+      const hidden = hiddenWidgetIdsRef.current;
+      const movable = current.filter((id) => !hidden.includes(id) && !PINNED_WIDGET_IDS.includes(id));
+      const from = movable.indexOf(widgetId);
+      const to = from + direction;
+      if (from < 0 || to < 0 || to >= movable.length) {
+        return current;
       }
 
-      const next = normalizeLayouts({
-        ...current,
-        [breakpoint]: Array.from(byId.values()),
-      });
-
-      layoutsRef.current = next;
-
-      return layoutsEqual(current, next) ? current : next;
+      const swapWith = movable[to];
+      const next = [...current];
+      const a = next.indexOf(widgetId);
+      const b = next.indexOf(swapWith);
+      next[a] = swapWith;
+      next[b] = widgetId;
+      orderRef.current = next;
+      return next;
     });
   }, []);
 
@@ -580,21 +386,18 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
     });
   }, []);
 
-  const setAllVisible = useCallback(() => {
-    hiddenWidgetIdsRef.current = [];
-    setHiddenWidgetIds([]);
+  const resetLayout = useCallback(() => {
+    orderRef.current = [...DEFAULT_WIDGET_ORDER];
+    hiddenWidgetIdsRef.current = [...DEFAULT_HIDDEN_WIDGET_IDS];
+    setOrder([...DEFAULT_WIDGET_ORDER]);
+    setHiddenWidgetIds([...DEFAULT_HIDDEN_WIDGET_IDS]);
   }, []);
 
-  const snapAllWidgets = useCallback(() => {
-    setLayouts((current) => {
-      const next = normalizeLayouts(current);
-      layoutsRef.current = next;
-      return layoutsEqual(current, next) ? current : next;
-    });
-  }, []);
+  const isDefaultLayout = arraysEqual(order, DEFAULT_WIDGET_ORDER)
+    && arraysEqual([...hiddenWidgetIds].sort(), [...DEFAULT_HIDDEN_WIDGET_IDS].sort());
 
   const flushPersist = useCallback(() => {
-    const payload = buildPayload(layoutsRef.current, hiddenWidgetIdsRef.current);
+    const payload = buildPayload(orderRef.current, hiddenWidgetIdsRef.current);
     const payloadSignature = JSON.stringify(payload);
 
     try {
@@ -613,22 +416,24 @@ export function useDashboardLayout(options: UseDashboardLayoutOptions) {
       persistTimerRef.current = null;
     }
 
+    if (lastPersistSignatureRef.current === payloadSignature) {
+      return;
+    }
+
     lastPersistSignatureRef.current = payloadSignature;
     onPersistRef.current(payload);
   }, [storageKey, backendReady, buildPayload]);
 
   return {
     widgetRegistry: dashboardWidgetRegistry,
-    layouts,
-    visibleLayouts,
+    order,
     hiddenWidgetIds,
     visibleWidgetIds,
-    handleLayoutsChange,
-    snapBreakpointLayout,
+    isDefaultLayout,
+    moveWidget,
     hideWidget,
     showWidget,
-    setAllVisible,
-    snapAllWidgets,
+    resetLayout,
     flushPersist,
   };
 }

@@ -1,9 +1,10 @@
+import { ChevronRight } from 'lucide-react';
+import { Dot, EmptyLine, type Tone } from '../primitives';
+
 export interface FleetAlertsData {
   totalPrinters: number;
-  onlinePrinters: number;
-  activePrints: number;
-  overdueMaintenance: number;
   offlineNames: string[];
+  overdueTaskNames: string[];
 }
 
 interface FleetAlertsWidgetProps {
@@ -12,58 +13,80 @@ interface FleetAlertsWidgetProps {
   onOpenMaintenance: () => void;
 }
 
+interface AlertItem {
+  key: string;
+  tone: Tone;
+  title: string;
+  detail: string;
+  onOpen: () => void;
+}
+
+function summarizeNames(names: string[], max = 3): string {
+  if (names.length <= max) return names.join(', ');
+  return `${names.slice(0, max).join(', ')} +${names.length - max} more`;
+}
+
+/** The exceptions digest: what is wrong right now, and where to go fix it. */
+export function buildFleetAlerts(data: FleetAlertsData, handlers: Pick<FleetAlertsWidgetProps, 'onOpenPrinters' | 'onOpenMaintenance'>): AlertItem[] {
+  const items: AlertItem[] = [];
+  const offline = data.offlineNames.length;
+  const overdue = data.overdueTaskNames.length;
+
+  if (offline > 0) {
+    items.push({
+      key: 'offline',
+      tone: 'danger',
+      title: offline === data.totalPrinters && offline > 1
+        ? `All ${offline} printers offline`
+        : `${offline} printer${offline === 1 ? '' : 's'} offline`,
+      detail: summarizeNames(data.offlineNames),
+      onOpen: handlers.onOpenPrinters,
+    });
+  }
+
+  if (overdue > 0) {
+    items.push({
+      key: 'overdue',
+      tone: 'warning',
+      title: `${overdue} maintenance task${overdue === 1 ? '' : 's'} overdue`,
+      detail: summarizeNames(data.overdueTaskNames),
+      onOpen: handlers.onOpenMaintenance,
+    });
+  }
+
+  return items;
+}
+
 function FleetAlertsWidget({ data, onOpenPrinters, onOpenMaintenance }: FleetAlertsWidgetProps) {
-  const offlineCount = Math.max(0, data.totalPrinters - data.onlinePrinters);
-  const visibleOffline = data.offlineNames.slice(0, 4);
+  const items = buildFleetAlerts(data, { onOpenPrinters, onOpenMaintenance });
+
+  if (items.length === 0) {
+    return (
+      <EmptyLine tone="success">
+        {data.totalPrinters === 0 ? 'Nothing to report.' : 'All clear — every printer is online and maintenance is up to date.'}
+      </EmptyLine>
+    );
+  }
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div className={`rounded-md border p-4 ${offlineCount > 0 ? 'border-danger/40 bg-danger/5' : 'border-line bg-white/[0.04]'}`}>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Offline</p>
-          <p className={`mt-1 text-3xl font-bold leading-tight ${offlineCount > 0 ? 'text-danger' : 'text-fg'}`}>{offlineCount}</p>
-        </div>
-        <div className={`rounded-md border p-4 ${data.overdueMaintenance > 0 ? 'border-warning/40 bg-warning/5' : 'border-line bg-white/[0.04]'}`}>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Overdue</p>
-          <p className={`mt-1 text-3xl font-bold leading-tight ${data.overdueMaintenance > 0 ? 'text-warning' : 'text-fg'}`}>{data.overdueMaintenance}</p>
-        </div>
-      </div>
-
-      <div className="rounded-md border border-line bg-white/[0.04] p-3">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Active Prints</p>
-        <p className="mt-1 text-2xl font-bold text-fg">{data.activePrints}<span className="text-muted">/{data.totalPrinters || 0}</span></p>
-      </div>
-
-      {visibleOffline.length > 0 ? (
-        <div className="space-y-1 rounded-md border border-danger/30 bg-danger/5 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Offline Printers</p>
-          {visibleOffline.map((name) => (
-            <p key={name} className="truncate border-b border-danger/20 py-1.5 text-sm font-semibold text-danger last:border-b-0">{name}</p>
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-success/30 bg-success/10 text-xs text-success">
-          Fleet is healthy.
-        </div>
-      )}
-
-      <div className="mt-auto grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={onOpenPrinters}
-          className="widget-no-drag rounded-md border border-line bg-white/[0.04] px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fg hover:border-line-strong"
-        >
-          Printers
-        </button>
-        <button
-          type="button"
-          onClick={onOpenMaintenance}
-          className="widget-no-drag rounded-md border border-line bg-white/[0.04] px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-fg hover:border-line-strong"
-        >
-          Maintenance
-        </button>
-      </div>
-    </div>
+    <ul className="-mx-2 -mb-2">
+      {items.map((item) => (
+        <li key={item.key}>
+          <button
+            type="button"
+            onClick={item.onOpen}
+            className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-white/5"
+          >
+            <Dot tone={item.tone} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium text-fg">{item.title}</span>
+              <span className="block truncate text-xs text-muted">{item.detail}</span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 

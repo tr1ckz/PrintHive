@@ -1,18 +1,19 @@
+import ProgressBar from '../../common/ProgressBar';
+
 interface MaterialUsageWidgetProps {
   todayWeight: number;
   weekWeight: number;
   monthWeight: number;
   allTimeWeight: number;
   successSharePct: number;
-  sampleSize: number;
 }
 
-function formatWeight(weight: number): string {
+export function formatWeight(weight: number): string {
   const grams = Math.max(0, Number(weight || 0));
   if (grams >= 1000) {
-    return `${(grams / 1000).toFixed(2)}kg`;
+    return `${(grams / 1000).toFixed(2)} kg`;
   }
-  return `${Math.round(grams)}g`;
+  return `${Math.round(grams)} g`;
 }
 
 function MaterialUsageWidget({
@@ -21,44 +22,42 @@ function MaterialUsageWidget({
   monthWeight,
   allTimeWeight,
   successSharePct,
-  sampleSize,
 }: MaterialUsageWidgetProps) {
   const maxWindowWeight = Math.max(todayWeight, weekWeight, monthWeight, 1);
+  const successShare = Math.max(0, Math.min(100, Math.round(successSharePct)));
 
-  const cards = [
+  const windows = [
     { id: 'today', label: 'Today', value: todayWeight },
-    { id: 'week', label: '7 Days', value: weekWeight },
-    { id: 'month', label: '30 Days', value: monthWeight },
+    { id: 'week', label: '7 days', value: weekWeight },
+    { id: 'month', label: '30 days', value: monthWeight },
   ];
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {cards.map((card) => {
-          const widthPct = Math.max(8, Math.min(100, Math.round((card.value / maxWindowWeight) * 100)));
-          return (
-            <article key={card.id} className="rounded-md border border-line bg-white/[0.04] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">{card.label}</p>
-              <p className="mt-2 text-xl font-bold leading-tight text-fg">{formatWeight(card.value)}</p>
-              <div className="mt-2 h-1.5 overflow-hidden rounded border border-line-strong bg-white/10">
-                <div
-                  className="h-full bg-accent"
-                  style={{ width: `${widthPct}%` }}
-                />
-              </div>
-            </article>
-          );
-        })}
-      </div>
+    <div>
+      <dl className="grid grid-cols-3 gap-4">
+        {windows.map((item) => (
+          <div key={item.id} className="min-w-0">
+            <dt className="truncate text-xs text-muted">{item.label}</dt>
+            <dd className="mt-0.5 truncate text-lg font-semibold leading-7 tracking-tight tabular-nums text-fg">{formatWeight(item.value)}</dd>
+            <dd>
+              <ProgressBar value={(item.value / maxWindowWeight) * 100} size="xs" className="mt-1" />
+            </dd>
+          </div>
+        ))}
+      </dl>
 
-      <div className="rounded-md border border-line bg-white/[0.04] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">All-Time Filament Used</p>
-          <p className="text-xs text-muted">{Math.max(0, Math.min(100, Math.round(successSharePct)))}% successful</p>
+      <dl className="mt-3 space-y-1 border-t border-line pt-3 text-xs">
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted">All time</dt>
+          <dd className="font-medium tabular-nums text-fg-soft">{formatWeight(allTimeWeight)}</dd>
         </div>
-        <p className="mt-1.5 text-2xl font-bold leading-tight text-fg">{formatWeight(allTimeWeight)}</p>
-        <p className="mt-2 text-xs text-muted">Based on {sampleSize} recent print records with weight data</p>
-      </div>
+        {monthWeight > 0 ? (
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="truncate text-muted">Went into successful prints (30 days)</dt>
+            <dd className="shrink-0 font-medium tabular-nums text-fg-soft">{successShare}%</dd>
+          </div>
+        ) : null}
+      </dl>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 /**
  * Reactive matchMedia hook. Drives the md structural switch
- * (bottom nav ↔ sidebar, dashboard priority stack ↔ grid layout).
+ * (bottom nav ↔ sidebar).
  */
 export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(

@@ -103,7 +103,7 @@ function MobileNav({ navItems, activeId, onSelect, userName, userRole, onLogout,
       {/* Bottom tab bar */}
       <nav
         aria-label="Primary mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-30 flex bg-elevated/90 backdrop-blur border-t border-line pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-base/85 backdrop-blur-md pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {primary.map((item) => {
           const active = activeId === item.id;
@@ -113,13 +113,12 @@ function MobileNav({ navItems, activeId, onSelect, userName, userRole, onLogout,
               type="button"
               onClick={() => select(item.id)}
               aria-current={active ? 'page' : undefined}
-              className={`flex h-14 flex-1 min-w-0 flex-col items-center justify-center gap-0.5 text-[0.68rem] font-medium transition-colors ${
+              className={`flex h-14 flex-1 min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${
                 active ? 'text-accent' : 'text-muted hover:text-fg-soft'
               }`}
             >
               <span className="[&_svg]:size-5">{item.icon}</span>
               <span className="truncate max-w-full px-1">{item.label}</span>
-              <span className={`size-1 rounded-full ${active ? 'bg-accent' : 'bg-transparent'}`} />
             </button>
           );
         })}
@@ -127,13 +126,12 @@ function MobileNav({ navItems, activeId, onSelect, userName, userRole, onLogout,
           type="button"
           onClick={() => setSheetOpen((open) => !open)}
           aria-expanded={sheetOpen}
-          className={`flex h-14 flex-1 min-w-0 flex-col items-center justify-center gap-0.5 text-[0.68rem] font-medium transition-colors ${
+          className={`flex h-14 flex-1 min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${
             moreActive || sheetOpen ? 'text-accent' : 'text-muted hover:text-fg-soft'
           }`}
         >
           <span className="[&_svg]:size-5">{MoreIcon}</span>
           <span>More</span>
-          <span className={`size-1 rounded-full ${moreActive ? 'bg-accent' : 'bg-transparent'}`} />
         </button>
       </nav>
     </>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
 import fetchWithRetry from '../../utils/fetchWithRetry';
 import { useSettingsContext } from './SettingsContext';
@@ -31,6 +32,13 @@ const emptyPrinter: PrinterFormData = {
   serial_number: '',
   camera_rtsp_url: ''
 };
+
+const buttonBase =
+  'inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-40';
+const primaryButton = `${buttonBase} bg-accent text-accent-contrast hover:bg-accent-strong`;
+const secondaryButton = `${buttonBase} bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg`;
+const ghostButton = `${buttonBase} text-muted hover:bg-white/5 hover:text-fg`;
+const iconButton = 'inline-flex size-9 items-center justify-center rounded-md transition-colors';
 
 export function PrinterFtpSettings() {
   const { setToast } = useSettingsContext();
@@ -150,7 +158,7 @@ export function PrinterFtpSettings() {
       const data = await response.json();
       
       if (data.success) {
-        setToast({ message: `Connection to ${printer.name || printer.ip_address} successful!`, type: 'success' });
+        setToast({ message: data.message || `Connection to ${printer.name || printer.ip_address} successful!`, type: 'success' });
       } else {
         setToast({ message: data.error || 'Connection test failed', type: 'error' });
       }
@@ -248,34 +256,42 @@ export function PrinterFtpSettings() {
 
   return (
     <CollapsibleSection title="Local Printer / FTP" icon="📡" defaultExpanded={true}>
-{!editingPrinter && (
-        <div className="mb-3 [&>button]:mr-2 [&>button]:mt-2">
-          <small className="block text-xs text-muted">
-            Discover IP now auto-scans local interfaces, route-table networks, ARP neighbors, and remembered subnets.
-          </small>
-          <small className="mt-1 block text-xs text-muted">
-            New printers get one automatic discovery attempt on save. Use manual discover to retry later.
-          </small>
-          <button
-            type="button"
-            className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
-            onClick={handleDiscoverMissingIps}
-            disabled={discoveringMissing}
-          >
-            {discoveringMissing ? 'Discovering Missing IPs...' : 'Manual Discover Missing IPs'}
-          </button>
-          <button
-            type="button"
-            className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
-            onClick={() => setShowAdvancedDiscovery((prev) => !prev)}
-          >
-            {showAdvancedDiscovery ? 'Hide Advanced Discovery' : 'Advanced Discovery'}
-          </button>
+      {!editingPrinter && (
+        <div className="mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <p className="min-w-0 flex-1 basis-64 text-xs leading-5 text-muted">
+              Printers on your LAN, reached over FTP and MQTT. A printer’s IP is auto-discovered once when you add it.
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                className={ghostButton}
+                onClick={() => setShowAdvancedDiscovery((prev) => !prev)}
+                aria-expanded={showAdvancedDiscovery}
+              >
+                {showAdvancedDiscovery ? 'Hide advanced' : 'Advanced'}
+              </button>
+              <button
+                type="button"
+                className={secondaryButton}
+                onClick={handleDiscoverMissingIps}
+                disabled={discoveringMissing}
+                title="Scans local interfaces, routed networks, ARP neighbors and remembered subnets"
+              >
+                {discoveringMissing ? 'Discovering…' : 'Discover missing IPs'}
+              </button>
+              <button type="button" className={primaryButton} onClick={startAdding}>
+                <Plus className="size-3.5" aria-hidden />
+                Add printer
+              </button>
+            </div>
+          </div>
 
           {showAdvancedDiscovery && (
-            <div className="mt-2.5 mb-4 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full [&>select]:w-full">
-              <label>Optional Extra CIDRs</label>
+            <div className="mt-3 [&>label]:mb-1.5 [&>label]:block [&>label]:text-xs [&>label]:font-medium [&>label]:text-muted [&>input]:w-full">
+              <label htmlFor="printer-discovery-cidrs">Extra CIDRs to scan (optional)</label>
               <input
+                id="printer-discovery-cidrs"
                 type="text"
                 value={discoveryCidrs}
                 onChange={(event) => setDiscoveryCidrs(event.target.value)}
@@ -289,79 +305,60 @@ export function PrinterFtpSettings() {
         </div>
       )}
 
-      {/* Printer Cards List */}
+      {/* Printer list: one row per printer, split by hairlines */}
       {printers.length > 0 && !editingPrinter && (
-        <div className="space-y-3">
+        <ul className="divide-y divide-line border-t border-line">
           {printers.map((printer) => (
-            <div key={printer.dev_id} className="rounded-lg bg-white/[0.03] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm font-semibold text-fg">{printer.name || 'Unnamed Printer'}</span>
-                  <span className="text-xs tabular-nums text-muted">{printer.ip_address || 'No IP set'}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
-                    onClick={() => handleTestConnection(printer)}
-                    disabled={testingId === printer.dev_id || !printer.ip_address}
-                  >
-                    {testingId === printer.dev_id ? 'Testing...' : 'Test'}
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg"
-                    onClick={() => handleDiscoverIp(printer)}
-                    disabled={discoveringId === printer.dev_id}
-                    title="Auto-detect IP via cloud + local MQTT credentials"
-                  >
-                    {discoveringId === printer.dev_id ? 'Discovering...' : 'Discover IP'}
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
-                    onClick={() => startEditing(printer)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-danger/15 text-danger hover:bg-danger/25"
-                    onClick={() => handleDeletePrinter(printer.dev_id)}
-                  >
-                    Delete
-                  </button>
-                </div>
+            <li key={printer.dev_id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3 last:pb-0">
+              <div className="min-w-0 flex-1 basis-56">
+                <p className="truncate text-[13px] font-medium text-fg">{printer.name || 'Unnamed printer'}</p>
+                <p className="truncate text-xs tabular-nums text-muted">
+                  {[
+                    printer.ip_address || 'No IP set',
+                    printer.serial_number ? `Serial ${printer.serial_number}` : null,
+                    printer.camera_rtsp_url ? 'Dedicated camera' : 'Global camera',
+                  ].filter(Boolean).join(' · ')}
+                </p>
               </div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5">
-                {printer.serial_number && (
-                  <span className="text-xs text-muted [&>strong]:font-medium [&>strong]:text-fg-soft">
-                    <strong>Serial:</strong> {printer.serial_number}
-                  </span>
-                )}
-                <span className="text-xs text-muted [&>strong]:font-medium [&>strong]:text-fg-soft">
-                  <strong>Camera:</strong> {printer.camera_rtsp_url ? 'Assigned RTSP camera' : 'Uses global camera fallback'}
-                </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  className={secondaryButton}
+                  onClick={() => handleTestConnection(printer)}
+                  disabled={testingId === printer.dev_id || !printer.ip_address}
+                >
+                  {testingId === printer.dev_id ? 'Testing…' : 'Test'}
+                </button>
+                <button
+                  type="button"
+                  className={secondaryButton}
+                  onClick={() => handleDiscoverIp(printer)}
+                  disabled={discoveringId === printer.dev_id}
+                  title="Auto-detect IP via cloud + local MQTT credentials"
+                >
+                  {discoveringId === printer.dev_id ? 'Discovering…' : 'Discover IP'}
+                </button>
+                <button type="button" className={secondaryButton} onClick={() => startEditing(printer)}>
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className={`${iconButton} text-muted hover:bg-danger/10 hover:text-danger`}
+                  onClick={() => handleDeletePrinter(printer.dev_id)}
+                  aria-label={`Delete ${printer.name || 'printer'}`}
+                  title="Delete printer"
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </button>
               </div>
-            </div>
+            </li>
           ))}
-        </div>
-      )}
-
-      {/* Add Printer Button */}
-      {!editingPrinter && (
-        <button
-          type="button"
-          className="inline-flex min-h-9 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none bg-accent text-accent-contrast hover:bg-accent-strong"
-          onClick={startAdding}
-        >
-          + Add Printer
-        </button>
+        </ul>
       )}
 
       {/* Edit/Add Form */}
       {editingPrinter && (
-        <form onSubmit={handleSavePrinter} className="mt-2 rounded-lg bg-white/[0.03] p-4">
+        <form onSubmit={handleSavePrinter}>
           <h4 className="mb-4 text-sm font-semibold text-fg">
             {isAdding ? 'Add New Printer' : 'Edit Printer'}
           </h4>
@@ -452,8 +449,8 @@ export function PrinterFtpSettings() {
 
       {/* Empty State */}
       {printers.length === 0 && !editingPrinter && (
-        <p className="mt-2.5 text-sm text-muted">
-          No printers configured. Click "Add Printer" to add your first printer.
+        <p className="border-t border-line pt-3 text-[13px] text-muted">
+          No printers configured yet. Use “Add printer” to add your first one.
         </p>
       )}
     </CollapsibleSection>

@@ -1,31 +1,34 @@
 import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 interface CollapsibleSectionProps {
   title: string;
+  /** Legacy emoji marker. Accepted for compatibility but no longer rendered —
+   *  section titles carry the meaning and the page stays calmer without it. */
   icon?: string;
   children: React.ReactNode;
   defaultExpanded?: boolean;
 }
 
-export function CollapsibleSection({ title, icon, children, defaultExpanded = true }: CollapsibleSectionProps) {
+export function CollapsibleSection({ title, children, defaultExpanded = true }: CollapsibleSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   return (
-    <section className="rounded-lg bg-card shadow-sm">
+    <section className="rounded-lg bg-card">
       <button
         type="button"
-        className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5"
+        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-4 text-left"
         onClick={() => setIsExpanded(!isExpanded)}
         aria-expanded={isExpanded}
       >
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-          {icon && <span aria-hidden="true">{icon}</span>}
-          {title}
-        </h2>
-        <span className="text-lg leading-none text-muted" aria-hidden="true">{isExpanded ? '−' : '+'}</span>
+        <h2 className="text-[13px] font-semibold text-fg">{title}</h2>
+        <ChevronDown
+          className={`size-4 shrink-0 text-muted transition-transform duration-150 ${isExpanded ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
       </button>
       {isExpanded && (
-        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+        <div className="px-4 pb-4">
           {children}
         </div>
       )}

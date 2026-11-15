@@ -253,15 +253,15 @@ function Settings({ userRole, initialSection }: SettingsProps) {
           </select>
         </div>
 
-        <div className="md:grid md:grid-cols-[200px_minmax(0,1fr)] md:gap-8">
+        <div className="md:grid md:grid-cols-[176px_minmax(0,1fr)] md:gap-6">
           {/* Sidebar */}
           <aside className="hidden md:block">
-            <nav className="sticky top-20 space-y-1" aria-label="Settings navigation">
+            <nav className="sticky top-[4.25rem] space-y-0.5" aria-label="Settings navigation">
               {availableCategories.map((category) => (
                 <div key={category.id}>
                   <button
                     type="button"
-                    className={`flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 text-sm font-medium transition-colors ${activeCategoryConfig.id === category.id ? 'bg-accent/10 text-accent' : 'text-fg-soft hover:bg-white/5 hover:text-fg'}`}
+                    className={`flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 text-[13px] font-medium transition-colors ${activeCategoryConfig.id === category.id ? 'text-fg' : 'text-muted hover:bg-white/5 hover:text-fg'}`}
                     onClick={() => handleCategoryChange(category.id)}
                   >
                     <span className="flex size-4 items-center justify-center">
@@ -271,12 +271,12 @@ function Settings({ userRole, initialSection }: SettingsProps) {
                   </button>
 
                   {activeCategoryConfig.id === category.id && (
-                    <div className="mb-2 ml-6 mt-1 flex flex-col gap-0.5">
+                    <div className="mb-2 ml-[1.125rem] flex flex-col gap-0.5 border-l border-line pl-2">
                       {category.panels.map((panel) => (
                         <button
                           key={panel.id}
                           type="button"
-                          className={`flex min-h-8 items-center rounded px-2.5 text-left text-[13px] transition-colors ${activePanelConfig.id === panel.id ? 'bg-white/5 font-medium text-fg' : 'text-muted hover:text-fg'}`}
+                          className={`flex min-h-8 items-center rounded px-2.5 text-left text-[13px] transition-colors ${activePanelConfig.id === panel.id ? 'bg-accent/10 font-medium text-accent' : 'text-muted hover:bg-white/5 hover:text-fg'}`}
                           onClick={() => handlePanelChange(panel.id)}
                         >
                           {panel.label}
@@ -290,11 +290,9 @@ function Settings({ userRole, initialSection }: SettingsProps) {
           </aside>
 
           {/* Content */}
-          <main className="min-w-0">
-            <div className="mb-4">
-              <h2 className="text-2xl font-semibold tracking-tight text-fg">{activePanelConfig.label}</h2>
-            </div>
-            <div className="space-y-4">
+          <main className="min-w-0 max-w-5xl">
+            <h2 className="mb-3 text-base font-semibold tracking-tight text-fg">{activePanelConfig.label}</h2>
+            <div className="space-y-3">
               {activePanelConfig.render()}
             </div>
           </main>

@@ -8,7 +8,7 @@ import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
 
 // Route-level code splitting: each page (and its heavy deps like three.js via
-// the model viewer, react-grid-layout, etc.) loads only when first opened,
+// the model viewer, hls.js, etc.) loads only when first opened,
 // instead of shipping in the initial bundle.
 const DashboardHome = lazy(() => import('./DashboardHome'));
 const PrintHistory = lazy(() => import('./PrintHistory'));
@@ -208,11 +208,12 @@ function Dashboard({ onLogout }: DashboardProps) {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new CustomEvent('printhive:open-command-palette'))}
-      className="flex items-center gap-2 rounded-md bg-white/5 px-2.5 py-1.5 text-xs text-muted transition-colors hover:bg-white/10 hover:text-fg"
+      className="flex min-h-8 w-44 items-center gap-2 rounded-md bg-white/5 px-2.5 text-xs text-muted transition-colors hover:bg-white/10 hover:text-fg lg:w-56"
       title="Search and commands"
     >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-      <kbd className="font-sans">⌘K</kbd>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+      <span className="flex-1 text-left">Search…</span>
+      <kbd className="rounded-xs bg-white/5 px-1.5 py-0.5 font-sans text-[11px] leading-4">⌘K</kbd>
     </button>
   );
 
@@ -244,7 +245,7 @@ function Dashboard({ onLogout }: DashboardProps) {
   };
 
   return (
-    <div className="min-h-full">
+    <div className="flex flex-1 flex-col">
       <GlobalLayout
         navItems={navItems}
         activeId={activeTab}

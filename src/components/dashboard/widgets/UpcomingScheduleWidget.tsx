@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { EmptyLine, MoreLine, Pill, Segmented, type Tone } from '../primitives';
 
 export interface ScheduleItem {
   id: string;
@@ -11,65 +12,61 @@ export interface ScheduleItem {
 
 interface UpcomingScheduleWidgetProps {
   items: ScheduleItem[];
-  density?: 'compact' | 'comfortable' | 'expanded';
 }
 
-function UpcomingScheduleWidget({ items, density = 'comfortable' }: UpcomingScheduleWidgetProps) {
-  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+type Scope = 'all' | 'overdue';
 
-  const filtered = useMemo(
-    () => (showOverdueOnly ? items.filter((item) => item.overdue) : items),
-    [items, showOverdueOnly]
-  );
+const MAX_ROWS = 5;
+const DUE_SOON_HOURS = 168;
 
-  const limit = density === 'compact' ? 6 : density === 'expanded' ? 12 : 9;
-  const visibleItems = filtered.slice(0, limit);
+function UpcomingScheduleWidget({ items }: UpcomingScheduleWidgetProps) {
+  const [scope, setScope] = useState<Scope>('all');
+
+  const overdueCount = useMemo(() => items.filter((item) => item.overdue).length, [items]);
+  // The filter only earns its place when it would hide something.
+  const canFilter = overdueCount > 0 && overdueCount < items.length;
+  const filtered = canFilter && scope === 'overdue' ? items.filter((item) => item.overdue) : items;
+
+  if (items.length === 0) {
+    return <EmptyLine>No maintenance tasks scheduled.</EmptyLine>;
+  }
 
   return (
-    <div className="flex h-full flex-col gap-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Maintenance Queue</p>
-        <button
-          type="button"
-          onClick={() => setShowOverdueOnly((current) => !current)}
-          className="rounded-md border border-line bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg hover:border-line-strong"
-        >
-          {showOverdueOnly ? 'All' : 'Overdue'}
-        </button>
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center rounded border border-dashed border-white/20 text-xs text-fg/50">
-          No scheduled maintenance tasks.
+    <div>
+      {canFilter ? (
+        <div className="pb-2">
+          <Segmented<Scope>
+            label="Filter maintenance tasks"
+            value={scope}
+            onChange={setScope}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'overdue', label: 'Overdue' },
+            ]}
+          />
         </div>
-      ) : (
-        <div className="space-y-1 rounded-md border border-line bg-white/[0.04] p-2.5">
-          {visibleItems.map((item) => {
-            const dueBadgeClass = item.overdue
-              ? 'border-danger/50 text-danger'
-              : item.hoursUntilDue !== null && item.hoursUntilDue <= 168
-              ? 'border-warning/50 text-warning'
-              : 'border-line-strong text-fg-faint';
-            return (
-              <div key={item.id} className="border-b border-line py-2 last:border-b-0">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-fg">{item.title}</p>
-                    <p className="mt-0.5 truncate text-muted text-xs">{item.printer}</p>
-                  </div>
-                  <span className={`shrink-0 rounded border px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] ${dueBadgeClass}`}>
-                    {item.dueLabel}
-                  </span>
-                </div>
+      ) : null}
+
+      <ul className="divide-y divide-line">
+        {filtered.slice(0, MAX_ROWS).map((item) => {
+          const tone: Tone = item.overdue
+            ? 'danger'
+            : item.hoursUntilDue !== null && item.hoursUntilDue <= DUE_SOON_HOURS
+              ? 'warning'
+              : 'neutral';
+          return (
+            <li key={item.id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-medium text-fg">{item.title}</p>
+                <p className="truncate text-xs text-muted">{item.printer}</p>
               </div>
-            );
-          })}
+              <Pill tone={tone}>{item.dueLabel}</Pill>
+            </li>
+          );
+        })}
+      </ul>
 
-          {filtered.length > limit ? (
-            <p className="text-[10px] uppercase tracking-[0.08em] text-fg/45">Showing {limit} of {filtered.length} tasks.</p>
-          ) : null}
-        </div>
-      )}
+      {filtered.length > MAX_ROWS ? <MoreLine>+{filtered.length - MAX_ROWS} more tasks</MoreLine> : null}
     </div>
   );
 }

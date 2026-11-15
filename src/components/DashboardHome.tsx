@@ -1,24 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ResponsiveLayouts, Responsive, WidthProvider } from 'react-grid-layout/legacy';
-import { LayoutGrid, Plus } from 'lucide-react';
+import { Check, EyeOff, Plus, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { API_ENDPOINTS } from '../config/api';
 import { fetchWithRetry } from '../utils/fetchWithRetry';
-import useDashboardLayout, { DashboardLayoutPreferences, DashboardWidgetId, dashboardWidgetRegistry, MOBILE_WIDGET_PRIORITY } from '../hooks/useDashboardLayout';
-import { useIsDesktop } from '../hooks/useMediaQuery';
+import useDashboardLayout, { DashboardLayoutPreferences, DashboardWidgetId, dashboardWidgetRegistry, PINNED_WIDGET_IDS } from '../hooks/useDashboardLayout';
+import useElementWidth from '../hooks/useElementWidth';
 import WidgetShell from './dashboard/WidgetShell';
-import QuickStatsWidget from './dashboard/widgets/QuickStatsWidget';
+import { Pill } from './dashboard/primitives';
+import { columnCountForWidth, distributeIntoColumns } from './dashboard/flowLayout';
+import QuickStatsWidget, { QuickStat } from './dashboard/widgets/QuickStatsWidget';
 import ActivityStreamWidget, { ActivityRow } from './dashboard/widgets/ActivityStreamWidget';
 import UpcomingScheduleWidget, { ScheduleItem } from './dashboard/widgets/UpcomingScheduleWidget';
-import LivePrintersWidget, { LivePrinterRow } from './dashboard/widgets/LivePrintersWidget';
+import LivePrintersWidget, { LivePrinterRow, PrinterConnection } from './dashboard/widgets/LivePrintersWidget';
 import BackgroundJobsWidget, { BackgroundJobRow } from './dashboard/widgets/BackgroundJobsWidget';
 import FailureWatchWidget, { FailureWatchRow } from './dashboard/widgets/FailureWatchWidget';
-import FleetAlertsWidget, { FleetAlertsData } from './dashboard/widgets/FleetAlertsWidget';
+import FleetAlertsWidget, { buildFleetAlerts, FleetAlertsData } from './dashboard/widgets/FleetAlertsWidget';
 import PrintStatusMqttWidget, { MqttPrinterRow } from './dashboard/widgets/PrintStatusMqttWidget';
 import MaterialUsageWidget from './dashboard/widgets/MaterialUsageWidget';
 import QueuePressureWidget from './dashboard/widgets/QueuePressureWidget';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
 
 interface DashboardHomeProps {
   onNavigate: (tab: string) => void;
@@ -35,6 +34,7 @@ interface PrinterStatus {
   mqttConnected?: boolean;
   nozzleTemp?: number;
   bedTemp?: number;
+  connection?: PrinterConnection | null;
 }
 
 interface PrinterStatusResponse {
@@ -94,11 +94,6 @@ interface BackgroundJobStatusResponse {
   skipped?: number;
 }
 
-const BREAKPOINTS = { lg: 1320, md: 1100, sm: 860, xs: 620, xxs: 0 } as const;
-const COLUMNS = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 } as const;
-type Breakpoint = keyof typeof BREAKPOINTS;
-const ResponsiveGridLayout = WidthProvider(Responsive);
-
 async function fetchJson<T>(url: string, fallback: T): Promise<T> {
   try {
     const response = await fetchWithRetry(url, { credentials: 'include' }, {
@@ -124,11 +119,15 @@ function formatDuration(seconds?: number): string {
   return `${hours}h ${minutes}m`;
 }
 
+/** Time for today's prints, short date otherwise: "14:05" / "Nov 12". */
 function formatDateLabel(input?: string): string {
-  if (!input) return 'Unknown';
+  if (!input) return '';
   const date = new Date(input);
-  if (Number.isNaN(date.getTime())) return 'Unknown';
-  return date.toLocaleDateString();
+  if (Number.isNaN(date.getTime())) return '';
+  if (date.toDateString() === new Date().toDateString()) {
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function mapStatus(status: number): string {
@@ -138,18 +137,22 @@ function mapStatus(status: number): string {
   return 'Unknown';
 }
 
-function widgetDensity(layouts: Record<string, Array<{ i: string; w?: number; h?: number }>>, breakpoint: string, id: string): 'compact' | 'comfortable' | 'expanded' {
-  const entry = (layouts[breakpoint] || []).find((l) => l.i === id);
-  const area = (entry?.w || 4) * (entry?.h || 5);
-  return area <= 24 ? 'compact' : area <= 42 ? 'comfortable' : 'expanded';
+/** "in 31h" under two days, otherwise "in 9d". */
+function formatDueIn(hours: number): string {
+  const rounded = Math.max(0, Math.round(hours));
+  if (rounded < 48) return `in ${rounded}h`;
+  return `in ${Math.round(rounded / 24)}d`;
+}
+
+function formatHours(seconds?: number): string {
+  const hours = Math.max(0, Number(seconds || 0)) / 3600;
+  if (hours >= 100) return `${Math.round(hours).toLocaleString()}h`;
+  return `${hours.toFixed(1)}h`;
 }
 
 function DashboardHome({ onNavigate }: DashboardHomeProps) {
-  // md structural switch: RGL grid on desktop, priority stack on mobile
-  const isDesktop = useIsDesktop();
   const [isEditMode, setIsEditMode] = useState(false);
-  const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
-  const [currentBreakpoint, setCurrentBreakpoint] = useState<Breakpoint>('lg');
+  const [flowRef, flowWidth] = useElementWidth<HTMLDivElement>(typeof window === 'undefined' ? 1200 : window.innerWidth);
   const [isPageVisible, setIsPageVisible] = useState<boolean>(() => (
     typeof document === 'undefined' ? true : document.visibilityState === 'visible'
   ));
@@ -257,11 +260,11 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const {
     visibleWidgetIds,
     hiddenWidgetIds,
-    visibleLayouts,
-    snapBreakpointLayout,
+    isDefaultLayout,
+    moveWidget,
     showWidget,
     hideWidget,
-    snapAllWidgets,
+    resetLayout,
     flushPersist,
   } = useDashboardLayout({
     backendState: dashboardLayoutSettingsQuery.data,
@@ -304,18 +307,63 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     return Array.isArray(value) ? value : [];
   }, [activityQuery.data]);
 
-  const quickStats = useMemo(() => {
-    const onlinePrinters = printers.filter((printer) => printer.online).length;
-    const activeJobs = printers.filter((printer) => printer.online && printer.currentPrint).length;
+  const overdueTasks = useMemo(
+    () => (maintenanceQuery.data || []).filter((task) => task.isOverdue),
+    [maintenanceQuery.data]
+  );
+  const onlineCount = printers.filter((printer) => printer.online).length;
+  const activePrintCount = printers.filter((printer) => printer.online && printer.currentPrint).length;
 
-    return {
-      printersOnlineLabel: `${onlinePrinters}/${printers.length || 0}`,
-      totalPrints: Number(stats?.totalPrints || 0),
-      successRate: Math.round(stats?.successRate || 0),
-      libraryModels: Number(libraryQuery.data?.length || 0),
-      activeJobs,
-    };
-  }, [printers, libraryQuery.data, maintenanceQuery.data, stats]);
+  // The single home for the headline numbers; widgets below never repeat them.
+  const quickStats = useMemo<QuickStat[]>(() => {
+    const total = printers.length;
+    const offline = total - onlineCount;
+    const totalPrints = Number(stats?.totalPrints || 0);
+    const failedPrints = Number(stats?.failedPrints || 0);
+    const libraryModels = Number(libraryQuery.data?.length || 0);
+
+    return [
+      {
+        key: 'online',
+        label: 'Printers online',
+        value: `${onlineCount}`,
+        suffix: `/${total}`,
+        hint: total === 0 ? 'None configured' : offline === 0 ? 'All online' : `${offline} offline`,
+        tone: total > 0 && offline === 0 ? 'success' : 'neutral',
+      },
+      {
+        key: 'printing',
+        label: 'Printing now',
+        value: `${activePrintCount}`,
+        hint: activePrintCount > 0 ? `${Math.max(0, onlineCount - activePrintCount)} idle` : 'No active prints',
+        tone: activePrintCount > 0 ? 'accent' : 'neutral',
+      },
+      {
+        key: 'success',
+        label: 'Success rate',
+        value: totalPrints > 0 ? `${Math.round(stats?.successRate || 0)}%` : '\u2014',
+        hint: totalPrints > 0 ? `${failedPrints} failed` : 'No prints yet',
+      },
+      {
+        key: 'prints',
+        label: 'Total prints',
+        value: totalPrints.toLocaleString(),
+        hint: 'All time',
+      },
+      {
+        key: 'time',
+        label: 'Print time',
+        value: formatHours(stats?.totalTime),
+        hint: 'All time',
+      },
+      {
+        key: 'library',
+        label: 'Library models',
+        value: libraryModels.toLocaleString(),
+        hint: 'In your library',
+      },
+    ];
+  }, [printers.length, onlineCount, activePrintCount, libraryQuery.data, stats]);
 
   const activityRows = useMemo<ActivityRow[]>(() => {
     return activityRaw.slice(0, 20).map((row) => ({
@@ -325,11 +373,15 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       status: mapStatus(Number(row.status || 0)),
       startedAt: formatDateLabel(row.startTime),
       durationLabel: formatDuration(row.costTime),
-      weightLabel: row.weight && row.weight > 0 ? `${Math.round(row.weight)}g` : 'n/a',
+      weightLabel: row.weight && row.weight > 0 ? `${Math.round(row.weight)} g` : null,
       thumbnailUrl: row.cover || (row.modelId ? `/images/covers/${row.modelId}.jpg` : null),
-      progressPct: Number(row.status || 0) === 1 || Number(row.status || 0) === 4 ? 55 : 100,
     }));
   }, [activityRaw]);
+
+  const printerNameById = useMemo(
+    () => new Map(printers.map((printer) => [printer.id, printer.name])),
+    [printers]
+  );
 
   const upcomingScheduleItems = useMemo<ScheduleItem[]>(() => {
     return (maintenanceQuery.data || [])
@@ -339,7 +391,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
         const bHours = typeof b.hours_until_due === 'number' ? b.hours_until_due : Number.POSITIVE_INFINITY;
         return aHours - bHours;
       })
-      .slice(0, 12)
       .map((task) => {
         const hoursUntilDue = typeof task.hours_until_due === 'number' ? task.hours_until_due : null;
         const overdue = Boolean(task.isOverdue || (hoursUntilDue !== null && hoursUntilDue < 0));
@@ -347,17 +398,17 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
         return {
           id: String(task.id),
           title: task.task_name,
-          printer: task.printer_name || task.printer_id || 'All printers',
+          printer: task.printer_name || (task.printer_id && printerNameById.get(task.printer_id)) || task.printer_id || 'All printers',
           dueLabel: overdue
             ? 'Overdue'
             : hoursUntilDue === null
               ? 'Scheduled'
-              : `${Math.max(0, Math.round(hoursUntilDue))}h`,
+              : formatDueIn(hoursUntilDue),
           overdue,
           hoursUntilDue,
         };
       });
-  }, [maintenanceQuery.data]);
+  }, [maintenanceQuery.data, printerNameById]);
 
   const livePrintersRows = useMemo<LivePrinterRow[]>(() => (
     printers.map((printer) => ({
@@ -368,6 +419,7 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       online: printer.online,
       progress: Number(printer.progress || 0),
       currentPrint: printer.currentPrint || null,
+      connection: printer.connection || null,
     }))
   ), [printers]);
 
@@ -388,7 +440,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const failureWatchRows = useMemo<FailureWatchRow[]>(() => {
     return activityRaw
       .filter((entry) => Number(entry.status || 0) === 3)
-      .slice(0, 16)
       .map((entry) => ({
         id: String(entry.id),
         title: entry.title || 'Untitled print',
@@ -417,7 +468,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     let todayWeight = 0;
     let weekWeight = 0;
     let monthWeight = 0;
-    let weightedRows = 0;
     let successMonthWeight = 0;
 
     for (const row of activityRaw) {
@@ -425,8 +475,6 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       if (!Number.isFinite(weight) || weight <= 0) {
         continue;
       }
-
-      weightedRows += 1;
 
       if (!row.startTime) {
         monthWeight += weight;
@@ -463,81 +511,51 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       monthWeight,
       allTimeWeight: Number(stats?.totalWeight || 0),
       successSharePct,
-      sampleSize: weightedRows,
     };
   }, [activityRaw, stats?.totalWeight]);
 
-  const fleetAlertsData = useMemo<FleetAlertsData>(() => {
-    const offline = printers.filter((printer) => !printer.online);
-
-    return {
-      totalPrinters: printers.length,
-      onlinePrinters: printers.length - offline.length,
-      activePrints: printers.filter((printer) => printer.online && Boolean(printer.currentPrint)).length,
-      overdueMaintenance: (maintenanceQuery.data || []).filter((task) => task.isOverdue).length,
-      offlineNames: offline.map((printer) => printer.name),
-    };
-  }, [printers, maintenanceQuery.data]);
+  const fleetAlertsData = useMemo<FleetAlertsData>(() => ({
+    totalPrinters: printers.length,
+    offlineNames: printers.filter((printer) => !printer.online).map((printer) => printer.name),
+    overdueTaskNames: overdueTasks.map((task) => task.task_name),
+  }), [printers, overdueTasks]);
 
   const backgroundJobRows = useMemo<BackgroundJobRow[]>(() => (
     backgroundJobsQuery.data || []
   ), [backgroundJobsQuery.data]);
 
   const queuePressureSummary = useMemo(() => {
-    const offlinePrinters = Math.max(0, printers.length - printers.filter((printer) => printer.online).length);
+    const offlinePrinters = Math.max(0, printers.length - onlineCount);
     const activeJobs = backgroundJobRows.length;
-    const overdueTasks = (maintenanceQuery.data || []).filter((task) => task.isOverdue).length;
-    const activePrints = printers.filter((printer) => printer.online && printer.currentPrint).length;
 
     const pressureScore = Math.max(
       0,
-      Math.min(100, Math.round((activePrints * 16) + (overdueTasks * 14) + (offlinePrinters * 18) + (activeJobs * 22)))
+      Math.min(100, Math.round((activePrintCount * 16) + (overdueTasks.length * 14) + (offlinePrinters * 18) + (activeJobs * 22)))
     );
 
-    let recommendation = 'Queue load is healthy. Keep current cadence.';
+    let recommendation = 'Load is healthy. Keep the current cadence.';
     if (pressureScore >= 75) {
-      recommendation = 'High pressure: prioritize overdue maintenance and reduce concurrent starts.';
+      recommendation = 'Prioritize overdue maintenance and reduce concurrent starts.';
     } else if (pressureScore >= 45) {
-      recommendation = 'Moderate pressure: watch printer uptime and clear near-due tasks.';
+      recommendation = 'Watch printer uptime and clear near-due tasks.';
     }
 
     return {
       pressureScore,
+      activePrints: activePrintCount,
       activeJobs,
-      overdueTasks,
+      overdueTasks: overdueTasks.length,
       offlinePrinters,
       recommendation,
     };
-  }, [printers, maintenanceQuery.data, backgroundJobRows.length]);
+  }, [printers.length, onlineCount, activePrintCount, overdueTasks.length, backgroundJobRows.length]);
 
-  const refreshQueueInputs = useCallback(() => {
-    void printersQuery.refetch();
-    void maintenanceQuery.refetch();
-    if (visibleWidgetIds.includes('backgroundJobs')) {
-      void backgroundJobsQuery.refetch();
-    }
-  }, [printersQuery, maintenanceQuery, backgroundJobsQuery, visibleWidgetIds]);
+  const mqttConnectedCount = printers.filter((printer) => printer.mqttConnected).length;
 
-  const commitWidgetLayoutInteraction = useCallback((currentLayout: Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>) => {
-    snapBreakpointLayout(currentBreakpoint, currentLayout as unknown as Parameters<typeof snapBreakpointLayout>[1]);
-    window.setTimeout(() => {
-      flushPersist();
-    }, 0);
-  }, [snapBreakpointLayout, currentBreakpoint, flushPersist]);
-
-  const operationalSnapshot = useMemo(() => {
-    const onlinePrinters = printers.filter((printer) => printer.online).length;
-    const activePrints = printers.filter((printer) => printer.online && printer.currentPrint).length;
-    const overdueTasks = (maintenanceQuery.data || []).filter((task) => task.isOverdue).length;
-
-    return {
-      onlinePrinters,
-      activePrints,
-      overdueTasks,
-      activeJobs: backgroundJobRows.length,
-      failed24h: failure24hCount,
-    };
-  }, [printers, maintenanceQuery.data, backgroundJobRows.length, failure24hCount]);
+  const lastUpdatedAt = Math.max(printersQuery.dataUpdatedAt, statsQuery.dataUpdatedAt, activityQuery.dataUpdatedAt);
+  const lastUpdatedLabel = lastUpdatedAt > 0
+    ? new Date(lastUpdatedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : '';
 
   const isInitialLoading =
     printersQuery.isLoading &&
@@ -555,79 +573,69 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
     dashboardLayoutSettingsQuery.isError,
   ].filter(Boolean).length;
 
+  const fleetAlertCount = buildFleetAlerts(fleetAlertsData, { onOpenPrinters: () => {}, onOpenMaintenance: () => {} }).length;
+
+  const flowWidgetIds = useMemo(
+    () => visibleWidgetIds.filter((id) => !PINNED_WIDGET_IDS.includes(id)),
+    [visibleWidgetIds]
+  );
+
+  // Rough rendered heights (px) from the row counts each widget will show.
+  // Only used to balance columns, so being a few pixels off is harmless.
+  const estimatedHeights = useMemo<Record<DashboardWidgetId, number>>(() => {
+    const list = (rows: number, max: number, rowHeight: number, emptyHeight = 80) =>
+      rows === 0 ? emptyHeight : 64 + Math.min(rows, max) * rowHeight;
+    return {
+      healthSummary: 0,
+      livePrinters: list(printers.length, 8, 52) + (printers.length >= 4 ? 44 : 0),
+      fleetAlerts: list(fleetAlertCount, 4, 52),
+      activityStream: list(activityRows.length, 7, 53) + (activityRows.length > 0 ? 44 : 0),
+      upcomingSchedule: list(upcomingScheduleItems.length, 5, 53)
+        + (overdueTasks.length > 0 && overdueTasks.length < upcomingScheduleItems.length ? 44 : 0),
+      materialUsage: 180,
+      queuePressure: 170,
+      backgroundJobs: list(backgroundJobRows.length, 4, 76),
+      failureWatch: list(failureWatchRows.length, 4, 53),
+      mqttStatus: list(printers.length, 6, 56),
+    };
+  }, [printers.length, fleetAlertCount, activityRows.length, upcomingScheduleItems.length, overdueTasks.length, backgroundJobRows.length, failureWatchRows.length]);
+
+  const columns = useMemo(
+    () => distributeIntoColumns(flowWidgetIds, columnCountForWidth(flowWidth), (id) => estimatedHeights[id]),
+    [flowWidgetIds, flowWidth, estimatedHeights]
+  );
+
   if (isInitialLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center text-base text-white/50">
-        Loading dashboard...
+      <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted">
+        Loading dashboard…
       </div>
     );
   }
 
-  // ---- Widget bodies, written once and rendered by both branches ----
+  const shellProps = (id: DashboardWidgetId) => {
+    const index = flowWidgetIds.indexOf(id);
+    return {
+      isEditMode,
+      onHide: () => hideWidget(id),
+      onMoveEarlier: index > 0 ? () => moveWidget(id, -1) : undefined,
+      onMoveLater: index >= 0 && index < flowWidgetIds.length - 1 ? () => moveWidget(id, 1) : undefined,
+    };
+  };
+
   const renderWidget: Record<DashboardWidgetId, () => React.ReactNode> = {
+    healthSummary: () => <QuickStatsWidget stats={quickStats} />,
     livePrinters: () => (
-      <WidgetShell title="Live Printers" isEditMode={isEditMode} onHide={() => hideWidget('livePrinters')}>
-        <LivePrintersWidget
-          printers={livePrintersRows}
-          density={widgetDensity(visibleLayouts, currentBreakpoint, 'livePrinters')}
-          onOpenPrinters={() => onNavigate('printers')}
-        />
-      </WidgetShell>
-    ),
-    healthSummary: () => (
-      <WidgetShell title="Quick Stats" isEditMode={isEditMode} onHide={() => hideWidget('healthSummary')}>
-        <QuickStatsWidget
-          printersOnlineLabel={quickStats.printersOnlineLabel}
-          totalPrints={quickStats.totalPrints}
-          successRate={quickStats.successRate}
-          libraryModels={quickStats.libraryModels}
-        />
-      </WidgetShell>
-    ),
-    materialUsage: () => (
-      <WidgetShell title="Material Usage" isEditMode={isEditMode} onHide={() => hideWidget('materialUsage')}>
-        <MaterialUsageWidget
-          todayWeight={materialUsage.todayWeight}
-          weekWeight={materialUsage.weekWeight}
-          monthWeight={materialUsage.monthWeight}
-          allTimeWeight={materialUsage.allTimeWeight}
-          successSharePct={materialUsage.successSharePct}
-          sampleSize={materialUsage.sampleSize}
-        />
-      </WidgetShell>
-    ),
-    queuePressure: () => (
-      <WidgetShell title="Queue Pressure" isEditMode={isEditMode} onHide={() => hideWidget('queuePressure')}>
-        <QueuePressureWidget
-          summary={queuePressureSummary}
-          density={widgetDensity(visibleLayouts, currentBreakpoint, 'queuePressure')}
-          onRefresh={refreshQueueInputs}
-          onOpenMaintenance={() => onNavigate('maintenance')}
-          onOpenPrinters={() => onNavigate('printers')}
-        />
-      </WidgetShell>
-    ),
-    backgroundJobs: () => (
-      <WidgetShell title="Background Jobs" isEditMode={isEditMode} onHide={() => hideWidget('backgroundJobs')}>
-        <BackgroundJobsWidget
-          jobs={backgroundJobRows}
-          density={widgetDensity(visibleLayouts, currentBreakpoint, 'backgroundJobs')}
-          onOpenLibrary={() => onNavigate('library')}
-          onOpenHistory={() => onNavigate('history')}
-        />
-      </WidgetShell>
-    ),
-    mqttStatus: () => (
-      <WidgetShell title="Print Status (MQTT)" isEditMode={isEditMode} onHide={() => hideWidget('mqttStatus')}>
-        <PrintStatusMqttWidget
-          rows={mqttStatusRows}
-          density={widgetDensity(visibleLayouts, currentBreakpoint, 'mqttStatus')}
-          onOpenPrinters={() => onNavigate('printers')}
-        />
+      <WidgetShell title="Printers" actionLabel="All printers" onAction={() => onNavigate('printers')} {...shellProps('livePrinters')}>
+        <LivePrintersWidget printers={livePrintersRows} />
       </WidgetShell>
     ),
     fleetAlerts: () => (
-      <WidgetShell title="Fleet Alerts" isEditMode={isEditMode} onHide={() => hideWidget('fleetAlerts')}>
+      <WidgetShell
+        title="Needs Attention"
+        badge={fleetAlertCount > 0 ? <Pill tone="danger">{fleetAlertCount}</Pill> : null}
+        {...shellProps('fleetAlerts')}
+      >
         <FleetAlertsWidget
           data={fleetAlertsData}
           onOpenMaintenance={() => onNavigate('maintenance')}
@@ -636,197 +644,172 @@ function DashboardHome({ onNavigate }: DashboardHomeProps) {
       </WidgetShell>
     ),
     activityStream: () => (
-      <WidgetShell title="Activity Stream" isEditMode={isEditMode} onHide={() => hideWidget('activityStream')}>
-        <ActivityStreamWidget
-          rows={activityRows}
-          density={widgetDensity(visibleLayouts, currentBreakpoint, 'activityStream')}
-        />
+      <WidgetShell title="Recent Prints" actionLabel="History" onAction={() => onNavigate('history')} {...shellProps('activityStream')}>
+        <ActivityStreamWidget rows={activityRows} />
       </WidgetShell>
     ),
     upcomingSchedule: () => (
-      <WidgetShell title="Maintenance Upcoming" isEditMode={isEditMode} onHide={() => hideWidget('upcomingSchedule')}>
-        <UpcomingScheduleWidget
-          items={upcomingScheduleItems}
-          density={widgetDensity(visibleLayouts, currentBreakpoint, 'upcomingSchedule')}
+      <WidgetShell
+        title="Maintenance"
+        badge={overdueTasks.length > 0 ? <Pill tone="danger">{overdueTasks.length} overdue</Pill> : null}
+        actionLabel="Open"
+        onAction={() => onNavigate('maintenance')}
+        {...shellProps('upcomingSchedule')}
+      >
+        <UpcomingScheduleWidget items={upcomingScheduleItems} />
+      </WidgetShell>
+    ),
+    materialUsage: () => (
+      <WidgetShell title="Material Usage" actionLabel="Statistics" onAction={() => onNavigate('statistics')} {...shellProps('materialUsage')}>
+        <MaterialUsageWidget
+          todayWeight={materialUsage.todayWeight}
+          weekWeight={materialUsage.weekWeight}
+          monthWeight={materialUsage.monthWeight}
+          allTimeWeight={materialUsage.allTimeWeight}
+          successSharePct={materialUsage.successSharePct}
         />
       </WidgetShell>
     ),
+    queuePressure: () => (
+      <WidgetShell title="Queue Pressure" {...shellProps('queuePressure')}>
+        <QueuePressureWidget summary={queuePressureSummary} />
+      </WidgetShell>
+    ),
+    backgroundJobs: () => (
+      <WidgetShell
+        title="Background Jobs"
+        badge={backgroundJobRows.length > 0 ? <Pill tone="accent">{backgroundJobRows.length} running</Pill> : null}
+        {...shellProps('backgroundJobs')}
+      >
+        <BackgroundJobsWidget jobs={backgroundJobRows} />
+      </WidgetShell>
+    ),
     failureWatch: () => (
-      <WidgetShell title="Failure Watch" isEditMode={isEditMode} onHide={() => hideWidget('failureWatch')}>
-        <FailureWatchWidget
-          rows={failureWatchRows}
-          failed24hCount={failure24hCount}
-          onOpenHistory={() => onNavigate('history')}
-        />
+      <WidgetShell
+        title="Failure Watch"
+        badge={<Pill tone={failure24hCount > 0 ? 'danger' : 'neutral'}>{failure24hCount} in 24h</Pill>}
+        actionLabel="History"
+        onAction={() => onNavigate('history')}
+        {...shellProps('failureWatch')}
+      >
+        <FailureWatchWidget rows={failureWatchRows} />
+      </WidgetShell>
+    ),
+    mqttStatus: () => (
+      <WidgetShell
+        title="MQTT Telemetry"
+        badge={<Pill tone={mqttConnectedCount === printers.length && printers.length > 0 ? 'success' : 'neutral'}>{mqttConnectedCount}/{printers.length} connected</Pill>}
+        {...shellProps('mqttStatus')}
+      >
+        <PrintStatusMqttWidget rows={mqttStatusRows} />
       </WidgetShell>
     ),
   };
 
-  const kpiTone = (good: boolean, warn = false) =>
-    warn ? 'text-warning' : good ? 'text-success' : 'text-fg';
+  const toolbarButtonClass =
+    'inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors';
+  const statsVisible = visibleWidgetIds.includes('healthSummary');
 
   return (
-    <section className="space-y-4">
-      {/* Hero: flat tier — typography does the hierarchy */}
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight text-fg">Operations Grid</h2>
-          </div>
+    <section className="@container space-y-3" aria-label="Operations overview">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-xs text-muted" aria-live="polite">
+          {isEditMode
+            ? 'Reorder with the arrows, hide what you don’t need. Changes save automatically.'
+            : lastUpdatedLabel
+              ? `Updated ${lastUpdatedLabel}`
+              : ' '}
+        </p>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {isDesktop && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (isEditMode) {
-                    snapAllWidgets();
-                    flushPersist();
-                    setIsEditMode(false);
-                    setShowWidgetLibrary(false);
-                    return;
-                  }
-
-                  setIsEditMode(true);
-                  setShowWidgetLibrary(true);
-                }}
-                className={`inline-flex min-h-11 md:min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors ${
-                  isEditMode
-                    ? 'bg-accent text-accent-contrast hover:bg-accent-strong'
-                    : 'bg-white/5 text-fg-soft hover:text-fg hover:bg-white/10'
-                }`}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-                {isEditMode ? 'Done Editing' : 'Edit Dashboard'}
-              </button>
-            )}
-
-            {isDesktop && isEditMode ? (
-              <button
-                type="button"
-                onClick={snapAllWidgets}
-                className="min-h-9 rounded-md bg-white/5 px-3 text-xs font-semibold text-fg-soft hover:text-fg hover:bg-white/10 transition-colors"
-              >
-                Snap Layout
-              </button>
-            ) : null}
-
-            {isDesktop && isEditMode ? (
-              <button
-                type="button"
-                onClick={() => setShowWidgetLibrary((v) => !v)}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/5 px-3 text-xs font-semibold text-fg-soft hover:text-fg hover:bg-white/10 transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" /> Widget Library
-              </button>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={() => onNavigate('statistics')}
-              className="min-h-11 md:min-h-9 rounded-md bg-white/5 px-3 text-xs font-semibold text-fg-soft hover:text-fg hover:bg-white/10 transition-colors"
-            >
-              Open Full Stats
+        <div className="flex flex-wrap items-center gap-2">
+          {isEditMode && !isDefaultLayout ? (
+            <button type="button" onClick={resetLayout} className={`${toolbarButtonClass} text-muted hover:bg-white/5 hover:text-fg`}>
+              <RotateCcw className="size-3.5" aria-hidden />
+              Reset
             </button>
-          </div>
-        </div>
-
-        {/* KPI strip: no boxes — stats separated by whitespace */}
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:flex-wrap sm:gap-x-10">
-          <div>
-            <p className="text-xs text-muted">Fleet online</p>
-            <p className={`text-2xl font-semibold tabular-nums ${kpiTone(operationalSnapshot.onlinePrinters === (printers.length || 0), operationalSnapshot.onlinePrinters < (printers.length || 0))}`}>
-              {operationalSnapshot.onlinePrinters}<span className="text-sm text-muted">/{printers.length || 0}</span>
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted">Active prints</p>
-            <p className={`text-2xl font-semibold tabular-nums ${operationalSnapshot.activePrints > 0 ? 'text-success' : 'text-fg'}`}>{operationalSnapshot.activePrints}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted">Background jobs</p>
-            <p className="text-2xl font-semibold tabular-nums text-fg">{operationalSnapshot.activeJobs}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted">Maintenance overdue</p>
-            <p className={`text-2xl font-semibold tabular-nums ${operationalSnapshot.overdueTasks > 0 ? 'text-warning' : 'text-success'}`}>{operationalSnapshot.overdueTasks}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted">Failures 24h</p>
-            <p className={`text-2xl font-semibold tabular-nums ${operationalSnapshot.failed24h > 0 ? 'text-danger' : 'text-success'}`}>{operationalSnapshot.failed24h}</p>
-          </div>
+          ) : null}
+          <button
+            type="button"
+            aria-pressed={isEditMode}
+            onClick={() => {
+              if (isEditMode) {
+                flushPersist();
+              }
+              setIsEditMode((current) => !current);
+            }}
+            className={`${toolbarButtonClass} ${
+              isEditMode
+                ? 'bg-accent text-accent-contrast hover:bg-accent-strong'
+                : 'bg-white/5 text-fg-soft hover:bg-white/10 hover:text-fg'
+            }`}
+          >
+            {isEditMode ? <Check className="size-3.5" aria-hidden /> : <SlidersHorizontal className="size-3.5" aria-hidden />}
+            {isEditMode ? 'Done' : 'Edit Dashboard'}
+          </button>
         </div>
       </header>
 
       {queryErrorCount > 0 ? (
-        <div className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+        <p role="status" className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
           Some data sources are unavailable ({queryErrorCount}). Widgets are showing partial data.
+        </p>
+      ) : null}
+
+      {isEditMode && hiddenWidgetIds.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-card px-4 py-2.5">
+          <span className="text-xs text-muted">Hidden</span>
+          {dashboardWidgetRegistry.filter((widget) => hiddenWidgetIds.includes(widget.id)).map((widget) => (
+            <button
+              key={widget.id}
+              type="button"
+              onClick={() => showWidget(widget.id)}
+              aria-label={`Show ${widget.title}`}
+              className="inline-flex min-h-8 items-center gap-1 rounded-full bg-white/5 pl-2 pr-3 text-xs font-medium text-fg-soft transition-colors hover:bg-white/10 hover:text-fg"
+            >
+              <Plus className="size-3.5" aria-hidden />
+              {widget.title}
+            </button>
+          ))}
         </div>
       ) : null}
 
-      {isDesktop ? (
-        <div className="relative">
-          <ResponsiveGridLayout
-            className="command-center-grid"
-            measureBeforeMount={false}
-            breakpoints={BREAKPOINTS}
-            cols={COLUMNS}
-            rowHeight={30}
-            margin={[12, 12]}
-            containerPadding={[0, 0]}
-            layouts={visibleLayouts as ResponsiveLayouts}
-            isDraggable={isEditMode}
-            isResizable={isEditMode}
-            compactType="vertical"
-            preventCollision={false}
-            isBounded={false}
-            resizeHandles={['se']}
-            draggableHandle=".widget-drag-handle"
-            draggableCancel=".widget-no-drag,.react-resizable-handle,button,a,input,textarea,select"
-            onBreakpointChange={(nextBreakpoint) => setCurrentBreakpoint(nextBreakpoint as Breakpoint)}
-            onDragStop={(currentLayout) => commitWidgetLayoutInteraction(currentLayout as Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>)}
-            onResizeStop={(currentLayout) => commitWidgetLayoutInteraction(currentLayout as Array<{ i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number }>)}
-          >
-            {visibleWidgetIds.map((id) => (
-              <div key={id} className="h-full">
-                {renderWidget[id as DashboardWidgetId]?.()}
-              </div>
-            ))}
-          </ResponsiveGridLayout>
-
-          {isEditMode && showWidgetLibrary ? (
-            <aside className="absolute right-0 top-0 z-10 w-64 rounded-lg bg-elevated p-4 shadow-xl">
-              <h3 className="text-sm font-semibold text-fg">Widget Library</h3>
-              <p className="mb-3 mt-0.5 text-xs text-muted">Re-enable hidden widgets</p>
-              <div className="space-y-1">
-                {dashboardWidgetRegistry.map((widget) => {
-                  const hidden = hiddenWidgetIds.includes(widget.id);
-                  return (
-                    <button
-                      key={widget.id}
-                      type="button"
-                      disabled={!hidden}
-                      onClick={() => showWidget(widget.id)}
-                      className={`w-full min-h-9 rounded-md px-2.5 text-left text-sm transition-colors ${
-                        hidden ? 'text-fg-soft hover:text-fg hover:bg-white/5' : 'text-disabled'
-                      }`}
-                    >
-                      {widget.title}
-                    </button>
-                  );
-                })}
-              </div>
-            </aside>
+      {statsVisible ? (
+        <div className={isEditMode ? 'rounded-lg ring-1 ring-accent/30' : undefined}>
+          {isEditMode ? (
+            <div className="flex min-h-11 items-center justify-between gap-2 pl-4 pr-2">
+              <p className="truncate text-[13px] font-semibold text-fg">
+                Quick Stats <span className="font-normal text-muted">· pinned to the top</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => hideWidget('healthSummary')}
+                aria-label="Hide Quick Stats"
+                title="Hide widget"
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/5 hover:text-fg"
+              >
+                <EyeOff className="size-4" aria-hidden />
+              </button>
+            </div>
           ) : null}
+          {renderWidget.healthSummary()}
         </div>
-      ) : (
-        /* Mobile: fixed priority-ordered single column; RGL never mounts */
-        <div className="flex flex-col gap-4">
-          {MOBILE_WIDGET_PRIORITY.filter((id) => visibleWidgetIds.includes(id)).map((id) => (
-            <div key={id}>{renderWidget[id]?.()}</div>
-          ))}
-        </div>
-      )}
+      ) : null}
+
+      <div ref={flowRef} className="flex items-start gap-3">
+        {columns.map((columnIds, columnIndex) => (
+          <div key={columnIndex} className="flex min-w-0 flex-1 basis-0 flex-col gap-3">
+            {columnIds.map((id) => (
+              <div key={id}>{renderWidget[id]()}</div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {flowWidgetIds.length === 0 && !statsVisible ? (
+        <p className="py-10 text-center text-sm text-muted">
+          Every widget is hidden. Use Edit Dashboard to bring some back.
+        </p>
+      ) : null}
     </section>
   );
 }
