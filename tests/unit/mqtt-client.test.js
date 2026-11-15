@@ -115,6 +115,68 @@ describe('BambuMqttClient LAN-mode semantics', () => {
     expect(client.everConnected).toBe(false);
   });
 
+  it('applies every report in a burst — P1 delta reports must not be coalesced away', async () => {
+    printer = await startFakePrinter();
+    client = new BambuMqttClient('127.0.0.1', printer.serial, 'code', 'Test', { port: printer.port });
+    await client.connect();
+    await printer.publishReport({ print: { gcode_state: 'RUNNING', mc_percent: 99, subtask_name: 'benchy' } });
+    await sleep(150);
+
+    const completed = once(client, 'print_completed', 2000);
+    // Two packets parsed from one TCP read are delivered in the same tick. On a
+    // P1 the second is a delta that doesn't repeat gcode_state.
+    client.client.emit('message', `device/${printer.serial}/report`, Buffer.from(JSON.stringify({ print: { gcode_state: 'FINISH', mc_percent: 100 } })));
+    client.client.emit('message', `device/${printer.serial}/report`, Buffer.from(JSON.stringify({ print: { nozzle_temper: 180 } })));
+
+    await completed;
+    expect(client.getCurrentJob().gcode_state).toBe('FINISH');
+    expect(client.getCurrentJob().nozzle_temp).toBe(180);
+  });
+
+  it('sends pushall on connect and on every reconnect, but not on a short timer (P1 lag guidance)', async () => {
+    printer = await startFakePrinter();
+    client = new BambuMqttClient('127.0.0.1', printer.serial, 'code', 'Test', { port: printer.port, reconnectPeriodMs: 200 });
+    await client.connect();
+    await sleep(300);
+    const pushalls = () => printer.requests.filter((r) => r.pushing?.command === 'pushall').length;
+    expect(pushalls()).toBe(1);
+    expect(client.fullRefreshMs).toBeGreaterThanOrEqual(5 * 60 * 1000);
+
+    const lost = once(client, 'connection_lost');
+    const back = once(client, 'reconnected', 5000);
+    printer.dropConnections();
+    await lost;
+    await back;
+    await sleep(300);
+    expect(client.connected).toBe(true);
+    expect(pushalls()).toBe(2); // fresh snapshot after the reconnect, despite the request throttle
+    expect(client.getConnectionStats()).toMatchObject({ connected: true, drops: 1 });
+  });
+
+  it('watchdog: nudges a silent printer with pushall, then forces a reconnect if it stays silent', async () => {
+    printer = await startFakePrinter();
+    client = new BambuMqttClient('127.0.0.1', printer.serial, 'code', 'Test', {
+      port: printer.port,
+      reconnectPeriodMs: 200,
+      watchdogIntervalMs: 50,
+      silenceNudgeMs: 300,
+      silenceReconnectMs: 700,
+    });
+    await client.connect();
+    const pushalls = () => printer.requests.filter((r) => r.pushing?.command === 'pushall').length;
+    await sleep(100);
+    expect(pushalls()).toBe(1);
+
+    // The fake printer never answers pushall, so the link looks alive (pings
+    // succeed) but no reports arrive — the half-dead state the watchdog targets.
+    await sleep(400);
+    expect(pushalls()).toBe(2); // nudged once, not on every tick
+
+    const back = once(client, 'reconnected', 5000);
+    await back; // silence persisted → stream destroyed → mqtt.js reconnected
+    expect(client.getConnectionStats().lastDropReason).toMatch(/no data/i);
+  });
+
   it('disconnect() force-closes and clears all state (teardown used before cooldown)', async () => {
     printer = await startFakePrinter();
     client = new BambuMqttClient('127.0.0.1', printer.serial, 'code', 'Test', { port: printer.port });

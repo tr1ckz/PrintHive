@@ -41,6 +41,16 @@ export async function startFakePrinter({ serial = 'TESTSERIAL0001' } = {}) {
     serial,
     requests, // pushall etc. received from the client under test
 
+    /** Number of live TLS sockets — i.e. MQTT client slots in use on the "printer". */
+    connectionCount() {
+      return sockets.size;
+    },
+
+    /** Severs live connections but keeps listening — models a Wi-Fi blip / printer kicking clients. */
+    dropConnections() {
+      for (const socket of sockets) socket.destroy();
+    },
+
     publishReport(payload) {
       return new Promise((resolve) =>
         broker.publish(

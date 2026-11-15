@@ -82,6 +82,35 @@ describe('PrinterConnectionManager (Phase 4 gate)', () => {
     expect(manager.clients.size).toBe(1);
   });
 
+  it('concurrent polls during the connect window share one connection (no orphaned duplicate clients)', async () => {
+    printer = await startFakePrinter();
+    const sendNotification = vi.fn(async () => {});
+    manager = makeManager({ sendNotification, mqttOptions: { port: printer.port, connectTimeoutMs: 5000 } });
+    const deviceData = { dev_id: printer.serial, name: 'Race Printer' };
+    const args = { deviceIp: '127.0.0.1', deviceAccessCode: 'code', deviceSerial: printer.serial };
+
+    // /api/printers and /api/printers/status (and a second tab) routinely land
+    // inside the same TLS handshake window.
+    const keys = await Promise.all([
+      manager.ensureClient(deviceData, args),
+      manager.ensureClient(deviceData, args),
+      manager.ensureClient(deviceData, args),
+    ]);
+    await sleep(300);
+
+    expect(new Set(keys).size).toBe(1);
+    expect(manager.clients.size).toBe(1);
+    // Each orphan would hold one of the printer's few MQTT slots forever.
+    expect(printer.connectionCount()).toBe(1);
+
+    // ...and would fire every notification once per orphan.
+    await printer.publishReport({ print: { gcode_state: 'RUNNING', mc_percent: 99, subtask_name: 'benchy' } });
+    await sleep(150);
+    await printer.publishReport({ print: { gcode_state: 'FINISH', mc_percent: 100, subtask_name: 'benchy' } });
+    await sleep(300);
+    expect(sendNotification.mock.calls.filter(([, p]) => p.status === 'completed')).toHaveLength(1);
+  });
+
   it('unreachable printer: ensureClient resolves (no throw — the old inline code 500ed here), sets cooldown, leaves no client', async () => {
     manager = makeManager({ mqttOptions: { port: 59998, connectTimeoutMs: 1500 } });
     const deviceData = { dev_id: 'DEADBEEF', name: 'Ghost' };

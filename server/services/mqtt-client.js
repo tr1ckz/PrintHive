@@ -1,6 +1,18 @@
 const mqtt = require('mqtt');
+const crypto = require('crypto');
 const logger = require('../../logger');
 const EventEmitter = require('events');
+
+const MAX_QUEUED_MESSAGES = 200; // safety valve if the event loop stalls during a burst
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '?';
+  const s = Math.round(ms / 1000);
+  if (s < 90) return `${s}s`;
+  const m = Math.round(s / 60);
+  if (m < 90) return `${m}m`;
+  return `${(m / 60).toFixed(1)}h`;
+}
 
 // Normalize a Bambu AMS payload into a flat { active_tray, trays } shape.
 // A printer can have multiple AMS units: Bambu nests them under `ams.ams` (an
@@ -65,16 +77,41 @@ class BambuMqttClient extends EventEmitter {
     this.printerName = printerName || serialNumber;
     this.port = options.port || 8883;
     this.connectTimeoutMs = options.connectTimeoutMs || 15000;
+    this.reconnectPeriodMs = options.reconnectPeriodMs || 5000;
     this.client = null;
     this.connected = false;
     this.everConnected = false; // true once we've had at least one successful connect
     this.connectTimer = null;
-    this.statusHeartbeatTimer = null;
-    this.statusHeartbeatMs = 30000; // re-request status periodically so idle printers don't go stale
+
+    // Liveness. pushall is sent once per (re)connect, then only as a slow full
+    // refresh: P1 printers stream deltas on their own, and OpenBambuAPI warns
+    // that pushall more often than every 5 minutes can lag a P1. A dead or
+    // half-open link is caught by the silence watchdog instead (same shape as
+    // ha-bambulab's 60s watchdog): nudge with one pushall, then force a
+    // reconnect if the printer still says nothing.
+    this.watchdogTimer = null;
+    this.watchdogIntervalMs = options.watchdogIntervalMs || 10000;
+    this.silenceNudgeMs = options.silenceNudgeMs || 60000;
+    this.silenceReconnectMs = options.silenceReconnectMs || 120000;
+    this.fullRefreshMs = options.fullRefreshMs || 5 * 60 * 1000;
+    this.lastMessageAt = 0;
+    this.lastFullRefreshAt = 0;
+    this.nudgedAt = 0;
+
+    // Diagnostics, surfaced via getConnectionStats() and the logs.
+    this.connectedAt = null;
+    this.disconnectedAt = null;
+    this.drops = 0;
+    this.lastDropReason = null;
+    this.lastDropAt = null;
+    this.lastError = null;
+    this.pendingDropReason = null;
+    this.lastLoggedReconnectError = null;
+
     this.currentJobData = null;
     this.lastGcodeState = null; // Track state changes
     this.lastPrintError = 0;
-    this.pendingRawMessage = null;
+    this.pendingRawMessages = [];
     this.messageProcessingScheduled = false;
     this.pendingJobUpdate = null;
     this.pendingJobTimer = null;
@@ -90,12 +127,17 @@ class BambuMqttClient extends EventEmitter {
   connect() {
     return new Promise((resolve, reject) => {
       const options = {
-        clientId: `bambu-web-${Date.now()}`,
+        // Random suffix: a clientId shared by two connections makes the broker
+        // kick the older one, and each then kicks the other on reconnect.
+        clientId: `printhive-${crypto.randomUUID()}`,
         username: 'bblp',
         password: this.accessCode,
         protocol: 'mqtts',
         rejectUnauthorized: false, // Bambu uses self-signed certs
-        reconnectPeriod: 5000,
+        // Some Bambu firmware (P2S 01.02.00.00) never answers a TLS 1.3
+        // ClientHello; ha-bambulab pins 1.2 for every model for the same reason.
+        maxVersion: 'TLSv1.2',
+        reconnectPeriod: this.reconnectPeriodMs,
         connectTimeout: 10000,
         keepalive: 30 // detect dead links and keep NAT/AP state warm
       };
@@ -104,9 +146,20 @@ class BambuMqttClient extends EventEmitter {
       this.client = mqtt.connect(`mqtts://${this.printerIp}:${this.port}`, options);
 
       this.client.on('connect', () => {
-        logger.info('Connected to Bambu printer MQTT');
+        const isReconnect = this.everConnected;
+        const now = Date.now();
+        if (isReconnect) {
+          logger.info(`MQTT reconnected to ${this.printerName} (${this.printerIp}) after ${formatDuration(now - (this.disconnectedAt || now))} offline`);
+        } else {
+          logger.info(`Connected to Bambu printer MQTT: ${this.printerName} (${this.printerIp})`);
+        }
         this.connected = true;
         this.everConnected = true;
+        this.connectedAt = now;
+        this.lastMessageAt = now; // start the silence clock from the connect
+        this.nudgedAt = 0;
+        this.lastError = null;
+        this.lastLoggedReconnectError = null;
         this.clearConnectTimer();
 
         // Subscribe to printer status updates
@@ -118,25 +171,35 @@ class BambuMqttClient extends EventEmitter {
           } else {
             logger.debug(`Subscribed to ${topic}`);
 
-            // Request current status and start a periodic heartbeat re-poll so
-            // idle printers (which go quiet) don't show stale data, and so a
-            // half-open socket is detected via the keepalive/publish path.
-            this.requestStatus();
-            this.startStatusHeartbeat();
+            // Full snapshot on every (re)connect — after a drop we may have
+            // missed deltas — then let the watchdog take over.
+            this.requestStatus({ force: true });
+            this.startWatchdog();
+            if (isReconnect) {
+              this.emit('reconnected', this.getConnectionStats());
+            }
             resolve();
           }
         });
       });
 
       this.client.on('message', (_topic, message) => {
-        this.pendingRawMessage = message.toString();
+        this.lastMessageAt = Date.now();
+        this.nudgedAt = 0;
+
+        // Queue every report: P1 printers send deltas, so dropping all but the
+        // newest message in a burst loses fields (e.g. a FINISH transition).
+        this.pendingRawMessages.push(message.toString());
+        if (this.pendingRawMessages.length > MAX_QUEUED_MESSAGES) {
+          this.pendingRawMessages.splice(0, this.pendingRawMessages.length - MAX_QUEUED_MESSAGES);
+        }
 
         if (this.messageProcessingScheduled) {
           return;
         }
 
         this.messageProcessingScheduled = true;
-        setImmediate(() => this.processLatestMessage());
+        setImmediate(() => this.processPendingMessages());
       });
 
       this.client.on('error', (error) => {
@@ -145,7 +208,12 @@ class BambuMqttClient extends EventEmitter {
         // `close` be the authoritative "socket is gone" signal. Only surface an
         // error to the server when we've never managed to connect (unreachable
         // printer), so it can apply the connect cooldown.
-        logger.error('MQTT error:', error);
+        this.lastError = error?.code ? `${error.code}: ${error.message}` : (error?.message || String(error));
+        if (this.everConnected) {
+          logger.debug(`MQTT error for ${this.printerName}: ${this.lastError}`);
+        } else {
+          logger.error('MQTT error:', error);
+        }
         if (!this.everConnected) {
           this.emit('error', error);
           // Settle connect() here as well: the 'error' listener above may tear
@@ -156,20 +224,42 @@ class BambuMqttClient extends EventEmitter {
       });
 
       this.client.on('close', () => {
-        logger.info('MQTT connection closed');
+        const wasConnected = this.connected;
         this.connected = false;
-        this.stopStatusHeartbeat();
+        this.stopWatchdog();
         // If we were connected before, this is a transient drop — let mqtt.js's
         // built-in reconnectPeriod recover it. Only report `disconnected` (which
         // triggers teardown + cooldown server-side) when we never connected.
         if (!this.everConnected) {
+          logger.info('MQTT connection closed');
           this.emit('disconnected');
           // Settle the connect() promise now. Without this, the server-side
           // teardown triggered by 'disconnected' clears the connect timer and
           // the awaited connect() never resolves — hanging the caller.
           reject(new Error('MQTT connection failed'));
+        } else if (wasConnected) {
+          const now = Date.now();
+          this.drops += 1;
+          this.disconnectedAt = now;
+          this.lastDropAt = now;
+          this.lastDropReason = this.pendingDropReason || this.lastError || 'socket closed by printer or network (no error reported)';
+          this.pendingDropReason = null;
+          logger.warn(
+            `MQTT link to ${this.printerName} (${this.printerIp}) dropped after ${formatDuration(now - (this.connectedAt || now))}: ` +
+            `${this.lastDropReason}; reconnecting every ${formatDuration(this.reconnectPeriodMs)} (drop #${this.drops})`
+          );
+          this.emit('connection_lost', this.getConnectionStats());
         } else {
-          this.emit('connection_lost');
+          // A failed reconnect attempt while already offline. Warn once per
+          // distinct reason (e.g. "Not authorized" after an access-code change)
+          // instead of every reconnectPeriod.
+          const reason = this.lastError || 'closed';
+          if (reason !== this.lastLoggedReconnectError) {
+            this.lastLoggedReconnectError = reason;
+            logger.warn(`MQTT reconnect to ${this.printerName} (${this.printerIp}) failing: ${reason}`);
+          } else {
+            logger.debug(`MQTT reconnect to ${this.printerName} failed: ${reason}`);
+          }
         }
       });
 
@@ -192,23 +282,70 @@ class BambuMqttClient extends EventEmitter {
     }
   }
 
-  startStatusHeartbeat() {
-    this.stopStatusHeartbeat();
-    this.statusHeartbeatTimer = setInterval(() => {
-      if (this.connected) {
-        this.requestStatus();
-      }
-    }, this.statusHeartbeatMs);
-    if (this.statusHeartbeatTimer.unref) {
-      this.statusHeartbeatTimer.unref();
+  startWatchdog() {
+    this.stopWatchdog();
+    this.watchdogTimer = setInterval(() => this.checkLiveness(), this.watchdogIntervalMs);
+    if (this.watchdogTimer.unref) {
+      this.watchdogTimer.unref();
     }
   }
 
-  stopStatusHeartbeat() {
-    if (this.statusHeartbeatTimer) {
-      clearInterval(this.statusHeartbeatTimer);
-      this.statusHeartbeatTimer = null;
+  stopWatchdog() {
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
     }
+  }
+
+  checkLiveness() {
+    if (!this.connected || !this.client) {
+      return;
+    }
+
+    const now = Date.now();
+    const silence = now - this.lastMessageAt;
+
+    if (silence >= this.silenceReconnectMs) {
+      this.forceReconnect(`no data from printer for ${formatDuration(silence)} (pushall unanswered)`);
+      return;
+    }
+
+    if (silence >= this.silenceNudgeMs && !this.nudgedAt) {
+      this.nudgedAt = now;
+      logger.info(`No MQTT data from ${this.printerName} for ${formatDuration(silence)}; requesting a full status report`);
+      this.requestStatus({ force: true });
+      return;
+    }
+
+    if (now - this.lastFullRefreshAt >= this.fullRefreshMs) {
+      this.requestStatus({ force: true });
+    }
+  }
+
+  // Drop the socket and let mqtt.js's reconnectPeriod dial a fresh one. Used
+  // when keepalive still passes but the printer has stopped reporting.
+  forceReconnect(reason) {
+    if (!this.client) {
+      return;
+    }
+    logger.warn(`Forcing MQTT reconnect to ${this.printerName} (${this.printerIp}): ${reason}`);
+    this.pendingDropReason = reason;
+    try {
+      this.client.stream?.destroy();
+    } catch (error) {
+      logger.debug('MQTT stream destroy failed:', error.message);
+    }
+  }
+
+  getConnectionStats() {
+    return {
+      connected: this.connected,
+      connectedSince: this.connected && this.connectedAt ? new Date(this.connectedAt).toISOString() : null,
+      lastMessageAt: this.lastMessageAt ? new Date(this.lastMessageAt).toISOString() : null,
+      drops: this.drops,
+      lastDropAt: this.lastDropAt ? new Date(this.lastDropAt).toISOString() : null,
+      lastDropReason: this.lastDropReason,
+    };
   }
 
   handleMessage(data) {
@@ -372,25 +509,18 @@ class BambuMqttClient extends EventEmitter {
     }
   }
 
-  processLatestMessage() {
-    const rawMessage = this.pendingRawMessage;
-    this.pendingRawMessage = null;
+  processPendingMessages() {
+    const batch = this.pendingRawMessages;
+    this.pendingRawMessages = [];
     this.messageProcessingScheduled = false;
 
-    if (!rawMessage) {
-      return;
-    }
-
-    try {
-      const data = JSON.parse(rawMessage);
-      this.handleMessage(data);
-    } catch (error) {
-      logger.error('Error parsing MQTT message:', error);
-    }
-
-    if (this.pendingRawMessage && !this.messageProcessingScheduled) {
-      this.messageProcessingScheduled = true;
-      setImmediate(() => this.processLatestMessage());
+    // In arrival order: each delta merges onto the state the previous one left.
+    for (const rawMessage of batch) {
+      try {
+        this.handleMessage(JSON.parse(rawMessage));
+      } catch (error) {
+        logger.error('Error parsing MQTT message:', error);
+      }
     }
   }
 
@@ -498,16 +628,17 @@ class BambuMqttClient extends EventEmitter {
     }
   }
 
-  requestStatus() {
+  requestStatus({ force = false } = {}) {
     if (!this.client || !this.connected) {
       return;
     }
 
     const now = Date.now();
-    if (now - this.lastStatusRequestAt < this.statusRequestThrottleMs) {
+    if (!force && now - this.lastStatusRequestAt < this.statusRequestThrottleMs) {
       return;
     }
     this.lastStatusRequestAt = now;
+    this.lastFullRefreshAt = now;
 
     // Request push_all to get current status
     const topic = `device/${this.serialNumber}/request`;
@@ -533,14 +664,14 @@ class BambuMqttClient extends EventEmitter {
 
   disconnect() {
     this.clearConnectTimer();
-    this.stopStatusHeartbeat();
+    this.stopWatchdog();
 
     if (this.pendingJobTimer) {
       clearTimeout(this.pendingJobTimer);
       this.pendingJobTimer = null;
     }
 
-    this.pendingRawMessage = null;
+    this.pendingRawMessages = [];
     this.pendingJobUpdate = null;
     this.messageProcessingScheduled = false;
     this.lastEmittedJobData = null;

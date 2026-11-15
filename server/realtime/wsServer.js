@@ -131,6 +131,36 @@ function attachRealtimeBridgeToMqttClient(mqttClient, clientKey, device) {
     }
   });
 
+  // Established link dropped / came back. mqtt.js auto-reconnects underneath;
+  // tell the UI so it shows the real state instead of the last good snapshot.
+  // On reconnect the pushall reply may match the last emitted job exactly (no
+  // job_update), so announce `online` explicitly.
+  mqttClient.on('connection_lost', async (stats) => {
+    const payload = (await buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
+      online: false,
+      mqttConnected: false,
+      connection: stats,
+    }));
+
+    if (payload) {
+      broadcastRealtimeMessage(payload);
+    }
+  });
+
+  mqttClient.on('reconnected', async (stats) => {
+    const job = mqttClient.getCurrentJob();
+    const payload = (await buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, job, {
+      online: true,
+      mqttConnected: true,
+      connection: stats,
+      print_status: job?.gcode_state || mqttClient.realtimeDevice?.print_status || 'ONLINE',
+    }));
+
+    if (payload) {
+      broadcastRealtimeMessage(payload);
+    }
+  });
+
   mqttClient.on('disconnected', async () => {
     const payload = (await buildRealtimePrinterPayload(mqttClient.realtimeDevice || device, mqttClient.getCurrentJob(), {
       online: false,
