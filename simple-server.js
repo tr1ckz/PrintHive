@@ -1256,7 +1256,7 @@ console.log('Serving static files from:', staticDir);
 app.use(express.static(staticDir));
 
 // Settings/admin routes (see server/routes/settings.js)
-app.use(require('./server/routes/settings')({ setupWatchdog, syncGo2RtcConfigSafe, go2rtcConfigPath, normalizeStreamRelayUrl }));
+app.use(require('./server/routes/settings')({ setupWatchdog, syncGo2RtcConfigSafe, go2rtcConfigPath, normalizeStreamRelayUrl, printerManager }));
 
 
 
@@ -1827,6 +1827,15 @@ function verifyPrinterViaMqtt(ip, serialNumber, accessCode, timeoutMs = 4500) {
       return;
     }
 
+    // Already talking to this exact printer with these credentials? Then it's
+    // verified — don't take another of its few MQTT slots to prove it again.
+    for (const existing of printerManager.values()) {
+      if (existing.connected && existing.printerIp === ip && existing.serialNumber === serialNumber && existing.accessCode === accessCode) {
+        resolve({ ok: true, reason: 'verified-existing-connection' });
+        return;
+      }
+    }
+
     const requestTopic = `device/${serialNumber}/request`;
     const reportTopic = `device/${serialNumber}/report`;
     const client = mqtt.connect(`mqtts://${ip}:8883`, {
@@ -1835,6 +1844,7 @@ function verifyPrinterViaMqtt(ip, serialNumber, accessCode, timeoutMs = 4500) {
       password: accessCode,
       protocol: 'mqtts',
       rejectUnauthorized: false,
+      maxVersion: 'TLSv1.2', // see mqtt-client.js
       reconnectPeriod: 0,
       connectTimeout: 3000,
     });

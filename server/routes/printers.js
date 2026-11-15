@@ -33,6 +33,28 @@ module.exports = function createPrinterRouter(ctx) {
 
   const router = express.Router();
 
+  // Bambu gcode_state values during which a job is genuinely in progress.
+  // FINISH / FAILED / IDLE keep the last subtask name, which must not count as
+  // an active print once `online` reflects the live LAN connection.
+  const ACTIVE_GCODE_STATES = new Set(['PREPARE', 'SLICING', 'RUNNING', 'PAUSE']);
+
+  // How long /api/printers/status waits for a first-time MQTT connect before
+  // answering with what it has (the dashboard's fetch times out at 10s).
+  const STATUS_CONNECT_WAIT_MS = 2500;
+
+  // LAN MQTT target for a merged device (configured row + cloud bind info),
+  // mirroring the credential precedence in GET /api/printers.
+  function resolveMqttTarget(device, legacy) {
+    const deviceIp = device.ip_address || legacy.printerIp;
+    const cloudAccessCode = getCloudDeviceAccessCodeCandidates(device)[0] || null;
+    const deviceAccessCode = String(cloudAccessCode || device.access_code || legacy.accessCode || '').trim();
+    const deviceSerial = device.serial_number || device.dev_id;
+    if (!deviceIp || !deviceAccessCode || !deviceSerial) {
+      return null;
+    }
+    return { deviceIp, deviceAccessCode, deviceSerial };
+  }
+
   // Discover and save local printer IP
   router.post('/api/printers/discover-ip', requireAuth, async (req, res) => {
     const devId = String(req.body?.dev_id || '').trim();
@@ -526,6 +548,15 @@ module.exports = function createPrinterRouter(ctx) {
               attachRealtimeBridgeToMqttClient(mqttClient, clientKey, deviceData);
             }
 
+            // A live LAN MQTT link proves the printer is up, whatever the cloud
+            // says (LAN-only printers always read offline there, and manually
+            // added ones have no cloud record at all).
+            deviceData.mqttConnected = Boolean(mqttClient?.connected);
+            deviceData.online = Boolean(device.online) || deviceData.mqttConnected;
+            if (mqttClient) {
+              deviceData.connection = mqttClient.getConnectionStats();
+            }
+
             if (mqttClient && mqttClient.connected) {
               const jobData = mqttClient.getCurrentJob();
               const debugMqttLogging = logger.isLevelEnabled('DEBUG');
@@ -672,23 +703,52 @@ module.exports = function createPrinterRouter(ctx) {
         }];
       }
 
+      // This endpoint is all the dashboard polls, so it must not depend on
+      // someone having opened the Printers page first (e.g. after a server
+      // restart): make sure each printer has a LAN client. ensureClient
+      // de-duplicates concurrent connects and honours the failure cooldown;
+      // a slow first connect is capped so the response stays fast.
+      const legacy = { printerIp: legacyPrinterIp, accessCode: legacyAccessCode };
+      await Promise.all(devices.map((device) => {
+        const target = resolveMqttTarget(device, legacy);
+        if (!target) {
+          return null;
+        }
+        return Promise.race([
+          printerManager.ensureClient(device, target).then((clientKey) => {
+            const client = printerManager.getClient(clientKey);
+            if (client) {
+              attachRealtimeBridgeToMqttClient(client, clientKey, device);
+            }
+          }),
+          new Promise((resolve) => setTimeout(resolve, STATUS_CONNECT_WAIT_MS).unref?.()),
+        ]);
+      }));
+
       const printers = devices.map(device => {
-        const deviceIp = device.ip_address || legacyPrinterIp;
+        const deviceIp = resolveMqttTarget(device, legacy)?.deviceIp || device.ip_address || legacyPrinterIp;
         const clientKey = `${deviceIp || ''}:${device.dev_id}`;
         const mqttClient = printerManager.getClient(clientKey);
-        const mqttJob = mqttClient?.connected ? mqttClient.getCurrentJob() : null;
+        const mqttConnected = Boolean(mqttClient?.connected);
+        const mqttJob = mqttConnected ? mqttClient.getCurrentJob() : null;
+        // Live LAN state beats the cloud's (minutes-stale) print_status, and the
+        // 'CONFIGURED' placeholder of a manually added printer.
+        const liveState = mqttJob?.gcode_state ? String(mqttJob.gcode_state).toUpperCase() : (mqttConnected ? 'IDLE' : null);
+        const status = liveState || device.print_status || device.current_task?.gcode_state || 'CONFIGURED';
+        const jobActive = ACTIVE_GCODE_STATES.has(String(status).toUpperCase());
 
         return {
           id: device.dev_id,
           name: device.name || 'Printer',
           model: device.dev_product_name || (device.serial_number ? 'Local Printer' : 'Configured Printer'),
-          status: device.print_status || mqttJob?.gcode_state || device.current_task?.gcode_state || 'CONFIGURED',
-          progress: device.print_progress || mqttJob?.mc_percent || mqttJob?.progress || device.current_task?.progress || 0,
-          online: Boolean(device.online),
-          mqttConnected: Boolean(mqttClient?.connected),
-          currentPrint: mqttJob?.name || device.current_task?.name || null,
-          nozzleTemp: device.nozzle_temper || mqttJob?.nozzle_temper || mqttJob?.nozzle_temp || device.current_task?.nozzle_temp || 0,
-          bedTemp: device.bed_temper || mqttJob?.bed_temper || mqttJob?.bed_temp || device.current_task?.bed_temp || 0
+          status,
+          progress: mqttJob?.progress ?? device.print_progress ?? device.current_task?.progress ?? 0,
+          online: Boolean(device.online) || mqttConnected,
+          mqttConnected,
+          connection: mqttClient ? mqttClient.getConnectionStats() : null,
+          currentPrint: jobActive ? (mqttJob?.name || device.current_task?.name || null) : null,
+          nozzleTemp: device.nozzle_temper || mqttJob?.nozzle_temp || device.current_task?.nozzle_temp || 0,
+          bedTemp: device.bed_temper || mqttJob?.bed_temp || device.current_task?.bed_temp || 0
         };
       });
       

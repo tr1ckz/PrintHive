@@ -12,7 +12,7 @@ const bambuFtp = require('../services/bambuFtp');
 
 // Settings, admin-user, and integration routes. ctx carries the few helpers
 // that still live in simple-server.js (camera config sync, watchdog timer).
-module.exports = function createSettingsRouter({ setupWatchdog, syncGo2RtcConfigSafe, go2rtcConfigPath, normalizeStreamRelayUrl }) {
+module.exports = function createSettingsRouter({ setupWatchdog, syncGo2RtcConfigSafe, go2rtcConfigPath, normalizeStreamRelayUrl, printerManager }) {
   const router = express.Router();
 
 // System controls: get/set log level (after session middleware)
@@ -373,12 +373,31 @@ router.post('/api/settings/test-printer-ftp', async (req, res) => {
     return res.json({ success: false, error: 'Printer IP and access code are required' });
   }
   
+  // This button tests FTPS (port 990) only. Live status, the dashboard's
+  // online flag and notifications ride on the separate MQTT link (port 8883),
+  // so report that link's state too — read from the existing connection, never
+  // by dialling another one (the printer allows only a few MQTT clients).
+  const describeMqtt = () => {
+    const client = printerManager
+      ? Array.from(printerManager.values()).find((c) => c.printerIp === printerIp)
+      : null;
+    if (!client) {
+      return { connected: false, status: 'no-client', summary: 'MQTT: not connected yet (opens when the dashboard or Printers page loads)' };
+    }
+    const stats = client.getConnectionStats();
+    if (stats.connected) {
+      return { ...stats, status: 'connected', summary: `MQTT: live${stats.drops ? ` (${stats.drops} drop${stats.drops === 1 ? '' : 's'} since start)` : ''}` };
+    }
+    return { ...stats, status: 'reconnecting', summary: `MQTT: reconnecting — ${stats.lastDropReason || client.lastError || 'link down'}` };
+  };
+
   try {
     // Test connection
     const connected = await bambuFtp.connect(printerIp, printerAccessCode);
-    
+    const mqtt = describeMqtt();
+
     if (!connected) {
-      return res.json({ success: false, error: 'Failed to connect to printer' });
+      return res.json({ success: false, error: `FTP: failed to connect on port 990. ${mqtt.summary}`, ftp: { connected: false }, mqtt });
     }
     
     // List videos
@@ -386,7 +405,10 @@ router.post('/api/settings/test-printer-ftp', async (req, res) => {
     
     res.json({ 
       success: true, 
-      videoCount: videos.length 
+      videoCount: videos.length,
+      ftp: { connected: true, videoCount: videos.length },
+      mqtt,
+      message: `FTP: OK (${videos.length} timelapse${videos.length === 1 ? '' : 's'}). ${mqtt.summary}`,
     });
   } catch (error) {
     console.error('Printer FTP test error:', error);
