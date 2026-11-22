@@ -1,9 +1,9 @@
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Connect to Bambu Lab printer via FTPS using curl
@@ -27,6 +27,25 @@ class BambuFtpService {
   }
 
   /**
+   * Run curl against the printer with the FTPS credentials and TLS flags.
+   *
+   * curl is started directly (execFile), never through a shell. With a shell
+   * in between, a timeout kills only the shell: the curl it forked is orphaned,
+   * keeps running, and is left as a zombie under the container's PID 1.
+   * Started directly, the timeout signal reaches curl itself and Node reaps it.
+   * @param {string[]} args - curl arguments after the credential/TLS flags
+   * @param {object} options - execFile options (timeout, maxBuffer)
+   * @returns {Promise<{stdout: string, stderr: string}>}
+   */
+  curl(args, options) {
+    return execFileAsync(
+      'curl',
+      ['--user', `bblp:${this.accessCode}`, '--ssl-reqd', '--insecure', ...args],
+      options
+    );
+  }
+
+  /**
    * Set connection credentials and test connection
    * @param {string} printerIp - Printer IP address
    * @param {string} accessCode - Printer access code
@@ -39,8 +58,8 @@ class BambuFtpService {
     
     try {
       // Test connection by listing directory
-      await execAsync(
-        `curl --user bblp:${accessCode} --ssl-reqd --insecure --list-only ftps://${printerIp}:990/timelapse/`,
+      await this.curl(
+        ['--list-only', `ftps://${printerIp}:990/timelapse/`],
         { timeout: 10000 }
       );
       
@@ -64,8 +83,8 @@ class BambuFtpService {
     try {
       console.log('Listing files in /timelapse directory...');
 
-      const { stdout } = await execAsync(
-        `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --list-only ftps://${this.printerIp}:990/timelapse/`,
+      const { stdout } = await this.curl(
+        ['--list-only', `ftps://${this.printerIp}:990/timelapse/`],
         { timeout: 30000, maxBuffer: 10 * 1024 * 1024 } // 30 sec timeout, 10MB buffer for large listings
       );
       
@@ -112,8 +131,8 @@ class BambuFtpService {
       }
 
       // Download using curl with output to file
-      await execAsync(
-        `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --silent --output "${localPath}" ftps://${this.printerIp}:990${remotePath}`,
+      await this.curl(
+        ['--silent', '--output', localPath, `ftps://${this.printerIp}:990${remotePath}`],
         { timeout: 120000, maxBuffer: 100 * 1024 * 1024 } // 2min timeout, 100MB buffer for large videos
       );
       
@@ -138,8 +157,8 @@ class BambuFtpService {
    */
   async getRemoteSize(remotePath) {
     try {
-      const { stdout } = await execAsync(
-        `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --silent --head ftps://${this.printerIp}:990${remotePath}`,
+      const { stdout } = await this.curl(
+        ['--silent', '--head', `ftps://${this.printerIp}:990${remotePath}`],
         { timeout: 30000 }
       );
       return BambuFtpService.parseContentLength(stdout);
@@ -246,8 +265,8 @@ class BambuFtpService {
       console.log(`Deleting ${remotePath} from printer...`);
       
       // Use curl with -Q DELE command to delete file
-      await execAsync(
-        `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --silent -Q "DELE ${remotePath}" ftps://${this.printerIp}:990/`,
+      await this.curl(
+        ['--silent', '-Q', `DELE ${remotePath}`, `ftps://${this.printerIp}:990/`],
         { timeout: 10000 }
       );
       
@@ -280,8 +299,8 @@ class BambuFtpService {
     try {
       console.log(`Listing files in ${directory} directory...`);
       
-      const { stdout } = await execAsync(
-        `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --list-only ftps://${this.printerIp}:990${directory}/`,
+      const { stdout } = await this.curl(
+        ['--list-only', `ftps://${this.printerIp}:990${directory}/`],
         { timeout: 30000, maxBuffer: 10 * 1024 * 1024 }
       );
       
@@ -321,8 +340,8 @@ class BambuFtpService {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      await execAsync(
-        `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --silent --output "${localPath}" ftps://${this.printerIp}:990${remotePath}`,
+      await this.curl(
+        ['--silent', '--output', localPath, `ftps://${this.printerIp}:990${remotePath}`],
         { timeout: 120000, maxBuffer: 100 * 1024 * 1024 }
       );
       
@@ -392,8 +411,8 @@ class BambuFtpService {
     try {
       console.log('Listing files on SD card...');
       
-      const { stdout } = await execAsync(
-        `curl --user bblp:${this.accessCode} --ssl-reqd --insecure ftps://${this.printerIp}:990/ -X "MLSD"`,
+      const { stdout } = await this.curl(
+        [`ftps://${this.printerIp}:990/`, '-X', 'MLSD'],
         { timeout: 30000, maxBuffer: 10 * 1024 * 1024 }
       );
       
@@ -461,8 +480,8 @@ class BambuFtpService {
       for (const dir of directories) {
         try {
           console.log(`Scanning ${dir}...`);
-          const { stdout } = await execAsync(
-            `curl --user bblp:${this.accessCode} --ssl-reqd --insecure --list-only ftps://${this.printerIp}:990${dir}/`,
+          const { stdout } = await this.curl(
+            ['--list-only', `ftps://${this.printerIp}:990${dir}/`],
             { timeout: 15000, maxBuffer: 10 * 1024 * 1024 }
           );
           

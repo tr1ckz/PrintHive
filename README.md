@@ -992,7 +992,7 @@ services:
       - ./data:/app/data
       - ./library:/app/library
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "node", "/app/healthcheck.js"]
       interval: 30s
       timeout: 10s
       retries: 3

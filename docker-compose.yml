@@ -47,7 +47,7 @@ services:
       - PG_PASSWORD=${PG_PASSWORD:-printhive}
       - PG_DB=${PG_DB:-printhive}
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "node", "/app/healthcheck.js"]
       interval: 30s
       timeout: 10s
       retries: 3

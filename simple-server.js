@@ -11,13 +11,15 @@ const os = require('os');
 const net = require('net');
 const mqtt = require('mqtt');
 const multer = require('multer');
-const { exec: execCallback } = require('child_process');
+const { execFile: execFileCallback } = require('child_process');
 const { promisify } = require('util');
 const passport = require('passport');
 const oidc = require('openid-client');
 const { WebSocketServer, WebSocket } = require('ws');
 const RtspCameraProxy = require('./rtsp-camera-proxy');
-const execAsync = promisify(execCallback);
+// Commands are started directly, never via a shell: a timeout then kills the
+// command itself instead of orphaning it behind a dead shell.
+const execFileAsync = promisify(execFileCallback);
 
 // Sync version on startup
 try {
@@ -1587,7 +1589,7 @@ function expandCidrHosts(cidr, maxHostsPerSubnet = 384) {
 
 async function getArpTableIps() {
   try {
-    const { stdout } = await execAsync('arp -a', { timeout: 2000 });
+    const { stdout } = await execFileAsync('arp', ['-a'], { timeout: 2000 });
     const matches = String(stdout || '').match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || [];
     return Array.from(new Set(matches.filter(isValidIpv4)));
   } catch (_error) {
@@ -1600,7 +1602,7 @@ async function getRouteTableCidrs() {
 
   try {
     if (process.platform === 'win32') {
-      const { stdout } = await execAsync('route print -4', { timeout: 3000 });
+      const { stdout } = await execFileAsync('route', ['print', '-4'], { timeout: 3000 });
       const lines = String(stdout || '').split(/\r?\n/);
 
       lines.forEach((line) => {
@@ -1628,7 +1630,7 @@ async function getRouteTableCidrs() {
         results.push(`${destination}/${prefix}`);
       });
     } else {
-      const { stdout } = await execAsync('ip -o -4 route show', { timeout: 3000 });
+      const { stdout } = await execFileAsync('ip', ['-o', '-4', 'route', 'show'], { timeout: 3000 });
       const lines = String(stdout || '').split(/\r?\n/);
 
       lines.forEach((line) => {

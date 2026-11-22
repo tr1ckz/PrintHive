@@ -56,6 +56,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     ca-certificates \
     postgresql-client \
+    tini \
     tesseract-ocr \
     tesseract-ocr-eng && \
     rm -rf /var/lib/apt/lists/*
@@ -73,7 +74,14 @@ RUN mkdir -p \
 
 EXPOSE ${PORT}
 
+# Exec form, no shell and no curl: the probe is a single node process, so a
+# probe that Docker kills on timeout cannot leave an orphaned child behind.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/api/health || exit 1
+    CMD ["node", "/app/healthcheck.js"]
+
+# tini runs as PID 1 and reaps any orphaned process (e.g. a child the app
+# spawned that outlived it). Node as PID 1 never reaps processes it did not
+# spawn itself, so they would otherwise pile up as zombies.
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 CMD ["node", "watchdog.js"]
