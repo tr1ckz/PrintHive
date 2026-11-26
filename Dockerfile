@@ -95,7 +95,6 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server ./server
 COPY --from=build /app/public ./public
-COPY --from=build /app/data ./data
 COPY --from=build /app/package.json /app/version.json /app/*.js ./
 COPY docker/entrypoint.sh /usr/local/bin/printhive-entrypoint.sh
 
