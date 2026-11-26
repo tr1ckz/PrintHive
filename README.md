@@ -159,6 +159,7 @@ See [README-ENV.md](README-ENV.md) for detailed environment variable documentati
 - `COOKIE_SECURE`: Set to `true` to mark the session cookie `Secure` (HTTPS-only). Leave unset/`false` for plain-HTTP LAN deployments. Default: `false`.
 - `PRINTHIVE_DATA_DIR`: Override the data directory (sessions secret, videos, thumbnails, backups). Default: `./data`. **Note:** Legacy SQLite database at `./data/printhive.db` is automatically migrated to PostgreSQL on first boot if the schema is empty.
 - `PRINTHIVE_LIBRARY_DIR`: Override the model library directory. Default: `./library`.
+- `PUID` / `PGID` (Docker image): user and group PrintHive runs as. Default `99` / `100`; `PUID=0` keeps the old run-as-root behaviour. See [DOCKER.md](DOCKER.md#container-user-puid--pgid).
 - `OAUTH_ISSUER`: OIDC provider URL
 - `OAUTH_CLIENT_ID`: OAuth client ID
 - `OAUTH_CLIENT_SECRET`: OAuth client secret

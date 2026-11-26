@@ -47,6 +47,27 @@ COOKIE_SECURE=false         # Set to true when serving over HTTPS
 PUBLIC_URL=http://localhost:3000  # Where the app is publicly accessible
 ```
 
+### Container user (PUID / PGID)
+
+The image starts as root only long enough to prepare the volumes, then runs
+PrintHive as an unprivileged user with every capability dropped:
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `PUID` | `99` | User id PrintHive runs as (Unraid's `nobody`) |
+| `PGID` | `100` | Group id PrintHive runs as (Unraid's `users`) |
+| `PUID=0` | | Opt out and keep running as root, like images before 1.5.0 |
+| `PRINTHIVE_SKIP_CHOWN` | `false` | Set to `true` to skip the ownership fix below |
+
+On every start, anything under `/app/data`, `/app/sessions` and `/app/library`
+(plus `PRINTHIVE_DATA_DIR` / `PRINTHIVE_LIBRARY_DIR` when set) that is not
+already owned by `PUID:PGID` is handed to that user. On an existing install the
+first start therefore re-owns the files the old root container created; later
+starts only walk the tree. If a share refuses `chown` (NFS with root squash,
+some SMB mounts), grant the PUID/PGID write access on the share instead and set
+`PRINTHIVE_SKIP_CHOWN=true`. `docker run --user` also works: the image then
+skips all of this and runs as that user directly.
+
 **Log Level Management:**
 - Log level is now managed in the web UI (Settings > System)
 - Default: `INFO` level (changed at runtime without restart)
@@ -101,6 +122,8 @@ Add these variables (optional but recommended):
 | `BAMBU_ACCESS_CODE` | `12345678` | Access code from printer LCD |
 | `BAMBU_SERIAL` | `01234567` | Printer serial number |
 | `PORT` | `3000` | Web interface port |
+| `PUID` | `99` | User PrintHive runs as (see [Container user](#container-user-puid--pgid)) |
+| `PGID` | `100` | Group PrintHive runs as |
 
 ### Step 6: Getting Printer Info
 1. **IP Address**: Check your router's DHCP leases or printer LCD > Network
