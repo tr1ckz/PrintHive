@@ -1,5 +1,8 @@
 const ffmpeg = require('fluent-ffmpeg');
-const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+// Same binary as the camera relay and snapshots (FFMPEG_PATH or the system
+// ffmpeg). This used to be @ffmpeg-installer's bundled static build — a 2018
+// ffmpeg that OS updates never patched and image scanners cannot see into.
+const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
 const fs = require('fs');
 const path = require('path');
 
