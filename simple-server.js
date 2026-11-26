@@ -66,6 +66,7 @@ const modelRoutes = require('./server/routes/models');
 const createPrinterRouter = require('./server/routes/printers');
 const createLibraryRouter = require('./server/routes/library');
 const { hub: chamberCameraHub } = require('./server/services/bambuChamberCamera');
+const { readProcArpIps, readProcRouteCidrs } = require('./server/services/netTables');
 const { lookupBambuColorByHex } = require('./server/constants/bambuFilamentColors');
 
 // Helper function to clean HTML-encoded descriptions (handles double/triple encoding)
@@ -1588,6 +1589,12 @@ function expandCidrHosts(cidr, maxHostsPerSubnet = 384) {
 }
 
 async function getArpTableIps() {
+  // Linux (incl. the Docker image, which has no `arp`): read the kernel table.
+  const procIps = readProcArpIps();
+  if (procIps) {
+    return procIps.filter(isValidIpv4);
+  }
+
   try {
     const { stdout } = await execFileAsync('arp', ['-a'], { timeout: 2000 });
     const matches = String(stdout || '').match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || [];
@@ -1630,8 +1637,12 @@ async function getRouteTableCidrs() {
         results.push(`${destination}/${prefix}`);
       });
     } else {
-      const { stdout } = await execFileAsync('ip', ['-o', '-4', 'route', 'show'], { timeout: 3000 });
-      const lines = String(stdout || '').split(/\r?\n/);
+      // Linux (incl. the Docker image, which has no `ip`): read the kernel
+      // table; its CIDRs are the first token `ip -o -4 route show` prints.
+      const procCidrs = readProcRouteCidrs();
+      const lines = procCidrs
+        ? procCidrs
+        : String((await execFileAsync('ip', ['-o', '-4', 'route', 'show'], { timeout: 3000 })).stdout || '').split(/\r?\n/);
 
       lines.forEach((line) => {
         const tokens = line.trim().split(/\s+/);
