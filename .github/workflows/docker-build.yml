@@ -12,6 +12,10 @@ on:
       - main
       - master
   workflow_dispatch:
+  # Weekly rebuild of the default branch so Debian security updates and new
+  # Node base-image patches land in :latest even when no code changed.
+  schedule:
+    - cron: '23 4 * * 1'
 
 env:
   DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/printhive
@@ -61,6 +65,11 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Always pull the newest node:*-trixie-slim. The scheduled rebuild also
+          # skips the layer cache: otherwise the cached `apt-get upgrade` layer
+          # would keep serving last week's packages.
+          pull: true
+          no-cache: ${{ github.event_name == 'schedule' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -87,3 +96,4 @@ jobs:
           echo "   - \`/mnt/user/3d-videos\` → \`/app/data/videos\`" >> $GITHUB_STEP_SUMMARY
           echo "5. Set port: \`3000\` → \`3000\`" >> $GITHUB_STEP_SUMMARY
           echo "6. Add environment variable: \`SESSION_SECRET\` with a random string" >> $GITHUB_STEP_SUMMARY
+          echo "7. Optional: \`PUID\` / \`PGID\` (default 99 / 100). The app runs as that user and takes ownership of the volumes above on start; \`PUID=0\` keeps running as root." >> $GITHUB_STEP_SUMMARY
